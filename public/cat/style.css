@@ -901,6 +901,57 @@ button:disabled { cursor: not-allowed; }
     gap: 0 0.5rem;
     row-gap: 0.35rem;
 }
+.sf-cell-row2-spacer { min-width: 2.5rem; }
+.sf-input-wrap {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.sf-input-wrap--search .sf-input { padding-right: 11.5rem; }
+.sf-input-wrap--replace .sf-input { padding-right: 4.25rem; }
+.sf-inner-btns {
+    position: absolute;
+    right: 0.3rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.12rem;
+    flex-wrap: nowrap;
+    pointer-events: auto;
+}
+.sf-inner-btn {
+    padding: 0.08rem 0.32rem;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--text-light);
+    font-size: 0.72rem;
+    line-height: 1.35;
+    cursor: pointer;
+    white-space: nowrap;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.sf-inner-btn:hover {
+    background: #f1f5f9;
+    color: var(--text-dark);
+}
+.sf-inner-btn.on {
+    background: #e0e7ff;
+    color: #3730a3;
+    border-color: #a5b4fc;
+    font-weight: 600;
+}
+.sf-inner-btn-mono { font-family: ui-monospace, monospace; font-size: 0.74rem; }
+.sf-inner-vdivider {
+    width: 1px;
+    height: 0.95rem;
+    background: var(--border-color);
+    margin: 0 0.06rem;
+    flex-shrink: 0;
+}
 .sf-cell {
     min-width: 0;
 }
@@ -1074,6 +1125,17 @@ button:disabled { cursor: not-allowed; }
     background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 0.5rem;
     display: flex; flex-direction: column; gap: 0.5rem;
 }
+.sf-adv-cols {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    gap: 0.5rem 1rem;
+    align-items: start;
+}
+@media (max-width: 720px) {
+    .sf-adv-cols {
+        grid-template-columns: 1fr;
+    }
+}
 .sf-adv-section strong { color: var(--text-dark); display: block; margin-bottom: 0.25rem; font-size: 0.8rem; }
 .sf-adv-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .sf-adv-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; padding-top: 0.5rem; border-top: 1px solid #e2e8f0;}
@@ -1101,6 +1163,44 @@ button:disabled { cursor: not-allowed; }
 .sf-preset-manager-row:last-child { border-bottom: none; }
 .sf-preset-manager-name { font-size: 0.9rem; color: #1e293b; word-break: break-all; }
 .sf-preset-manager-actions { display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; }
+
+.cat-side-panel-shortcuts-hint {
+    width: 100%;
+    flex-basis: 100%;
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.45;
+    margin-top: 0.15rem;
+}
+
+.ai-batch-pi-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+}
+.ai-batch-pi-enable-label {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-top: 0.42rem;
+    cursor: pointer;
+}
+.ai-batch-pi-fields {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.grid-header-cell[data-col-id="col-id"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.2rem;
+}
+#btnJumpToSeg { flex-shrink: 0; }
 
 /* Highlight Matches */
 mark.search-match { background-color: #fef08a; color: inherit; border-radius: 2px; padding: 0 1px; }
@@ -1361,6 +1461,28 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 
 /* CAT 底部 TM 中繼：三區塊＋上一句/下一句虛線分隔 */
 .cat-footer-block-wrap { font-size: 0.8rem; color: var(--text-light); }
+/* TM 底部 Key：寬時換行；右欄極窄時改水平捲軸 */
+.cat-footer-tm-key-wrap {
+    container-type: inline-size;
+    container-name: catTmKey;
+    width: 100%;
+    min-width: 0;
+}
+.cat-footer-tm-key {
+    display: inline-block;
+    max-width: 100%;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+}
+@container catTmKey (max-width: 200px) {
+    .cat-footer-tm-key {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        word-break: normal;
+        overflow-wrap: normal;
+    }
+}
 .cat-footer-section {
     border-bottom: 1px solid #e2e8f0;
     padding: 0.45rem 0;

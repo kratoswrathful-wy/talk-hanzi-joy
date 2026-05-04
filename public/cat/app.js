@@ -16458,13 +16458,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isConfirmed && !effectiveLocked) syncRowConfirmedStateClass(row, seg);
 
             let rowInnerContent = '';
-            const dispIdStr = String(seg.globalId != null ? seg.globalId : (seg.rowIdx + 1));
-            rowInnerContent += `<div class="grid-cell-copy-host col-id" title="點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)" data-idx="${i}" data-id="${seg.id}"><span class="col-id-label">${dispIdStr.replace(/</g, '&lt;')}</span><button type="button" class="cell-copy-btn secondary-btn" data-copy-role="id" title="複製句段編號" aria-label="複製句段編號">複製</button></div>`;
+            rowInnerContent += `<div class="col-id" title="點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)" data-idx="${i}" data-id="${seg.id}">${seg.globalId || (seg.rowIdx + 1)}</div>`;
             const maxKeys = colSettings.filter(c => c.id.startsWith('col-key-')).length;
             for(let k=0; k<maxKeys; k++) {
                 const keyText = seg.keys && seg.keys[k] ? seg.keys[k] : '';
                 // Rename Key 1 logic: CSS class stays the same but UI name in colSettings is handled in the header loop
-                rowInnerContent += `<div class="grid-cell-copy-host col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}<button type="button" class="cell-copy-btn secondary-btn" data-copy-role="key" data-key-index="${k}" title="複製此 Key 純文字" aria-label="複製 Key">複製</button></div>`;
+                rowInnerContent += `<div class="col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}</div>`;
             }
             // 句段集模式才渲染所屬檔案格（位置：keys 後、原文前）
             if (_currentViewId && colSettings.some(c => c.id === 'col-source-file')) {
@@ -16475,13 +16474,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 rowInnerContent += `<div class="col-source-file" style="padding:0.5rem; font-size:0.82rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${fQ}">${fEsc}</div>`;
             }
             const sourceHtml = buildTaggedHtml(seg.sourceText, seg.sourceTags || [], true);
-            rowInnerContent += `<div class="grid-cell-copy-host col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div><button type="button" class="cell-copy-btn secondary-btn" data-copy-role="source" title="複製原文（含佔位符標記）" aria-label="複製原文">複製</button></div>`;
+            rowInnerContent += `<div class="col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div></div>`;
             const targetHtml = buildTaggedHtml(seg.targetText, effectiveTags(seg));
             const _initCharCount = seg.targetText ? seg.targetText.replace(/\{\/?\d+\}/g, '').length : 0;
-            rowInnerContent += `<div class="grid-cell-copy-host col-target" style="position:relative;">
+            rowInnerContent += `<div class="col-target" style="position:relative;">
                 <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
                 <div class="seg-char-count">${_initCharCount}</div>
-                <button type="button" class="cell-copy-btn secondary-btn" data-copy-role="target" title="複製譯文（含佔位符標記）" aria-label="複製譯文">複製</button>
             </div>`;
             rowInnerContent += `<div class="col-extra" style="padding:0.5rem; font-size:0.8rem; color:#2563eb; word-break:break-all; white-space:pre-wrap;">${seg.extraValue || ''}</div>`;
             
@@ -16540,23 +16538,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const targetInput = row.querySelector('.grid-textarea');
             const statusIcon = row.querySelector('.status-icon');
 
-            row.querySelectorAll('.cell-copy-btn').forEach((btn) => {
-                btn.addEventListener('mousedown', (e) => e.stopPropagation());
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const role = btn.getAttribute('data-copy-role');
-                    let plain = '';
-                    if (role === 'id') plain = String(seg.globalId != null ? seg.globalId : (seg.rowIdx + 1));
-                    else if (role === 'key') {
-                        const ki = parseInt(btn.getAttribute('data-key-index') || '0', 10);
-                        plain = (seg.keys && seg.keys[ki]) ? String(seg.keys[ki]) : '';
-                    } else if (role === 'source') plain = seg.sourceText || '';
-                    else if (role === 'target') plain = seg.targetText || '';
-                    copyPlainTextToClipboard(plain).catch(() => {});
-                });
-            });
-
             // Initialise tag colour state for this row
             updateTagColors(row, seg.targetText);
 
@@ -16571,10 +16552,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // ID 欄多選：鎖定／禁止編輯列仍可依相同方式（Ctrl／Shift）選取
             const idCell = row.querySelector('.col-id');
             if (idCell) {
-                idCell.addEventListener('mousedown', (e) => {
-                    if (e.target.closest('.cell-copy-btn')) return;
-                    e.preventDefault();
-                });
+                idCell.addEventListener('mousedown', (e) => e.preventDefault());
                 idCell.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (blockSelectionIfEditedByOthers(seg, e)) return;
@@ -18885,23 +18863,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         _qaJumpToSegment(currentSegmentsList[idx].id);
-    }
-
-    async function copyPlainTextToClipboard(text) {
-        const s = String(text ?? '');
-        try {
-            await navigator.clipboard.writeText(s);
-        } catch (_) {
-            const ta = document.createElement('textarea');
-            ta.value = s;
-            ta.setAttribute('readonly', '');
-            ta.style.position = 'fixed';
-            ta.style.left = '-9999px';
-            document.body.appendChild(ta);
-            ta.select();
-            try { document.execCommand('copy'); } catch (__) { /* ignore */ }
-            document.body.removeChild(ta);
-        }
     }
 
     /** 表頭儲存格：一般為欄名；# 欄另附「跳至」按鈕（與 Ctrl+G 相同）。 */
