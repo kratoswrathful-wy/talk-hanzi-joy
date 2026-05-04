@@ -1,6 +1,6 @@
 # CAT 編輯器／QA 驗收波次：實作規劃
 
-> **狀態**：**已於 `cat-tool/` 實作**（2026-05）；請以本檔驗收要點自測。變更須跑 `npm run sync:cat` 並依 `AGENTS.md` 提交 `cat-tool` 與 `public/cat`。  
+> **狀態**：**已於 `cat-tool/` 實作**（2026-05）；請以本檔驗收要點自測。變更須跑 `npm run sync:cat` 並依 `AGENTS.md` 提交 `cat-tool` 與 `public/cat`。**2026-05-04** 補丁見本檔 **§7**（`5168549`：失焦後焦點防搶回、QA 表頭空白）。  
 > **範圍**：內嵌 CAT（`cat-tool/` → `public/cat/`），不含 React `src/` 主站（除非另註明）。
 
 ---
@@ -42,6 +42,7 @@
 - **根因**：譯文欄 `blur` 後 `rebuildTargetEditorFromExtractedPlain` 等會 **重建 DOM**，已儲存之 `Range` 失效，`show()` 退回到編輯區左上角。
 - **方向**：失焦流程中在重建**前**快照**線性字元偏移**（與「全部取代」後還原游標之思路對齊）；重建後於新 DOM 建 `Range` 再 `setSavedCaret`／顯示假游標；並檢討 `blur` 開頭 `requestAnimationFrame(show)` 與 `await` 之順序，避免先畫再拆 DOM。
 - **檔案**：`cat-tool/app.js`（譯文 `blur`）、`cat-tool/js/cat-fake-caret.js`（必要時擴充 API）。
+- **補充（2026-05-04，`5168549`）**：寫庫完成後之 `requestAnimationFrame` 內，若 **`document.activeElement !==` 該列譯文格**，**不得**對該格呼叫 `Selection.addRange`（例如經 `setCaretAtPlainTextOffsetUsingSegments`／`setNpCaretOffset`），否則會把鍵盤焦點從使用者已點選之**另一譯文格**搶回本列（常見現象：游標被拉回「第一次點的那列」末尾）。此時改以 **`buildCollapsedRangeAtPlainTextOffsetUsingSegments`**／**`buildCollapsedNpRangeAtOffset`** 僅建立 `Range`，再 **`catFakeCaret.setSavedCaret`** 更新暫存游標並 **`showCatFakeCaretFromSaved`**，不操作真實選取。仍 **`activeElement ===` 該格** 時維持既有「還原真游標＋`saveCatCaretFromSelection`」路徑。
 
 ### 3.3 QA Tag 檢查（`_qaPushSegmentRuleFindings` 等）
 
@@ -71,7 +72,7 @@
 
 ### 3.7 QA 結果表 — 多選、批次忽略、右鍵選單、說明方塊
 
-- **說明方塊（新增）**：在 `#qaResultsTable` **上方**（或表頭列旁）新增帶邊框之說明區（例：`.qa-results-hint`），白話列出：**選取欄**用途、**多列選取後任一改「忽略」一併套用**、**右鍵「類型」／「說明」之批次忽略**（同說明＝`info` 完全一致，與 §2 一致）。表頭新欄可標「選」或「選取」，必要時以 `abbr`/`title` 縮短欄寬。
+- **說明方塊（新增）**：在 `#qaResultsTable` **上方**（或表頭列旁）新增帶邊框之說明區（例：`.qa-results-hint`），白話列出：**選取欄**用途、**多列選取後任一改「忽略」一併套用**、**右鍵「類型」／「說明」之批次忽略**（同說明＝`info` 完全一致，與 §2 一致）。表頭選取欄：**落地（2026-05-04）** 為**空白表頭**（不顯示「選」字），以 **`aria-label`／`title`** 標示「多列選取」；說明方塊內文改稱「**勾選最左欄**」以對齊無字表頭。
 - **新欄位**：列首 **選取用** `checkbox`；可點框或依 §4 定案之熱區切換選取（與「#／說明點擊跳句段」互斥須遵守）。
 - **視覺**：選取列 `tr` 加 class，**底色略深**（與 `is-ignored` 可並存）。
 - **忽略欄**：若目前選取集合非空，**變更任一列之忽略勾選**時，將**相同勾選狀態**套用至**所有選取列**對應之 `r.key`（`_qaIgnoredSet`）。
@@ -118,14 +119,14 @@
 
 ## 4. QA 結果表：選取與跳轉（已定案）
 
-**已定案：建議 A** — **#、說明** 僅跳轉；**「選」欄核取方塊**與**類型欄**負責選取／切換選取（與 **§3.7 說明方塊** 一致）。
+**已定案：建議 A** — **#、說明** 僅跳轉；**最左欄核取方塊**（表頭空白、無障礙見 `aria-label`）與**類型欄**負責選取／切換選取（與 **§3.7 說明方塊** 一致）。
 
 ---
 
 ## 5. 驗收要點（摘要）
 
 - 進階篩選：版面與截圖／文字需求一致。  
-- 假游標：失焦後位置與捲動提示合理，不回到開頭。  
+- 假游標：失焦後位置與捲動提示合理，不回到開頭；切換至他列譯文格時**鍵盤焦點不被拉回先前列**（見 §3.2 補充、`5168549`）。  
 - QA Tag：少 tag、順序錯、成對錯誤可穩定報出；`{2024}` 類不誤當 tag。  
 - 群組卡與 QA 摘要：無多餘「無」字樣維度。  
 - AI 批次：反灰＋聚焦即切指定範圍。  
@@ -155,6 +156,33 @@
 | 跳至句段 | `cat-tool/app.js` `openJumpToSegmentPrompt`、`populateGridHeaderTitleCell` |
 | Prompt 對話 | `cat-tool/app.js` `openCatPromptModal` |
 | 句段列捲動／導覽 | `cat-tool/app.js`（搜尋導覽、Ctrl+↑↓、跳至、篩選定位、`focusTargetEditor*`、確認鏈等；見 **§3.12**） |
+| 譯文 blur 後游標還原（**不搶焦點**）、純 `Range` 建立 | `cat-tool/app.js`：`buildCollapsedNpRangeAtOffset`、`buildCollapsedRangeAtPlainTextOffsetUsingSegments`；譯文 `.grid-textarea` 之 `blur` 內寫庫成功後 `requestAnimationFrame` 分支（`canApplyRealCaret`）；見 **§7** |
+
+---
+
+## 7. 變更紀錄（實作落地）
+
+### 7.1 2026-05-04 — `5168549`（失焦焦點、QA 表頭）
+
+| 項目 | 說明 |
+|------|------|
+| **問題** | 譯文格失焦後經 `await` 寫庫，於下一幀對**已失焦**之譯文格執行 `setCaretAtPlainTextOffsetUsingSegments`／`setNpCaretOffset`（內含 `getSelection().addRange`）時，會把鍵盤焦點**拉回該格**，與使用者已點選之**另一列譯文格**衝突（外觀如焦點鎖回「第一次編輯的那列」且游標在尾端）。 |
+| **作法** | 於該 `requestAnimationFrame` 內判斷 **`document.activeElement === targetInput`**：僅此時才呼叫 `setNpCaretOffset`／`setCaretAtPlainTextOffsetUsingSegments` 與 `saveCatCaretFromSelection`；否則以 **`buildCollapsedNpRangeAtOffset`**／**`buildCollapsedRangeAtPlainTextOffsetUsingSegments`** 建立摺疊 `Range`（不碰 `Selection`），再 **`catFakeCaret.setSavedCaret`** ＋ **`showCatFakeCaretFromSaved`**。`setNpCaretOffset`／`setCaretAtPlainTextOffsetUsingSegments` 改為共用上述「僅建 Range」之邏輯後再 `addRange`，行為與修正前幾何一致。 |
+| **QA 結果表** | `#qaResultsTable` 選取欄 `<th>` 改為**空白**（保留 `scope="col"`、`aria-label`／`title`「多列選取」）；`#qaResultsHint` 用語改為「勾選最左欄」。 |
+| **同步產物** | 已執行 `npm run sync:cat`（或等價 `node scripts/sync-cat.mjs`）寫入 **`public/cat/`**；與 **`cat-tool/`** 一併提交。 |
+| **驗收** | 先點句段 A 譯文再點句段 B 譯文：焦點應穩定在 B；QA 表最左表頭無「選」字、勾選與多選仍正常。 |
+
+### 7.2 同日／先前波次對照（便於查 log）
+
+| Commit | 摘要 |
+|--------|------|
+| `68faf34` | 編輯器 UX／QA 波次主體（多選、跳至 Modal、捲列、篩選摘要、AI 批次等）；見對話／PR 說明。 |
+| `5168549` | 本節 **§7.1** 補丁。 |
+
+### 7.3 本文件未宣告為「已由 §7.1 一併完成」之項目
+
+- **`blur` 開頭**其他 `requestAnimationFrame`／`await` 之**全路徑順序**盤點（§3.2 原始「先畫再拆 DOM」檢討）仍屬維運時按需複查，**未**因 `5168549` 而宣告關閉。
+- **工作區內**若另有 `AGENTS.md`、`docs/CODEMAP.md`、`docs/CAT_TOOLTIP_SYSTEM.md` 等**未與 `5168549` 同批提交**之修改，以各檔實際 git 狀態為準；**不**由本節推定已上線。
 
 ---
 
