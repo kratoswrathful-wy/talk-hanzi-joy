@@ -735,7 +735,17 @@
                                     </div>
                                     <span class="sf-cell sf-cell-label">尋找：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfInput" class="sf-input" placeholder='搜尋（空白=多詞 AND；"…"=整段引號）' autocomplete="off" tabindex="6">
+                                        <div class="sf-input-wrap sf-input-wrap--search">
+                                            <input type="text" id="sfInput" class="sf-input form-input" placeholder='搜尋…（加上引號 "…" 為整段尋找，不加引號視為用 AND 連結多詞）' autocomplete="off" tabindex="6">
+                                            <div class="sf-inner-btns" role="toolbar" aria-label="搜尋範圍與選項">
+                                                <button type="button" class="sf-inner-btn sf-scope-btn on" data-scope="source" data-tip="搜尋原文欄">原文</button>
+                                                <button type="button" class="sf-inner-btn sf-scope-btn on" data-scope="target" data-tip="搜尋譯文欄">譯文</button>
+                                                <button type="button" class="sf-inner-btn sf-scope-btn" data-scope="keys" data-tip="搜尋 Key 欄">Key</button>
+                                                <button type="button" class="sf-inner-btn sf-scope-btn" data-scope="extra" data-tip="搜尋額外資訊欄">額外</button>
+                                                <span class="sf-inner-vdivider" aria-hidden="true"></span>
+                                                <button type="button" class="sf-inner-btn sf-inner-btn-mono" id="sfUseRegexBtn" data-tip="使用正則表達式">.*</button>
+                                            </div>
+                                        </div>
                                     </div>
                                     <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" data-tip="上一個符合項目（Shift+F3）" tabindex="7">上一個</button>
                                     <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" data-tip="下一個符合項目（F3）" tabindex="8">下一個</button>
@@ -745,24 +755,16 @@
                                         <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" data-tip="進階篩選" tabindex="4">▼</button>
                                         <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" data-tip="作業中身分：T">✓</span>
                                     </div>
-                                    <div class="sf-cell sf-cell-invert">
-                                        <div class="sf-options-popover-wrap" style="position:relative;">
-                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" data-tip="搜尋範圍與選項" tabindex="5">⋯</button>
-                                            <div class="sf-options-popover hidden" id="sfOptionsPopover">
-                                                <div class="sf-options-popover-inner">
-                                                    <label class="sf-options-row"><input type="checkbox" value="source" class="sf-scope-cb" checked> 原文</label>
-                                                    <label class="sf-options-row"><input type="checkbox" value="target" class="sf-scope-cb" checked> 譯文</label>
-                                                    <label class="sf-options-row"><input type="checkbox" value="keys" class="sf-scope-cb"> Key</label>
-                                                    <label class="sf-options-row"><input type="checkbox" value="extra" class="sf-scope-cb"> 額外資訊</label>
-                                                    <label class="sf-options-row"><input type="checkbox" id="sfUseRegex"> 使用正則表達式</label>
-                                                    <label class="sf-options-row"><input type="checkbox" id="sfReplaceAllRestoreFakeCaret" checked> 全部取代後回到暫存游標位置</label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <div class="sf-cell sf-cell-invert sf-cell-row2-spacer" aria-hidden="true"></div>
                                     <span class="sf-cell sf-cell-label">取代：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…（切至篩選時自動複製尋找列）" autocomplete="off" tabindex="9">
+                                        <div class="sf-input-wrap sf-input-wrap--replace">
+                                            <input type="text" id="sfReplaceInput" class="sf-input form-input sf-replace-input" placeholder="取代為…" autocomplete="off" tabindex="9">
+                                            <div class="sf-inner-btns" role="toolbar" aria-label="取代選項">
+                                                <button type="button" class="sf-inner-btn sf-inner-btn-mono" id="btnPhraseReplace" data-tip="整段取代：關閉中（點擊開啟）- 執行取代時以空格拆分各詞，各詞分別各自取代">"A"</button>
+                                                <button type="button" class="sf-inner-btn" id="btnRestoreCaretToggle" data-tip="全部取代後回到暫存游標位置：開啟中（點擊關閉）">↩</button>
+                                            </div>
+                                        </div>
                                     </div>
                                     <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" data-tip="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="10">取代這個</button>
                                     <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" data-tip="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="11">全部取代</button>
@@ -775,6 +777,7 @@
 
                             <!-- Advanced Panel (Hidden by default) -->
                             <div class="sf-advanced-panel hidden" id="sfAdvancedPanel">
+                                <div class="sf-adv-cols">
                                 <div class="sf-adv-section">
                                     <strong>句段狀態</strong>
                                     <div class="sf-adv-grid">
@@ -787,23 +790,21 @@
                                     </div>
                                 </div>
 
-                                <div class="sf-adv-section" style="flex:1;">
+                                <div class="sf-adv-section">
                                     <strong>翻譯記憶相符度 (%)</strong>
                                     <div style="display:flex; align-items:center; gap:0.5rem; font-size: 0.85rem;" title="支援格式：-x (x含以下)、x-y (區間)、y- (y含以上)">
-                                        <input type="text" id="sfTmMatch" class="sf-input" placeholder="例: 80-100, -90, 85-" style="flex: none; width: 140px; padding: 0.2rem 0.4rem;">
+                                        <input type="text" id="sfTmMatch" class="sf-input form-input" placeholder="例: 80-100, -90, 85-" style="flex: none; width: 140px; padding: 0.2rem 0.4rem;">
                                     </div>
                                 </div>
 
-                                <div class="sf-adv-section" style="flex-basis:100%;" title="依目前列表由上而下順序，與句段編號（# 欄）一致，1 起算">
+                                <div class="sf-adv-section" title="依目前列表由上而下順序，與句段編號（# 欄）一致，1 起算">
                                     <strong>句段編號範圍</strong>
                                     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; font-size:0.85rem; margin-top:0.25rem;">
                                         <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeEnabled"> 顯示</label>
                                         <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeExclude"> 排除</label>
-                                        <span>此範圍</span>
-                                        <input type="number" id="sfRowRangeFrom" class="sf-input" min="1" step="1" placeholder="起" style="width:4rem; padding:0.15rem 0.35rem;">
-                                        <span>-</span>
-                                        <input type="number" id="sfRowRangeTo" class="sf-input" min="1" step="1" placeholder="訖" style="width:4rem; padding:0.15rem 0.35rem;">
+                                        <input type="text" id="sfRowRangeExpr" class="sf-input form-input" placeholder="例：1-5, 10, 26-" style="min-width:0; flex:1; max-width:16rem; padding:0.15rem 0.35rem;">
                                     </div>
+                                </div>
                                 </div>
 
                                 <div class="sf-adv-actions">
@@ -952,6 +953,7 @@
                                     <input type="checkbox" class="cat-confirm-return-tab-cb" id="catConfirmReturnTabEnabled">
                                     <span>確認句段跳行後回到 CAT 分頁</span>
                                 </label>
+                                <div class="cat-side-panel-shortcuts-hint" aria-hidden="true">Ctrl+G：跳至句段　Ctrl+Alt+←／→：切換右側欄分頁　Ctrl+0：於游標處插入任意位置選取文字</div>
                             </div>
                             <div class="concordance-search concordance-search-cat">
                                 <div class="search-results" id="tmSearchResults">
@@ -978,6 +980,7 @@
                                     <input type="checkbox" class="cat-confirm-return-tab-cb" id="catConfirmReturnTabEnabledTm">
                                     <span>確認句段跳行後回到 CAT 分頁</span>
                                 </label>
+                                <div class="cat-side-panel-shortcuts-hint" aria-hidden="true">Ctrl+G：跳至句段　Ctrl+Alt+←／→：切換右側欄分頁　Ctrl+0：於游標處插入任意位置選取文字</div>
                             </div>
                             <div class="tm-tmsearch-body">
                             <div class="tm-tmsearch-toolbar" style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center;">
@@ -1036,9 +1039,7 @@
                                 <label class="qa-label" style="display:flex; align-items:center; gap:3px;">
                                     <input type="checkbox" id="qaUseRange"> 句段範圍
                                 </label>
-                                <input type="number" id="qaRangeFrom" class="qa-range-input" min="1" placeholder="起始" disabled>
-                                <span class="qa-label" style="padding:0 2px;">—</span>
-                                <input type="number" id="qaRangeTo" class="qa-range-input" min="1" placeholder="結束" disabled>
+                                <input type="text" id="qaRangeExpr" class="form-input qa-range-expr-input" disabled placeholder="例：1-5, 10, 26-" style="min-width:7rem; max-width:14rem; padding:0.25rem 0.4rem; font-size:0.82rem;">
                                 <label class="qa-label" id="qaScopeFilteredLabel" style="display:flex; align-items:center; gap:3px;">
                                     <input type="checkbox" id="qaScopeCurrentFiltered"> 目前篩選結果
                                 </label>
@@ -1369,7 +1370,7 @@
                             <p class="cat-shortcuts-item-desc">在 CAT、TM 搜尋、新增術語、QA 等分頁間循環切換，不佔用僅帶 Ctrl 的左右鍵（格內逐字）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">譯文游標／假游標（捲動與還原）</span><input type="text" id="scFixedKeyFakeCaret" value="Ctrl + Alt + ↑ / ↓" disabled class="sc-key-input"></div>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">譯文游標／假游標（捲動與還原）</span><input type="text" id="scFixedKeyFakeCaret" value="Ctrl + Alt + ↓" disabled class="sc-key-input"></div>
                             <p class="cat-shortcuts-item-desc">上下鍵效果相同：若焦點已在譯文格，捲動使該格進入可視區；否則嘗試還原先前記住的譯文游標，失敗則顯示假游標（垂直條提示）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
@@ -2277,9 +2278,7 @@
                         <button type="button" id="aiBatchModeFiltered" class="secondary-btn btn-sm" style="border:0; border-left:1px solid #cbd5e1; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">目前篩選</button>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">
-                        <input type="number" id="aiBatchRangeStart" class="form-input" placeholder="起始句段編號" min="1" style="width:130px;">
-                        <span style="color:#64748b;">—</span>
-                        <input type="number" id="aiBatchRangeEnd" class="form-input" placeholder="結束句段編號" min="1" style="width:130px;">
+                        <input type="text" id="aiBatchRangeExpr" class="form-input" placeholder="例：1-5, 10, 26-" style="min-width:12rem; max-width:100%; flex:1;">
                     </div>
                     <div id="aiBatchRangeError" style="margin-top:0.35rem; font-size:0.78rem; color:#dc2626; min-height:1.05rem;"></div>
                 </div>
@@ -2336,6 +2335,10 @@
                     <input type="number" id="aiBatchLimitChars" class="form-input" value="2500" min="200" max="30000" style="width:96px;">
                 </div>
                 <div style="font-size:0.78rem; color:#64748b; margin-top:-0.45rem;">大範圍內容會依每批句數與每批字元上限自動拆成多批，逐批送交 AI。</div>
+                <div>
+                    <label class="form-label">提示語開頭（introduction）</label>
+                    <textarea id="aiBatchIntroduction" class="form-input" rows="3" placeholder="選填。會接在專案系統前綴之後、其餘指示與候選條目之前送給 AI。" style="resize:vertical; min-height:3.5rem; width:100%; box-sizing:border-box;"></textarea>
+                </div>
                 <!-- 候選條目池 -->
                 <div id="aiBatchCandidatePoolSection">
                     <label class="form-label">候選條目池（本批送進提示語）</label>

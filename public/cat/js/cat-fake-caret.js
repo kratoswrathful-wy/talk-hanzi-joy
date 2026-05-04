@@ -156,8 +156,16 @@
                 const outBelow = trueTop > gridRect.bottom;
                 if (outAbove || outBelow) {
                     mark.classList.add('hidden');
-                    tip.textContent = `暫存游標位於第 ${segNum} 號句段`;
+                    tip.textContent = `暫存游標位於第 ${segNum} 號句段（點此或按 Ctrl+Alt+↓ 前往）`;
                     tip.classList.remove('hidden');
+                    tip.style.cursor = 'pointer';
+                    if (!tip.dataset.catFakeTipClickBound) {
+                        tip.dataset.catFakeTipClickBound = '1';
+                        tip.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            restoreOrShowFake();
+                        });
+                    }
                     const colTarget = document.querySelector('.col-target');
                     const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
                     tip.style.left = `${anchorLeft + 4}px`;
@@ -245,7 +253,7 @@
 
         function onSelectionChange() {
             const editor = getEditorFromSelection();
-            if (editor && editor.contentEditable !== 'false') {
+            if (editor && editor.contentEditable !== 'false' && document.activeElement === editor) {
                 saveFromSelection(editor);
                 hide();
             }
