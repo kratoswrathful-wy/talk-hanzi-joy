@@ -90,13 +90,34 @@
             const segId = getEditorSegId(active);
             const segNum = getSegDisplayIndex(segId);
             const tip = ensureRealTipEl();
-            tip.textContent = `游標位於第 ${segNum} 號句段`;
+            tip.textContent = `游標位於第 ${segNum} 號句段（點此捲至該列）`;
             tip.classList.remove('hidden');
             const colTarget = document.querySelector('.col-target');
             const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
             tip.style.left = `${anchorLeft + 4}px`;
             tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
             tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
+            if (!tip.dataset.catRealTipClickBound) {
+                tip.dataset.catRealTipClickBound = '1';
+                tip.style.cursor = 'pointer';
+                tip.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    let ed = document.activeElement;
+                    if (!ed || !ed.classList || !ed.classList.contains('grid-textarea')) {
+                        ed = document.querySelector('.grid-data-row.active-row .grid-textarea');
+                    }
+                    if (!ed || ed.contentEditable === 'false') return;
+                    const r = ed.closest ? ed.closest('.grid-data-row') : null;
+                    if (r && typeof r.scrollIntoView === 'function') {
+                        try {
+                            r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } catch (_) { /* ignore */ }
+                    }
+                    try {
+                        ed.focus();
+                    } catch (_) { /* ignore */ }
+                });
+            }
         }
 
         function ensureFakeEl() {
@@ -156,7 +177,7 @@
                 const outBelow = trueTop > gridRect.bottom;
                 if (outAbove || outBelow) {
                     mark.classList.add('hidden');
-                    tip.textContent = `暫存游標位於第 ${segNum} 號句段（點此或按 Ctrl+Alt+↓ 前往）`;
+                    tip.textContent = `暫存游標位於第 ${segNum} 號句段（點此或按 Ctrl+Alt+↓ 捲至該列）`;
                     tip.classList.remove('hidden');
                     tip.style.cursor = 'pointer';
                     if (!tip.dataset.catFakeTipClickBound) {
@@ -205,6 +226,12 @@
             if (!saved || !saved.editor || !saved.range) return null;
             const editor = saved.editor;
             if (!document.body.contains(editor) || editor.contentEditable === 'false') return null;
+            const row = editor.closest ? editor.closest('.grid-data-row') : null;
+            if (row && typeof row.scrollIntoView === 'function') {
+                try {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } catch (_) { /* ignore */ }
+            }
             editor.focus();
             try {
                 const range = saved.range.cloneRange();
@@ -215,6 +242,12 @@
                 hide();
                 return editor;
             } catch (_) {
+                try {
+                    if (row && typeof row.scrollIntoView === 'function') {
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    editor.focus();
+                } catch (_) { /* ignore */ }
                 return null;
             }
         }

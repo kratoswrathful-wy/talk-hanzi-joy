@@ -3259,6 +3259,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    const btnJumpToSegmentToolbar = document.getElementById('btnJumpToSegmentToolbar');
+    if (btnJumpToSegmentToolbar) {
+        btnJumpToSegmentToolbar.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void openJumpToSegmentPrompt();
+        });
+    }
+
     // --- Init ---
     await loadDashboardData();
 
@@ -12641,7 +12650,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tag = ae && ae.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
             e.preventDefault();
-            openJumpToSegmentPrompt();
+            void openJumpToSegmentPrompt();
         }
         // F8: 插入下一個缺漏標籤（只插單一 tag；有選取且下一個可成對才包一對）
         if (e.key === 'F8' && (currentFileId || _currentViewId) && !e.ctrlKey) {
@@ -13087,9 +13096,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (g.isInvert) {
             lines.push(`不包含字串（搜尋範圍：${sj || '全部'}）`);
         }
-        const st = (g.statuses || []).length ? g.statuses.map((s) => statusNames[s] || s).join('、') : '無';
-        const tmv = g.tmVal ? String(g.tmVal) : '無';
-        lines.push(`句段狀態：${st} / 翻譯記憶相符度：${tmv}`);
+        if (g.statuses && g.statuses.length) {
+            lines.push(`句段狀態：${g.statuses.map((s) => statusNames[s] || s).join('、')}`);
+        }
+        const tmv = String(g.tmVal || '').trim();
+        if (tmv) lines.push(`翻譯記憶相符度：${tmv}`);
         const rowSpec = sfRowSpecFromGroup(g);
         if (rowSpec.enabled) {
             const rex = String(rowSpec.expr || '').trim();
@@ -13906,7 +13917,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!r || !isGridDataRowFilterVisible(r)) return;
         const ed = r.querySelector('.col-target .grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
-            r.scrollIntoView({ block: 'nearest' });
+            r.scrollIntoView({ behavior: 'smooth', block: 'center' });
             setCaretAtEditorStart(ed);
         }
     }
@@ -14968,7 +14979,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!row) return;
         const ed = row.querySelector('.grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
-            row.scrollIntoView({ block: 'nearest' });
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
             ed.focus();
         }
     }
@@ -15840,6 +15851,95 @@ document.addEventListener('DOMContentLoaded', async () => {
             idx++;
         }
         return { segs, totalLen: off };
+    }
+
+    /** 失焦重建 DOM 前：以 Range 量測與 extractTextFromEditor 一致之線性字元偏移。 */
+    function getPlainCaretOffsetViaRangeClone(editor) {
+        try {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return null;
+            const r = sel.getRangeAt(0);
+            if (!editor.contains(r.startContainer)) return null;
+            const rng = document.createRange();
+            rng.setStart(editor, 0);
+            rng.setEnd(r.startContainer, r.startOffset);
+            const holder = document.createElement('div');
+            holder.appendChild(rng.cloneContents());
+            return extractTextFromEditor(holder).length;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    /** 將線性偏移還原至 buildTaggedHtml 後之譯文格（與 getRtEditorTextSegmentsForHighlightMap 一致）。 */
+    function setCaretAtPlainTextOffsetUsingSegments(editor, plainOffset) {
+        if (!editor || editor.contentEditable === 'false') return false;
+        const { segs, totalLen } = getRtEditorTextSegmentsForHighlightMap(editor);
+        const pos = Math.max(0, Math.min(Math.floor(plainOffset), totalLen));
+        const sel = window.getSelection();
+        if (!sel) return false;
+        const candidates = [];
+        for (const seg of segs) {
+            if (pos < seg.abs[0] || pos > seg.abs[1]) continue;
+            candidates.push(seg);
+        }
+        const pick = () => {
+            const pr = { text: 0, br: 1, ph: 2, nl: 3 };
+            candidates.sort((a, b) => (pr[a.type] || 9) - (pr[b.type] || 9));
+            return candidates[0];
+        };
+        const seg = pick();
+        if (!seg) {
+            try {
+                const rng = document.createRange();
+                rng.selectNodeContents(editor);
+                rng.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(rng);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+        try {
+            const rng = document.createRange();
+            if (seg.type === 'text' && seg.node) {
+                const mv = seg.node.nodeValue || '';
+                const o = Math.max(0, Math.min(pos - seg.abs[0], mv.length));
+                rng.setStart(seg.node, o);
+                rng.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(rng);
+                return true;
+            }
+            if (seg.type === 'br' && seg.node) {
+                if (pos <= seg.abs[0]) rng.setStartBefore(seg.node);
+                else rng.setStartAfter(seg.node);
+                rng.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(rng);
+                return true;
+            }
+            if (seg.type === 'ph' && seg.el) {
+                const mid = seg.abs[0] + ((seg.ph && seg.ph.length) ? seg.ph.length / 2 : 0);
+                if (pos < mid) rng.setStartBefore(seg.el);
+                else rng.setStartAfter(seg.el);
+                rng.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(rng);
+                return true;
+            }
+        } catch (_) { /* fall through */ }
+        try {
+            const rng = document.createRange();
+            rng.selectNodeContents(editor);
+            rng.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(rng);
+            return true;
+        } catch (_) {
+            return false;
+        }
     }
 
     function getTextOnlySubrangesInHighlight(a, b, segs, styleStr) {
@@ -16782,7 +16882,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     saveCatCaretFromSelection(targetInput);
                 });
                 targetInput.addEventListener('blur', async () => {
-                    requestAnimationFrame(showCatFakeCaretFromSaved);
                     scheduleLeaseReleaseTimer(seg);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
                     const wasConfirming = isConfirming;
@@ -16794,7 +16893,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (wasConfirming) {
                         emitCollabEdit('end', seg, null);
-                        requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                        requestAnimationFrame(() => {
+                            refreshNonPrintMarkers(targetInput);
+                            showCatFakeCaretFromSaved();
+                        });
                         return;
                     }
                     if (targetDebounceTimer) {
@@ -16802,6 +16904,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetDebounceTimer = null;
                     }
                     sanitizeTargetEditorInlineArtifacts(targetInput, seg, row, { restoreFocus: false });
+                    const npMode = !!document.getElementById('editorGrid')?.classList.contains('show-non-print');
+                    const caretPlainOff = npMode ? null : getPlainCaretOffsetViaRangeClone(targetInput);
+                    const caretNpOff = npMode ? getNpCaretOffset(targetInput) : null;
                     const myGen = ++targetWriteGeneration;
                     const newVal = rebuildTargetEditorFromExtractedPlain(targetInput, seg, row);
                     const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
@@ -16841,7 +16946,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     emitCollabEdit('commit', seg, seg.targetText);
                     emitCollabEdit('end', seg, null);
-                    requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                    requestAnimationFrame(() => {
+                        refreshNonPrintMarkers(targetInput);
+                        const maxPlain = extractTextFromEditor(targetInput).length;
+                        if (npMode && caretNpOff != null) {
+                            const clamped = Math.max(0, Math.min(caretNpOff | 0, maxPlain));
+                            setNpCaretOffset(targetInput, clamped);
+                        } else if (!npMode && caretPlainOff != null) {
+                            const clamped = Math.max(0, Math.min(caretPlainOff | 0, maxPlain));
+                            setCaretAtPlainTextOffsetUsingSegments(targetInput, clamped);
+                        }
+                        saveCatCaretFromSelection(targetInput);
+                        showCatFakeCaretFromSaved();
+                    });
                 });
 
                 // Intercept paste：
@@ -18822,6 +18939,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let _qaResults = [];
     const _qaIgnoredSet = new Set(); // key: `${gid}:${type}:${detail}`
+    /** 多選列（`r.key`）；與 §3.7／§4 建議 A：#／說明僅跳轉，選取以「選」欄與類型欄為主。 */
+    const _qaSelectedResultKeys = new Set();
+    let _qaContextMenuEl = null;
     let qaSortKey = 'gid';
     let qaSortDir = 'asc';
     let qaLastRunSummaryHtml = '';
@@ -18834,11 +18954,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ta) ta.focus();
     }
 
-    function openJumpToSegmentPrompt() {
+    async function openJumpToSegmentPrompt() {
         const ve = document.getElementById('viewEditor');
         if (!ve || ve.classList.contains('hidden')) return;
         if (!currentSegmentsList || currentSegmentsList.length === 0) return;
-        const raw = window.prompt('跳至句段編號（與 # 欄顯示一致）：', '');
+        const raw = await openCatPromptModal({
+            title: '跳至句段',
+            label: '句段編號（與 # 欄顯示一致）',
+            defaultValue: ''
+        });
         if (raw == null) return;
         const t = String(raw).trim();
         if (!t) return;
@@ -18865,7 +18989,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         _qaJumpToSegment(currentSegmentsList[idx].id);
     }
 
-    /** 表頭儲存格：一般為欄名；# 欄另附「跳至」按鈕（與 Ctrl+G 相同）。 */
+    /** 表頭儲存格：一般為欄名；# 欄僅顯示欄名（跳至改由工具列圖示與 Ctrl+G）。 */
     function populateGridHeaderTitleCell(cell, c) {
         if (c.name === 'Key 1') c.name = 'Key';
         if (c.id === 'col-id') {
@@ -18875,18 +18999,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             lbl.style.flex = '1';
             lbl.style.minWidth = '0';
             cell.appendChild(lbl);
-            const jumpBtn = document.createElement('button');
-            jumpBtn.id = 'btnJumpToSeg';
-            jumpBtn.type = 'button';
-            jumpBtn.className = 'secondary-btn btn-sm';
-            jumpBtn.textContent = '跳至';
-            jumpBtn.setAttribute('data-tip', '跳至句段編號（Ctrl+G）');
-            jumpBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openJumpToSegmentPrompt();
-            });
-            cell.appendChild(jumpBtn);
         } else {
             cell.textContent = c.name;
         }
@@ -18969,15 +19081,63 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const missing = [...srcNumSet].filter(id => !tgtSet.has(id))
                     .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
                 const extraMeta = (s.targetTags || []).map(t => _qaTagIdForCompare(t)).filter(id => id && !srcNumSet.has(id));
-                const extraText = [];
-                const extraAll = [...new Set([...extraMeta.map(String), ...extraText.map(String)])]
+                const extraTextNums = [];
+                for (const n of _qaPlainTargetTagNumSet(s.targetText)) {
+                    if (!srcNumSet.has(n)) extraTextNums.push(n);
+                }
+                const extraAll = [...new Set([...extraMeta.map(String), ...extraTextNums.map(String)])]
                     .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+
+                const tagOrderMsgs = [];
+                const srcTxt = s.sourceText || '';
+                const tgtTxt = s.targetText || '';
+                const srcOrder = [];
+                for (const m of srcTxt.matchAll(/\{\/?(\d+)\}/g)) {
+                    if (srcNumSet.has(m[1])) srcOrder.push({ n: m[1], raw: m[0] });
+                }
+                const tgtOrder = [];
+                for (const m of tgtTxt.matchAll(/\{\/?(\d+)\}/g)) {
+                    if (srcNumSet.has(m[1])) tgtOrder.push({ n: m[1], raw: m[0] });
+                }
+                if (srcOrder.length === tgtOrder.length && srcOrder.length > 0) {
+                    for (let i = 0; i < srcOrder.length; i++) {
+                        if (srcOrder[i].n !== tgtOrder[i].n || srcOrder[i].raw !== tgtOrder[i].raw) {
+                            tagOrderMsgs.push('標籤／佔位符出現順序或開關位置與原文不一致');
+                            break;
+                        }
+                    }
+                }
+
+                const pairMsgs = [];
+                const stack = [];
+                const rePh = /\{\/?(\d+)\}/g;
+                let pm;
+                const scan = String(tgtTxt);
+                while ((pm = rePh.exec(scan)) !== null) {
+                    const full = pm[0];
+                    const n = pm[1];
+                    if (!srcNumSet.has(n)) continue;
+                    if (/^\{\d+\}$/.test(full)) {
+                        stack.push(n);
+                    } else if (/^\{\/\d+\}$/.test(full)) {
+                        if (!stack.length || stack[stack.length - 1] !== n) {
+                            pairMsgs.push('關閉標籤與已開啟標籤不成對或順序錯誤');
+                            stack.length = 0;
+                        } else {
+                            stack.pop();
+                        }
+                    }
+                }
+                if (stack.length) pairMsgs.push(`尚有未關閉之標籤：{${stack.join('}, {')}}`);
+
                 const hasMissing = missing.length > 0;
                 const hasExtra = extraAll.length > 0;
-                if (hasMissing || hasExtra) {
+                if (hasMissing || hasExtra || tagOrderMsgs.length || pairMsgs.length) {
                     const parts = [];
                     if (hasMissing) parts.push('缺少 tag：{' + missing.join('}, {') + '}');
                     if (hasExtra) parts.push('多餘 tag：{' + extraAll.join('}, {') + '}');
+                    tagOrderMsgs.forEach((x) => { if (x && !parts.includes(x)) parts.push(x); });
+                    pairMsgs.forEach((x) => { if (x && !parts.includes(x)) parts.push(x); });
                     results.push({ segId: s.id, gid, type: 'Tag 檢查', info: parts.join('；'), key: `${gid}:tag` });
                 }
             }
@@ -19157,10 +19317,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { results, filteredSegs };
     }
 
+    function _qaDisplayTypeForUi(r) {
+        const t = r && r.type;
+        return (t === '錯字／打字' || t === '錯字/打字') ? '錯字' : t;
+    }
+
+    function _qaDismissContextMenu() {
+        if (_qaContextMenuEl) {
+            _qaContextMenuEl.remove();
+            _qaContextMenuEl = null;
+        }
+    }
+
     function renderQaResults() {
         const tbody = document.getElementById('qaResultsBody');
         const table = document.getElementById('qaResultsTable');
         const statusEl = document.getElementById('qaStatus');
+        const hintEl = document.getElementById('qaResultsHint');
         if (!tbody || !table || !statusEl) return;
 
         const hideIgnored = document.getElementById('qaHideIgnored')?.checked;
@@ -19179,8 +19352,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (_qaResults.length === 0) {
             table.style.display = 'none';
+            if (hintEl) hintEl.style.display = 'none';
             statusEl.textContent = '✓ 無發現問題';
             statusEl.style.color = '#16a34a';
+            _qaDismissContextMenu();
             return;
         }
 
@@ -19193,14 +19368,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typoCount) parts.push(`錯字: ${typoCount}`);
         statusEl.textContent = `發現 ${_qaResults.length} 個問題（${parts.join('，')}）`;
         table.style.display = '';
+        if (hintEl) hintEl.style.display = '';
 
         tbody.innerHTML = '';
         for (const r of sortedResults) {
             const isIgnored = _qaIgnoredSet.has(r.key);
             if (hideIgnored && isIgnored) continue;
             const tr = document.createElement('tr');
-            tr.className = 'qa-row' + (isIgnored ? ' is-ignored' : '');
+            const isSel = _qaSelectedResultKeys.has(r.key);
+            tr.className = 'qa-row' + (isIgnored ? ' is-ignored' : '') + (isSel ? ' qa-row-selected' : '');
             tr.dataset.qaKey = r.key;
+
+            const tdSel = document.createElement('td');
+            tdSel.className = 'qa-td-sel';
+            const selCb = document.createElement('input');
+            selCb.type = 'checkbox';
+            selCb.checked = isSel;
+            selCb.addEventListener('click', (ev) => ev.stopPropagation());
+            selCb.addEventListener('change', () => {
+                if (selCb.checked) _qaSelectedResultKeys.add(r.key);
+                else _qaSelectedResultKeys.delete(r.key);
+                renderQaResults();
+            });
+            tdSel.appendChild(selCb);
 
             const tdNum = document.createElement('td');
             tdNum.className = 'qa-td-num qa-clickable';
@@ -19209,29 +19399,123 @@ document.addEventListener('DOMContentLoaded', async () => {
             tdNum.addEventListener('click', () => _qaJumpToSegment(r.segId));
 
             const tdType = document.createElement('td');
-            tdType.className = 'qa-td-type';
-            tdType.textContent = (r.type === '錯字／打字' || r.type === '錯字/打字') ? '錯字' : r.type;
+            tdType.className = 'qa-td-type qa-select-hotzone';
+            tdType.textContent = _qaDisplayTypeForUi(r);
+            tdType.title = '點擊切換選取；右鍵可批次忽略同類型';
+            tdType.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (_qaSelectedResultKeys.has(r.key)) _qaSelectedResultKeys.delete(r.key);
+                else _qaSelectedResultKeys.add(r.key);
+                renderQaResults();
+            });
+            tdType.addEventListener('contextmenu', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                _qaDismissContextMenu();
+                const menu = document.createElement('div');
+                menu.className = 'qa-context-menu';
+                const disp = _qaDisplayTypeForUi(r);
+                const btn1 = document.createElement('button');
+                btn1.type = 'button';
+                btn1.textContent = `忽略所有「${disp}」錯誤警報`;
+                btn1.addEventListener('click', () => {
+                    _qaDismissContextMenu();
+                    for (const x of _qaResults) {
+                        if (_qaDisplayTypeForUi(x) !== disp) continue;
+                        _qaIgnoredSet.add(x.key);
+                    }
+                    renderQaResults();
+                });
+                menu.appendChild(btn1);
+                document.body.appendChild(menu);
+                _qaContextMenuEl = menu;
+                const pad = 4;
+                let left = ev.clientX + pad;
+                let top = ev.clientY + pad;
+                requestAnimationFrame(() => {
+                    const br = menu.getBoundingClientRect();
+                    if (left + br.width > window.innerWidth - pad) left = window.innerWidth - pad - br.width;
+                    if (top + br.height > window.innerHeight - pad) top = window.innerHeight - pad - br.height;
+                    menu.style.left = `${Math.max(pad, left)}px`;
+                    menu.style.top = `${Math.max(pad, top)}px`;
+                });
+                setTimeout(() => {
+                    const onDown = (e) => {
+                        if (_qaContextMenuEl && !_qaContextMenuEl.contains(e.target)) {
+                            _qaDismissContextMenu();
+                            document.removeEventListener('mousedown', onDown, true);
+                        }
+                    };
+                    document.addEventListener('mousedown', onDown, true);
+                }, 0);
+            });
 
             const tdInfo = document.createElement('td');
             tdInfo.className = 'qa-td-info qa-clickable';
             tdInfo.textContent = r.info;
-            tdInfo.title = '點擊跳至句段';
+            tdInfo.title = '點擊跳至句段；右鍵可批次忽略同說明';
             tdInfo.addEventListener('click', () => _qaJumpToSegment(r.segId));
+            tdInfo.addEventListener('contextmenu', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                _qaDismissContextMenu();
+                const infoStr = String(r.info || '');
+                const menu = document.createElement('div');
+                menu.className = 'qa-context-menu';
+                const btn1 = document.createElement('button');
+                btn1.type = 'button';
+                btn1.textContent = '忽略所有「同說明」錯誤警報';
+                btn1.addEventListener('click', () => {
+                    _qaDismissContextMenu();
+                    for (const x of _qaResults) {
+                        if (String(x.info || '') === infoStr) _qaIgnoredSet.add(x.key);
+                    }
+                    renderQaResults();
+                });
+                menu.appendChild(btn1);
+                document.body.appendChild(menu);
+                _qaContextMenuEl = menu;
+                const pad = 4;
+                let left = ev.clientX + pad;
+                let top = ev.clientY + pad;
+                requestAnimationFrame(() => {
+                    const br = menu.getBoundingClientRect();
+                    if (left + br.width > window.innerWidth - pad) left = window.innerWidth - pad - br.width;
+                    if (top + br.height > window.innerHeight - pad) top = window.innerHeight - pad - br.height;
+                    menu.style.left = `${Math.max(pad, left)}px`;
+                    menu.style.top = `${Math.max(pad, top)}px`;
+                });
+                setTimeout(() => {
+                    const onDown = (e) => {
+                        if (_qaContextMenuEl && !_qaContextMenuEl.contains(e.target)) {
+                            _qaDismissContextMenu();
+                            document.removeEventListener('mousedown', onDown, true);
+                        }
+                    };
+                    document.addEventListener('mousedown', onDown, true);
+                }, 0);
+            });
 
             const tdIgnore = document.createElement('td');
             tdIgnore.className = 'qa-td-ignore';
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.checked = isIgnored;
+            cb.addEventListener('click', (ev) => ev.stopPropagation());
             cb.addEventListener('change', () => {
-                if (cb.checked) _qaIgnoredSet.add(r.key); else _qaIgnoredSet.delete(r.key);
-                tr.classList.toggle('is-ignored', cb.checked);
-                if (document.getElementById('qaHideIgnored')?.checked && cb.checked) {
-                    tr.style.display = 'none';
-                }
+                const keysToPatch = (_qaSelectedResultKeys.size > 0 && _qaSelectedResultKeys.has(r.key))
+                    ? [..._qaSelectedResultKeys]
+                    : [r.key];
+                const on = !!cb.checked;
+                keysToPatch.forEach((k) => {
+                    if (on) _qaIgnoredSet.add(k); else _qaIgnoredSet.delete(k);
+                });
+                renderQaResults();
             });
             tdIgnore.appendChild(cb);
 
+            tr.appendChild(tdSel);
             tr.appendChild(tdNum);
             tr.appendChild(tdType);
             tr.appendChild(tdInfo);
@@ -19260,6 +19544,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         'qaCheckTerms', 'qaCheckTags', 'qaCheckConsistency', 'qaCheckNumbers', 'qaCheckTypos',
         'qaUseRange', 'qaRangeExpr', 'qaIncludeLocked', 'qaScopeCurrentFiltered'
     ];
+    function syncQaRangeExprDisabledAfterLock() {
+        const locked = !!qaRunInProgress;
+        const useRange = !!document.getElementById('qaUseRange')?.checked;
+        const expr = document.getElementById('qaRangeExpr');
+        if (!expr) return;
+        const dis = locked || !useRange;
+        expr.disabled = dis;
+        expr.classList.toggle('qa-range-expr-muted', dis);
+    }
     function setQaControlsLocked(locked) {
         qaRunInProgress = !!locked;
         const btnQaCollapseChecks = document.getElementById('btnQaCollapseChecks');
@@ -19274,6 +19567,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const qaOptionsBar = document.querySelector('.qa-options-bar');
         if (qaOptionsBar) qaOptionsBar.classList.toggle('qa-controls-locked', !!locked);
         if (btnRunQA) btnRunQA.disabled = !!locked;
+        syncQaRangeExprDisabledAfterLock();
     }
     function resetQaScopeInputs() {
         if (qaUseRangeCb) qaUseRangeCb.checked = false;
@@ -19285,6 +19579,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (qaIncludeLockedEl) qaIncludeLockedEl.checked = false;
         if (qaScopeCurrentFilteredEl) qaScopeCurrentFilteredEl.checked = false;
         updateQaScopeFilterLockState(false);
+        syncQaRangeExprDisabledAfterLock();
     }
     function getQaScopeVisibleSegIdSet() {
         if (!qaScopeCurrentFilteredEl?.checked) return null;
@@ -19400,11 +19695,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (qaUseRangeCb) {
         qaUseRangeCb.addEventListener('change', () => {
-            const enabled = qaUseRangeCb.checked;
-            if (qaRangeExprEl) qaRangeExprEl.disabled = !enabled;
-            if (!enabled && qaRangeExprEl) qaRangeExprEl.value = '';
+            if (!qaUseRangeCb.checked && qaRangeExprEl) qaRangeExprEl.value = '';
+            syncQaRangeExprDisabledAfterLock();
         });
     }
+    syncQaRangeExprDisabledAfterLock();
     if (qaScopeCurrentFilteredEl) {
         qaScopeCurrentFilteredEl.addEventListener('change', () => updateQaScopeFilterLockState());
     }
@@ -19494,6 +19789,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     checkNumbers
                 });
                 _qaResults = results;
+                _qaSelectedResultKeys.clear();
 
                 if (checkTypos) {
                     if (statusEl) {
@@ -26602,6 +26898,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnFiltered.classList.toggle('secondary-btn', !isFiltered);
         }
         window.__catAiBatchRangeMode = mode;
+        const exprWrap = document.getElementById('aiBatchRangeExprWrap');
+        const exprInput = document.getElementById('aiBatchRangeExpr');
+        if (exprWrap) {
+            exprWrap.classList.toggle('ai-batch-range-muted', isAll || isFiltered);
+        }
+        if (exprInput) {
+            exprInput.disabled = false;
+        }
     }
 
     function _getAiBatchRangeSegs() {
@@ -27092,10 +27396,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnFiltered.disabled = !ok;
             btnFiltered.title = ok ? '' : '請先切換至篩選模式並有篩選結果';
         }
-        if (exprEl) exprEl.oninput = () => {
-            if (String(exprEl.value || '').trim()) _setAiBatchRangeMode('range');
-            _updateBatchStats();
-        };
+        if (exprEl) {
+            exprEl.onfocus = () => {
+                _setAiBatchRangeMode('range');
+                _updateBatchStats();
+            };
+            exprEl.oninput = () => {
+                if (String(exprEl.value || '').trim()) _setAiBatchRangeMode('range');
+                _updateBatchStats();
+            };
+        }
         const introEl = document.getElementById('aiBatchIntroduction');
         if (introEl) {
             try {

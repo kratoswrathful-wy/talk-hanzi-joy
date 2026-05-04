@@ -662,8 +662,9 @@
                                 </div>
                             </div>
                         </div>
-                        <button id="btnCopySourceToTarget" class="icon-btn" style="font-size:1rem;">⬇</button>
-                        <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;">✕</button>
+                        <button type="button" id="btnJumpToSegmentToolbar" class="icon-btn" aria-label="跳到指定句段" data-tip="跳到指定句段（Ctrl+G）" style="font-size:1rem;">⌖</button>
+                        <button id="btnCopySourceToTarget" class="icon-btn" style="font-size:1rem;" data-tip="原文複製到譯文">⬇</button>
+                        <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;" data-tip="清除譯文">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" data-tip="展開標籤 (Alt+S)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnShowNonPrint" class="icon-btn" data-tip="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnShortcuts" class="icon-btn" data-tip="快捷鍵一覽（含說明）">⌨️</button>
@@ -687,8 +688,8 @@
                             <button type="button" id="btnClientQuestionFormMain" class="success-btn btn-sm split-btn-main">提問表單</button>
                             <button type="button" id="btnClientQuestionFormArrow" class="success-btn btn-sm split-btn-arrow" data-tip="欄位設定">▾</button>
                         </div>
-                        <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
-                        <button id="exportBtn" class="export-teal-btn btn-sm">匯出檔案</button>
+                        <button id="btnPreTranslate" class="primary-btn btn-sm" data-tip="預先翻譯">預先翻譯</button>
+                        <button id="exportBtn" class="export-teal-btn btn-sm" data-tip="匯出檔案">匯出檔案</button>
                         <button id="btnAiMode" class="btn-sm ai-mode-btn" style="display:none;" data-tip="AI 輔助翻譯模式">✨ AI 輔助</button>
                     </div>
                 </header>
@@ -780,11 +781,13 @@
                                 <div class="sf-adv-cols">
                                 <div class="sf-adv-section">
                                     <strong>句段狀態</strong>
-                                    <div class="sf-adv-grid">
+                                    <div class="sf-adv-grid sf-adv-status-row1">
                                         <label><input type="checkbox" class="sf-status-cb" value="empty"> 空白</label>
                                         <label><input type="checkbox" class="sf-status-cb" value="not_empty"> 非空白</label>
                                         <label><input type="checkbox" class="sf-status-cb" value="confirmed"> 已確認</label>
                                         <label><input type="checkbox" class="sf-status-cb" value="unconfirmed"> 未確認</label>
+                                    </div>
+                                    <div class="sf-adv-grid sf-adv-status-row2">
                                         <label><input type="checkbox" class="sf-status-cb" value="locked"> 鎖定</label>
                                         <label><input type="checkbox" class="sf-status-cb" value="unlocked"> 未鎖定</label>
                                     </div>
@@ -829,7 +832,7 @@
                         </div>
                         <!-- Notes Panel -->
                         <div id="notesPanel" class="notes-panel">
-                            <div id="notesPanelResizer" class="notes-panel-resizer" title="拖曳調整筆記面板高度"><div class="notes-panel-resizer-grip"></div></div>
+                            <div id="notesPanelResizer" class="notes-panel-resizer" data-tip="拖曳調整筆記面板高度"><div class="notes-panel-resizer-grip"></div></div>
                             <div class="notes-panel-header" id="notesPanelHeader">
                                 <div class="notes-panel-tabs">
                                     <button class="notes-tab-btn active" data-notes-tab="tabPrivateNotes">私人筆記</button>
@@ -932,7 +935,7 @@
                     </div>
 
                     <!-- Vertical Resizer for side panel width -->
-                    <div id="sidePanelWidthResizer"></div>
+                    <div id="sidePanelWidthResizer" data-tip="拖曳調整右側欄寬度" role="separator" aria-orientation="vertical"></div>
 
                     <!-- Right: Panels (TM, TB, QA) -->
                     <aside class="editor-side-panel">
@@ -942,19 +945,23 @@
                             <button class="tab-btn" data-tab="tabNewTerm">新增術語</button>
                             <button class="tab-btn" data-tab="tabQA">QA</button>
                         </div>
-                        
-                        <div class="panel-content active" id="tabCAT">
-                            <div class="cat-dblclick-insert-bar" title="關閉時，僅停用雙擊套用譯文；Ctrl+1～9 仍可套用。">
+                        <div id="catSideSharedToolsBar" class="cat-side-shared-tools">
+                            <div class="cat-dblclick-insert-bar">
                                 <label class="cat-dblclick-insert-label">
                                     <input type="checkbox" class="cat-dblclick-insert-cb" id="catDblclickInsertEnabled" checked>
-                                    <span>雙擊套用譯文</span>
+                                    <span data-tip="關閉時，僅停用雙擊套用譯文；Ctrl+1～9 仍可套用。">雙擊套用譯文</span>
                                 </label>
                                 <label class="cat-dblclick-insert-label">
                                     <input type="checkbox" class="cat-confirm-return-tab-cb" id="catConfirmReturnTabEnabled">
-                                    <span>確認句段跳行後回到 CAT 分頁</span>
+                                    <span data-tip="確認句段並跳到下一列後，自動切回 CAT 分頁">確認句段跳行後回到 CAT 分頁</span>
                                 </label>
-                                <div class="cat-side-panel-shortcuts-hint" aria-hidden="true">Ctrl+G：跳至句段　Ctrl+Alt+←／→：切換右側欄分頁　Ctrl+0：於游標處插入任意位置選取文字</div>
+                                <div class="cat-side-panel-shortcuts-hint" aria-hidden="true">
+                                    <div class="cat-side-shortcut-line">Ctrl+Alt+←／→：切換右側欄分頁</div>
+                                    <div class="cat-side-shortcut-line">Ctrl+0：於游標處插入任意位置選取文字</div>
+                                </div>
                             </div>
+                        </div>
+                        <div class="panel-content active" id="tabCAT">
                             <div class="concordance-search concordance-search-cat">
                                 <div class="search-results" id="tmSearchResults">
                                     <div style="padding: 0.75rem; color: #64748b; font-size: 0.9rem; text-align: left;">
@@ -962,7 +969,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div id="catPanelResizerTop" class="cat-panel-resizer" title="拖曳調整追蹤修訂區高度">
+                            <div id="catPanelResizerTop" class="cat-panel-resizer" data-tip="拖曳調整追蹤修訂區高度">
                                 <div class="cat-panel-resizer-grip"></div>
                             </div>
                             <div id="catTrackChangePanel" class="cat-track-change-panel">
@@ -971,17 +978,6 @@
                         </div>
 
                         <div class="panel-content" id="tabTmSearch">
-                            <div class="cat-dblclick-insert-bar" title="關閉時，僅停用雙擊套用譯文；Ctrl+1～9 仍可套用。">
-                                <label class="cat-dblclick-insert-label">
-                                    <input type="checkbox" class="cat-dblclick-insert-cb" id="catDblclickInsertEnabledTm" checked>
-                                    <span>雙擊套用譯文</span>
-                                </label>
-                                <label class="cat-dblclick-insert-label">
-                                    <input type="checkbox" class="cat-confirm-return-tab-cb" id="catConfirmReturnTabEnabledTm">
-                                    <span>確認句段跳行後回到 CAT 分頁</span>
-                                </label>
-                                <div class="cat-side-panel-shortcuts-hint" aria-hidden="true">Ctrl+G：跳至句段　Ctrl+Alt+←／→：切換右側欄分頁　Ctrl+0：於游標處插入任意位置選取文字</div>
-                            </div>
                             <div class="tm-tmsearch-body">
                             <div class="tm-tmsearch-toolbar" style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center;">
                                 <input type="text" id="tmSearchInput" placeholder="輸入關鍵字搜尋 TM…" style="flex:1; min-width:8rem; padding:0.35rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">
@@ -990,7 +986,7 @@
                                     <option value="target">譯文</option>
                                     <option value="key">Key</option>
                                 </select>
-                                <button class="primary-btn btn-sm" id="btnTmSearch" style="white-space:nowrap;">搜尋</button>
+                                <button class="primary-btn btn-sm" id="btnTmSearch" style="white-space:nowrap;" data-tip="搜尋翻譯記憶庫">搜尋</button>
                             </div>
                             <div id="tmSearchConcordanceResults" class="tm-tmsearch-results" style="overflow-y:auto; flex:1 1 auto; min-height:56px; font-size:0.85rem;"></div>
                             </div>
@@ -1031,33 +1027,37 @@
                                     <label class="qa-check-label"><input type="checkbox" id="qaCheckTypos"> 錯字（由 AI 檢查）</label>
                                 </div>
                             </div>
-                            <!-- QA 選項列 -->
+                            <!-- QA 選項列（各選項獨立一行；句段範圍與輸入同列） -->
                             <div class="qa-options-bar">
-                                <label class="qa-label" style="display:flex; align-items:center; gap:3px;">
-                                    <input type="checkbox" id="qaIncludeLocked"> 含鎖定
-                                </label>
-                                <label class="qa-label" style="display:flex; align-items:center; gap:3px;">
-                                    <input type="checkbox" id="qaUseRange"> 句段範圍
-                                </label>
-                                <input type="text" id="qaRangeExpr" class="form-input qa-range-expr-input" disabled placeholder="例：1-5, 10, 26-" style="min-width:7rem; max-width:14rem; padding:0.25rem 0.4rem; font-size:0.82rem;">
-                                <label class="qa-label" id="qaScopeFilteredLabel" style="display:flex; align-items:center; gap:3px;">
-                                    <input type="checkbox" id="qaScopeCurrentFiltered"> 目前篩選結果
-                                </label>
-                                <div id="qaScopeLockInlineMsg" class="sf-lock-inline-msg">勾選期間無法變更篩選內容</div>
+                                <div class="qa-options-line">
+                                    <label class="qa-label"><input type="checkbox" id="qaIncludeLocked"> 含鎖定</label>
+                                </div>
+                                <div class="qa-options-line qa-options-line-range">
+                                    <label class="qa-label qa-label-inline"><input type="checkbox" id="qaUseRange"> 句段範圍</label>
+                                    <input type="text" id="qaRangeExpr" class="form-input qa-range-expr-input" disabled placeholder="例：1-5, 10, 26-">
+                                </div>
+                                <div class="qa-options-line qa-options-line-filtered">
+                                    <label class="qa-label" id="qaScopeFilteredLabel"><input type="checkbox" id="qaScopeCurrentFiltered"> 目前篩選結果</label>
+                                    <div id="qaScopeLockInlineMsg" class="sf-lock-inline-msg">勾選期間無法變更篩選內容</div>
+                                </div>
                             </div>
                             <!-- QA 動作列 -->
                             <div class="qa-action-bar">
                                 <label class="qa-label" style="display:flex; align-items:center; gap:3px;">
                                     <input type="checkbox" id="qaHideIgnored"> 隱藏已忽略
                                 </label>
-                                <button class="primary-btn btn-sm" id="btnRunQA">▶ 開始 QA</button>
+                                <button class="primary-btn btn-sm" id="btnRunQA" data-tip="依勾選項目執行品質檢查">▶ 開始 QA</button>
                             </div>
                             <!-- 狀態與結果 -->
                             <div id="qaStatus" class="qa-status-bar">按「開始 QA」執行檢查。</div>
-                            <div style="overflow-y:auto; flex:1;">
+                            <div class="qa-results-wrap" style="overflow-y:auto; flex:1;">
+                                <div id="qaResultsHint" class="qa-results-hint" style="display:none;">
+                                    <strong>使用說明：</strong>「#」「說明」點擊可跳至該句段。勾選「選」欄可多列選取；變更任一列「忽略」時，會一併套用至<strong>所有已選取</strong>列。在「類型」或「說明」儲存格上<strong>右鍵</strong>可批次忽略「同類型」或「同說明」（同說明＝說明文字完全一致）的警報。
+                                </div>
                                 <table class="qa-results-table" id="qaResultsTable" style="display:none;">
                                     <thead>
                                         <tr>
+                                            <th class="qa-th-sel" title="多列選取"><abbr title="選取">選</abbr></th>
                                             <th class="qa-th-num qa-sortable-th" data-sort-key="gid">#</th>
                                             <th class="qa-th-type qa-sortable-th" data-sort-key="type">類型</th>
                                             <th class="qa-th-info qa-sortable-th" data-sort-key="info">說明</th>
@@ -1069,7 +1069,7 @@
                             </div>
                         </div>
                         
-                        <div id="catPanelResizerBottom" class="cat-panel-resizer" title="拖曳調整下方資訊區高度">
+                        <div id="catPanelResizerBottom" class="cat-panel-resizer" data-tip="拖曳調整下方資訊區高度">
                             <div class="cat-panel-resizer-grip"></div>
                         </div>
                         
@@ -2277,7 +2277,7 @@
                         <button type="button" id="aiBatchModeRange" class="secondary-btn btn-sm" style="border:0; border-left:1px solid #cbd5e1; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">指定範圍</button>
                         <button type="button" id="aiBatchModeFiltered" class="secondary-btn btn-sm" style="border:0; border-left:1px solid #cbd5e1; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">目前篩選</button>
                     </div>
-                    <div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">
+                    <div id="aiBatchRangeExprWrap" class="ai-batch-range-expr-wrap">
                         <input type="text" id="aiBatchRangeExpr" class="form-input" placeholder="例：1-5, 10, 26-" style="min-width:12rem; max-width:100%; flex:1;">
                     </div>
                     <div id="aiBatchRangeError" style="margin-top:0.35rem; font-size:0.78rem; color:#dc2626; min-height:1.05rem;"></div>
