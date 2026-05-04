@@ -736,6 +736,68 @@ const DBService = {
         return true;
     },
 
+    // ---- File update (更新作業檔) ----
+
+    /**
+     * 以合併操作集更新單一作業檔的句段，並更換原始檔 buffer。
+     * ops 的格式來自 CatToolFileUpdate.mergeSegments() 的回傳值。
+     *
+     * @param {string|number} fileId
+     * @param {{ update: {id, patch}[], insert: object[], remove: (string|number)[] }} ops
+     * @param {ArrayBuffer|null} newFileBuffer  新版原始檔；null 表示不更換
+     */
+    async refreshFileSegments(fileId, ops, newFileBuffer) {
+        const fid = toDexieLocalId(fileId);
+        const { update = [], insert = [], remove = [] } = ops;
+
+        // 刪除
+        if (remove.length) {
+            const removeIds = remove.map(id => typeof id === 'string' ? (parseInt(id, 10) || id) : id);
+            await db.segments.bulkDelete(removeIds);
+        }
+
+        // 更新（逐筆 patch）
+        for (const { id, patch } of update) {
+            const sid = typeof id === 'string' ? (parseInt(id, 10) || id) : id;
+            const dbPatch = {};
+            if (patch.sourceText     !== undefined) dbPatch.sourceText     = patch.sourceText;
+            if (patch.sourceTags     !== undefined) dbPatch.sourceTags     = patch.sourceTags;
+            if (patch.targetText     !== undefined) dbPatch.targetText     = patch.targetText;
+            if (patch.targetTags     !== undefined) dbPatch.targetTags     = patch.targetTags;
+            if (patch.idValue        !== undefined) dbPatch.idValue        = patch.idValue;
+            if (patch.extraValue     !== undefined) dbPatch.extraValue     = patch.extraValue;
+            if (patch.status         !== undefined) dbPatch.status         = patch.status;
+            if (patch.isLocked       !== undefined) dbPatch.isLocked       = patch.isLocked;
+            if (patch.isLockedUser   !== undefined) dbPatch.isLockedUser   = patch.isLockedUser;
+            if (patch.isLockedSystem !== undefined) dbPatch.isLockedSystem = patch.isLockedSystem;
+            if (patch.sourceChangeInfo !== undefined) dbPatch.sourceChangeInfo = patch.sourceChangeInfo;
+            if (Object.keys(dbPatch).length) await db.segments.update(sid, dbPatch);
+        }
+
+        // 新增
+        if (insert.length) {
+            const toAdd = insert.map(s => ({ ...s, fileId: fid }));
+            await db.segments.bulkAdd(toAdd);
+        }
+
+        // 更新 cat_files（原始檔 buffer + lastModified）
+        const fileUpdate = { lastModified: new Date().toISOString() };
+        if (newFileBuffer) fileUpdate.originalFileBuffer = newFileBuffer;
+        await db.files.update(fid, fileUpdate);
+
+        const file = await db.files.get(fid);
+        if (file) await db.projects.update(file.projectId, { lastModified: new Date().toISOString() });
+    },
+
+    /**
+     * 清除某檔案所有句段的 edit lease（離線模式為 no-op）。
+     * @param {string|number} _fileId
+     */
+    async clearFileLeases(_fileId) {
+        // 離線模式只有一個使用者，不需要清除 lease
+        return true;
+    },
+
     // ---- Workspace notes（整檔工作筆記存檔列）----
     async addWorkspaceNote(entry) {
         const savedAt = entry.savedAt || new Date().toISOString();
@@ -1564,6 +1626,15 @@ const DBService = {
         rpc('db.acquireSegmentEditLease', { fileId, segmentId, sessionId, holderName, ttlSeconds });
     DBService.releaseSegmentEditLease = async (segmentId, sessionId) =>
         rpc('db.releaseSegmentEditLease', { segmentId, sessionId });
+
+    DBService.refreshFileSegments = async (fileId, ops, newFileBuffer) => {
+        const patch = { ...ops };
+        if (newFileBuffer) {
+            patch.newFileBase64 = abToBase64(newFileBuffer);
+        }
+        return rpc('db.refreshFileSegments', { fileId, ops: patch });
+    };
+    DBService.clearFileLeases = async (fileId) => rpc('db.clearFileLeases', { fileId });
 
     // workspace notes (legacy)
     DBService.addWorkspaceNote = async (entry) => rpc('db.addWorkspaceNote', { entry });

@@ -433,6 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnProjectToolbarAssign = document.getElementById('btnProjectToolbarAssign');
     const btnProjectToolbarLinkCase = document.getElementById('btnProjectToolbarLinkCase');
     const btnProjectToolbarDelete = document.getElementById('btnProjectToolbarDelete');
+    const btnProjectToolbarUpdate = document.getElementById('btnProjectToolbarUpdate');
     const btnProjectBatchExport = document.getElementById('btnProjectBatchExport');
     const btnProjectWordCount = document.getElementById('btnProjectWordCount');
     const btnProjectSplitAssign = document.getElementById('btnProjectSplitAssign');
@@ -6533,6 +6534,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadFilesList();
         });
     }
+    if (btnProjectToolbarUpdate) {
+        btnProjectToolbarUpdate.addEventListener('click', async () => {
+            const ids = getSelectedProjectFileIds();
+            if (ids.length !== 1) {
+                alert('請先勾選「一個」要更新的檔案。');
+                return;
+            }
+            const targetFile = await DBService.getFile(ids[0]);
+            if (!targetFile) { alert('找不到所選檔案。'); return; }
+
+            // Google Sheet 來源：直接走 GS 更新流程
+            const gsUrl = String(targetFile.googleSheetUrl || '').trim();
+            if (gsUrl) {
+                await runFileUpdateFromGoogleSheet(ids[0]);
+                return;
+            }
+
+            // 本地檔案：開啟 wizard 並設為「更新模式」
+            _updateTargetFileId = ids[0];
+            if (wizardOverlay) {
+                const title = wizardOverlay.querySelector('.wizard-header h2');
+                if (title) title.textContent = `更新檔案：${targetFile.name || ''}`;
+            }
+            if (wizardOverlay) wizardOverlay.classList.remove('hidden');
+            showWizardStep('wizardStep1');
+        });
+    }
     if (btnProjectToolbarLinkCase) {
         btnProjectToolbarLinkCase.addEventListener('click', () => {
             const ids = getSelectedProjectFileIds();
@@ -9783,11 +9811,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         sourceFileInput.value = '';
     });
 
+    function _resetWizardUpdateMode() {
+        if (_updateTargetFileId != null) {
+            _updateTargetFileId = null;
+            _gsUpdateTargetFileId = null;
+            _gsUpdateMode = false;
+            const wizTitle = wizardOverlay && wizardOverlay.querySelector('.wizard-header h2');
+            if (wizTitle) wizTitle.textContent = '新增檔案並設定匯入邏輯';
+        }
+    }
+
     btnCloseWizard.addEventListener('click', () => {
         wizardOverlay.classList.add('hidden');
         _gsCsvData = null; _gsSourceUrl = '';
         _gsImportCaseId = ''; _gsImportCaseTitle = '';
         _resetBatchImportState();
+        _resetWizardUpdateMode();
         if (batchProgressMessage) batchProgressMessage.textContent = '';
         if (btnBatchProgressClose) btnBatchProgressClose.classList.add('hidden');
         showWizardStep('wizardStep1');
@@ -10133,6 +10172,307 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnBatchProgressClose) btnBatchProgressClose.classList.remove('hidden');
     }
 
+    // ── 更新作業檔（更新匯入）────────────────────────────────────────────────
+
+    /**
+     * 取得句段集（離線模式用 Dexie，team 模式用 RPC）
+     * db.js 的 getViews 只在 DexieBackend 有定義；team 模式需透過 RPC。
+     */
+    async function _getViewsForProject(projectId) {
+        try {
+            return await DBService.getViews(projectId);
+        } catch (_) {
+            return [];
+        }
+    }
+
+    /**
+     * 更新作業檔後，同步所有涵蓋該檔案的句段集：
+     *   - 快速結合型（type:'quick'）：新增句段全部加入，刪除句段移除
+     *   - 自訂篩選型：新增句段比對 filterSummary，符合才加入；刪除句段移除
+     *
+     * @param {string|number} fileId
+     * @param {object[]}      addedSegs   已寫入 DB 的新增句段（含 id）
+     * @param {(string|number)[]} removedIds  已刪除的句段 id 陣列
+     * @returns {{ viewName: string, added: number, removed: number }[]}
+     */
+    async function _syncViewsAfterFileUpdate(fileId, addedSegs, removedIds) {
+        const FileUpdate = window.CatToolFileUpdate;
+        if (!currentProjectId || !FileUpdate) return [];
+        const views = await _getViewsForProject(currentProjectId);
+        const fileIdStr = String(fileId);
+        const removedSet = new Set(removedIds.map(id => String(id)));
+        const summary = [];
+
+        for (const v of views) {
+            const coverFile = Array.isArray(v.fileIds) && v.fileIds.some(fid => String(fid) === fileIdStr);
+            if (!coverFile) continue;
+
+            const oldIds = Array.isArray(v.segmentIds) ? v.segmentIds.map(id => String(id)) : [];
+            // 移除被刪的句段
+            const afterRemove = oldIds.filter(id => !removedSet.has(id));
+
+            // 加入符合條件的新句段
+            const fs = v.filterSummary || {};
+            const toAdd = addedSegs.filter(seg => FileUpdate.segmentMatchesFilter(seg, fs));
+            const toAddIds = toAdd.map(seg => String(seg.id));
+
+            // 合併（避免重複）
+            const merged = [...new Set([...afterRemove, ...toAddIds])];
+
+            const addedCount   = merged.length - afterRemove.length + (oldIds.length - afterRemove.length > 0 ? 0 : 0);
+            const removedCount = oldIds.length - afterRemove.length;
+            const netAdded     = toAddIds.length;
+
+            if (merged.length !== oldIds.length || netAdded > 0) {
+                await DBService.updateView(v.id, { segmentIds: merged });
+                summary.push({ viewName: v.name || '未命名句段集', added: netAdded, removed: removedCount });
+            }
+        }
+        return summary;
+    }
+
+    /**
+     * 執行「更新作業檔」主流程：
+     *   1. 解析新版檔案取得 incomingSegs
+     *   2. 讀取現有句段做 diff
+     *   3. 顯示確認對話框（含異動摘要）
+     *   4. clearFileLeases（踢出編輯中的人）
+     *   5. refreshFileSegments
+     *   6. 同步句段集
+     *   7. 顯示完成摘要
+     *
+     * @param {string|number} targetFileId  要更新的 cat_files.id
+     * @param {File}          file          使用者選擇的新版原始檔
+     * @param {object}        langChoice    { sourceLang, targetLang }
+     * @param {Map}           roleMap       mqxliff role map
+     * @param {Map|null}      excelConfigMap Excel 欄位設定 map
+     */
+    async function runFileUpdate(targetFileId, file, langChoice, roleMap, excelConfigMap) {
+        const XliffImport  = window.CatToolXliffImport;
+        const PoImport     = window.CatToolPoImport;
+        const FileUpdate   = window.CatToolFileUpdate;
+
+        if (!FileUpdate) {
+            alert('更新模組未載入（js/file-update.js）');
+            return;
+        }
+
+        const fileName = file.name || '';
+        const lower    = fileName.toLowerCase();
+        const format   = FileUpdate.detectFormat(fileName) || 'excel';
+
+        // ── 1. 解析新版檔案 ──────────────────────────────────────────────────
+        let incomingSegs = [];
+        try {
+            const role = lower.endsWith('.mqxliff') ? (roleMap.get(file) || 'T_ALLOW_R1') : undefined;
+            incomingSegs = await _parseFormatToSegments(file, format, role, langChoice, excelConfigMap);
+        } catch (err) {
+            alert('解析新版檔案失敗：' + (err && err.message ? err.message : String(err)));
+            if (wizardOverlay) wizardOverlay.classList.add('hidden');
+            showWizardStep('wizardStep1');
+            return;
+        }
+
+        // ── 2. 讀取現有句段 ──────────────────────────────────────────────────
+        let existingSegs = [];
+        try {
+            existingSegs = await DBService.getSegmentsByFile(targetFileId);
+        } catch (err) {
+            alert('讀取現有句段失敗：' + (err && err.message ? err.message : String(err)));
+            return;
+        }
+
+        // ── 3. Diff + 規則 ───────────────────────────────────────────────────
+        const nowIso = new Date().toISOString();
+        const mergeResult = FileUpdate.mergeSegments(existingSegs, incomingSegs, format, nowIso);
+        const { stats } = mergeResult;
+
+        // 確認對話框
+        const lines = [
+            `即將更新「${fileName}」：`,
+            `　保留（無變動）：${stats.kept} 句`,
+            `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變：${stats.updatedSourceChanged} 句）` : ''}`,
+            `　新增：${stats.inserted} 句`,
+            `　刪除：${stats.removed} 句`,
+        ];
+        if (stats.removed > 0) {
+            lines.push('');
+            lines.push('注意：刪除的句段若含有譯文，刪除後無法復原。');
+        }
+        lines.push('');
+        lines.push('確定要更新嗎？');
+
+        const confirmed = await openCatConfirmModal(lines.join('\n'));
+        if (!confirmed) {
+            if (wizardOverlay) wizardOverlay.classList.add('hidden');
+            showWizardStep('wizardStep1');
+            return;
+        }
+
+        // ── 4. 踢出正在編輯的人 ─────────────────────────────────────────────
+        try {
+            await DBService.clearFileLeases(targetFileId);
+        } catch (_) { /* 非致命 */ }
+
+        // ── 5. 寫入 DB ───────────────────────────────────────────────────────
+        try {
+            const newFileBuffer = await file.arrayBuffer();
+            const ops = {
+                update: mergeResult.update,
+                insert: mergeResult.insert,
+                remove: mergeResult.remove,
+            };
+            await DBService.refreshFileSegments(targetFileId, ops, newFileBuffer);
+        } catch (err) {
+            alert('更新失敗：' + (err && err.message ? err.message : String(err)));
+            if (wizardOverlay) wizardOverlay.classList.add('hidden');
+            showWizardStep('wizardStep1');
+            return;
+        }
+
+        // ── 6. 同步句段集 ────────────────────────────────────────────────────
+        // 取得已寫入的新增句段 id（需重新讀取）
+        let viewSummary = [];
+        try {
+            if (stats.inserted > 0 || stats.removed > 0) {
+                const freshSegs = await DBService.getSegmentsByFile(targetFileId);
+                // 新增的句段：在 freshSegs 中但不在 existingSegs 的（以 idValue/rowIdx 比對）
+                const existingIds = new Set(existingSegs.map(s => String(s.id)));
+                const addedSegs = freshSegs.filter(s => !existingIds.has(String(s.id)));
+                viewSummary = await _syncViewsAfterFileUpdate(targetFileId, addedSegs, mergeResult.remove);
+            }
+        } catch (err) {
+            console.warn('[runFileUpdate] 句段集同步失敗：', err);
+        }
+
+        // ── 7. 變更日誌 ──────────────────────────────────────────────────────
+        if (currentProjectId) {
+            const fileObj = await DBService.getFile(targetFileId);
+            const entry = makeBaseLogEntry('update', 'project-file', {
+                entityId: targetFileId,
+                entityName: fileObj && fileObj.name ? fileObj.name : `File #${targetFileId}`,
+                detail: `更新匯入：保留 ${stats.kept}、更新 ${stats.updated}、新增 ${stats.inserted}、刪除 ${stats.removed}`,
+            });
+            await appendProjectChangeLog(currentProjectId, entry);
+            await DBService.addModuleLog('projects', entry);
+        }
+
+        // ── 8. 收尾 UI ───────────────────────────────────────────────────────
+        if (wizardOverlay) wizardOverlay.classList.add('hidden');
+        showWizardStep('wizardStep1');
+        if (batchProgressMessage) batchProgressMessage.textContent = '';
+        if (btnBatchProgressClose) btnBatchProgressClose.classList.add('hidden');
+
+        await loadFilesList();
+
+        // 結果摘要
+        const resultLines = [
+            `「${fileName}」更新完成。`,
+            `　保留（無變動）：${stats.kept} 句`,
+            `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變 ${stats.updatedSourceChanged} 句，已加入追蹤修訂提示）` : ''}`,
+            `　新增：${stats.inserted} 句`,
+            `　刪除：${stats.removed} 句`,
+        ];
+        if (viewSummary.length) {
+            resultLines.push('');
+            resultLines.push('句段集同步：');
+            viewSummary.forEach(vs => {
+                resultLines.push(`　「${vs.viewName}」：+${vs.added} / -${vs.removed}`);
+            });
+        }
+        alert(resultLines.join('\n'));
+    }
+
+    /**
+     * 解析任意格式的作業檔為句段陣列，不寫入 DB。
+     * 透過暫時替換 DBService.createFile / addSegments 攔截句段，
+     * 適用於 XLIFF、PO、Excel 三種格式。
+     *
+     * @param {File}   file
+     * @param {'xliff'|'po'|'excel'|'gsheet'} format
+     * @param {string} [role]          mqxliff 角色
+     * @param {object} [langChoice]    { sourceLang, targetLang }
+     * @param {Map}    [excelConfigMap]
+     * @returns {Promise<object[]>}  fileId 欄位已移除的句段陣列
+     */
+    async function _parseFormatToSegments(file, format, role, langChoice, excelConfigMap) {
+        const XliffImport = window.CatToolXliffImport;
+        const PoImport    = window.CatToolPoImport;
+        const collected   = [];
+        const DUMMY_FILE_ID = '__tmp_parse_update__';
+
+        const origCreateFile  = DBService.createFile;
+        const origUpdateFile  = DBService.updateFile;
+        const origAddSegments = DBService.addSegments;
+
+        DBService.createFile  = async () => DUMMY_FILE_ID;
+        DBService.updateFile  = async () => {};
+        DBService.addSegments = async (segs) => { collected.push(...segs); };
+
+        try {
+            if (format === 'xliff') {
+                if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
+                    throw new Error('XLIFF 匯入模組未載入');
+                }
+                await XliffImport.handleXliffLikeImport(xliffImportCtx({ suppressWizardHide: true }), file, role);
+            } else if (format === 'po') {
+                if (!PoImport || typeof PoImport.handlePoImport !== 'function') {
+                    throw new Error('PO 匯入模組未載入');
+                }
+                await PoImport.handlePoImport(xliffImportCtx({ suppressWizardHide: true }), file);
+            } else {
+                // Excel
+                const cfg = excelConfigMap && excelConfigMap.get(file);
+                if (!cfg) throw new Error('缺少欄位設定');
+                await _ensureExcelFileInStore(file);
+                await _importSingleExcelFile(file, cfg, langChoice);
+            }
+        } finally {
+            DBService.createFile  = origCreateFile;
+            DBService.updateFile  = origUpdateFile;
+            DBService.addSegments = origAddSegments;
+        }
+
+        // 清除假檔（team 模式不會真正建立；離線模式 Dexie 可能有殘留）
+        try { await DBService.deleteFile(DUMMY_FILE_ID); } catch (_) {}
+
+        return collected.map(s => ({ ...s, fileId: undefined }));
+    }
+
+    // ── 更新作業檔 — Google Sheet 版本 ──────────────────────────────────────
+
+    /**
+     * 從 cat_files.googleSheetUrl 重新拉取，執行更新作業檔流程。
+     * @param {string|number} targetFileId
+     * @param {object}        gsConfig  { sourceCols, targetCols, idCols, extraCols, rows, direction }
+     */
+    async function runFileUpdateFromGoogleSheet(targetFileId) {
+        const file = await DBService.getFile(targetFileId);
+        if (!file) { alert('找不到作業檔。'); return; }
+        const gsUrl = String(file.googleSheetUrl || '').trim();
+        if (!gsUrl) { alert('此作業檔沒有儲存 Google Sheet 連結，無法更新。'); return; }
+
+        // 取得最新的 GS 設定（與初次匯入相同的欄位 wizard 設定）
+        // 由 showGsUpdateWizard 引導使用者重新確認欄位設定
+        await _runGsFileUpdateFlow(targetFileId, gsUrl, file);
+    }
+
+    async function _runGsFileUpdateFlow(targetFileId, gsUrl, fileObj) {
+        // 沿用初次匯入的 GS wizard，但傳入 targetFileId 以啟動更新模式
+        _gsUpdateTargetFileId = targetFileId;
+        _gsUpdateMode = true;
+        gsImportUrlInput.value = gsUrl;
+        if (wizardOverlay) wizardOverlay.classList.remove('hidden');
+        showWizardStep('wizardStep1');
+        // 點擊「匯入」→ 走 btnGsImportStart 的 handler，該 handler 改由 _gsUpdateMode 決定後續行為
+    }
+
+    // ── 更新作業檔模式旗標（供 wizard handler 讀取） ─────────────────────────
+    let _updateTargetFileId = null;   // 目前要更新的 fileId
+    let _gsUpdateTargetFileId = null; // GS 更新模式下的 fileId
+    let _gsUpdateMode = false;        // GS wizard 是否處於更新模式
+
     async function _ensureExcelFileInStore(file) {
         if (_batchExcelDataStore.has(file)) return;
         const buf = await file.arrayBuffer();
@@ -10207,7 +10547,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (batchProgressMessage) batchProgressMessage.textContent = '';
         if (btnBatchProgressClose) btnBatchProgressClose.classList.add('hidden');
 
-        await runBatchImport(files, langChoice, _batchMqRoles, excelConfigMap || new Map());
+        if (_updateTargetFileId != null) {
+            // ── 更新模式：只允許單一檔案，且必須同格式 ──────────────────────
+            const FileUpdate = window.CatToolFileUpdate;
+            const targetId = _updateTargetFileId;
+            _updateTargetFileId = null;
+            _resetWizardUpdateMode();
+
+            if (files.length !== 1) {
+                alert('更新模式每次只能選擇一個檔案。');
+                if (wizardOverlay) wizardOverlay.classList.add('hidden');
+                showWizardStep('wizardStep1');
+                sourceFileInput.value = '';
+                _resetBatchImportState();
+                return;
+            }
+            const singleFile = files[0];
+            const targetDbFile = await DBService.getFile(targetId);
+            if (targetDbFile && FileUpdate) {
+                const origFmt = FileUpdate.detectFormat(targetDbFile.name || '');
+                const newFmt  = FileUpdate.detectFormat(singleFile.name || '');
+                if (origFmt && newFmt && origFmt !== newFmt) {
+                    alert(`格式不符：原始檔為 ${origFmt}，新檔為 ${newFmt}。請選擇相同格式的檔案。`);
+                    if (wizardOverlay) wizardOverlay.classList.add('hidden');
+                    showWizardStep('wizardStep1');
+                    sourceFileInput.value = '';
+                    _resetBatchImportState();
+                    return;
+                }
+            }
+
+            // 此時 excelConfigMap 已由 showBatchExcelConfigModal 填妥（Excel）
+            // 或為空 Map（XLIFF/PO）；直接走更新流程，不再建立新檔
+            await runFileUpdate(targetId, singleFile, langChoice, _batchMqRoles, excelConfigMap || new Map());
+        } else {
+            await runBatchImport(files, langChoice, _batchMqRoles, excelConfigMap || new Map());
+        }
 
         sourceFileInput.value = '';
         _resetBatchImportState();
@@ -10637,27 +11012,113 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             btnWizFinish.disabled = true; btnWizFinish.textContent = '處理中...';
-            const fId = await DBService.createFile(
-                currentProjectId, originalFileName, excelRawBuffer,
-                _importSelectedSrcLang, _importSelectedTgtLang
-            );
-            const entry = makeBaseLogEntry('create', 'project-file', {
-                entityId: fId,
-                entityName: originalFileName
-            });
-            if (currentProjectId) {
-                await appendProjectChangeLog(currentProjectId, entry);
-                await DBService.addModuleLog('projects', entry);
-            }
-            const mappedSegments = extractedSegmentsBackup.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
-            const savedCount = await DBService.addSegments(mappedSegments);
-            if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
-                console.warn('[CAT] addSegments returned 0 — segments may not have been saved to cloud.');
-            }
 
-            wizardOverlay.classList.add('hidden');
-            excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
-            await loadFilesList();
+            if (_updateTargetFileId != null) {
+                // ── 更新模式：合併句段而非新建 ──────────────────────────────
+                const targetId = _updateTargetFileId;
+                _updateTargetFileId = null;
+                // 恢復 wizard 標題
+                const wizTitle = wizardOverlay && wizardOverlay.querySelector('.wizard-header h2');
+                if (wizTitle) wizTitle.textContent = '新增檔案並設定匯入邏輯';
+
+                const FileUpdate = window.CatToolFileUpdate;
+                if (!FileUpdate) throw new Error('更新模組未載入（js/file-update.js）');
+
+                // 用 extractedSegmentsBackup 組出 incomingSegs
+                const incomingSegs = extractedSegmentsBackup.map(s => ({ ...s, fileId: undefined }));
+
+                // diff + 確認 + 寫入
+                const nowIso = new Date().toISOString();
+                const existingSegs = await DBService.getSegmentsByFile(targetId);
+                const mergeResult = FileUpdate.mergeSegments(existingSegs, incomingSegs, 'excel', nowIso);
+                const { stats } = mergeResult;
+
+                // 確認對話框
+                const confLines = [
+                    `即將更新「${originalFileName}」：`,
+                    `　保留（無變動）：${stats.kept} 句`,
+                    `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變：${stats.updatedSourceChanged} 句）` : ''}`,
+                    `　新增：${stats.inserted} 句`,
+                    `　刪除：${stats.removed} 句`,
+                ];
+                if (stats.removed > 0) { confLines.push(''); confLines.push('注意：刪除的句段若含有譯文，刪除後無法復原。'); }
+                confLines.push(''); confLines.push('確定要更新嗎？');
+                const confirmed = await openCatConfirmModal(confLines.join('\n'));
+
+                if (!confirmed) {
+                    wizardOverlay.classList.add('hidden');
+                    showWizardStep('wizardStep1');
+                    excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
+                    return;
+                }
+
+                await DBService.clearFileLeases(targetId);
+                const ops = { update: mergeResult.update, insert: mergeResult.insert, remove: mergeResult.remove };
+                await DBService.refreshFileSegments(targetId, ops, excelRawBuffer || null);
+
+                // 句段集同步
+                let viewSummary = [];
+                try {
+                    if (stats.inserted > 0 || stats.removed > 0) {
+                        const freshSegs = await DBService.getSegmentsByFile(targetId);
+                        const existingIdSet = new Set(existingSegs.map(s => String(s.id)));
+                        const addedSegs = freshSegs.filter(s => !existingIdSet.has(String(s.id)));
+                        viewSummary = await _syncViewsAfterFileUpdate(targetId, addedSegs, mergeResult.remove);
+                    }
+                } catch (_) {}
+
+                // 變更日誌
+                if (currentProjectId) {
+                    const fileObj = await DBService.getFile(targetId);
+                    const logEntry = makeBaseLogEntry('update', 'project-file', {
+                        entityId: targetId,
+                        entityName: fileObj && fileObj.name ? fileObj.name : `File #${targetId}`,
+                        detail: `更新匯入：保留 ${stats.kept}、更新 ${stats.updated}、新增 ${stats.inserted}、刪除 ${stats.removed}`,
+                    });
+                    await appendProjectChangeLog(currentProjectId, logEntry);
+                    await DBService.addModuleLog('projects', logEntry);
+                }
+
+                wizardOverlay.classList.add('hidden');
+                excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
+                await loadFilesList();
+
+                const resultLines = [
+                    `「${originalFileName}」更新完成。`,
+                    `　保留（無變動）：${stats.kept} 句`,
+                    `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變 ${stats.updatedSourceChanged} 句，已加入追蹤修訂提示）` : ''}`,
+                    `　新增：${stats.inserted} 句`,
+                    `　刪除：${stats.removed} 句`,
+                ];
+                if (viewSummary.length) {
+                    resultLines.push(''); resultLines.push('句段集同步：');
+                    viewSummary.forEach(vs => resultLines.push(`　「${vs.viewName}」：+${vs.added} / -${vs.removed}`));
+                }
+                alert(resultLines.join('\n'));
+            } else {
+                // ── 正常匯入模式 ─────────────────────────────────────────────
+                const fId = await DBService.createFile(
+                    currentProjectId, originalFileName, excelRawBuffer,
+                    _importSelectedSrcLang, _importSelectedTgtLang
+                );
+                const entry = makeBaseLogEntry('create', 'project-file', {
+                    entityId: fId,
+                    entityName: originalFileName
+                });
+                if (currentProjectId) {
+                    await appendProjectChangeLog(currentProjectId, entry);
+                    await DBService.addModuleLog('projects', entry);
+                }
+                const mappedSegments = extractedSegmentsBackup.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
+                const savedCount = await DBService.addSegments(mappedSegments);
+                if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
+                    console.warn('[CAT] addSegments returned 0 — segments may not have been saved to cloud.');
+                }
+
+                wizardOverlay.classList.add('hidden');
+                excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
+                await loadFilesList();
+            }
         } catch(e) { alert('匯入失敗: ' + e.message); } finally { btnWizFinish.disabled = false; btnWizFinish.textContent = '匯入檔案'; }
     });
 
@@ -16590,7 +17051,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 rowInnerContent += `<div class="col-source-file" style="padding:0.5rem; font-size:0.82rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${fQ}">${fEsc}</div>`;
             }
             const sourceHtml = buildTaggedHtml(seg.sourceText, seg.sourceTags || [], true);
-            rowInnerContent += `<div class="col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div></div>`;
+            // 追蹤修訂：若原文在更新作業檔時有變動，顯示提示與舊版原文
+            let sourceChangeHtml = '';
+            if (seg.sourceChangeInfo && seg.sourceChangeInfo.previousSource != null) {
+                const sci = seg.sourceChangeInfo;
+                const changedDate = sci.changedAt || '';
+                const prevSrc = String(sci.previousSource || '').replace(/</g, '&lt;');
+                const tooltipText = changedDate ? `原文於 ${changedDate} 有更動` : '原文已更動';
+                sourceChangeHtml = `
+                    <div class="source-change-track" style="margin-top:0.35rem; border-top:1px dashed #f59e0b; padding-top:0.3rem;">
+                        <div style="display:flex; align-items:center; gap:0.3rem; margin-bottom:0.2rem; cursor:pointer; user-select:none;"
+                             onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none';"
+                             title="${tooltipText}">
+                            <span style="background:#f59e0b; color:#fff; font-size:0.65rem; font-weight:700; padding:0.05rem 0.3rem; border-radius:3px; letter-spacing:0.02em;">原文有更動</span>
+                            <span style="font-size:0.72rem; color:#92400e;">${tooltipText}</span>
+                        </div>
+                        <div class="source-change-prev" style="font-size:0.82rem; color:#b45309; text-decoration:line-through; word-break:break-all; padding:0.2rem 0.25rem; background:#fef3c7; border-radius:3px;">${prevSrc}</div>
+                    </div>`;
+            }
+            rowInnerContent += `<div class="col-source"${seg.sourceChangeInfo ? ' data-source-changed="true"' : ''}><div class="rt-editor" contenteditable="false">${sourceHtml}</div>${sourceChangeHtml}</div>`;
             const targetHtml = buildTaggedHtml(seg.targetText, effectiveTags(seg));
             const _initCharCount = seg.targetText ? seg.targetText.replace(/\{\/?\d+\}/g, '').length : 0;
             rowInnerContent += `<div class="col-target" style="position:relative;">

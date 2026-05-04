@@ -882,6 +882,13 @@ button:disabled { cursor: not-allowed; }
     line-height: 1.4;
     box-sizing: border-box;
 }
+/* 追蹤修訂：原文有更動的句段左側加橘色邊條 */
+.col-source[data-source-changed="true"] {
+    border-left: 3px solid #f59e0b;
+}
+.source-change-track {
+    padding: 0 0.75rem 0.4rem;
+}
 .col-target { padding: 0; display: flex; flex-direction: column; }
 .col-meta { padding: 0.5rem; font-size: 0.8rem; color: var(--text-light); word-break: break-all; }
 

@@ -219,6 +219,8 @@ const mapSegmentRow = (r: any) => {
     lastModified: r.last_modified,
     /** 樂觀鎖：寫庫寫前條件與寫入後自增 */
     segmentRevision: r.segment_revision != null ? Number(r.segment_revision) : 0,
+    /** 原文變更追蹤：{ changedAt, previousSource }，僅存最新一次 */
+    sourceChangeInfo: tryParseJson<{ changedAt: string; previousSource: string } | null>(r.source_change_info, null),
   };
 };
 
@@ -681,6 +683,116 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         if (rmErr) console.warn("[cat-cloud-rpc] deleteFile storage remove:", rmErr);
       }
       return await supabase.from("cat_files").delete().eq("id", payload.fileId);
+    }
+
+    case "db.refreshFileSegments": {
+      const { fileId, ops } = payload;
+      const { update = [], insert = [], remove = [], newFileBase64 } = ops ?? {};
+      const BATCH = 500;
+
+      // 刪除
+      if (Array.isArray(remove) && remove.length) {
+        for (let i = 0; i < remove.length; i += BATCH) {
+          const chunk = remove.slice(i, i + BATCH);
+          const { error } = await supabase.from("cat_segments").delete().in("id", chunk);
+          if (error) throw error;
+        }
+      }
+
+      // 更新
+      if (Array.isArray(update) && update.length) {
+        for (const { id: segId, patch } of update) {
+          const dbPatch: Record<string, unknown> = { last_modified: nowIso() };
+          if (patch.sourceText     !== undefined) dbPatch.source_text      = patch.sourceText;
+          if (patch.sourceTags     !== undefined) dbPatch.source_tags      = patch.sourceTags;
+          if (patch.targetText     !== undefined) dbPatch.target_text      = patch.targetText;
+          if (patch.targetTags     !== undefined) dbPatch.target_tags      = patch.targetTags;
+          if (patch.idValue        !== undefined) dbPatch.id_value         = patch.idValue;
+          if (patch.extraValue     !== undefined) dbPatch.extra_value      = patch.extraValue;
+          if (patch.status         !== undefined) dbPatch.status           = patch.status;
+          if (patch.isLocked       !== undefined) dbPatch.is_locked        = patch.isLocked;
+          if (patch.isLockedUser   !== undefined) dbPatch.is_locked_user   = patch.isLockedUser;
+          if (patch.isLockedSystem !== undefined) dbPatch.is_locked_system = patch.isLockedSystem;
+          if (patch.sourceChangeInfo !== undefined) dbPatch.source_change_info = patch.sourceChangeInfo;
+          const { error } = await supabase.from("cat_segments").update(dbPatch as any).eq("id", segId);
+          if (error) throw error;
+        }
+      }
+
+      // 新增
+      if (Array.isArray(insert) && insert.length) {
+        const rows = insert.map((s: any) => {
+          const isLockedUser   = !!s.isLockedUser;
+          const isLockedSystem = !!s.isLockedSystem;
+          const isLocked = !!(s.isLocked ?? (isLockedUser || isLockedSystem));
+          return {
+            file_id:            fileId,
+            sheet_name:         s.sheetName ?? "Sheet1",
+            row_idx:            s.rowIdx ?? 0,
+            col_src:            s.colSrc ?? null,
+            col_tgt:            s.colTgt ?? null,
+            id_value:           s.idValue ?? null,
+            extra_value:        s.extraValue ?? null,
+            source_text:        s.sourceText ?? "",
+            target_text:        s.targetText ?? "",
+            source_tags:        Array.isArray(s.sourceTags) ? s.sourceTags : [],
+            target_tags:        Array.isArray(s.targetTags) ? s.targetTags : [],
+            is_locked_user:     isLockedUser,
+            is_locked_system:   isLockedSystem,
+            is_locked:          isLocked,
+            status:             s.status ?? "",
+            editor_note:        s.editorNote ?? "",
+            match_value:        coerceMatchValueForDb(s.matchValue),
+            source_change_info: s.sourceChangeInfo ?? null,
+            created_at:         nowIso(),
+            last_modified:      nowIso(),
+            segment_revision:   0,
+          };
+        });
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const { error } = await supabase.from("cat_segments").insert(rows.slice(i, i + BATCH) as any);
+          if (error) throw error;
+        }
+      }
+
+      // 更換原始檔（Storage）
+      if (newFileBase64) {
+        const { data: fileRow } = await supabase.from("cat_files")
+          .select("name, original_file_path")
+          .eq("id", fileId)
+          .maybeSingle();
+        if (fileRow) {
+          const oldPath = fileRow.original_file_path ? String(fileRow.original_file_path).trim() : "";
+          if (oldPath) {
+            await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).remove([oldPath]);
+          }
+          const binaryStr = atob(newFileBase64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+          const mime = guessMimeFromCatFileName(fileRow.name ?? "");
+          const newPath = `${fileId}/${Date.now()}_${fileRow.name ?? "file"}`;
+          const { error: upErr } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET)
+            .upload(newPath, bytes, { contentType: mime, upsert: true });
+          if (!upErr) {
+            await supabase.from("cat_files")
+              .update({ original_file_path: newPath, last_modified: nowIso() } as any)
+              .eq("id", fileId);
+          } else {
+            console.warn("[cat-cloud-rpc] refreshFileSegments storage upload:", upErr);
+          }
+        }
+      } else {
+        await supabase.from("cat_files").update({ last_modified: nowIso() } as any).eq("id", fileId);
+      }
+
+      return { updated: update.length, inserted: insert.length, removed: remove.length };
+    }
+
+    case "db.clearFileLeases": {
+      const { fileId } = payload;
+      const { error } = await supabase.from("cat_segment_edit_leases").delete().eq("file_id", fileId);
+      if (error) console.warn("[cat-cloud-rpc] clearFileLeases:", error);
+      return true;
     }
 
     case "db.addSegments": {
