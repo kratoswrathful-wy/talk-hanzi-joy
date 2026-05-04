@@ -1052,12 +1052,12 @@
                             <div id="qaStatus" class="qa-status-bar">按「開始 QA」執行檢查。</div>
                             <div class="qa-results-wrap" style="overflow-y:auto; flex:1;">
                                 <div id="qaResultsHint" class="qa-results-hint" style="display:none;">
-                                    <strong>使用說明：</strong>「#」「說明」點擊可跳至該句段。勾選「選」欄可多列選取；變更任一列「忽略」時，會一併套用至<strong>所有已選取</strong>列。在「類型」或「說明」儲存格上<strong>右鍵</strong>可批次忽略「同類型」或「同說明」（同說明＝說明文字完全一致）的警報。
+                                    <strong>使用說明：</strong>「#」「說明」點擊可跳至該句段。勾選最左欄可多列選取；變更任一列「忽略」時，會一併套用至<strong>所有已選取</strong>列。在「類型」或「說明」儲存格上<strong>右鍵</strong>可批次忽略「同類型」或「同說明」（同說明＝說明文字完全一致）的警報。
                                 </div>
                                 <table class="qa-results-table" id="qaResultsTable" style="display:none;">
                                     <thead>
                                         <tr>
-                                            <th class="qa-th-sel" title="多列選取"><abbr title="選取">選</abbr></th>
+                                            <th class="qa-th-sel" scope="col" aria-label="多列選取" title="多列選取"></th>
                                             <th class="qa-th-num qa-sortable-th" data-sort-key="gid">#</th>
                                             <th class="qa-th-type qa-sortable-th" data-sort-key="type">類型</th>
                                             <th class="qa-th-info qa-sortable-th" data-sort-key="info">說明</th>

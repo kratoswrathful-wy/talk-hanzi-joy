@@ -1323,8 +1323,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return offset;
     }
 
-    /** 依字元偏移量還原游標位置（跳過非列印標記）。 */
-    function setNpCaretOffset(el, targetOffset) {
+    /** 建立 NP 模式下之摺疊 Range，不操作 Selection（供失焦後避免 addRange 搶焦點）。 */
+    function buildCollapsedNpRangeAtOffset(el, targetOffset) {
         let remaining = targetOffset;
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_ALL, {
             acceptNode: n => {
@@ -1337,22 +1337,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         let nd;
         while ((nd = walker.nextNode())) {
             if (nd.nodeType === 3) {
-                if (remaining <= nd.nodeValue.length) {
+                const len = nd.nodeValue.length;
+                if (remaining <= len) {
                     try {
-                        const sel = window.getSelection();
                         const rng = document.createRange();
-                        rng.setStart(nd, remaining);
+                        rng.setStart(nd, Math.max(0, remaining));
                         rng.collapse(true);
-                        sel.removeAllRanges();
-                        sel.addRange(rng);
-                    } catch (_) {}
-                    return;
+                        return rng;
+                    } catch (_) {
+                        return null;
+                    }
                 }
-                remaining -= nd.nodeValue.length;
+                remaining -= len;
             } else if (nd.nodeType === 1 && nd.tagName === 'BR') {
                 if (!isGhostBr(nd, el)) remaining -= 1;
             }
         }
+        return null;
+    }
+
+    /** 依字元偏移量還原游標位置（跳過非列印標記）。 */
+    function setNpCaretOffset(el, targetOffset) {
+        const rng = buildCollapsedNpRangeAtOffset(el, targetOffset);
+        if (!rng) return;
+        try {
+            const sel = window.getSelection();
+            if (!sel) return;
+            sel.removeAllRanges();
+            sel.addRange(rng);
+        } catch (_) { /* ignore */ }
     }
 
     /** 是否含 IME／Chrome 在 contenteditable 留下的 font、有色 span（略過 .rt-tag 內）。 */
@@ -15871,13 +15884,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    /** 將線性偏移還原至 buildTaggedHtml 後之譯文格（與 getRtEditorTextSegmentsForHighlightMap 一致）。 */
-    function setCaretAtPlainTextOffsetUsingSegments(editor, plainOffset) {
-        if (!editor || editor.contentEditable === 'false') return false;
+    /** 將線性偏移對應為摺疊 Range，不操作 Selection（與 setCaretAtPlainTextOffsetUsingSegments 幾何一致）。 */
+    function buildCollapsedRangeAtPlainTextOffsetUsingSegments(editor, plainOffset) {
+        if (!editor || editor.contentEditable === 'false') return null;
         const { segs, totalLen } = getRtEditorTextSegmentsForHighlightMap(editor);
         const pos = Math.max(0, Math.min(Math.floor(plainOffset), totalLen));
-        const sel = window.getSelection();
-        if (!sel) return false;
         const candidates = [];
         for (const seg of segs) {
             if (pos < seg.abs[0] || pos > seg.abs[1]) continue;
@@ -15894,11 +15905,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const rng = document.createRange();
                 rng.selectNodeContents(editor);
                 rng.collapse(false);
-                sel.removeAllRanges();
-                sel.addRange(rng);
-                return true;
+                return rng;
             } catch (_) {
-                return false;
+                return null;
             }
         }
         try {
@@ -15908,32 +15917,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const o = Math.max(0, Math.min(pos - seg.abs[0], mv.length));
                 rng.setStart(seg.node, o);
                 rng.collapse(true);
-                sel.removeAllRanges();
-                sel.addRange(rng);
-                return true;
+                return rng;
             }
             if (seg.type === 'br' && seg.node) {
                 if (pos <= seg.abs[0]) rng.setStartBefore(seg.node);
                 else rng.setStartAfter(seg.node);
                 rng.collapse(true);
-                sel.removeAllRanges();
-                sel.addRange(rng);
-                return true;
+                return rng;
             }
             if (seg.type === 'ph' && seg.el) {
                 const mid = seg.abs[0] + ((seg.ph && seg.ph.length) ? seg.ph.length / 2 : 0);
                 if (pos < mid) rng.setStartBefore(seg.el);
                 else rng.setStartAfter(seg.el);
                 rng.collapse(true);
-                sel.removeAllRanges();
-                sel.addRange(rng);
-                return true;
+                return rng;
             }
         } catch (_) { /* fall through */ }
         try {
             const rng = document.createRange();
             rng.selectNodeContents(editor);
             rng.collapse(false);
+            return rng;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    /** 將線性偏移還原至 buildTaggedHtml 後之譯文格（與 getRtEditorTextSegmentsForHighlightMap 一致）。 */
+    function setCaretAtPlainTextOffsetUsingSegments(editor, plainOffset) {
+        const rng = buildCollapsedRangeAtPlainTextOffsetUsingSegments(editor, plainOffset);
+        if (!rng) return false;
+        const sel = window.getSelection();
+        if (!sel) return false;
+        try {
             sel.removeAllRanges();
             sel.addRange(rng);
             return true;
@@ -16949,14 +16965,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                     requestAnimationFrame(() => {
                         refreshNonPrintMarkers(targetInput);
                         const maxPlain = extractTextFromEditor(targetInput).length;
-                        if (npMode && caretNpOff != null) {
-                            const clamped = Math.max(0, Math.min(caretNpOff | 0, maxPlain));
-                            setNpCaretOffset(targetInput, clamped);
-                        } else if (!npMode && caretPlainOff != null) {
-                            const clamped = Math.max(0, Math.min(caretPlainOff | 0, maxPlain));
-                            setCaretAtPlainTextOffsetUsingSegments(targetInput, clamped);
+                        const ae = document.activeElement;
+                        const canApplyRealCaret = ae === targetInput;
+                        if (canApplyRealCaret) {
+                            if (npMode && caretNpOff != null) {
+                                const clamped = Math.max(0, Math.min(caretNpOff | 0, maxPlain));
+                                setNpCaretOffset(targetInput, clamped);
+                            } else if (!npMode && caretPlainOff != null) {
+                                const clamped = Math.max(0, Math.min(caretPlainOff | 0, maxPlain));
+                                setCaretAtPlainTextOffsetUsingSegments(targetInput, clamped);
+                            }
+                            saveCatCaretFromSelection(targetInput);
+                        } else if (catFakeCaret && typeof catFakeCaret.setSavedCaret === 'function') {
+                            // 焦點已在他處（含另一譯文格）：勿對本格 addRange，否則會搶回鍵盤焦點；只更新假游標儲存。
+                            if (npMode && caretNpOff != null) {
+                                const clamped = Math.max(0, Math.min(caretNpOff | 0, maxPlain));
+                                const rng = buildCollapsedNpRangeAtOffset(targetInput, clamped);
+                                if (rng) catFakeCaret.setSavedCaret({ segId: seg.id, editor: targetInput, range: rng });
+                            } else if (!npMode && caretPlainOff != null) {
+                                const clamped = Math.max(0, Math.min(caretPlainOff | 0, maxPlain));
+                                const rng = buildCollapsedRangeAtPlainTextOffsetUsingSegments(targetInput, clamped);
+                                if (rng) catFakeCaret.setSavedCaret({ segId: seg.id, editor: targetInput, range: rng });
+                            }
                         }
-                        saveCatCaretFromSelection(targetInput);
                         showCatFakeCaretFromSaved();
                     });
                 });
