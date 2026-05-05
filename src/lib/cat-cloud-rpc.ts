@@ -527,7 +527,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
 
     /** 譯者個人 × 專案：提問表單欄位覆寫（clipboard JSON） */
     case "db.getTranslatorQfPrefs": {
-      const { data } = await supabase
+      const sbAny = supabase as any;
+      const { data } = await sbAny
         .from("cat_translator_question_form_prefs")
         .select("settings_json")
         .eq("user_id", userId)
@@ -537,7 +538,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.upsertTranslatorQfPrefs": {
       const settings = payload.settings && typeof payload.settings === "object" ? payload.settings : {};
-      const { error } = await supabase.from("cat_translator_question_form_prefs").upsert(
+      const sbAny = supabase as any;
+      const { error } = await sbAny.from("cat_translator_question_form_prefs").upsert(
         {
           user_id: userId,
           project_id: payload.projectId,

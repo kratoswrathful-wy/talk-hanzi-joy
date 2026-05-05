@@ -12102,8 +12102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (hidden) hidden.value = '{}';
         }
         syncFilenameManualWrapVisibility();
-        if (qfHasDuplicateColLetters()) _catQfDupOrderConfirmed = false;
-        else _catQfDupOrderConfirmed = true;
+        _catQfDupOrderConfirmed = true;
         qfRefreshDupExplanationAndShiftUi();
     }
 
