@@ -71,7 +71,7 @@
 | 編輯器工具列（客戶表單 / 內部註記按鈕顯示） | `cat-tool/index.html`：`#viewEditor`、`.editor-toolbar` |
 | 編輯器底部資訊列（進度條與「使用者」標籤） | `cat-tool/index.html`：`.editor-status-bar` |
 | 使用者標籤渲染與顯隱 | `cat-tool/app.js`：`collabPresenceBar` 相關邏輯 |
-| 提問表單 / 內部註記按鈕條件顯示主邏輯 | `cat-tool/app.js`（依專案 URL、檔案 `LMS 案件` 綁定狀態判斷） |
+| 提問表單 / 內部註記按鈕條件顯示主邏輯 | `cat-tool/app.js`（依專案 URL、檔案 `LMS 案件` 綁定狀態判斷；提問表單外連以命名視窗重用分頁） |
 | 專案外部連結儲存後 inline 顯示與可點擊 | `cat-tool/app.js`（專案設定渲染與保存流程） |
 | 檔案批次連結案件、批次指派 | `cat-tool/app.js`（檔案清單勾選批次操作） |
 | iframe 與主站通訊橋接（開啟內部註記 / 帶入預填） | `src/pages/CatToolPage.tsx`（`postMessage` bridge） |

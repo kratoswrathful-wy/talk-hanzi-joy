@@ -11972,7 +11972,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!ok) return;
                 if (url) {
                     if (typeof showCatToast === 'function') showCatToast('已複製到剪貼簿，請在試算表 A 欄貼上', 'info');
-                    window.open(url, '_blank', 'noopener,noreferrer');
+                    const qfWindowName = pid != null ? `catClientQuestionForm_${pid}` : 'catClientQuestionForm';
+                    window.open(url, qfWindowName, 'noopener,noreferrer');
                 } else if (typeof showCatToast === 'function') {
                     showCatToast('已將預填訊息複製到剪貼簿', 'info');
                 }
