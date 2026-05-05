@@ -1582,6 +1582,9 @@ const DBService = {
     DBService.getProject = async (projectId) => rpc('db.getProject', { projectId });
     DBService.deleteProject = async (projectId) => rpc('db.deleteProject', { projectId });
     DBService.patchProject = async (projectId, updates) => rpc('db.patchProject', { projectId, updates });
+    DBService.getTranslatorQfPrefs = async (projectId) => rpc('db.getTranslatorQfPrefs', { projectId });
+    DBService.upsertTranslatorQfPrefs = async (projectId, settings) =>
+        rpc('db.upsertTranslatorQfPrefs', { projectId, settings });
 
     // files
     DBService.createFile = async (projectId, name, originalFileBuffer, sourceLang = '', targetLang = '', originalSourceLang = '', originalTargetLang = '') =>

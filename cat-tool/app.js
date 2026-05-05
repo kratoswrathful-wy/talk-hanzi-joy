@@ -11417,6 +11417,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             key: { col: '' },
             source: { col: 'D' },
             target: { col: 'E' },
+            mergeDup: { mode: 'separator', separator: '--' },
+            dupOrderByColumn: {},
+            customFields: [],
         };
     }
 
@@ -11426,8 +11429,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const out = { ...d };
         ['date', 'filename', 'key', 'source', 'target'].forEach((k) => {
             const src = raw[k];
-            if (!src || typeof src !== 'object') return;
-            out[k] = { ...d[k], ...src };
+            if (!src || typeof src !== 'object') {
+                out[k] = { ...d[k] };
+            } else {
+                out[k] = { ...d[k], ...src };
+            }
             if (out[k].col != null) out[k].col = String(out[k].col || '').trim().toUpperCase();
         });
         if (out.date && typeof out.date.format !== 'string') out.date.format = 'YYYY/M/D';
@@ -11436,6 +11442,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (out.filename.manualText == null) out.filename.manualText = '';
             else out.filename.manualText = String(out.filename.manualText);
         }
+        const mdSrc = raw.mergeDup && typeof raw.mergeDup === 'object' ? raw.mergeDup : d.mergeDup;
+        const mode = mdSrc.mode === 'newline' ? 'newline' : 'separator';
+        let sep = mdSrc.separator != null ? String(mdSrc.separator) : '--';
+        if (sep.length > 24) sep = sep.slice(0, 24);
+        out.mergeDup = { mode, separator: sep };
+        const dupSrc = raw.dupOrderByColumn && typeof raw.dupOrderByColumn === 'object' ? raw.dupOrderByColumn : {};
+        const dupClean = {};
+        Object.keys(dupSrc).forEach((L0) => {
+            const L = String(L0 || '').trim().toUpperCase();
+            if (!/^[A-Z]{1,2}$/.test(L)) return;
+            const arr = Array.isArray(dupSrc[L0]) ? dupSrc[L0] : [];
+            dupClean[L] = arr.map((x) => String(x || '').trim()).filter(Boolean);
+        });
+        out.dupOrderByColumn = dupClean;
+        const cfs = [];
+        if (Array.isArray(raw.customFields)) {
+            raw.customFields.forEach((cf0) => {
+                if (!cf0 || typeof cf0 !== 'object') return;
+                const id = String(cf0.id || '').trim();
+                if (!id) return;
+                cfs.push({
+                    id,
+                    previewName: cf0.previewName != null ? String(cf0.previewName) : '',
+                    col: cf0.col != null ? String(cf0.col || '').trim().toUpperCase() : '',
+                    value: cf0.value != null ? String(cf0.value) : '',
+                });
+            });
+        }
+        out.customFields = cfs;
         return out;
     }
 
@@ -11501,14 +11536,77 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    const _translatorQfEffectiveCache = Object.create(null);
+    let _catQfDupOrderConfirmed = true;
+    let _catQfDupRegroupTimer = null;
+
+    /** 將專案預設與譯者儲存的 JSON（local／雲端）合併後正規化 */
+    function mergeQfColBaseWithTranslatorStore(projectRow, store) {
+        const base = loadRawProjectQfColConfig(projectRow || {});
+        if (!store || typeof store !== 'object') return normalizeQfColConfig(base);
+        const raw = {
+            ...base,
+            ...store,
+            date: { ...base.date, ...(store.date || {}) },
+            filename: { ...base.filename, ...(store.filename || {}) },
+            key: { ...base.key, ...(store.key || {}) },
+            source: { ...base.source, ...(store.source || {}) },
+            target: { ...base.target, ...(store.target || {}) },
+            mergeDup: store.mergeDup != null ? store.mergeDup : base.mergeDup,
+            dupOrderByColumn: store.dupOrderByColumn != null ? store.dupOrderByColumn : base.dupOrderByColumn,
+            customFields: store.customFields != null ? store.customFields : base.customFields,
+        };
+        return normalizeQfColConfig(raw);
+    }
+
+    async function hydrateTranslatorEffectiveQfConfig(projectId, projectRow) {
+        if (projectId == null) {
+            return defaultQfColConfig();
+        }
+        const key = String(projectId);
+        let store = null;
+        if (isTeamMode() && DBService && typeof DBService.getTranslatorQfPrefs === 'function') {
+            try {
+                const cloud = await DBService.getTranslatorQfPrefs(projectId);
+                if (cloud && typeof cloud === 'object' && Object.keys(cloud).length > 0) {
+                    store = cloud;
+                    const merged = mergeQfColBaseWithTranslatorStore(projectRow, cloud);
+                    try {
+                        localStorage.setItem(qfColOverrideLsKey(projectId), JSON.stringify(merged));
+                    } catch (_) { /* ignore */ }
+                }
+            } catch (_) { /* offline 或無權限 */ }
+        }
+        if (!store) {
+            try {
+                store = parseTranslatorQfColLs(localStorage.getItem(qfColOverrideLsKey(projectId)));
+            } catch (_) { store = null; }
+        }
+        const cfg = mergeQfColBaseWithTranslatorStore(projectRow, store || {});
+        _translatorQfEffectiveCache[key] = cfg;
+        return cfg;
+    }
+
+    function getEffectiveQfColConfigForClipboard(projectId, projectRow) {
+        if (projectId == null) return normalizeQfColConfig(loadRawProjectQfColConfig(projectRow || {}));
+        const hit = _translatorQfEffectiveCache[String(projectId)];
+        if (hit) return hit;
+        return loadEffectiveQfColConfigForTranslator(projectId, projectRow);
+    }
+
+    /** 離線或未載入快取時，以 localStorage／專案預設推導 */
     function loadEffectiveQfColConfigForTranslator(projectId, projectRow) {
         if (projectId == null) return defaultQfColConfig();
         try {
-            const ls = localStorage.getItem(qfColOverrideLsKey(projectId));
-            const parsed = parseTranslatorQfColLs(ls);
-            if (parsed) return normalizeQfColConfig(parsed);
+            const parsed = parseTranslatorQfColLs(localStorage.getItem(qfColOverrideLsKey(projectId)));
+            if (parsed) return mergeQfColBaseWithTranslatorStore(projectRow, parsed);
         } catch (_) { /* ignore */ }
-        return loadRawProjectQfColConfig(projectRow);
+        return normalizeQfColConfig(loadRawProjectQfColConfig(projectRow || {}));
+    }
+
+    function qfInvalidateTranslatorQfCache(projectId) {
+        if (projectId == null) return;
+        delete _translatorQfEffectiveCache[String(projectId)];
     }
 
     function qfColLetterToIndex(letter) {
@@ -11567,38 +11665,343 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    function buildQfClipboardText(projectId, projectRow, fileRow) {
-        const cfg = loadEffectiveQfColConfigForTranslator(projectId, projectRow);
-        const seg = getSegmentForQuestionForm();
-        const vals = buildQfClipboardRowValues(seg, fileRow);
-        const dateVal = (cfg.date && cfg.date.plainText)
-            ? formatQfDatePlain(cfg.date.format || 'YYYY/M/D', new Date())
+    function qfCollectClipboardEntries(cfg, vals) {
+        const c = normalizeQfColConfig(cfg);
+        const dateVal = (c.date && c.date.plainText)
+            ? formatQfDatePlain(c.date.format || 'YYYY/M/D', new Date())
             : vals.dateIso;
-        const fnameResolved = resolveQfFilenameVal(cfg, vals.filename);
-        const mapping = {
-            date: { col: cfg.date?.col, val: dateVal },
-            filename: { col: cfg.filename?.col, val: fnameResolved },
-            key: { col: cfg.key?.col, val: vals.key },
-            source: { col: cfg.source?.col, val: vals.source },
-            target: { col: cfg.target?.col, val: vals.target },
-        };
+        const fnameResolved = resolveQfFilenameVal(c, vals.filename);
+        const entries = [
+            { mergeKey: 'date', label: '日期', col: c.date?.col, val: dateVal },
+            { mergeKey: 'filename', label: '檔名', col: c.filename?.col, val: fnameResolved },
+            { mergeKey: 'key', label: 'Key', col: c.key?.col, val: vals.key },
+            { mergeKey: 'source', label: '原文', col: c.source?.col, val: vals.source },
+            { mergeKey: 'target', label: '譯文', col: c.target?.col, val: vals.target },
+        ];
+        (c.customFields || []).forEach((cf) => {
+            const id = String(cf.id || '').trim();
+            if (!id) return;
+            entries.push({
+                mergeKey: `custom:${id}`,
+                label: cf.previewName ? String(cf.previewName) : '自訂',
+                col: cf.col,
+                val: cf.value != null ? String(cf.value) : '',
+            });
+        });
+        return entries.filter((e) => {
+            const L = String(e.col || '').trim().toUpperCase();
+            return L && /^[A-Z]{1,2}$/.test(L);
+        });
+    }
+
+    /** 試算列：儲存格內容與預覽欄標題（支援同欄多筆合併） */
+    function qfBuildClipboardMatrix(entries, cfg) {
+        const c = normalizeQfColConfig(cfg);
+        const useNewline = c.mergeDup && c.mergeDup.mode === 'newline';
+        const sep = useNewline ? '\n' : String(c.mergeDup && c.mergeDup.separator != null ? c.mergeDup.separator : '--');
+        const dupOrder = c.dupOrderByColumn && typeof c.dupOrderByColumn === 'object' ? c.dupOrderByColumn : {};
+        const builtin = ['date', 'filename', 'key', 'source', 'target'];
+        const customSeq = (c.customFields || [])
+            .map((cf) => `custom:${String(cf.id || '').trim()}`)
+            .filter(Boolean);
+        const defaultSeq = [...builtin, ...customSeq];
+        const byLetter = new Map();
+        entries.forEach((en) => {
+            const L = String(en.col || '').trim().toUpperCase();
+            if (!/^[A-Z]{1,2}$/.test(L)) return;
+            if (!byLetter.has(L)) byLetter.set(L, []);
+            byLetter.get(L).push(en);
+        });
         let maxIdx = -1;
-        Object.keys(mapping).forEach((k) => {
-            const i = qfColLetterToIndex(mapping[k].col);
-            if (i > maxIdx) maxIdx = i;
+        byLetter.forEach((list) => {
+            list.forEach((en) => {
+                const i = qfColLetterToIndex(en.col);
+                if (i > maxIdx) maxIdx = i;
+            });
         });
-        if (maxIdx < 0) return '';
+        if (maxIdx < 0) return { cells: [], head: [], maxIdx: -1 };
         const cells = new Array(maxIdx + 1).fill('');
-        Object.keys(mapping).forEach((k) => {
-            const col = mapping[k].col;
-            const idx = qfColLetterToIndex(col);
+        const head = new Array(maxIdx + 1).fill('');
+        byLetter.forEach((list, L) => {
+            const idx = qfColLetterToIndex(L);
             if (idx < 0) return;
-            cells[idx] = mapping[k].val != null ? String(mapping[k].val) : '';
+            const keySet = new Set(list.map((e) => e.mergeKey));
+            let order = (Array.isArray(dupOrder[L]) ? dupOrder[L] : []).filter((k) => keySet.has(k));
+            list.forEach((en) => {
+                if (!order.includes(en.mergeKey)) order.push(en.mergeKey);
+            });
+            defaultSeq.forEach((k) => {
+                if (keySet.has(k) && !order.includes(k)) order.push(k);
+            });
+            list.forEach((en) => {
+                if (!order.includes(en.mergeKey)) order.push(en.mergeKey);
+            });
+            order = [...new Set(order)];
+            const parts = order.map((k) => {
+                const en = list.find((e) => e.mergeKey === k);
+                return en ? String(en.val ?? '') : '';
+            });
+            const labels = order.map((k) => {
+                const en = list.find((e) => e.mergeKey === k);
+                return en ? String(en.label || '') : '';
+            }).filter(Boolean);
+            cells[idx] = useNewline ? parts.join('\n') : parts.join(sep);
+            head[idx] = `${L}${labels.length ? ` ${labels.join('／')}` : ''}`;
         });
+        return { cells, head, maxIdx };
+    }
+
+    function qfBuildClipboardTabRow(entries, cfg) {
+        const { cells } = qfBuildClipboardMatrix(entries, cfg);
         return cells.join('\t');
     }
 
+    function buildQfClipboardText(projectId, projectRow, fileRow) {
+        const cfg = getEffectiveQfColConfigForClipboard(projectId, projectRow);
+        const seg = getSegmentForQuestionForm();
+        const vals = buildQfClipboardRowValues(seg, fileRow);
+        const entries = qfCollectClipboardEntries(cfg, vals);
+        return qfBuildClipboardTabRow(entries, cfg);
+    }
+
+    function parseQfDupOrderHiddenDom() {
+        const el = document.getElementById('catQfDupOrderJson');
+        if (!el || !String(el.value || '').trim()) return {};
+        try {
+            const p = JSON.parse(el.value);
+            return p && typeof p === 'object' ? p : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    function qfReorderableChildren(root) {
+        return [...root.querySelectorAll(':scope > .cat-qf-reorder-unit, :scope > .cat-qf-reorder-bundle')];
+    }
+
+    function qfMergeKeyFromReorderEl(el) {
+        if (el.classList && el.classList.contains('cat-qf-reorder-bundle')) return 'filename';
+        const mk = el.dataset && el.dataset.qfMergeKey;
+        return mk ? String(mk) : '';
+    }
+
+    function qfLetterFromReorderEl(el) {
+        const mk = qfMergeKeyFromReorderEl(el);
+        let inp = null;
+        if (mk === 'filename') inp = document.getElementById('colFilename');
+        else inp = el.querySelector('.cat-qf-col-input');
+        return (inp && inp.value != null ? String(inp.value) : '').trim().toUpperCase();
+    }
+
+    function qfHasDuplicateColLetters() {
+        const root = document.getElementById('catQfReorderRoot');
+        if (!root) return false;
+        const counts = Object.create(null);
+        qfReorderableChildren(root).forEach((el) => {
+            const L = qfLetterFromReorderEl(el);
+            if (/^[A-Z]{1,2}$/.test(L)) counts[L] = (counts[L] || 0) + 1;
+        });
+        return Object.keys(counts).some((L) => counts[L] > 1);
+    }
+
+    function catQfRemoveCustomDomUnits() {
+        document.querySelectorAll('#catQfReorderRoot .cat-qf-custom-unit').forEach((n) => { n.remove(); });
+    }
+
+    function catQfGenerateCustomRowId() {
+        return (window.crypto && typeof window.crypto.randomUUID === 'function')
+            ? window.crypto.randomUUID()
+            : `qf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    }
+
+    function catQfAppendCustomDomRow(cf) {
+        const root = document.getElementById('catQfReorderRoot');
+        if (!root) return null;
+        const id = cf && cf.id ? String(cf.id).trim() : catQfGenerateCustomRowId();
+        const previewName = cf && cf.previewName != null ? String(cf.previewName) : '';
+        const col = cf && cf.col != null ? String(cf.col || '').trim().toUpperCase() : '';
+        const value = cf && cf.value != null ? String(cf.value) : '';
+        const unit = document.createElement('div');
+        unit.className = 'cat-qf-reorder-unit cat-qf-custom-unit cat-qf-field-row-with-shift';
+        unit.dataset.qfMergeKey = `custom:${id}`;
+        unit.innerHTML = `
+            <div class="cat-qf-field-row cat-qf-field-row-with-shift">
+                <button type="button" class="icon-btn btn-sm cat-qf-custom-remove-btn" aria-label="移除此欄" title="移除此欄">✕</button>
+                <input type="text" class="form-input cat-qf-custom-name-input" maxlength="120" placeholder="預覽標題" value="" autocomplete="off">
+                <span class="cat-qf-field-label">欄位</span>
+                <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="" autocomplete="off">
+                <span class="cat-qf-col-hint">手動</span>
+                <input type="text" class="form-input cat-qf-custom-value-input" maxlength="2000" placeholder="貼入試算格的內容" value="" autocomplete="off">
+                <div class="cat-qf-dup-shift" aria-hidden="true"></div>
+            </div>`;
+        const nameEl = unit.querySelector('.cat-qf-custom-name-input');
+        const colEl = unit.querySelector('.cat-qf-col-input');
+        const valEl = unit.querySelector('.cat-qf-custom-value-input');
+        if (nameEl) nameEl.value = previewName;
+        if (colEl) colEl.value = col || '';
+        if (valEl) valEl.value = value;
+        root.appendChild(unit);
+        return unit;
+    }
+
+    function qfRegroupReorderDomApply() {
+        const root = document.getElementById('catQfReorderRoot');
+        if (!root || catQfColDialogMode !== 'translator') return;
+        const dupRaw = parseQfDupOrderHiddenDom();
+        const nodes = qfReorderableChildren(root);
+        const customKeys = [...root.querySelectorAll(':scope > .cat-qf-reorder-unit.cat-qf-custom-unit')]
+            .map((el) => qfMergeKeyFromReorderEl(el))
+            .filter(Boolean);
+        const defaultSeq = ['date', 'filename', 'key', 'source', 'target', ...customKeys];
+        const decorated = nodes.map((el) => ({
+            el,
+            letter: qfLetterFromReorderEl(el),
+            mergeKey: qfMergeKeyFromReorderEl(el),
+        }));
+        decorated.sort((a, b) => {
+            const ia = qfColLetterToIndex(a.letter);
+            const ib = qfColLetterToIndex(b.letter);
+            const wa = ia < 0 ? 9999 : ia;
+            const wb = ib < 0 ? 9999 : ib;
+            if (wa !== wb) return wa - wb;
+            if (!a.mergeKey || !b.mergeKey || a.letter !== b.letter) return 0;
+            const ord = dupRaw[a.letter];
+            const oa = Array.isArray(ord) ? ord.indexOf(a.mergeKey) : -1;
+            const ob = Array.isArray(ord) ? ord.indexOf(b.mergeKey) : -1;
+            const va = oa >= 0 ? oa : 100 + defaultSeq.indexOf(a.mergeKey);
+            const vb = ob >= 0 ? ob : 100 + defaultSeq.indexOf(b.mergeKey);
+            return va - vb;
+        });
+        decorated.forEach((d) => { root.appendChild(d.el); });
+        const hidden = document.getElementById('catQfDupOrderJson');
+        if (hidden) {
+            const next = {};
+            const byLetter = new Map();
+            decorated.forEach((d) => {
+                const L = d.letter;
+                if (!/^[A-Z]{1,2}$/.test(L) || !d.mergeKey) return;
+                if (!byLetter.has(L)) byLetter.set(L, []);
+                byLetter.get(L).push(d.mergeKey);
+            });
+            byLetter.forEach((keys, L) => {
+                const u = [...new Set(keys)];
+                if (u.length > 1) next[L] = u;
+            });
+            hidden.value = JSON.stringify(next);
+        }
+    }
+
+    function qfRegroupReorderDomDebounced() {
+        if (catQfColDialogMode !== 'translator') return;
+        if (_catQfDupRegroupTimer) clearTimeout(_catQfDupRegroupTimer);
+        _catQfDupRegroupTimer = setTimeout(() => {
+            _catQfDupRegroupTimer = null;
+            qfRegroupReorderDomApply();
+            _catQfDupOrderConfirmed = !qfHasDuplicateColLetters();
+            qfRefreshDupExplanationAndShiftUi();
+            updateQfColPreview();
+        }, 260);
+    }
+
+    function qfSwapDupOrder(letter, mergeKey, dir) {
+        const L = String(letter || '').trim().toUpperCase();
+        const mk = String(mergeKey || '').trim();
+        if (!L || !mk || !/^[A-Z]{1,2}$/.test(L)) return;
+        const hidden = document.getElementById('catQfDupOrderJson');
+        if (!hidden) return;
+        let map = {};
+        try { map = JSON.parse(hidden.value || '{}'); } catch (_) { map = {}; }
+        const arr = Array.isArray(map[L]) ? map[L].slice() : [];
+        const i = arr.indexOf(mk);
+        if (i < 0) return;
+        const j = dir === 'up' ? i - 1 : i + 1;
+        if (j < 0 || j >= arr.length) return;
+        const t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+        map[L] = arr;
+        hidden.value = JSON.stringify(map);
+        qfRegroupReorderDomApply();
+        _catQfDupOrderConfirmed = true;
+        qfRefreshDupExplanationAndShiftUi();
+        updateQfColPreview();
+    }
+
+    function qfRefreshDupExplanationAndShiftUi() {
+        const box = document.getElementById('catQfDupExplanation');
+        const txt = document.getElementById('catQfDupExplanationText');
+        const root = document.getElementById('catQfReorderRoot');
+        document.querySelectorAll('#catQfReorderRoot .cat-qf-dup-shift').forEach((sh) => { sh.innerHTML = ''; });
+        if (!root || catQfColDialogMode !== 'translator') {
+            if (box) {
+                box.style.display = 'none';
+                box.classList.remove('cat-qf-dup-show', 'cat-qf-dup-pending', 'cat-qf-dup-ok');
+            }
+            return;
+        }
+        const dupLetters = [];
+        const counts = Object.create(null);
+        qfReorderableChildren(root).forEach((el) => {
+            const L = qfLetterFromReorderEl(el);
+            if (/^[A-Z]{1,2}$/.test(L)) counts[L] = (counts[L] || 0) + 1;
+        });
+        Object.keys(counts).forEach((L) => {
+            if (counts[L] > 1) dupLetters.push(L);
+        });
+        if (dupLetters.length === 0) {
+            _catQfDupOrderConfirmed = true;
+            if (box) {
+                box.style.display = 'none';
+                box.classList.remove('cat-qf-dup-show', 'cat-qf-dup-pending', 'cat-qf-dup-ok');
+            }
+            return;
+        }
+        dupLetters.sort((a, b) => qfColLetterToIndex(a) - qfColLetterToIndex(b));
+        if (txt) {
+            txt.textContent =
+                `以下試算表欄位對應到多筆來源（${dupLetters.join('、')}）。請確認合併順序，可使用右側「↑」「↓」，或按下「已確認同一欄順序」後再儲存。`;
+        }
+        if (box) {
+            box.style.display = '';
+            box.classList.add('cat-qf-dup-show');
+            box.classList.toggle('cat-qf-dup-pending', !_catQfDupOrderConfirmed);
+            box.classList.toggle('cat-qf-dup-ok', !!_catQfDupOrderConfirmed);
+        }
+        const orderMap = parseQfDupOrderHiddenDom();
+        dupLetters.forEach((L) => {
+            const keysOrder = Array.isArray(orderMap[L]) ? orderMap[L] : [];
+            if (keysOrder.length < 2) return;
+            keysOrder.forEach((mergeKeyStr) => {
+                const elRow = qfReorderableChildren(root).find(
+                    (el) => qfLetterFromReorderEl(el) === L && qfMergeKeyFromReorderEl(el) === mergeKeyStr,
+                );
+                if (!elRow) return;
+                const shift = elRow.querySelector('.cat-qf-dup-shift');
+                if (!shift) return;
+                const up = document.createElement('button');
+                up.type = 'button';
+                up.className = 'cat-qf-dup-shift-btn';
+                up.textContent = '↑';
+                up.setAttribute('aria-label', '同欄向上');
+                up.dataset.qfDupLetter = L;
+                up.dataset.qfDupMk = mergeKeyStr;
+                up.dataset.qfDupDir = 'up';
+                const dn = document.createElement('button');
+                dn.type = 'button';
+                dn.className = 'cat-qf-dup-shift-btn';
+                dn.textContent = '↓';
+                dn.setAttribute('aria-label', '同欄向下');
+                dn.dataset.qfDupLetter = L;
+                dn.dataset.qfDupMk = mergeKeyStr;
+                dn.dataset.qfDupDir = 'down';
+                shift.appendChild(up);
+                shift.appendChild(dn);
+            });
+        });
+    }
+
     function readQfColConfigFromDom() {
+        const dupHidden = parseQfDupOrderHiddenDom();
         const dateCol = (document.getElementById('colDate')?.value || '').trim().toUpperCase();
         const filenameCol = (document.getElementById('colFilename')?.value || '').trim().toUpperCase();
         const keyCol = (document.getElementById('colKey')?.value || '').trim().toUpperCase();
@@ -11613,12 +12016,48 @@ document.addEventListener('DOMContentLoaded', async () => {
             filenameExtra.manualOverride = !!(chkFm && chkFm.checked);
             filenameExtra.manualText = inpFm && inpFm.value != null ? String(inpFm.value) : '';
         }
+        let mergeDup = defaultQfColConfig().mergeDup;
+        if (catQfColDialogMode === 'translator') {
+            const nl = document.getElementById('qfMergeDupModeNewline');
+            const sepInp = document.getElementById('qfMergeDupSeparatorInput');
+            const mode = nl && nl.checked ? 'newline' : 'separator';
+            let sep = sepInp && sepInp.value != null ? String(sepInp.value) : '--';
+            if (sep.length > 24) sep = sep.slice(0, 24);
+            mergeDup = { mode, separator: sep };
+        }
+        const customFields = [];
+        if (catQfColDialogMode === 'translator') {
+            document.querySelectorAll('#catQfReorderRoot .cat-qf-custom-unit').forEach((unit) => {
+                const mk = unit.dataset.qfMergeKey || '';
+                const id = mk.startsWith('custom:') ? mk.slice('custom:'.length).trim() : '';
+                if (!id) return;
+                const nm = unit.querySelector('.cat-qf-custom-name-input');
+                const co = unit.querySelector('.cat-qf-col-input');
+                const vl = unit.querySelector('.cat-qf-custom-value-input');
+                customFields.push({
+                    id,
+                    previewName: nm ? String(nm.value || '') : '',
+                    col: co ? String(co.value || '').trim().toUpperCase() : '',
+                    value: vl ? String(vl.value || '') : '',
+                });
+            });
+        }
+        const normalizedDup = {};
+        Object.keys(dupHidden || {}).forEach((L0) => {
+            const L = String(L0 || '').trim().toUpperCase();
+            if (!/^[A-Z]{1,2}$/.test(L)) return;
+            const arr = Array.isArray(dupHidden[L0]) ? dupHidden[L0] : [];
+            normalizedDup[L] = arr.map((x) => String(x || '').trim()).filter(Boolean);
+        });
         return normalizeQfColConfig({
             date: { col: dateCol, plainText: plain, format: fmt },
             filename: { col: filenameCol, ...filenameExtra },
             key: { col: keyCol },
             source: { col: sourceCol },
             target: { col: targetCol },
+            mergeDup,
+            dupOrderByColumn: catQfColDialogMode === 'translator' ? normalizedDup : {},
+            customFields,
         });
     }
 
@@ -11642,17 +12081,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (mode === 'translator') {
             if (chkFm) chkFm.checked = !!c.filename.manualOverride;
             if (inpFm) inpFm.value = c.filename.manualText != null ? String(c.filename.manualText) : '';
+            const rn = document.getElementById('qfMergeDupModeNewline');
+            const rs = document.getElementById('qfMergeDupModeSep');
+            const md = c.mergeDup || {};
+            if (md.mode === 'newline') {
+                if (rn) rn.checked = true;
+            } else if (rs) rs.checked = true;
+            const sepIn = document.getElementById('qfMergeDupSeparatorInput');
+            if (sepIn) sepIn.value = md.separator != null ? String(md.separator) : '--';
+            catQfRemoveCustomDomUnits();
+            (c.customFields || []).forEach((cf) => { catQfAppendCustomDomRow(cf); });
+            const hidden = document.getElementById('catQfDupOrderJson');
+            if (hidden) hidden.value = JSON.stringify(c.dupOrderByColumn || {});
+            qfRegroupReorderDomApply();
         } else {
             if (chkFm) chkFm.checked = false;
             if (inpFm) inpFm.value = '';
+            catQfRemoveCustomDomUnits();
+            const hidden = document.getElementById('catQfDupOrderJson');
+            if (hidden) hidden.value = '{}';
         }
         syncFilenameManualWrapVisibility();
+        _catQfDupOrderConfirmed = true;
+        qfRefreshDupExplanationAndShiftUi();
     }
 
     function updateQfColPreview() {
         const cfg = readQfColConfigFromDom();
         const seg = getSegmentForQuestionForm();
-        const fileRow = currentFileId ? { name: '' } : null;
         (async () => {
             let fname = '';
             try {
@@ -11662,22 +12118,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } catch (_) { /* ignore */ }
             const vals = buildQfClipboardRowValues(seg, { name: fname });
-            const fnameResolved = resolveQfFilenameVal(cfg, vals.filename);
-            const dateVal = cfg.date.plainText
-                ? formatQfDatePlain(cfg.date.format || 'YYYY/M/D', new Date())
-                : vals.dateIso;
-            const mapping = {
-                date: { col: cfg.date?.col, val: dateVal, label: '日期' },
-                filename: { col: cfg.filename?.col, val: fnameResolved, label: '檔名' },
-                key: { col: cfg.key?.col, val: vals.key, label: 'Key' },
-                source: { col: cfg.source?.col, val: vals.source, label: '原文' },
-                target: { col: cfg.target?.col, val: vals.target, label: '譯文' },
-            };
-            let maxIdx = -1;
-            Object.keys(mapping).forEach((k) => {
-                const i = qfColLetterToIndex(mapping[k].col);
-                if (i > maxIdx) maxIdx = i;
-            });
+            const entries = qfCollectClipboardEntries(cfg, vals);
+            const { cells, head, maxIdx } = qfBuildClipboardMatrix(entries, cfg);
             const wrap = document.getElementById('colPreviewWrap');
             if (!wrap) return;
             if (maxIdx < 0) {
@@ -11686,24 +12128,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const cols = [];
             for (let i = 0; i <= maxIdx; i++) {
-                const letter = String.fromCharCode(65 + i);
-                let val = '';
-                let name = letter;
-                Object.keys(mapping).forEach((k) => {
-                    if (String(mapping[k].col || '').toUpperCase() === letter) {
-                        val = mapping[k].val;
-                        name = `${letter} ${mapping[k].label}`;
-                    }
-                });
-                cols.push({ name, val });
+                cols.push({ name: head[i] || String.fromCharCode(65 + i), val: cells[i] || '' });
             }
-            const thead = cols.map((c) => `<th>${qfEscapeHtml(c.name)}</th>`).join('');
-            const tbody = cols.map((c) => {
-                const display = c.val ? (c.val.length > 16 ? `${qfEscapeHtml(c.val.slice(0, 15))}…` : qfEscapeHtml(c.val)) : '';
-                const titleAttr = c.val ? ` title="${qfEscapeHtml(String(c.val).replace(/"/g, '&quot;'))}"` : '';
-                return c.val
-                    ? `<td${titleAttr}>${display}</td>`
-                    : '<td class="cat-qf-empty-col">（空）</td>';
+            const thead = cols.map((co) => `<th>${qfEscapeHtml(co.name)}</th>`).join('');
+            const tbody = cols.map((co) => {
+                const raw = co.val || '';
+                if (!raw) return '<td class="cat-qf-empty-col">（空）</td>';
+                const oneLine = raw.replace(/\s+/g, ' ').trim();
+                const short = oneLine.length > 20 ? `${oneLine.slice(0, 19)}…` : oneLine;
+                const titleAttr = ` title="${qfEscapeHtml(raw.replace(/"/g, '&quot;'))}"`;
+                const disp = raw.includes('\n')
+                    ? qfEscapeHtml(raw.split('\n').map((ln) => (ln.length > 18 ? `${ln.slice(0, 17)}…` : ln)).join(' ↵ '))
+                    : qfEscapeHtml(short);
+                return `<td style="white-space:pre-wrap;max-width:160px;"${titleAttr}>${disp}</td>`;
             }).join('');
             wrap.innerHTML = `<table class="cat-qf-preview-table"><thead><tr>${thead}</tr></thead><tbody><tr>${tbody}</tr></tbody></table>`;
         })();
@@ -11718,6 +12155,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function closeCatQfColConfigDialog() {
+        if (_catQfDupRegroupTimer) {
+            clearTimeout(_catQfDupRegroupTimer);
+            _catQfDupRegroupTimer = null;
+        }
         const ov = document.getElementById('colConfigOverlay');
         if (ov) {
             ov.classList.remove('show');
@@ -11742,19 +12183,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (fresh) row = fresh;
             } catch (_) { /* ignore */ }
         }
+        const mergeBar = document.getElementById('catQfTranslatorMergeBar');
+        const addStripe = document.getElementById('catQfTranslatorAddStripe');
+        if (mergeBar) mergeBar.style.display = catQfColDialogMode === 'translator' ? '' : 'none';
+        if (addStripe) addStripe.style.display = catQfColDialogMode === 'translator' ? '' : 'none';
         let cfg;
         if (catQfColDialogMode === 'admin') {
             cfg = loadRawProjectQfColConfig(row || {});
+        } else if (projectId != null && isTeamMode()) {
+            await hydrateTranslatorEffectiveQfConfig(projectId, row || {});
+            cfg = getEffectiveQfColConfigForClipboard(projectId, row || {});
+            const lsKey = qfColOverrideLsKey(projectId);
+            try {
+                localStorage.setItem(lsKey, JSON.stringify(cfg));
+            } catch (_) { /* ignore */ }
         } else {
             const lsKey = qfColOverrideLsKey(projectId);
             let parsedLs = null;
             try {
                 parsedLs = parseTranslatorQfColLs(localStorage.getItem(lsKey));
             } catch (_) { /* ignore */ }
-            if (parsedLs) {
-                cfg = normalizeQfColConfig(parsedLs);
-            } else {
-                cfg = loadRawProjectQfColConfig(row || {});
+            if (parsedLs) cfg = mergeQfColBaseWithTranslatorStore(row, parsedLs);
+            else {
+                cfg = mergeQfColBaseWithTranslatorStore(row, null);
                 try {
                     localStorage.setItem(lsKey, JSON.stringify(cfg));
                 } catch (_) { /* ignore */ }
@@ -11768,6 +12219,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function saveCatQfColConfigDialog() {
+        if (catQfColDialogMode === 'translator' && qfHasDuplicateColLetters() && !_catQfDupOrderConfirmed) {
+            alert('請先確認「同一試算表欄位」對應多筆資料時的合併順序：可使用右側「↑」「↓」，或按下「已確認同一欄順序」，再按儲存。');
+            return;
+        }
         const cfg = readQfColConfigFromDom();
         const pid = catQfColDialogProjectId;
         if (pid == null) {
@@ -11783,6 +12238,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } else {
                 localStorage.setItem(qfColOverrideLsKey(pid), JSON.stringify(cfg));
+                let prow = null;
+                try {
+                    prow = await DBService.getProject(pid);
+                } catch (_) { /* ignore */ }
+                if (isTeamMode() && DBService && typeof DBService.upsertTranslatorQfPrefs === 'function') {
+                    await DBService.upsertTranslatorQfPrefs(pid, cfg);
+                }
+                qfInvalidateTranslatorQfCache(pid);
+                await hydrateTranslatorEffectiveQfConfig(pid, prow || {});
             }
         } catch (e) {
             console.error(e);
@@ -11798,9 +12262,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnCancel = document.getElementById('btnColConfigCancel');
         const btnSave = document.getElementById('btnColConfigSave');
         const chkPlain = document.getElementById('chkPlainDate');
+        const refreshPreview = () => { updateQfColPreview(); };
         ['colDate', 'colFilename', 'colKey', 'colSource', 'colTarget', 'dateFormat'].forEach((id) => {
             const el = document.getElementById(id);
-            if (el) el.addEventListener('input', () => updateQfColPreview());
+            if (el) {
+                el.addEventListener('input', () => {
+                    qfRegroupReorderDomDebounced();
+                    refreshPreview();
+                });
+                el.addEventListener('change', () => {
+                    qfRegroupReorderDomDebounced();
+                    refreshPreview();
+                });
+            }
         });
         if (chkPlain) {
             chkPlain.addEventListener('change', () => {
@@ -11821,6 +12295,63 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
         if (inpFn) inpFn.addEventListener('input', () => updateQfColPreview());
+        const reorderRoot = document.getElementById('catQfReorderRoot');
+        if (reorderRoot) {
+            reorderRoot.addEventListener('click', (e) => {
+                const rm = e.target.closest('.cat-qf-custom-remove-btn');
+                if (rm) {
+                    e.preventDefault();
+                    const unit = rm.closest('.cat-qf-custom-unit');
+                    if (unit) unit.remove();
+                    qfRegroupReorderDomDebounced();
+                    return;
+                }
+                const dupBtn = e.target.closest('.cat-qf-dup-shift-btn');
+                if (dupBtn && dupBtn.dataset.qfDupLetter && dupBtn.dataset.qfDupMk && dupBtn.dataset.qfDupDir) {
+                    e.preventDefault();
+                    qfSwapDupOrder(dupBtn.dataset.qfDupLetter, dupBtn.dataset.qfDupMk, dupBtn.dataset.qfDupDir);
+                }
+            });
+            reorderRoot.addEventListener('input', (ev) => {
+                const t = ev.target;
+                if (!(t instanceof HTMLElement)) return;
+                if (t.classList.contains('cat-qf-col-input')
+                    || t.classList.contains('cat-qf-custom-name-input')
+                    || t.classList.contains('cat-qf-custom-value-input')) {
+                    qfRegroupReorderDomDebounced();
+                }
+            });
+            reorderRoot.addEventListener('change', (ev) => {
+                const t = ev.target;
+                if (!(t instanceof HTMLElement)) return;
+                if (t.classList.contains('cat-qf-col-input')
+                    || t.classList.contains('cat-qf-custom-name-input')
+                    || t.classList.contains('cat-qf-custom-value-input')) {
+                    qfRegroupReorderDomDebounced();
+                }
+            });
+        }
+        const btnDupOk = document.getElementById('btnCatQfDupOrderConfirm');
+        if (btnDupOk) {
+            btnDupOk.addEventListener('click', () => {
+                _catQfDupOrderConfirmed = true;
+                qfRefreshDupExplanationAndShiftUi();
+            });
+        }
+        const mergeNl = document.getElementById('qfMergeDupModeNewline');
+        const mergeSep = document.getElementById('qfMergeDupModeSep');
+        const sepInp = document.getElementById('qfMergeDupSeparatorInput');
+        [mergeNl, mergeSep].forEach((r) => {
+            if (r) r.addEventListener('change', () => updateQfColPreview());
+        });
+        if (sepInp) sepInp.addEventListener('input', () => updateQfColPreview());
+        const btnAddCust = document.getElementById('btnCatQfAddCustom');
+        if (btnAddCust) {
+            btnAddCust.addEventListener('click', () => {
+                catQfAppendCustomDomRow(null);
+                qfRegroupReorderDomDebounced();
+            });
+        }
         const stop = (e) => { if (e.target === ov) closeCatQfColConfigDialog(); };
         if (ov) ov.addEventListener('click', stop);
         if (btnClose) btnClose.addEventListener('click', closeCatQfColConfigDialog);
@@ -11949,6 +12480,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (fresh) projRow = fresh;
                     }
                 } catch (_) { /* ignore */ }
+                if (pid != null && isTeamMode()) {
+                    try {
+                        await hydrateTranslatorEffectiveQfConfig(pid, projRow);
+                    } catch (_) { /* ignore */ }
+                }
                 const text = buildQfClipboardText(pid, projRow, file);
                 if (!String(text || '').trim()) {
                     if (typeof showCatToast === 'function') showCatToast('請先設定欄位對應', 'error');

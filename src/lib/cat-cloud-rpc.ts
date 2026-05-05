@@ -524,6 +524,32 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.projectId);
+
+    /** 譯者個人 × 專案：提問表單欄位覆寫（clipboard JSON） */
+    case "db.getTranslatorQfPrefs": {
+      const { data } = await supabase
+        .from("cat_translator_question_form_prefs")
+        .select("settings_json")
+        .eq("user_id", userId)
+        .eq("project_id", payload.projectId)
+        .maybeSingle();
+      return data?.settings_json ?? null;
+    }
+    case "db.upsertTranslatorQfPrefs": {
+      const settings = payload.settings && typeof payload.settings === "object" ? payload.settings : {};
+      const { error } = await supabase.from("cat_translator_question_form_prefs").upsert(
+        {
+          user_id: userId,
+          project_id: payload.projectId,
+          settings_json: settings,
+          updated_at: nowIso(),
+        } as any,
+        { onConflict: "user_id,project_id" },
+      );
+      if (error) throw error;
+      return { ok: true };
+    }
+
     case "db.getProjects": {
       const { data } = await supabase.from("cat_projects").select("*").order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapProjectRow);

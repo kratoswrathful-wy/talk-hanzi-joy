@@ -2870,7 +2870,23 @@
                     請填入每項資料要貼入客戶表單的欄位字母（A–Z）。留空代表不輸出該欄。<br>
                     設定完成後，使用編輯器「提問表單」或「產生提問」時，系統會在剪貼簿產生相應訊息，可貼上試算表。
                 </p>
-                <div class="cat-qf-field-row">
+                <input type="hidden" id="catQfDupOrderJson" value="{}" autocomplete="off">
+                <div id="catQfTranslatorMergeBar" class="cat-qf-translator-merge-bar" style="display:none;">
+                    <span class="cat-qf-merge-heading">同一字母多欄合併</span>
+                    <label class="cat-qf-merge-radio"><input type="radio" name="qfMergeDupMode" id="qfMergeDupModeNewline" value="newline"> 換行</label>
+                    <label class="cat-qf-merge-radio"><input type="radio" name="qfMergeDupMode" id="qfMergeDupModeSep" value="separator" checked> 符號</label>
+                    <span class="cat-qf-merge-sep-wrap">
+                        <span class="cat-qf-field-label">間隔</span>
+                        <input type="text" id="qfMergeDupSeparatorInput" class="form-input cat-qf-merge-sep-input" maxlength="24" placeholder="--" value="--" autocomplete="off" title="同一儲存格內各欄文字的連接符號">
+                    </span>
+                </div>
+                <div id="catQfDupExplanation" class="cat-qf-dup-explanation" role="note">
+                    <span id="catQfDupExplanationText"></span>
+                    <button type="button" class="secondary-btn btn-sm cat-qf-dup-confirm-btn" id="btnCatQfDupOrderConfirm">已確認同一欄順序</button>
+                </div>
+                <div id="catQfReorderRoot" class="cat-qf-reorder-root">
+                <div class="cat-qf-reorder-unit" data-qf-merge-key="date">
+                <div class="cat-qf-field-row cat-qf-field-row-with-shift">
                     <span class="cat-qf-field-name">日期</span>
                     <span class="cat-qf-field-label">欄位</span>
                     <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="A" id="colDate" autocomplete="off">
@@ -2881,12 +2897,16 @@
                     <div class="cat-qf-format-wrap" id="formatWrap">
                         <input class="cat-qf-format-input" type="text" id="dateFormat" placeholder="YYYY/M/D" value="YYYY/M/D" autocomplete="off">
                     </div>
+                    <div class="cat-qf-dup-shift" aria-hidden="true"></div>
                 </div>
-                <div class="cat-qf-field-row">
+                </div>
+                <div class="cat-qf-reorder-bundle" data-qf-merge-key="filename">
+                <div class="cat-qf-field-row cat-qf-field-row-with-shift">
                     <span class="cat-qf-field-name">檔名</span>
                     <span class="cat-qf-field-label">欄位</span>
                     <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="B" id="colFilename" autocomplete="off">
                     <span class="cat-qf-col-hint">系統自動帶入當前開啟檔案名稱</span>
+                    <div class="cat-qf-dup-shift" aria-hidden="true"></div>
                 </div>
                 <div id="catQfFilenameManualBlock" class="cat-qf-filename-manual-block" style="display:none;">
                     <div class="cat-qf-field-row cat-qf-filename-manual-inner">
@@ -2901,23 +2921,38 @@
                         </div>
                     </div>
                 </div>
-                <div class="cat-qf-field-row">
+                </div>
+                <div class="cat-qf-reorder-unit" data-qf-merge-key="key">
+                <div class="cat-qf-field-row cat-qf-field-row-with-shift">
                     <span class="cat-qf-field-name">Key</span>
                     <span class="cat-qf-field-label">欄位</span>
                     <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="" id="colKey" autocomplete="off">
                     <span class="cat-qf-col-hint">句段的 String Key / ID</span>
+                    <div class="cat-qf-dup-shift" aria-hidden="true"></div>
                 </div>
-                <div class="cat-qf-field-row">
+                </div>
+                <div class="cat-qf-reorder-unit" data-qf-merge-key="source">
+                <div class="cat-qf-field-row cat-qf-field-row-with-shift">
                     <span class="cat-qf-field-name">原文</span>
                     <span class="cat-qf-field-label">欄位</span>
                     <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="D" id="colSource" autocomplete="off">
                     <span class="cat-qf-col-hint">焦點句段原文</span>
+                    <div class="cat-qf-dup-shift" aria-hidden="true"></div>
                 </div>
-                <div class="cat-qf-field-row">
+                </div>
+                <div class="cat-qf-reorder-unit" data-qf-merge-key="target">
+                <div class="cat-qf-field-row cat-qf-field-row-with-shift">
                     <span class="cat-qf-field-name">譯文</span>
                     <span class="cat-qf-field-label">欄位</span>
                     <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="E" id="colTarget" autocomplete="off">
                     <span class="cat-qf-col-hint">焦點句段目前譯文</span>
+                    <div class="cat-qf-dup-shift" aria-hidden="true"></div>
+                </div>
+                </div>
+                </div><!-- /catQfReorderRoot：內含可重排之列（含自訂列，由程式 append） -->
+                <div id="catQfTranslatorAddStripe" class="cat-qf-custom-toolbar-external" style="display:none;">
+                    <button type="button" class="icon-btn btn-sm" id="btnCatQfAddCustom" aria-label="新增自訂欄位" title="新增自訂欄位">+</button>
+                    <span class="cat-qf-col-hint cat-qf-custom-toolbar-hint">新增手動輸入欄位（標題僅供預覽；內容會貼入試算表）。</span>
                 </div>
                 <div class="cat-qf-format-token-hint" id="formatTokenHint" style="display:none;">
                     格式碼：<strong>YYYY</strong>=四位年　<strong>YY</strong>=兩位年　
