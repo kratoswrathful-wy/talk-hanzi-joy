@@ -42,7 +42,7 @@
 - **根因**：譯文欄 `blur` 後 `rebuildTargetEditorFromExtractedPlain` 等會 **重建 DOM**，已儲存之 `Range` 失效，`show()` 退回到編輯區左上角。
 - **方向**：失焦流程中在重建**前**快照**線性字元偏移**（與「全部取代」後還原游標之思路對齊）；重建後於新 DOM 建 `Range` 再 `setSavedCaret`／顯示假游標；並檢討 `blur` 開頭 `requestAnimationFrame(show)` 與 `await` 之順序，避免先畫再拆 DOM。
 - **檔案**：`cat-tool/app.js`（譯文 `blur`）、`cat-tool/js/cat-fake-caret.js`（必要時擴充 API）。
-- **補充（2026-05-04，`5168549`）**：寫庫完成後之 `requestAnimationFrame` 內，若 **`document.activeElement !==` 該列譯文格**，**不得**對該格呼叫 `Selection.addRange`（例如經 `setCaretAtPlainTextOffsetUsingSegments`／`setNpCaretOffset`），否則會把鍵盤焦點從使用者已點選之**另一譯文格**搶回本列（常見現象：游標被拉回「第一次點的那列」末尾）。此時改以 **`buildCollapsedRangeAtPlainTextOffsetUsingSegments`**／**`buildCollapsedNpRangeAtOffset`** 僅建立 `Range`，再 **`catFakeCaret.setSavedCaret`** 更新暫存游標並 **`showCatFakeCaretFromSaved`**，不操作真實選取。仍 **`activeElement ===` 該格** 時維持既有「還原真游標＋`saveCatCaretFromSelection`」路徑。
+- **補充（2026-05-04，`5168549`）**：寫庫完成後之 `requestAnimationFrame` 內，若 **`document.activeElement !==` 該列譯文格**，**不得**對該格呼叫 `Selection.addRange`（例如經 `setCaretAtPlainTextOffsetUsingSegments`／`setNpCaretOffset`），否則會把鍵盤焦點從使用者已點選之**另一譯文格**搶回本列（常見現象：游標被拉回「第一次點的那列」末尾）。此時改以 **`buildCollapsedRangeAtPlainTextOffsetUsingSegments`**／**`buildCollapsedNpRangeAtOffset`** 僅建立 `Range`，再 **`catFakeCaret.setSavedCaret`** 更新暫存游標並 **`showCatFakeCaretFromSaved`**，不操作真實選取。仍 **`activeElement ===` 該格** 時維持既有「還原真游標＋`saveCatCaretFromSelection`」路徑。**後續（§7.4）**：若 `activeElement` 已是**另一** `.grid-textarea`，則**不**對舊格 `setSavedCaret`／`show`（避免換列殘留假游標）；點非譯文格時仍走 `setSavedCaret` + `show`。
 
 ### 3.3 QA Tag 檢查（`_qaPushSegmentRuleFindings` 等）
 
@@ -178,11 +178,18 @@
 |--------|------|
 | `68faf34` | 編輯器 UX／QA 波次主體（多選、跳至 Modal、捲列、篩選摘要、AI 批次等）；見對話／PR 說明。 |
 | `5168549` | 本節 **§7.1** 補丁。 |
+| （與程式同 commit） | §7.4：換列時不對舊譯文格寫回假游標；非編輯區行為不變；訊息含 `skip fake caret`／`another target row`。 |
 
 ### 7.3 本文件未宣告為「已由 §7.1 一併完成」之項目
 
 - **`blur` 開頭**其他 `requestAnimationFrame`／`await` 之**全路徑順序**盤點（§3.2 原始「先畫再拆 DOM」檢討）仍屬維運時按需複查，**未**因 `5168549` 而宣告關閉。
 - **工作區內**若另有 `AGENTS.md`、`docs/CODEMAP.md`、`docs/CAT_TOOLTIP_SYSTEM.md` 等**未與 `5168549` 同批提交**之修改，以各檔實際 git 狀態為準；**不**由本節推定已上線。
+
+### 7.4 換列不殘留假游標（`5168549` 後續）
+
+- **現象**：焦點已移至**另一列** `.grid-textarea` 時，舊列失焦寫庫完成後之 `requestAnimationFrame` 仍對舊格 `setSavedCaret` 並 `showCatFakeCaretFromSaved()`，覆寫 `cat-fake-caret.js` 內 `selectionchange` 已寫入之新格狀態，導致**舊列殘留藍線假游標**。
+- **作法**：偵測 **`focusMovedToPeerTarget`**（`activeElement` 為他格 `.grid-textarea`）時，**不**對本列 `setSavedCaret`、**不**呼叫 `showCatFakeCaretFromSaved`；若 `getSaved()?.editor ===` 本列 `targetInput` 則 **`clear()`**。焦點在**非譯文格**（按鈕、`body` 等）時維持 §7.1 之 `setSavedCaret` + `show`（假游標留在最後編輯列）。
+- **Commit**：與 `cat-tool/app.js` 同批；訊息 **`CAT: skip fake caret restore on blur when focus is another target row`**。
 
 ---
 

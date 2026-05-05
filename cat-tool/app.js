@@ -17446,6 +17446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const maxPlain = extractTextFromEditor(targetInput).length;
                         const ae = document.activeElement;
                         const canApplyRealCaret = ae === targetInput;
+                        const focusMovedToPeerTarget = !!(ae && ae !== targetInput && ae.classList && ae.classList.contains('grid-textarea'));
                         if (canApplyRealCaret) {
                             if (npMode && caretNpOff != null) {
                                 const clamped = Math.max(0, Math.min(caretNpOff | 0, maxPlain));
@@ -17455,8 +17456,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 setCaretAtPlainTextOffsetUsingSegments(targetInput, clamped);
                             }
                             saveCatCaretFromSelection(targetInput);
-                        } else if (catFakeCaret && typeof catFakeCaret.setSavedCaret === 'function') {
-                            // 焦點已在他處（含另一譯文格）：勿對本格 addRange，否則會搶回鍵盤焦點；只更新假游標儲存。
+                        } else if (!focusMovedToPeerTarget && catFakeCaret && typeof catFakeCaret.setSavedCaret === 'function') {
+                            // 焦點在非譯文格等：勿對本格 addRange；以 Range 更新假游標儲存（點另一譯文格見下，不寫回舊列以免殘留假游標）。
                             if (npMode && caretNpOff != null) {
                                 const clamped = Math.max(0, Math.min(caretNpOff | 0, maxPlain));
                                 const rng = buildCollapsedNpRangeAtOffset(targetInput, clamped);
@@ -17467,7 +17468,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (rng) catFakeCaret.setSavedCaret({ segId: seg.id, editor: targetInput, range: rng });
                             }
                         }
-                        showCatFakeCaretFromSaved();
+                        if (!focusMovedToPeerTarget) {
+                            showCatFakeCaretFromSaved();
+                        } else if (catFakeCaret && typeof catFakeCaret.getSaved === 'function') {
+                            const s = catFakeCaret.getSaved();
+                            if (s && s.editor === targetInput) catFakeCaret.clear();
+                        }
                     });
                 });
 
