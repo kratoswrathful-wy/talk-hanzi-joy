@@ -667,13 +667,6 @@
                         <button id="btnCopySourceToTarget" class="icon-btn" style="font-size:1rem;" data-tip="原文複製到譯文">⬇</button>
                         <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;" data-tip="清除譯文">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" data-tip="展開標籤 (Alt+S)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
-                        <span class="toolbar-fmt-group" style="display:inline-flex; align-items:center; gap:0.15rem;">
-                            <button type="button" id="btnFmtBold" class="icon-btn cat-fmt-btn" data-tip="粗體（Ctrl+B）" style="font-weight:700; font-size:0.95rem;">B</button>
-                            <button type="button" id="btnFmtItalic" class="icon-btn cat-fmt-btn" data-tip="斜體（Ctrl+I）" style="font-style:italic; font-size:0.95rem;">I</button>
-                            <button type="button" id="btnFmtStrike" class="icon-btn cat-fmt-btn" data-tip="刪除線（Ctrl+Shift+S）" style="text-decoration:line-through; font-size:0.95rem;">S</button>
-                            <button type="button" id="btnFmtSup" class="icon-btn cat-fmt-btn" data-tip="上標（Ctrl+Shift+=）" style="font-size:0.78rem; vertical-align:super; line-height:0;">x²</button>
-                            <button type="button" id="btnFmtSub" class="icon-btn cat-fmt-btn" data-tip="下標（Ctrl+=）" style="font-size:0.78rem; vertical-align:sub; line-height:0;">x₂</button>
-                        </span>
                         <button id="btnShowNonPrint" class="icon-btn" data-tip="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnShortcuts" class="icon-btn" data-tip="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" data-tip="設定">⚙️</button>
@@ -1344,10 +1337,6 @@
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文中所有標籤占位</span><input type="text" value="Ctrl + F8" disabled class="sc-key-input"></div>
                             <p class="cat-shortcuts-item-desc">移除譯文裡形如 <code style="font-size:0.76rem;background:#f1f5f9;padding:0 4px;border-radius:3px;">{數字}</code> 的標籤碼，保留可見文字。</p>
-                        </div>
-                        <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">譯文行內格式（粗／斜／刪除線／上標／下標）</span><input type="text" value="Ctrl+B／I／Shift+S／Shift+=／=" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">焦點在譯文欄時插入一對格式佔位符（Excel 與 XLIFF 系檔案）；可先用滑鼠選取要包住的文字。PO 等純文字檔不適用。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">將原文複製到譯文</span><input type="text" id="scFixedKeyCopySource" value="Ctrl + Insert" disabled class="sc-key-input"></div>

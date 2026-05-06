@@ -1174,14 +1174,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    [['btnFmtBold', 'bold'], ['btnFmtItalic', 'italic'], ['btnFmtStrike', 'strike'], ['btnFmtSup', 'sup'], ['btnFmtSub', 'sub']].forEach(([btnId, kind]) => {
-        const b = document.getElementById(btnId);
-        if (b) {
-            b.addEventListener('mousedown', (ev) => ev.preventDefault());
-            b.addEventListener('click', () => applyFmtFromToolbar(kind));
-        }
-    });
-
     // 非列印字元顯示切換按鈕
     {
         const _NP_KEY = 'catToolShowNonPrint';
@@ -13608,224 +13600,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         refreshTagNextHighlight(row);
     }
 
-    function ensureSegTargetTagsWritable(seg) {
-        if (!seg) return;
-        if (!seg.targetTags) seg.targetTags = [];
-        if (seg.targetTags.length === 0 && seg.sourceTags && seg.sourceTags.length) {
-            seg.targetTags = seg.sourceTags.map(t => ({ ...t }));
-        }
-    }
-
-    function maxTagNumInTags(tagArr) {
-        let m = 0;
-        for (const t of tagArr || []) {
-            if (!t) continue;
-            const n = typeof t.num === 'number' && !Number.isNaN(t.num) ? t.num
-                : parseInt(String(t.ph || '').replace(/\D/g, ''), 10) || 0;
-            if (n > m) m = n;
-        }
-        return m;
-    }
-
-    function maxXliffIndexInTags(tagArr) {
-        let m = 0;
-        for (const t of tagArr || []) {
-            const x = String(t.xml || '');
-            const re = /\b(?:i|x)=["'](\d+)["']/gi;
-            let mm;
-            while ((mm = re.exec(x)) !== null) {
-                const v = parseInt(mm[1], 10);
-                if (!Number.isNaN(v) && v > m) m = v;
-            }
-        }
-        return m;
-    }
-
-    function getPlainOffsetInEditor(editor, container, offsetInNode) {
-        try {
-            const rng = document.createRange();
-            rng.setStart(editor, 0);
-            rng.setEnd(container, offsetInNode);
-            const holder = document.createElement('div');
-            holder.appendChild(rng.cloneContents());
-            return extractTextFromEditor(holder).length;
-        } catch (_) {
-            return null;
-        }
-    }
-
-    function fmtObjectForFmtKind(fmtKind) {
-        const map = {
-            bold: { b: true },
-            italic: { i: true },
-            strike: { strike: true },
-            sup: { sup: true },
-            sub: { sub: true }
-        };
-        return map[fmtKind] || null;
-    }
-
-    function displayForInsertedFmt(fmtKind) {
-        const map = { bold: '[B]', italic: '[I]', strike: '[S]', sup: '[^]', sub: '[_]' };
-        return map[fmtKind] || '[fmt]';
-    }
-
-    /**
-     * 在譯文插入一對行內格式佔位符與 tag 中繼（Excel / XLIFF 系檔案）。
-     * @param {'bold'|'italic'|'strike'|'sup'|'sub'} fmtKind
-     */
-    function insertFormattingPair(editorDiv, seg, fmtKind) {
-        if (!INLINE_FMT_RENDER || !fmtKind) return;
-        if (!seg || !editorDiv || editorDiv.contentEditable === 'false') return;
-        if (isTargetWriteProtected(seg)) return;
-        if (!currentFileId && !_currentViewId) return;
-
-        const fmtObj = fmtObjectForFmtKind(fmtKind);
-        if (!fmtObj) return;
-
-        let fmtBackend = null;
-        if (currentFileFormat === 'excel') fmtBackend = 'excel';
-        else if (currentFileFormat === 'xliff' || currentFileFormat === 'mqxliff' || currentFileFormat === 'sdlxliff') {
-            fmtBackend = 'xliff';
-        }
-
-        if (!fmtBackend) {
-            alert('此檔案格式不支援插入粗體／斜體等行內格式。');
-            return;
-        }
-
-        markEmptySegUserEdited(seg.id);
-        ensureSegTargetTagsWritable(seg);
-
-        const eff = effectiveTags(seg);
-        const newNum = maxTagNumInTags(eff) + 1;
-        const phOpen = `{${newNum}}`;
-        const phClose = `{/${newNum}}`;
-        const dispOpen = displayForInsertedFmt(fmtKind);
-
-        let openTag;
-        let closeTag;
-        if (fmtBackend === 'excel') {
-            const xmlMap = {
-                bold: '<b/>',
-                italic: '<i/>',
-                strike: '<strike/>',
-                sup: '<vertAlign val="superscript"/>',
-                sub: '<vertAlign val="subscript"/>'
-            };
-            const xopen = xmlMap[fmtKind];
-            openTag = {
-                ph: phOpen,
-                xml: xopen,
-                display: dispOpen,
-                type: 'open',
-                pairNum: newNum,
-                num: newNum,
-                fmt: fmtObj
-            };
-            closeTag = {
-                ph: phClose,
-                xml: '',
-                display: dispOpen.replace('[', '[/'),
-                type: 'close',
-                pairNum: newNum,
-                num: newNum,
-                fmt: fmtObj
-            };
-        } else {
-            const ctypeMap = {
-                bold: 'x-bold',
-                italic: 'x-italic',
-                strike: 'x-strikethrough',
-                sup: 'x-superscript',
-                sub: 'x-subscript'
-            };
-            const ct = ctypeMap[fmtKind];
-            const ni = maxXliffIndexInTags([...(seg.sourceTags || []), ...(seg.targetTags || [])]) + 1;
-            const openXml = `<bpt i="${ni}" x="${ni}" ctype="${ct}"></bpt>`;
-            const closeXml = `<ept i="${ni}"></ept>`;
-            openTag = {
-                ph: phOpen,
-                xml: openXml,
-                display: dispOpen,
-                type: 'open',
-                pairNum: newNum,
-                num: newNum,
-                fmt: fmtObj
-            };
-            closeTag = {
-                ph: phClose,
-                xml: closeXml,
-                display: dispOpen.replace('[', '[/'),
-                type: 'close',
-                pairNum: newNum,
-                num: newNum,
-                fmt: fmtObj
-            };
-        }
-
-        seg.targetTags.push(openTag);
-        seg.targetTags.push(closeTag);
-
-        const sel = window.getSelection();
-        let range = sel && sel.rangeCount && editorDiv.contains(sel.anchorNode) ? sel.getRangeAt(0) : null;
-        const fullPlain = extractTextFromEditor(editorDiv) || seg.targetText || '';
-        let start = fullPlain.length;
-        let end = fullPlain.length;
-        if (range) {
-            const sOff = getPlainOffsetInEditor(editorDiv, range.startContainer, range.startOffset);
-            const eOff = getPlainOffsetInEditor(editorDiv, range.endContainer, range.endOffset);
-            if (sOff != null && eOff != null) {
-                start = Math.min(sOff, eOff);
-                end = Math.max(sOff, eOff);
-            }
-        }
-        const inner = fullPlain.slice(start, end);
-        const newPlain = fullPlain.slice(0, start) + phOpen + inner + phClose + fullPlain.slice(end);
-
-        const oldTarget = seg.targetText;
-        const oldMv = seg.matchValue;
-        seg.targetText = newPlain;
-        setEditorHtml(editorDiv, buildTaggedHtml(newPlain, effectiveTags(seg)));
-        const row = editorDiv.closest('.grid-data-row');
-        if (row) updateTagColors(row, newPlain);
-        refreshTagNextHighlight(row);
-        if (oldTarget !== newPlain) {
-            pushEditorUndo(seg.id, oldTarget, newPlain, {
-                oldMatchValue: oldMv,
-                newMatchValue: seg.matchValue
-            });
-            editorUndoEditStart[seg.id] = newPlain;
-        }
-        applyUpdateSegmentTarget(seg, newPlain, { targetTags: seg.targetTags }).catch(console.error);
-    }
-
-    /** 工具列「行內格式」按鈕：對目前焦點或選取所在之譯文欄插入格式。 */
-    function applyFmtFromToolbar(fmtKind) {
-        if (!INLINE_FMT_RENDER) return;
-        const ve = document.getElementById('viewEditor');
-        if (!ve || ve.classList.contains('hidden')) return;
-        if (!currentFileId && !_currentViewId) return;
-        const ae = document.activeElement;
-        const sel = window.getSelection();
-        let ed = ae;
-        if (!(ed && ed.classList && ed.classList.contains('grid-textarea'))) {
-            const anchor = sel && sel.anchorNode
-                ? (sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode)
-                : null;
-            ed = anchor && anchor.closest ? anchor.closest('.grid-textarea') : null;
-        }
-        if (!ed || ed.contentEditable === 'false' || !ed.closest || !ed.closest('.col-target')) {
-            alert('請先點選譯文欄，再使用行內格式。');
-            return;
-        }
-        const row = ed.closest('.grid-data-row');
-        if (!row) return;
-        const segId = parseId(row.dataset.segId);
-        const seg = currentSegmentsList.find(s => s.id === segId);
-        if (seg) insertFormattingPair(ed, seg, fmtKind);
-    }
-
     /** 建立單個標籤的 span 元素（用於游標插入）。 */
     function buildTagSpan(tag) {
         const span = document.createElement('span');
@@ -13919,44 +13693,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
                 if (seg) insertNextMissingTag(activeEditor, seg);
-            }
-        }
-        // Ctrl+B／I／Shift+S／Shift+=／=：譯文行內格式（與工具列格式按鈕相同）
-        if (INLINE_FMT_RENDER && e.ctrlKey && !e.altKey && !e.metaKey && (currentFileId || _currentViewId)) {
-            let fmtKind = null;
-            if (!e.shiftKey && (e.key === 'b' || e.key === 'B')) fmtKind = 'bold';
-            else if (!e.shiftKey && (e.key === 'i' || e.key === 'I')) fmtKind = 'italic';
-            else if (e.shiftKey && (e.key === 's' || e.key === 'S')) fmtKind = 'strike';
-            else if (e.shiftKey && (e.key === '=' || e.code === 'Equal')) fmtKind = 'sup';
-            else if (!e.shiftKey && (e.key === '=' || e.code === 'Equal')) fmtKind = 'sub';
-
-            if (fmtKind) {
-                const veFmt = document.getElementById('viewEditor');
-                if (veFmt && !veFmt.classList.contains('hidden')) {
-                    const aeFmt = document.activeElement;
-                    const tagFmt = aeFmt && aeFmt.tagName;
-                    if (tagFmt !== 'INPUT' && tagFmt !== 'TEXTAREA' && tagFmt !== 'SELECT') {
-                        const selFmt = window.getSelection();
-                        let edFmt = aeFmt;
-                        if (!(edFmt && edFmt.classList && edFmt.classList.contains('grid-textarea'))) {
-                            const anchorFmt = selFmt && selFmt.anchorNode
-                                ? (selFmt.anchorNode.nodeType === 3 ? selFmt.anchorNode.parentElement : selFmt.anchorNode)
-                                : null;
-                            edFmt = anchorFmt && anchorFmt.closest ? anchorFmt.closest('.grid-textarea') : null;
-                        }
-                        if (edFmt && edFmt.contentEditable !== 'false' && edFmt.closest && edFmt.closest('.col-target')) {
-                            const rowFmt = edFmt.closest('.grid-data-row');
-                            if (rowFmt) {
-                                const segIdFmt = parseId(rowFmt.dataset.segId);
-                                const segFmt = currentSegmentsList.find(s => s.id === segIdFmt);
-                                if (segFmt) {
-                                    e.preventDefault();
-                                    insertFormattingPair(edFmt, segFmt, fmtKind);
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
         // Ctrl+F8：清除譯文中的所有標籤
@@ -16938,47 +16674,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    /** 行內格式字型（rt-fmt）；設 false 可緊急回退為僅 pill（見 docs/CAT_INLINE_FORMATTING_SPEC.md）。 */
-    const INLINE_FMT_RENDER = true;
-
-    function fmtHasRenderable(f) {
-        return !!(f && (f.b || f.i || f.strike || f.sup || f.sub || f.u));
-    }
-
-    function fmtToRtFmtClasses(f) {
-        if (!fmtHasRenderable(f)) return 'rt-fmt';
-        const parts = ['rt-fmt'];
-        if (f.b) parts.push('rt-fmt-bold');
-        if (f.i) parts.push('rt-fmt-italic');
-        if (f.strike) parts.push('rt-fmt-del');
-        if (f.sup) parts.push('rt-fmt-sup');
-        if (f.sub) parts.push('rt-fmt-sub');
-        if (f.u) parts.push('rt-fmt-underline');
-        return parts.join(' ');
-    }
-
-    function findClosePhForOpen(tags, openTag) {
-        const c = (tags || []).find(t => t && t.pairNum === openTag.pairNum && t.type === 'close');
-        return c && c.ph ? c.ph : `{/${openTag.pairNum}}`;
-    }
-
-    function renderTagPillHtml(tag) {
-        const pairAttr = tag.pairNum != null ? ` data-pair="${tag.pairNum}"` : '';
-        const cls = 'rt-tag' +
-            (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
-        let h = `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr} contenteditable="false">`;
-        if (tag.type === 'close') {
-            h += '<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span>';
-            h += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
-            h += `<span class="tag-num">${tag.num}</span>`;
-        } else {
-            h += `<span class="tag-num">${tag.num}</span>`;
-            h += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
-        }
-        h += `</span>`;
-        return h;
-    }
-
     /**
      * 回傳用於「目標欄」渲染的 tags 陣列。
      *
@@ -17005,57 +16700,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tagMap = {};
         tags.forEach(t => { tagMap[t.ph] = t; });
 
-        const parts = text.split(/(\{\/?\d+\})/);
-
-        if (!INLINE_FMT_RENDER) {
-            let htmlLegacy = '';
-            for (const part of parts) {
-                const tag = tagMap[part];
-                if (tag) htmlLegacy += renderTagPillHtml(tag);
-                else htmlLegacy += escapeHtml(part).replace(/\n/g, '<br data-cat-nl="1">');
-            }
-            return htmlLegacy;
-        }
-
         let html = '';
-        const stack = [];
-        function appendToOut(s) {
-            if (stack.length) stack[stack.length - 1].accum += s;
-            else html += s;
-        }
-
+        const parts = text.split(/(\{\/?\d+\})/);
         for (const part of parts) {
             const tag = tagMap[part];
             if (tag) {
-                if (tag.type === 'open' && fmtHasRenderable(tag.fmt)) {
-                    stack.push({
-                        accum: '',
-                        closePh: findClosePhForOpen(tags, tag),
-                        fmt: tag.fmt,
-                        openTagRef: tag
-                    });
-                    continue;
+                const pairAttr = tag.pairNum != null ? ` data-pair="${tag.pairNum}"` : '';
+                const cls = 'rt-tag' +
+                    (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
+                html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr} contenteditable="false">`;
+                if (tag.type === 'close') {
+                    html += '<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span>';
+                    html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
+                    html += `<span class="tag-num">${tag.num}</span>`;
+                } else {
+                    html += `<span class="tag-num">${tag.num}</span>`;
+                    html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
                 }
-                if (tag.type === 'close' && stack.length) {
-                    const top = stack[stack.length - 1];
-                    if (top.closePh === tag.ph) {
-                        stack.pop();
-                        const classes = fmtToRtFmtClasses(top.fmt);
-                        const wrapped = `<span class="${classes}" data-open-ph="${escapeHtml(top.openTagRef.ph)}" data-close-ph="${escapeHtml(top.closePh)}">${top.accum}</span>`;
-                        appendToOut(wrapped);
-                        continue;
-                    }
-                }
-                appendToOut(renderTagPillHtml(tag));
+                html += `</span>`;
             } else {
-                appendToOut(escapeHtml(part).replace(/\n/g, '<br data-cat-nl="1">'));
+                html += escapeHtml(part).replace(/\n/g, '<br data-cat-nl="1">');
             }
-        }
-        while (stack.length) {
-            const fr = stack.pop();
-            const chunk = renderTagPillHtml(fr.openTagRef) + fr.accum;
-            if (stack.length) stack[stack.length - 1].accum += chunk;
-            else html += chunk;
         }
         return html;
     }
@@ -17106,13 +16771,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return '';
         }
         if (node.tagName === 'BR') return isGhostBr(node, root) ? '' : '\n';
-        if (INLINE_FMT_RENDER && node.classList && node.classList.contains('rt-fmt')) {
-            const openPh = node.getAttribute('data-open-ph') || '';
-            const closePh = node.getAttribute('data-close-ph') || '';
-            let inner = '';
-            for (const c of node.childNodes) inner += extractSubtree(c, root);
-            return openPh + inner + closePh;
-        }
         if (node.classList && node.classList.contains('rt-tag')) return node.getAttribute('data-ph') || '';
         let s = '';
         for (const c of node.childNodes) s += extractSubtree(c, root);
@@ -17199,20 +16857,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 return;
             }
-            if (INLINE_FMT_RENDER && node.classList && node.classList.contains('rt-fmt')) {
-                const openPh = node.getAttribute('data-open-ph') || '';
-                const closePh = node.getAttribute('data-close-ph') || '';
-                if (openPh.length) {
-                    segs.push({ type: 'ph', el: node, abs: [off, off + openPh.length], ph: openPh });
-                    off += openPh.length;
-                }
-                for (const c of node.childNodes) walkInner(c);
-                if (closePh.length) {
-                    segs.push({ type: 'ph', el: node, abs: [off, off + closePh.length], ph: closePh });
-                    off += closePh.length;
-                }
-                return;
-            }
             if (node.classList && node.classList.contains('rt-tag')) {
                 const ph = node.getAttribute('data-ph') || '';
                 segs.push({ type: 'ph', el: node, abs: [off, off + ph.length], ph });
@@ -17293,28 +16937,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return rng;
             }
             if (seg.type === 'ph' && seg.el) {
-                if (INLINE_FMT_RENDER && seg.el.classList && seg.el.classList.contains('rt-fmt')) {
-                    const openPh = seg.el.getAttribute('data-open-ph') || '';
-                    const closePh = seg.el.getAttribute('data-close-ph') || '';
-                    try {
-                        if (seg.ph === openPh) {
-                            const first = seg.el.firstChild;
-                            if (first) {
-                                rng.setStart(first, 0);
-                                rng.collapse(true);
-                                return rng;
-                            }
-                            rng.setStart(seg.el, 0);
-                            rng.collapse(true);
-                            return rng;
-                        }
-                        if (seg.ph === closePh) {
-                            rng.selectNodeContents(seg.el);
-                            rng.collapse(false);
-                            return rng;
-                        }
-                    } catch (_) { /* fall through */ }
-                }
                 const mid = seg.abs[0] + ((seg.ph && seg.ph.length) ? seg.ph.length / 2 : 0);
                 if (pos < mid) rng.setStartBefore(seg.el);
                 else rng.setStartAfter(seg.el);
