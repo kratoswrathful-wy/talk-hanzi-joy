@@ -46,6 +46,12 @@
 
     // ── 句段相等比較（判斷是否完全無變動） ────────────────────────────────────
 
+    function normGlobalId(seg) {
+        if (seg == null || seg.globalId == null || seg.globalId === '') return null;
+        const n = Number(seg.globalId);
+        return Number.isFinite(n) ? n : null;
+    }
+
     function segmentsFullyEqual(a, b) {
         return (
             (a.sourceText || '') === (b.sourceText || '') &&
@@ -53,7 +59,8 @@
             (a.idValue ?? null) === (b.idValue ?? null) &&
             (a.extraValue ?? null) === (b.extraValue ?? null) &&
             (a.status || '') === (b.status || '') &&
-            !!(a.isLocked) === !!(b.isLocked)
+            !!(a.isLocked) === !!(b.isLocked) &&
+            normGlobalId(a) === normGlobalId(b)
         );
     }
 
@@ -177,6 +184,11 @@
             // 狀態重置：原文有變 OR 譯文有實際改動，且原本是「已確認」
             if ((sourceChanged || targetActuallyChanged) && shouldResetToUnconfirmed(existing)) {
                 patch.status = 'unconfirmed';
+            }
+
+            // 匯入掃描序：更新作業檔後須與新版檔案一致（供列表／句段集排序）
+            if (incoming.globalId != null && Number.isFinite(Number(incoming.globalId))) {
+                patch.globalId = Number(incoming.globalId);
             }
 
             update.push({ id: existing.id, patch });

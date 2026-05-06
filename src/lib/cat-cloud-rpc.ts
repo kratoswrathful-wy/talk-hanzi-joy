@@ -221,8 +221,57 @@ const mapSegmentRow = (r: any) => {
     segmentRevision: r.segment_revision != null ? Number(r.segment_revision) : 0,
     /** 原文變更追蹤：{ changedAt, previousSource }，僅存最新一次 */
     sourceChangeInfo: tryParseJson<{ changedAt: string; previousSource: string } | null>(r.source_change_info, null),
+    /** 匯入掃描順序（與本機 Dexie globalId 一致）；DB 舊列為 null */
+    globalId:
+      r.global_id != null && Number.isFinite(Number(r.global_id)) ? Number(r.global_id) : undefined,
   };
 };
+
+/** 與 cat-tool/db.js 句段排序語意一致：有 globalId 者先依序，否則依列與欄位穩定排序 */
+function sortMappedCatSegmentsByImportOrder<
+  T extends { globalId?: number | null; rowIdx?: number; sheetName?: string; colSrc?: string | null; id?: string },
+>(segments: T[]): T[] {
+  return segments.slice().sort((a, b) => {
+    const ga =
+      a.globalId != null && Number.isFinite(Number(a.globalId)) ? Number(a.globalId) : Number.NaN;
+    const gb =
+      b.globalId != null && Number.isFinite(Number(b.globalId)) ? Number(b.globalId) : Number.NaN;
+    const aHas = !Number.isNaN(ga);
+    const bHas = !Number.isNaN(gb);
+    if (aHas && bHas && ga !== gb) return ga - gb;
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
+    const ra = (a.rowIdx ?? 0) - (b.rowIdx ?? 0);
+    if (ra !== 0) return ra;
+    const sa = String(a.sheetName || "");
+    const sb = String(b.sheetName || "");
+    if (sa !== sb) return sa.localeCompare(sb);
+    const ca = String(a.colSrc ?? "");
+    const cb = String(b.colSrc ?? "");
+    if (ca !== cb) return ca.localeCompare(cb);
+    return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+  });
+}
+
+async function fetchCatSegmentsByFileIdOrdered(supabase: any, fileId: string) {
+  const PAGE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("cat_segments")
+      .select("*")
+      .eq("file_id", fileId)
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return sortMappedCatSegmentsByImportOrder(allData.map(mapSegmentRow));
+}
 
 const mapTmRow = (r: any) => ({
   id: r.id,
@@ -742,6 +791,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           if (patch.isLockedUser   !== undefined) dbPatch.is_locked_user   = patch.isLockedUser;
           if (patch.isLockedSystem !== undefined) dbPatch.is_locked_system = patch.isLockedSystem;
           if (patch.sourceChangeInfo !== undefined) dbPatch.source_change_info = patch.sourceChangeInfo;
+          if (patch.globalId !== undefined) {
+            dbPatch.global_id =
+              patch.globalId == null || patch.globalId === ""
+                ? null
+                : Number(patch.globalId);
+          }
           const { error } = await supabase.from("cat_segments").update(dbPatch as any).eq("id", segId);
           if (error) throw error;
         }
@@ -775,6 +830,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
             created_at:         nowIso(),
             last_modified:      nowIso(),
             segment_revision:   0,
+            global_id:
+              s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null,
           };
         });
         for (let i = 0; i < rows.length; i += BATCH) {
@@ -851,6 +908,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           created_at: nowIso(),
           last_modified: nowIso(),
           segment_revision: 0,
+          global_id:
+            s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null,
         };
       });
       let totalCount = 0;
@@ -863,23 +922,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return totalCount;
     }
     case "db.getSegmentsByFile": {
-      const PAGE = 1000;
-      let allData: any[] = [];
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from("cat_segments")
-          .select("*")
-          .eq("file_id", payload.fileId)
-          .order("row_idx", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < PAGE) break;
-        from += PAGE;
-      }
-      return allData.map(mapSegmentRow);
+      return await fetchCatSegmentsByFileIdOrdered(supabase, payload.fileId);
     }
     case "db.updateSegmentTarget": {
       const { expectedSegmentRevision: exp, segmentId, newTargetText, extra: extraRaw } = payload;
@@ -1898,28 +1941,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.getSegmentsByFileForPreview": {
       const fileIds: string[] = Array.isArray(payload.fileIds) ? payload.fileIds : [];
       if (fileIds.length === 0) return [];
-      // 每次以 20 個 file_id 為一批，並於批內用 .range() 分頁，
-      // 避免 Supabase 預設 1000 筆上限截斷跨多檔句段集的資料。
-      const FILE_CHUNK = 20;
-      const PAGE = 1000;
       const results: unknown[] = [];
-      for (let i = 0; i < fileIds.length; i += FILE_CHUNK) {
-        const chunk = fileIds.slice(i, i + FILE_CHUNK);
-        let from = 0;
-        while (true) {
-          const { data, error } = await supabase
-            .from("cat_segments")
-            .select("*")
-            .in("file_id", chunk)
-            .order("file_id", { ascending: true })
-            .order("row_idx", { ascending: true })
-            .range(from, from + PAGE - 1);
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-          results.push(...data.map(mapSegmentRow));
-          if (data.length < PAGE) break;
-          from += PAGE;
-        }
+      for (const fid of fileIds) {
+        const part = await fetchCatSegmentsByFileIdOrdered(supabase, fid);
+        results.push(...part);
       }
       return results;
     }

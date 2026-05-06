@@ -4143,6 +4143,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         fileAssignModal.classList.remove('hidden');
     }
 
+    /** 同一檔案內：匯入序 globalId 優先，否則列與欄位（與 db.js／雲端 RPC 一致） */
+    function _cmpSegmentImportOrderWithinFile(a, b) {
+        const ga = a.globalId != null && Number.isFinite(Number(a.globalId)) ? Number(a.globalId) : NaN;
+        const gb = b.globalId != null && Number.isFinite(Number(b.globalId)) ? Number(b.globalId) : NaN;
+        const aHas = !Number.isNaN(ga);
+        const bHas = !Number.isNaN(gb);
+        if (aHas && bHas && ga !== gb) return ga - gb;
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        const ra = (a.rowIdx ?? 0) - (b.rowIdx ?? 0);
+        if (ra !== 0) return ra;
+        const sa = String(a.sheetName || '');
+        const sb = String(b.sheetName || '');
+        if (sa !== sb) return sa.localeCompare(sb);
+        const ca = String(a.colSrc ?? '');
+        const cb = String(b.colSrc ?? '');
+        if (ca !== cb) return ca.localeCompare(cb);
+        return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+    }
+
     // ── 建立句段集精靈 ────────────────────────────────────────────────────────
     const createViewModal = document.getElementById('createViewModal');
     const createViewNameInput = document.getElementById('createViewNameInput');
@@ -4221,7 +4241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const ai = fileOrder.indexOf(String(a.fileId));
                     const bi = fileOrder.indexOf(String(b.fileId));
                     if (ai !== bi) return ai - bi;
-                    return (a.rowIdx || 0) - (b.rowIdx || 0);
+                    return _cmpSegmentImportOrderWithinFile(a, b);
                 });
                 segmentIds = allSegs.map((s) => String(s.id));
             }
@@ -4334,14 +4354,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         let segments = [];
         if (segmentIds.length) {
             segments = await DBService.getSegmentsByIds(segmentIds);
-            // 依專案檔案清單順序（seqNo）+ rowIdx 排列，確保跨檔案的閱讀順序正確
+            // 依專案檔案清單順序（seqNo）+ 匯入序（globalId）排列，確保跨檔案的閱讀順序正確
             segments.sort((a, b) => {
                 const fa = filesMap[String(a.fileId)];
                 const fb = filesMap[String(b.fileId)];
                 const ai = fa ? fa.seqNo : 9999;
                 const bi = fb ? fb.seqNo : 9999;
                 if (ai !== bi) return ai - bi;
-                return (a.rowIdx || 0) - (b.rowIdx || 0);
+                return _cmpSegmentImportOrderWithinFile(a, b);
             });
         }
 

@@ -19,6 +19,28 @@ function toDexieLocalId(id) {
     return id;
 }
 
+/** 匯入掃描排序：有 globalId 者先；舊資料無則依列與欄位（與 cat-cloud-rpc 一致） */
+function sortSegmentsByImportOrder(segments) {
+    return segments.slice().sort((a, b) => {
+        const ga = a.globalId != null && Number.isFinite(Number(a.globalId)) ? Number(a.globalId) : NaN;
+        const gb = b.globalId != null && Number.isFinite(Number(b.globalId)) ? Number(b.globalId) : NaN;
+        const aHas = !Number.isNaN(ga);
+        const bHas = !Number.isNaN(gb);
+        if (aHas && bHas && ga !== gb) return ga - gb;
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        const ra = (a.rowIdx ?? 0) - (b.rowIdx ?? 0);
+        if (ra !== 0) return ra;
+        const sa = String(a.sheetName || '');
+        const sb = String(b.sheetName || '');
+        if (sa !== sb) return sa.localeCompare(sb);
+        const ca = String(a.colSrc ?? '');
+        const cb = String(b.colSrc ?? '');
+        if (ca !== cb) return ca.localeCompare(cb);
+        return String(a.id).localeCompare(String(b.id));
+    });
+}
+
 // Define Schema for decoupled entities
 db.version(5).stores({
     projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
@@ -604,8 +626,8 @@ const DBService = {
         const normIds = fileIds.map(toDexieLocalId);
         const all = [];
         for (const fid of normIds) {
-            const rows = await db.segments.where('fileId').equals(fid).sortBy('rowIdx');
-            all.push(...rows);
+            const rows = await db.segments.where('fileId').equals(fid).toArray();
+            all.push(...sortSegmentsByImportOrder(rows));
         }
         return all;
     },
@@ -690,7 +712,7 @@ const DBService = {
             const n = parseInt(fileId, 10);
             if (!isNaN(n)) segs = await db.segments.where('fileId').equals(n).toArray();
         }
-        return segs.sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
+        return sortSegmentsByImportOrder(segs);
     },
 
     async updateSegmentTarget(segmentId, newTargetText, extra = {}, _expectedSegmentRevision) {
@@ -771,6 +793,7 @@ const DBService = {
             if (patch.isLockedUser   !== undefined) dbPatch.isLockedUser   = patch.isLockedUser;
             if (patch.isLockedSystem !== undefined) dbPatch.isLockedSystem = patch.isLockedSystem;
             if (patch.sourceChangeInfo !== undefined) dbPatch.sourceChangeInfo = patch.sourceChangeInfo;
+            if (patch.globalId !== undefined) dbPatch.globalId = patch.globalId;
             if (Object.keys(dbPatch).length) await db.segments.update(sid, dbPatch);
         }
 
