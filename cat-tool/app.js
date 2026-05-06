@@ -10184,12 +10184,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── 更新作業檔（更新匯入）────────────────────────────────────────────────
 
     /**
-     * 取得句段集（離線模式用 Dexie，team 模式用 RPC）
-     * db.js 的 getViews 只在 DexieBackend 有定義；team 模式需透過 RPC。
+     * 取得專案下所有句段集（離線與團隊模式皆透過 DBService.listViews）。
      */
     async function _getViewsForProject(projectId) {
         try {
-            return await DBService.getViews(projectId);
+            return await DBService.listViews(projectId);
         } catch (_) {
             return [];
         }
