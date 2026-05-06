@@ -3432,13 +3432,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             const targetView = item.getAttribute('data-view');
             const viewEditorEl = document.getElementById('viewEditor');
-            const inEditor = !!(currentFileId && viewEditorEl && !viewEditorEl.classList.contains('hidden'));
+            const inEditor = !!((currentFileId || _currentViewId) && viewEditorEl && !viewEditorEl.classList.contains('hidden'));
             if (inEditor) {
                 const ok = await ensureWorkspaceNoteLeaveResolved();
                 if (!ok) return;
                 clearEditorCaretArtifacts();
                 leaveCollabForCurrentFile();
                 currentFileId = null;
+                _currentViewId = null;
+                _currentViewFilesMap = {};
                 _syncFileScopedNotesTabs();
                 currentSegmentsList = [];
                 if (gridBody) gridBody.innerHTML = '';
@@ -3446,7 +3448,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.ActiveTbTerms = [];
                 window._activeTmCacheReadyIds = new Set();
                 window._activeTmNames = {};
-                clearEditorScopedPanels();
+                resetEditorTransientUi();
+                _viewEditorReadOnly = false;
+                const readOnlyBannerNav = document.getElementById('viewReadOnlyBanner');
+                if (readOnlyBannerNav) readOnlyBannerNav.style.display = 'none';
+                const labelSrcFileNav = document.getElementById('labelToggleSourceFileCol');
+                if (labelSrcFileNav) labelSrcFileNav.style.display = 'none';
+                const btnEdWcNav = document.getElementById('btnEditorWordCount');
+                if (btnEdWcNav) btnEdWcNav.style.display = 'none';
                 sidebar.classList.remove('collapsed');
             }
             switchView(targetView);
@@ -12576,6 +12585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!file) {
             alert('檔案不存在');
             currentFileId = null;
+            resetEditorTransientUi();
             switchView('viewDashboard');
             await loadDashboardData();
             return;
@@ -12608,6 +12618,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const role = await showMqRoleModal({ defaultRole: importDefault });
             if (role === null) {
                 currentFileId = null;
+                resetEditorTransientUi();
                 if (currentProjectId) {
                     await openProjectDetail(currentProjectId);
                 } else {
@@ -12925,6 +12936,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearEditorCaretArtifacts();
         leaveCollabForCurrentFile();
         currentFileId = null;
+        _currentViewId = null;
+        _currentViewFilesMap = {};
         _syncFileScopedNotesTabs();
         currentSegmentsList = [];
         gridBody.innerHTML = '';
@@ -12932,7 +12945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTbTerms = [];
         window._activeTmCacheReadyIds = new Set();
         window._activeTmNames = {};
-        clearEditorScopedPanels();
+        resetEditorTransientUi();
         // 離開編輯器時重置唯讀狀態與橫幅
         _viewEditorReadOnly = false;
         const readOnlyBanner = document.getElementById('viewReadOnlyBanner');
@@ -20634,6 +20647,78 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateQaScopeFilterLockState(false);
         syncQaRangeExprDisabledAfterLock();
     }
+
+    /**
+     * 離開編輯器殼層時：清搜尋／篩選／TM 搜尋／新增術語等暫態 UI，不寫入句段資料。
+     * 宜在 currentSegmentsList 已清空（或即將清空）後呼叫，以避免不必要的 runSearchAndFilter。
+     */
+    function resetEditorTransientUi() {
+        clearTimeout(sfRunUiTimer);
+        sfRunUiTimer = null;
+        sfRunOnNextFrameQueued = false;
+
+        const dismissPairs = [
+            ['preTranslateModal', 'btnCancelPreTranslate'],
+            ['aiBatchModal', 'btnCancelAiBatch'],
+            ['aiBatchAskModal', 'btnBatchAskCancel'],
+        ];
+        for (const [overlayId, btnId] of dismissPairs) {
+            const ov = document.getElementById(overlayId);
+            if (!ov || ov.classList.contains('hidden')) continue;
+            const btn = document.getElementById(btnId);
+            if (btn) btn.click();
+        }
+
+        resetQaScopeInputs();
+
+        sfFilterGroups.length = 0;
+        renderFilterGroups();
+
+        document.querySelectorAll('.sf-scope-btn').forEach((btn) => btn.classList.add('on'));
+        sfUseRegexChecked = false;
+        refreshSfReplaceBarToggleTips();
+
+        sfMode = 'search';
+        if (sfModeSearch) sfModeSearch.classList.add('active');
+        if (sfModeFilter) sfModeFilter.classList.remove('active');
+
+        if (sfAdvancedPanel) sfAdvancedPanel.classList.add('hidden');
+        if (btnToggleAdvancedSF) btnToggleAdvancedSF.textContent = '▼';
+
+        clearUIFilters();
+
+        updateSfModeToggleLockState();
+        syncWordCountEditorScopeRadios();
+
+        const tmSi = document.getElementById('tmSearchInput');
+        if (tmSi) tmSi.value = '';
+
+        const nts = document.getElementById('newTermSource');
+        const ntt = document.getElementById('newTermTarget');
+        const ntn = document.getElementById('newTermNote');
+        if (nts) nts.value = '';
+        if (ntt) ntt.value = '';
+        if (ntn) ntn.value = '';
+        const ntCi = document.getElementById('newTermCaseInsensitive');
+        const ntWw = document.getElementById('newTermWholeWord');
+        if (ntCi) ntCi.checked = false;
+        if (ntWw) ntWw.checked = false;
+
+        selectedRowIds.clear();
+
+        clearEditorScopedPanels();
+
+        sfSearchMatches = [];
+        sfActiveMatchIdx = -1;
+        sfLastFocusedMatchSegIdx = null;
+        document.querySelectorAll('mark.search-match-active').forEach((m) => m.classList.remove('search-match-active'));
+        if (sfMatchCount) sfMatchCount.textContent = '0 / 0';
+
+        if (currentSegmentsList && currentSegmentsList.length) {
+            runSearchAndFilter();
+        }
+    }
+
     function getQaScopeVisibleSegIdSet() {
         if (!qaScopeCurrentFilteredEl?.checked) return null;
         if (!gridBody) return null;
