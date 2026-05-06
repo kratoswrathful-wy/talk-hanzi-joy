@@ -21093,12 +21093,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── New Term Panel ───────────────────────────────────────────────────────
 
+    async function resolveActiveWriteTbIdForNewTermPanel() {
+        let writeTbId = window.ActiveWriteTb;
+        if (writeTbId == null && currentProjectId && DBService && typeof DBService.getProject === 'function') {
+            try {
+                const p = await DBService.getProject(currentProjectId);
+                if (p && p.writeTb != null) writeTbId = p.writeTb;
+            } catch (_) { /* ignore */ }
+        }
+        if (writeTbId != null) window.ActiveWriteTb = writeTbId;
+        return writeTbId;
+    }
+
     async function refreshNewTermPanel() {
         const noTbEl = document.getElementById('newTermNoTb');
         const formEl = document.getElementById('newTermForm');
         const nameEl = document.getElementById('newTermTbName');
         if (!noTbEl || !formEl) return;
-        const writeTbId = window.ActiveWriteTb;
+        const writeTbId = await resolveActiveWriteTbIdForNewTermPanel();
         if (writeTbId == null) {
             noTbEl.textContent = '請先在專案設定中指定寫入目標術語庫。';
             noTbEl.style.display = '';
@@ -21106,6 +21118,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         const wtb = await DBService.getTB(writeTbId);
+        if (!wtb) {
+            noTbEl.textContent = '找不到寫入目標術語庫（可能尚未載入或已被移除）。請重新整理頁面或回到專案設定確認。';
+            noTbEl.style.display = '';
+            formEl.style.display = 'none';
+            return;
+        }
         if (wtb && (wtb.sourceType || 'manual') === 'online') {
             noTbEl.textContent = '寫入目標為線上擷取之術語庫時，無法於此新增術語。';
             noTbEl.style.display = '';
