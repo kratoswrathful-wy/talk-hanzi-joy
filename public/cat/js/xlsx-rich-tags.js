@@ -37,6 +37,11 @@
         if (/<i\s*\/?>/.test(rprXml) && !/<i\s+val="0"/.test(rprXml)) s.i = true;
         if (/<u\s*\/?>/.test(rprXml) && !/<u\s+val="0"/.test(rprXml)) s.u = true;
         if (/<strike\s*\/?>/.test(rprXml) && !/<strike\s+val="0"/.test(rprXml)) s.strike = true;
+        const va = rprXml.match(/<(?:\w+:)?vertAlign[^>]*val="([^"]+)"/);
+        if (va) {
+            if (va[1] === 'superscript') s.sup = true;
+            if (va[1] === 'subscript') s.sub = true;
+        }
         const cm = rprXml.match(/<color\s[^>]*rgb="([0-9A-Fa-f]{8})"/);
         if (cm) s.color = cm[1].slice(2); // 去 alpha → RRGGBB
         const szm = rprXml.match(/<sz\s+val="([^"]+)"/);
@@ -46,7 +51,8 @@
 
     function styleEq(a, b) {
         return a.b === b.b && a.i === b.i && a.u === b.u &&
-               a.strike === b.strike && a.color === b.color && a.sz === b.sz;
+               a.strike === b.strike && a.sup === b.sup && a.sub === b.sub &&
+               a.color === b.color && a.sz === b.sz;
     }
 
     function styleToDisplay(s) {
@@ -55,9 +61,24 @@
         if (s.i)      parts.push('I');
         if (s.u)      parts.push('U');
         if (s.strike) parts.push('S');
+        if (s.sup)    parts.push('^');
+        if (s.sub)    parts.push('_');
         if (s.color)  parts.push('#' + s.color);
         if (s.sz)     parts.push(s.sz + 'pt');
         return '[' + (parts.length ? parts.join(',') : 'fmt') + ']';
+    }
+
+    /** 供 CAT 行內格式渲染（rt-fmt）辨識用；與 parseRpr 欄位一致。 */
+    function fmtFromExcelStyle(style) {
+        if (!style) return null;
+        const fmt = {};
+        if (style.b) fmt.b = true;
+        if (style.i) fmt.i = true;
+        if (style.u) fmt.u = true;
+        if (style.strike) fmt.strike = true;
+        if (style.sup) fmt.sup = true;
+        if (style.sub) fmt.sub = true;
+        return Object.keys(fmt).length ? fmt : null;
     }
 
     /* ── Run 解析 ──────────────────────────────────────────── */
@@ -133,8 +154,12 @@
                 const ph = `{${counter}}`;
                 const phClose = `{/${counter}}`;
                 const disp = styleToDisplay(run.style);
-                tags.push({ ph,       xml: run.rprXml, display: disp,               type: 'open',  pairNum: counter, num: counter });
-                tags.push({ ph: phClose, xml: '',       display: disp.replace('[', '[/'), type: 'close', pairNum: counter, num: counter });
+                const fmtObj = fmtFromExcelStyle(run.style);
+                const openEntry = { ph, xml: run.rprXml, display: disp, type: 'open', pairNum: counter, num: counter };
+                const closeEntry = { ph: phClose, xml: '', display: disp.replace('[', '[/'), type: 'close', pairNum: counter, num: counter };
+                if (fmtObj) { openEntry.fmt = fmtObj; closeEntry.fmt = fmtObj; }
+                tags.push(openEntry);
+                tags.push(closeEntry);
                 text += ph + run.text + phClose;
             } else {
                 text += run.text;

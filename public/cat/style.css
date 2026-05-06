@@ -1850,6 +1850,35 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     outline: none;
 }
 
+/* 行內格式（粗體／斜體等）：DOM 為 span.rt-fmt，與 {N}{/N} 佔位對應 */
+.rt-fmt {
+    display: inline;
+    font-size: inherit;
+    font-family: inherit;
+}
+.rt-fmt-bold {
+    font-weight: bold;
+}
+.rt-fmt-italic {
+    font-style: italic;
+}
+.rt-fmt-del {
+    text-decoration: line-through;
+}
+.rt-fmt-sup {
+    vertical-align: super;
+    font-size: 0.75em;
+    line-height: 0;
+}
+.rt-fmt-sub {
+    vertical-align: sub;
+    font-size: 0.75em;
+    line-height: 0;
+}
+.rt-fmt-underline {
+    text-decoration: underline;
+}
+
 /* 標籤晶片基礎（字級與編輯器一致，避免 0.75em 疊在 0.9rem 上過小） */
 .rt-tag {
     display: inline-flex;

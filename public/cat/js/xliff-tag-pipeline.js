@@ -54,6 +54,22 @@
         return meaningfulRaw;
     }
 
+    /** XLIFF ctype / type → 行內格式（供 CAT rt-fmt 渲染）。 */
+    function fmtFromCtypeElement(el) {
+        if (!el || el.nodeType !== 1) return null;
+        const ct = (el.getAttribute('ctype') || el.getAttribute('type') || '').trim().toLowerCase();
+        if (!ct) return null;
+        const map = {
+            'x-bold': { b: true },
+            'x-italic': { i: true },
+            'x-underline': { u: true },
+            'x-strikethrough': { strike: true },
+            'x-superscript': { sup: true },
+            'x-subscript': { sub: true }
+        };
+        return map[ct] || null;
+    }
+
     function extractTaggedText(xmlNode, { transparentG = false } = {}) {
         const tags = [];
         let counter = 0;
@@ -99,7 +115,10 @@
                     });
                     const display = meaningfulRaw.length > 25 ? meaningfulRaw.substring(0, 25) + '…' : meaningfulRaw || ph;
                     const xml = new XMLSerializer().serializeToString(child);
-                    tags.push({ ph, xml, display, type: 'standalone', pairNum: counter, num: counter });
+                    const fmtPh = fmtFromCtypeElement(child);
+                    const entryPh = { ph, xml, display, type: 'standalone', pairNum: counter, num: counter };
+                    if (fmtPh) entryPh.fmt = fmtPh;
+                    tags.push(entryPh);
                     text += ph;
                 } else if (ln === 'bpt') {
                     counter++;
@@ -120,7 +139,10 @@
                     }
                     const display = meaningfulBpt.length > 25 ? meaningfulBpt.substring(0, 25) + '…' : meaningfulBpt || `<${counter}>`;
                     const xml = new XMLSerializer().serializeToString(child);
-                    tags.push({ ph, xml, display, type: 'open', pairNum: counter, num: counter });
+                    const fmtBpt = fmtFromCtypeElement(child);
+                    const entryBpt = { ph, xml, display, type: 'open', pairNum: counter, num: counter };
+                    if (fmtBpt) entryBpt.fmt = fmtBpt;
+                    tags.push(entryBpt);
                     text += ph;
                 } else if (ln === 'ept') {
                     const id = child.getAttribute('id') || child.getAttribute('i') || '';
@@ -140,7 +162,10 @@
                     }
                     const display = meaningfulEpt.length > 25 ? meaningfulEpt.substring(0, 25) + '…' : meaningfulEpt || `</${num}>`;
                     const xml = new XMLSerializer().serializeToString(child);
-                    tags.push({ ph, xml, display, type: 'close', pairNum: num, num });
+                    const fmtEpt = fmtFromCtypeElement(child);
+                    const entryEpt = { ph, xml, display, type: 'close', pairNum: num, num };
+                    if (fmtEpt) entryEpt.fmt = fmtEpt;
+                    tags.push(entryEpt);
                     text += ph;
                 } else if (ln === 'g') {
                     if (transparentG) {
