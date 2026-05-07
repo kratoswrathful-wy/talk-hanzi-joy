@@ -1340,6 +1340,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (nd.nodeType === 3) {
                 const len = nd.nodeValue.length;
                 if (remaining <= len) {
+                    const parentEl = nd.parentElement;
+                    // 游標落在 np-inline-char 末端 → 移到 span 後方，避免游標卡在 span 內導致 Del 隔次無反應
+                    if (remaining === len && parentEl && parentEl.classList && parentEl.classList.contains('np-inline-char')) {
+                        try {
+                            const rng = document.createRange();
+                            rng.setStartAfter(parentEl);
+                            rng.collapse(true);
+                            return rng;
+                        } catch (_) {
+                            return null;
+                        }
+                    }
                     try {
                         const rng = document.createRange();
                         rng.setStart(nd, Math.max(0, remaining));
@@ -17085,6 +17097,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function normalizeXmlForSig(xml) {
         return String(xml ?? '')
             .replace(/^\uFEFF/, '') // strip BOM
+            // memoQ：原文／譯文段各自重新給 rid，比對著色時應忽略（否則同語意 tag 簽名不同）
+            .replace(/\s+rid\s*=\s*"[^"]*"/gi, '')
+            .replace(/\s+rid\s*=\s*'[^']*'/gi, '')
             .replace(/\r\n?/g, '\n')
             .replace(/[\s\u00A0\u200B\uFEFF]+/g, ' ')
             .trim();
@@ -18423,6 +18438,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                         !e.ctrlKey && !e.metaKey && !e.altKey &&
                         document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
                         const sel = window.getSelection();
+                        // 非收起選取：手動刪除並還原 NP 游標，避免瀏覽器預設刪除後焦點／游標遺失
+                        if (sel && !sel.isCollapsed && sel.rangeCount) {
+                            const r0 = sel.getRangeAt(0).cloneRange();
+                            if (targetInput.contains(r0.commonAncestorContainer)) {
+                                const startOff = getNpCaretOffset(targetInput);
+                                const rangeEnd = r0.cloneRange();
+                                rangeEnd.collapse(false);
+                                sel.removeAllRanges();
+                                sel.addRange(rangeEnd);
+                                const endOff = getNpCaretOffset(targetInput);
+                                if (startOff != null && endOff != null) {
+                                    e.preventDefault();
+                                    const lo = Math.min(startOff, endOff);
+                                    const hi = Math.max(startOff, endOff);
+                                    const plain = extractTextFromEditor(targetInput);
+                                    const newPlain = plain.slice(0, lo) + plain.slice(hi);
+                                    setEditorHtml(targetInput, buildTaggedHtml(newPlain, effectiveTags(seg)));
+                                    refreshNonPrintMarkers(targetInput);
+                                    setNpCaretOffset(targetInput, lo);
+                                    targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                    return;
+                                }
+                                sel.removeAllRanges();
+                                sel.addRange(r0);
+                            }
+                        }
                         if (sel && sel.isCollapsed && sel.rangeCount) {
                             const range = sel.getRangeAt(0);
                             const container = range.startContainer;

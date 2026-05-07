@@ -58,6 +58,8 @@
         const tags = [];
         let counter = 0;
         const bptMap = {};
+        /** XLIFF bpt/ept 成對：memoQ 常用 id 與 rid 分離，close 的 id 常對不到 open，改以 rid 對應 bpt 的 counter。 */
+        const ridMap = {};
 
         function shallowOpenXml(el) {
             const clone = el.cloneNode(false);
@@ -105,6 +107,8 @@
                     counter++;
                     const id = child.getAttribute('id') || child.getAttribute('i') || String(counter);
                     bptMap[id] = counter;
+                    const ridBpt = child.getAttribute('rid') || '';
+                    if (ridBpt) ridMap[ridBpt] = counter;
                     const ph = `{${counter}}`;
                     const dtBpt = child.getAttribute('displaytext');
                     const eqBpt = child.getAttribute('equiv-text');
@@ -124,7 +128,10 @@
                     text += ph;
                 } else if (ln === 'ept') {
                     const id = child.getAttribute('id') || child.getAttribute('i') || '';
-                    const num = bptMap[id] !== undefined ? bptMap[id] : ++counter;
+                    const ridEpt = child.getAttribute('rid') || '';
+                    const num = bptMap[id] !== undefined
+                        ? bptMap[id]
+                        : (ridEpt && ridMap[ridEpt] !== undefined ? ridMap[ridEpt] : ++counter);
                     const ph = `{/${num}}`;
                     const dtEpt = child.getAttribute('displaytext');
                     const eqEpt = child.getAttribute('equiv-text');
