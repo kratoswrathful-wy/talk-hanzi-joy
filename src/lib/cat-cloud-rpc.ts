@@ -778,8 +778,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
 
       // 更新
       if (Array.isArray(update) && update.length) {
-        for (const { id: segId, patch } of update) {
-          const dbPatch: Record<string, unknown> = { last_modified: nowIso() };
+        const batchUpdates = update.map(({ id: segId, patch }) => {
+          const dbPatch: Record<string, unknown> = {};
           if (patch.sourceText     !== undefined) dbPatch.source_text      = patch.sourceText;
           if (patch.sourceTags     !== undefined) dbPatch.source_tags      = patch.sourceTags;
           if (patch.targetText     !== undefined) dbPatch.target_text      = patch.targetText;
@@ -787,6 +787,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           if (patch.idValue        !== undefined) dbPatch.id_value         = patch.idValue;
           if (patch.extraValue     !== undefined) dbPatch.extra_value      = patch.extraValue;
           if (patch.status         !== undefined) dbPatch.status           = patch.status;
+          if (patch.editorNote     !== undefined) dbPatch.editor_note      = patch.editorNote;
           if (patch.isLocked       !== undefined) dbPatch.is_locked        = patch.isLocked;
           if (patch.isLockedUser   !== undefined) dbPatch.is_locked_user   = patch.isLockedUser;
           if (patch.isLockedSystem !== undefined) dbPatch.is_locked_system = patch.isLockedSystem;
@@ -797,7 +798,13 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
                 ? null
                 : Number(patch.globalId);
           }
-          const { error } = await supabase.from("cat_segments").update(dbPatch as any).eq("id", segId);
+          return { id: segId, patch: dbPatch };
+        });
+        for (let off = 0; off < batchUpdates.length; off += BATCH) {
+          const chunk = batchUpdates.slice(off, off + BATCH);
+          const { error } = await supabase.rpc("apply_cat_segments_patch_batch" as any, {
+            p_updates: chunk,
+          } as any);
           if (error) throw error;
         }
       }
