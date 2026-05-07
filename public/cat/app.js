@@ -1160,19 +1160,93 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnClearTarget.addEventListener('click', () => runTextOpOnSelection('clear'));
     }
 
-    // 標籤展開/收起按鈕
-    const btnTagCollapse = document.getElementById('btnTagCollapse');
-    if (btnTagCollapse) {
-        btnTagCollapse.addEventListener('click', () => {
-            tagsExpanded = !tagsExpanded;
-            const editorGrid = document.getElementById('editorGrid');
-            if (editorGrid) {
-                editorGrid.classList.toggle('tags-expanded', tagsExpanded);
-                editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
-            }
-            btnTagCollapse.dataset.tip = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
+    // 標籤顯示三態：0=僅編號 1=摘要（display） 2=全文（xml 優先）
+    let tagViewMode = 0;
+    const tagViewTips = [
+        '標籤：僅編號（Alt+S 切下一層）',
+        '標籤：摘要（Alt+S 切下一層）',
+        '標籤：全文（Alt+S 切下一層）'
+    ];
+    function syncTagViewModeToEditorGrid() {
+        const editorGrid = document.getElementById('editorGrid');
+        if (!editorGrid) return;
+        editorGrid.classList.remove('tag-view-0', 'tag-view-1', 'tag-view-2', 'tags-expanded', 'tags-collapsed');
+        editorGrid.classList.add('tag-view-' + tagViewMode);
+    }
+    function updateTagViewToolbarUi() {
+        const main = document.getElementById('btnTagViewMain');
+        if (main) main.dataset.tip = tagViewTips[tagViewMode] || tagViewTips[0];
+        document.querySelectorAll('#tagViewDropdown .tag-view-mode-item').forEach((el) => {
+            el.classList.toggle('active', el.getAttribute('data-tag-view-mode') === String(tagViewMode));
         });
     }
+    function setTagViewMode(mode) {
+        let m = Number(mode);
+        if (!Number.isFinite(m)) m = 0;
+        tagViewMode = Math.max(0, Math.min(2, m));
+        syncTagViewModeToEditorGrid();
+        updateTagViewToolbarUi();
+    }
+    function cycleTagViewMode() {
+        setTagViewMode((tagViewMode + 1) % 3);
+    }
+    function closeTagViewDropdown() {
+        const dd = document.getElementById('tagViewDropdown');
+        const arr = document.getElementById('btnTagViewArrow');
+        if (dd) dd.classList.remove('show');
+        if (arr) {
+            arr.classList.remove('open');
+            arr.setAttribute('aria-expanded', 'false');
+        }
+    }
+    function toggleTagViewDropdown() {
+        const dd = document.getElementById('tagViewDropdown');
+        const arr = document.getElementById('btnTagViewArrow');
+        if (!dd || !arr) return;
+        if (dd.classList.contains('show')) {
+            closeTagViewDropdown();
+            return;
+        }
+        dd.classList.add('show');
+        arr.classList.add('open');
+        arr.setAttribute('aria-expanded', 'true');
+    }
+    const tagViewSplit = document.getElementById('tagViewSplit');
+    const btnTagViewMain = document.getElementById('btnTagViewMain');
+    const btnTagViewArrow = document.getElementById('btnTagViewArrow');
+    const tagViewDropdown = document.getElementById('tagViewDropdown');
+    if (btnTagViewMain) {
+        btnTagViewMain.addEventListener('mousedown', (e) => e.preventDefault());
+        btnTagViewMain.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeTagViewDropdown();
+            cycleTagViewMode();
+        });
+    }
+    if (btnTagViewArrow) {
+        btnTagViewArrow.addEventListener('mousedown', (e) => e.preventDefault());
+        btnTagViewArrow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleTagViewDropdown();
+        });
+    }
+    if (tagViewDropdown) {
+        tagViewDropdown.querySelectorAll('[data-tag-view-mode]').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const v = parseInt(btn.getAttribute('data-tag-view-mode'), 10);
+                if (!Number.isFinite(v)) return;
+                setTagViewMode(v);
+                closeTagViewDropdown();
+            });
+        });
+    }
+    document.addEventListener('click', () => closeTagViewDropdown());
+    if (tagViewSplit) {
+        tagViewSplit.addEventListener('click', (e) => e.stopPropagation());
+    }
+    syncTagViewModeToEditorGrid();
+    updateTagViewToolbarUi();
 
     // 非列印字元顯示切換按鈕
     {
@@ -1230,7 +1304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const p = n.parentElement;
                 if (!p) return NodeFilter.FILTER_ACCEPT;
                 if (p.classList.contains('non-print-marker')) return NodeFilter.FILTER_REJECT;
-                if (p.classList.contains('rt-tag') || p.classList.contains('tag-num') || p.classList.contains('tag-content')) return NodeFilter.FILTER_REJECT;
+                if (p.classList.contains('rt-tag') || p.classList.contains('tag-num') || p.classList.contains('tag-content') || p.classList.contains('tag-label') || p.classList.contains('tag-full')) return NodeFilter.FILTER_REJECT;
                 return NodeFilter.FILTER_ACCEPT;
             }
         });
@@ -13769,7 +13843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }, Math.max(0, delayMs | 0));
     }
-    ['sfModeSearch', 'sfModeFilter', 'btnSfPrev', 'btnSfNext', 'btnSfClearNav', 'btnToggleAdvancedSF', 'btnPreTranslate', 'btnSortMenu', 'btnCopySourceToTarget', 'btnClearTarget', 'btnTagCollapse', 'btnShortcuts', 'btnColSettings', 'exportBtn'].forEach((id) => {
+    ['sfModeSearch', 'sfModeFilter', 'btnSfPrev', 'btnSfNext', 'btnSfClearNav', 'btnToggleAdvancedSF', 'btnPreTranslate', 'btnSortMenu', 'btnCopySourceToTarget', 'btnClearTarget', 'btnTagViewMain', 'btnTagViewArrow', 'btnShortcuts', 'btnColSettings', 'exportBtn'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('click', () => emitCollabFocus('control', id));
@@ -13915,9 +13989,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     })();
 
-    // 標籤展開/收起：預設收起
-    let tagsExpanded = false;
-
     /**
      * 在原文佔位符由左到右順序中，找第一個譯文尚未帶入的缺漏 tag（F8 與 tag-next 高亮與本邏輯一致）。
      */
@@ -14040,10 +14111,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         span.setAttribute('data-ph', tag.ph);
         if (tag.pairNum != null) span.setAttribute('data-pair', tag.pairNum);
         span.contentEditable = 'false';
+        const { label, full } = tagChipLabelAndFull(tag);
         if (tag.type === 'close') {
-            span.innerHTML = `<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span><span class="tag-content">${escapeHtml(tag.display)}</span><span class="tag-num">${tag.num}</span>`;
+            span.innerHTML = `<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span><span class="tag-label">${escapeHtml(label)}</span><span class="tag-full">${escapeHtml(full)}</span><span class="tag-num">${tag.num}</span>`;
         } else {
-            span.innerHTML = `<span class="tag-num">${tag.num}</span><span class="tag-content">${escapeHtml(tag.display)}</span>`;
+            span.innerHTML = `<span class="tag-num">${tag.num}</span><span class="tag-label">${escapeHtml(label)}</span><span class="tag-full">${escapeHtml(full)}</span>`;
         }
         return span;
     }
@@ -14200,17 +14272,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             runTextOpOnSelection('clear');
         }
-        // Alt+S：切換標籤展開/收起
+        // Alt+S：標籤顯示三態循環（僅編號 → 摘要 → 全文）
         if (!e.ctrlKey && !e.shiftKey && !e.metaKey && e.altKey && e.code === 'KeyS') {
             e.preventDefault();
-            tagsExpanded = !tagsExpanded;
-            const editorGrid = document.getElementById('editorGrid');
-            if (editorGrid) {
-                editorGrid.classList.toggle('tags-expanded', tagsExpanded);
-                editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
-            }
-            const tagToggleBtn = document.getElementById('btnTagCollapse');
-            if (tagToggleBtn) tagToggleBtn.dataset.tip = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
+            cycleTagViewMode();
         }
         if (e.ctrlKey && e.key.toLowerCase() === 'k' && (currentFileId || _currentViewId)) {
             e.preventDefault();
@@ -17128,6 +17193,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             : (seg.sourceTags || []);
     }
 
+    /** pill 內摘要（display）與全文（xml 優先，供 .tag-label / .tag-full） */
+    function tagChipLabelAndFull(tag) {
+        const label = tag && tag.display != null ? String(tag.display) : '';
+        const xml = tag && tag.xml != null ? String(tag.xml) : '';
+        const full = xml !== '' ? xml : label;
+        return { label, full };
+    }
+
     /**
      * 將含 {N}/{/N} 佔位符的純文字 + tags 陣列轉為 contenteditable innerHTML。
      * isSource=true 時不加 contenteditable="true"（唯讀原文欄使用）。
@@ -17150,14 +17223,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const pairAttr = tag.pairNum != null ? ` data-pair="${tag.pairNum}"` : '';
                 const cls = 'rt-tag' +
                     (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
+                const { label, full } = tagChipLabelAndFull(tag);
                 html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr} contenteditable="false">`;
                 if (tag.type === 'close') {
                     html += '<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span>';
-                    html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
+                    html += `<span class="tag-label">${escapeHtml(label)}</span>`;
+                    html += `<span class="tag-full">${escapeHtml(full)}</span>`;
                     html += `<span class="tag-num">${tag.num}</span>`;
                 } else {
                     html += `<span class="tag-num">${tag.num}</span>`;
-                    html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
+                    html += `<span class="tag-label">${escapeHtml(label)}</span>`;
+                    html += `<span class="tag-full">${escapeHtml(full)}</span>`;
                 }
                 html += `</span>`;
             } else {
@@ -17975,12 +18051,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 重建 DOM 後列皆為預設可見；若不清快取，runSearchAndFilter 以 rowCache.vis 比對會誤判為「無需更新 display」而留下錯誤可見狀態，篩選亦會失效。
         sfRowRenderCache.clear();
 
-        // 初始化 editorGrid 的標籤展開/收起 class
-        const editorGrid = document.getElementById('editorGrid');
-        if (editorGrid) {
-            editorGrid.classList.toggle('tags-expanded', tagsExpanded);
-            editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
-        }
+        // 初始化 editorGrid 的標籤顯示三態 class
+        syncTagViewModeToEditorGrid();
         
         // Phase 4.10: Repetition detection
         const sourceMap = new Map();

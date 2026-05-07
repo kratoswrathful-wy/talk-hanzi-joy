@@ -666,7 +666,15 @@
                         <button type="button" id="btnJumpToSegmentToolbar" class="icon-btn" aria-label="跳到指定句段" data-tip="跳到指定句段（Ctrl+G）" style="font-size:1rem;">⌖</button>
                         <button id="btnCopySourceToTarget" class="icon-btn" style="font-size:1rem;" data-tip="原文複製到譯文">⬇</button>
                         <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;" data-tip="清除譯文">✕</button>
-                        <button id="btnTagCollapse" class="icon-btn" data-tip="展開標籤 (Alt+S)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
+                        <div class="split-btn-group tag-view-split" id="tagViewSplit" style="vertical-align:middle;">
+                            <button type="button" id="btnTagViewMain" class="icon-btn split-btn-main" data-tip="標籤：僅編號（Alt+S 切下一層）" style="font-size:0.8rem; font-family:monospace;">{…}</button>
+                            <button type="button" id="btnTagViewArrow" class="icon-btn split-btn-arrow" data-tip="選擇標籤顯示方式" aria-haspopup="true" aria-expanded="false">▾</button>
+                            <div class="split-dropdown tag-view-dropdown" id="tagViewDropdown" role="menu">
+                                <button type="button" class="tag-view-mode-item" data-tag-view-mode="0" role="menuitem">僅編號</button>
+                                <button type="button" class="tag-view-mode-item" data-tag-view-mode="1" role="menuitem">摘要（display）</button>
+                                <button type="button" class="tag-view-mode-item" data-tag-view-mode="2" role="menuitem">全文（xml 優先）</button>
+                            </div>
+                        </div>
                         <button id="btnShowNonPrint" class="icon-btn" data-tip="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnShortcuts" class="icon-btn" data-tip="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" data-tip="設定">⚙️</button>
@@ -1341,8 +1349,8 @@
                             <p class="cat-shortcuts-item-desc">在「原文」欄點擊某顆標籤，將該佔位符插入<strong>同一句</strong>譯文：若本句曾留下暫存游標則插在該處，否則插在譯文末尾。譯文已含該佔位符則不重複插入。句段鎖定或他人協作編輯中時不會插入。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">標籤展開／收起顯示</span><input type="text" value="Alt + S" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">切換標籤在編輯區是完整展開或收成較短樣式；僅影響畫面呈現，不刪除標籤內容。實作以鍵盤實體 S 鍵偵測，注音等鍵盤配置下仍可用。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">標籤顯示方式（三態循環）</span><input type="text" value="Alt + S" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">依序切換：<strong>僅編號</strong> → <strong>摘要</strong>（display，可截短）→ <strong>全文</strong>（有 xml 時優先顯示 xml）。亦可點工具列 <code style="font-size:0.76rem;background:#f1f5f9;padding:0 4px;border-radius:3px;">{…}</code> 旁 ▾ 直接選擇。僅影響畫面，不刪除標籤。以鍵盤實體 S 鍵偵測，注音配置下仍可用。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文中所有標籤占位</span><input type="text" value="Ctrl + F8" disabled class="sc-key-input"></div>

@@ -62,7 +62,7 @@ mouseover 選取器同時涵蓋兩類來源：
 |---|---|
 | 專案工具列 | `btnProjectToolbarAssign`、`btnProjectToolbarLinkCase`、`btnProjectToolbarDelete`、`btnProjectWordCount`、`btnProjectSplitAssign`、`btnCreateViewQuick`、`btnToggleFileProgressMode` |
 | 句段集工具列 | `btnViewsToolbarAssign`、`btnViewsToolbarDelete`、`btnViewsToolbarWordCount`、`btnViewsToolbarSplit`、`btnToggleViewProgressMode` |
-| 編輯器工具列 | `btnExitEditor`、`btnSortMenu`、`btnTagCollapse`、`btnShowNonPrint`、`btnShortcuts`、`btnColSettings`、`btnInternalNoteArrow`、`btnClientQuestionFormArrow`、`btnAiMode` |
+| 編輯器工具列 | `btnExitEditor`、`btnSortMenu`、`btnTagViewMain`、`btnTagViewArrow`、`btnShowNonPrint`、`btnShortcuts`、`btnColSettings`、`btnInternalNoteArrow`、`btnClientQuestionFormArrow`、`btnAiMode` |
 | 搜尋篩選面板 | `sfModeSearch`、`sfModeFilter`、`btnSfInvert`、`btnSfPrev`、`btnSfNext`、`btnSfClearNav`、`btnToggleAdvancedSF`、`mqRoleIcon`、`btnSfOptionsPopover`、`btnSfReplaceThis`、`btnSfReplaceAll` |
 | 筆記面板 | `btnCollapseNotesPanel` |
 | 狀態列 | `btnProgressRange`、`btnToggleEditorWordMode` |
@@ -74,7 +74,7 @@ mouseover 選取器同時涵蓋兩類來源：
 | `_wcRefreshFileToolbarTitle` | `btnToggleFileProgressMode` | 切換後即時更新說明文字 |
 | `_wcRefreshViewToolbarTitle` | `btnToggleViewProgressMode` | 同上 |
 | `_wcRefreshEditorToolbarTitle` | `btnToggleEditorWordMode` | 同上 |
-| 標籤折疊初始化 / `toggleTagDisplay` | `btnTagCollapse` | 展開↔收起狀態文字 |
+| 標籤顯示三態 | `btnTagViewMain` | `dataset.tip` 隨模式（僅編號／摘要／全文）更新 |
 | `updateSfReplaceAllButtonLabel` | `btnSfReplaceAll` | 單句/多句選取時說明不同 |
 
 ### D 類：句段列行為型

@@ -447,6 +447,30 @@ button:disabled { cursor: not-allowed; }
 }
 .split-dropdown.show { display: block; }
 
+/* Tag 顯示三態：工具列下拉（較窄） */
+.tag-view-dropdown {
+    min-width: 11rem;
+    max-width: 20rem;
+}
+.tag-view-mode-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: white;
+    cursor: pointer;
+    font-size: 0.84rem;
+    color: #334155;
+}
+.tag-view-mode-item:hover {
+    background: #f1f5f9;
+}
+.tag-view-mode-item.active {
+    font-weight: 600;
+    background: #eff6ff;
+}
+
 .note-list-new {
     display: flex;
     align-items: center;
@@ -1903,18 +1927,21 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 }
 .rt-tag-e .tag-e-pad,
 .rt-tag-e .tag-content,
+.rt-tag-e .tag-label,
+.rt-tag-e .tag-full,
 .rt-tag-e .tag-num {
     position: relative;
     z-index: 1;
 }
 
-/* 關閉段收起：序號置右、略過左側箭頭；展開：左兩格空白＋內文＋序號 */
-#editorGrid:not(.tags-expanded) .rt-tag-e {
+/* 關閉段：僅編號時序號置右、隱藏左側內文；摘要／全文時顯示 pad + 內文 */
+#editorGrid.tag-view-0 .rt-tag-e {
     justify-content: flex-end;
     gap: 0;
 }
-#editorGrid:not(.tags-expanded) .rt-tag-e .tag-e-pad,
-#editorGrid:not(.tags-expanded) .rt-tag-e .tag-content {
+#editorGrid.tag-view-0 .rt-tag-e .tag-e-pad,
+#editorGrid.tag-view-0 .rt-tag-e .tag-label,
+#editorGrid.tag-view-0 .rt-tag-e .tag-full {
     display: none !important;
     width: 0 !important;
     max-width: 0 !important;
@@ -1922,14 +1949,16 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     padding: 0;
     overflow: hidden;
 }
-#editorGrid:not(.tags-expanded) .rt-tag-e .tag-num {
+#editorGrid.tag-view-0 .rt-tag-e .tag-num {
     min-width: 0;
 }
-#editorGrid.tags-expanded .rt-tag-e {
+#editorGrid.tag-view-1 .rt-tag-e,
+#editorGrid.tag-view-2 .rt-tag-e {
     justify-content: flex-start;
     gap: 0.2em;
 }
-#editorGrid.tags-expanded .rt-tag-e .tag-e-pad {
+#editorGrid.tag-view-1 .rt-tag-e .tag-e-pad,
+#editorGrid.tag-view-2 .rt-tag-e .tag-e-pad {
     display: inline-block;
     min-width: 2ch;
     width: 2ch;
@@ -1962,9 +1991,9 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     text-align: center;
 }
 
-/* 標籤內容文字（展開時顯示） */
+/* 標籤內容文字（TM 比對表等仍用 .tag-content；編輯格用 .tag-label / .tag-full） */
 .tag-content {
-    display: none;     /* 預設收起 */
+    display: none;
     font-size: 1em;
     opacity: 1;
     max-width: 12em;
@@ -1972,9 +2001,39 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     text-overflow: ellipsis;
 }
 
-/* 展開模式：顯示標籤內容 */
-#editorGrid.tags-expanded .tag-content {
+/* 編輯格：摘要（display） */
+.tag-label {
+    display: none;
+    font-size: 1em;
+    max-width: 12em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#editorGrid.tag-view-1 .tag-label {
     display: inline;
+}
+
+/* 編輯格：全文（xml 優先）；允許換行以利長 token */
+.tag-full {
+    display: none;
+    font-size: 1em;
+    max-width: min(42em, 92vw);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+#editorGrid.tag-view-2 .tag-full {
+    display: inline;
+}
+
+/* TM 比對列等非 editorGrid 內之 rt-tag：維持僅 .tag-content 可見 */
+.result-cell .rt-tag .tag-content {
+    display: inline !important;
+    max-width: 12em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 原文欄標籤顏色反饋 */
