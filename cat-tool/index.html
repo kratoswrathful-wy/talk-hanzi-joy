@@ -475,9 +475,55 @@
                         <tbody id="tmSegmentsListBody"></tbody>
                     </table>
                 </div>
+                <dialog id="tmXliffImportDialog" style="max-width:36rem; width:92vw; padding:1.25rem; border-radius:10px; border:1px solid #e2e8f0;">
+                    <h2 style="margin:0 0 0.75rem 0; font-size:1.1rem;">XLIFF 匯入篩選</h2>
+                    <p id="tmXliffImportFileLabel" style="font-size:0.85rem; color:#64748b; margin:0 0 0.75rem 0;"></p>
+                    <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.75rem 0;">條件與編輯器「進階篩選」相同語意；每次開啟皆重置為預設。</p>
+                    <div style="margin-bottom:0.75rem;">
+                        <span style="font-size:0.9rem; font-weight:600;">搜尋</span>
+                        <input type="text" id="tmImpSfInput" class="form-input" placeholder="搜尋…（與編輯器相同）" autocomplete="off" style="margin-top:0.35rem;">
+                        <div style="display:flex; flex-wrap:wrap; gap:0.35rem; margin-top:0.35rem;">
+                            <button type="button" class="secondary-btn btn-sm tm-imp-sf-scope-btn on" data-scope="source">原文</button>
+                            <button type="button" class="secondary-btn btn-sm tm-imp-sf-scope-btn on" data-scope="target">譯文</button>
+                            <button type="button" class="secondary-btn btn-sm tm-imp-sf-scope-btn" data-scope="keys">Key</button>
+                            <button type="button" class="secondary-btn btn-sm tm-imp-sf-scope-btn" data-scope="extra">額外</button>
+                            <button type="button" class="secondary-btn btn-sm tm-imp-sf-inner-mono" id="tmImpSfRegexBtn" title="使用正則表達式">.*</button>
+                            <button type="button" class="secondary-btn btn-sm tm-imp-sf-inner-mono" id="tmImpSfInvertBtn" title="不包含">¬</button>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:0.75rem;">
+                        <strong style="font-size:0.9rem;">句段狀態</strong>
+                        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.35rem; font-size:0.88rem;">
+                            <label><input type="checkbox" class="tm-imp-status-cb" value="empty"> 空白</label>
+                            <label><input type="checkbox" class="tm-imp-status-cb" value="not_empty"> 非空白</label>
+                            <label><input type="checkbox" class="tm-imp-status-cb" value="confirmed"> 已確認</label>
+                            <label><input type="checkbox" class="tm-imp-status-cb" value="unconfirmed"> 未確認</label>
+                            <label><input type="checkbox" class="tm-imp-status-cb" value="locked"> 鎖定</label>
+                            <label><input type="checkbox" class="tm-imp-status-cb" value="unlocked"> 未鎖定</label>
+                        </div>
+                    </div>
+                    <label style="display:flex; align-items:flex-start; gap:0.45rem; margin-bottom:0.75rem; font-size:0.88rem;">
+                        <input type="checkbox" id="tmImpRequireSrcNonEmpty" checked style="margin-top:0.15rem;">
+                        <span>原文須非空白（與「非空白」併用時：原文與譯文皆有內容）</span>
+                    </label>
+                    <div style="margin-bottom:0.75rem;">
+                        <strong style="font-size:0.9rem;">翻譯記憶相符度 (%)</strong>
+                        <input type="text" id="tmImpSfTmMatch" class="form-input" placeholder="例: 80-100, -90, 85-" style="max-width:14rem; margin-top:0.25rem;">
+                    </div>
+                    <div style="margin-bottom:0.75rem;">
+                        <strong style="font-size:0.9rem;">句段編號範圍</strong>
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; margin-top:0.25rem; font-size:0.88rem;">
+                            <label><input type="checkbox" id="tmImpSfRowRangeEnabled"> 顯示</label>
+                            <label><input type="checkbox" id="tmImpSfRowRangeExclude"> 排除</label>
+                            <input type="text" id="tmImpSfRowRangeExpr" class="form-input" placeholder="例：1-5, 10, 26-" style="flex:1; min-width:0; max-width:16rem;">
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+                        <button type="button" class="secondary-btn" id="btnTmXliffImportCancel">取消</button>
+                        <button type="button" class="primary-btn" id="btnTmXliffImportConfirm">匯入</button>
+                    </div>
+                </dialog>
             </section>
-
-            <!-- VIEW: TB Manager -->
             <section class="view-section hidden" id="viewTB" style="padding: 2rem; overflow-y: auto;">
                 <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
                     <h1 class="page-title" style="margin:0; font-size:1.5rem; font-weight:700;">術語庫 (TB) 管理</h1>
@@ -3123,6 +3169,7 @@
     <script src="js/data-provider.js"></script>
     <script src="db.js"></script>
     <script src="js/xliff-tag-pipeline.js"></script>
+    <script src="js/xliff-build-segments.js"></script>
     <script src="js/ai-translate.js"></script>
     <script src="js/xliff-import.js"></script>
     <script src="js/xliff-to-tm.js"></script>

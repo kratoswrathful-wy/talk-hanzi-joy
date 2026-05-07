@@ -9020,6 +9020,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnTmDupFilter = document.getElementById('btnTmDupFilter');
     let tmSegmentsFullCache = [];
     let tmDupFilterActive = false;
+    /** 選取 XLIFF 後暫存，待篩選對話框確認後再解析 */
+    let pendingTmXliffFile = null;
 
     function _tmSegDupPairKey(seg) {
         return (seg.sourceText || '') + '\u0000' + (seg.targetText || '');
@@ -9768,22 +9770,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
                 } else if (['xliff', 'xlf', 'mqxliff', 'sdlxliff'].includes(ext)) {
-                    if (!window.CatToolXliffToTm || typeof window.CatToolXliffToTm.parseXliffForTm !== 'function') {
+                    if (!window.CatToolXliffToTm || typeof window.CatToolXliffToTm.buildTmImportCandidates !== 'function') {
                         throw new Error('XLIFF → TM 模組未載入（請確認 index.html 已引入 js/xliff-to-tm.js）');
                     }
-                    const tm = await DBService.getTM(currentTmId);
-                    const tmSourceLang = (tm && tm.sourceLangs && tm.sourceLangs[0]) || '';
-                    const tmTargetLang = (tm && tm.targetLangs && tm.targetLangs[0]) || '';
-                    parsedSegments = await window.CatToolXliffToTm.parseXliffForTm(file, {
-                        tmId: currentTmId,
-                        tmSourceLang,
-                        tmTargetLang
-                    });
-                    if (!parsedSegments.length) {
-                        alert('找不到可匯入句段（無符合條件之譯文，或皆為未確認／已鎖定句段）。');
-                        tmImportInput.value = '';
-                        return;
+                    pendingTmXliffFile = file;
+                    const dlg = document.getElementById('tmXliffImportDialog');
+                    const lbl = document.getElementById('tmXliffImportFileLabel');
+                    resetTmXliffImportDialogDefaults();
+                    if (lbl) lbl.textContent = '檔案：' + file.name;
+                    if (dlg && typeof dlg.showModal === 'function') {
+                        dlg.showModal();
+                    } else {
+                        alert('無法開啟篩選對話框，請重新整理頁面後再試。');
+                        pendingTmXliffFile = null;
                     }
+                    return;
                 } else if (['xlsx', 'xls', 'csv'].includes(ext)) {
                     // Reuse SheetJS from window.XLSX if available
                     if (typeof XLSX === 'undefined') throw new Error('Excel 解析模組尚未載入');
@@ -14641,8 +14642,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!rowSpec.enabled;
     }
 
-    // Core Evaluator
-    function evaluateSegment(seg, term, scopes, isRegex, isInvert, statuses, tmVal) {
+    /**
+     * @param {object} [evalOpts] TM 匯入等非編輯器情境：注入 sfMode（反轉「不包含」時須為 filter）
+     */
+    function evaluateSegment(seg, term, scopes, isRegex, isInvert, statuses, tmVal, evalOpts) {
+        const modeForInvert = evalOpts && evalOpts.sfMode != null ? evalOpts.sfMode : sfMode;
         let textMatch = false;
         
         if (!term) textMatch = true;
@@ -14685,7 +14689,7 @@ document.addEventListener('DOMContentLoaded', async () => {
              }
         }
         
-        if (term && isInvert && sfMode === 'filter') textMatch = !textMatch;
+        if (term && isInvert && modeForInvert === 'filter') textMatch = !textMatch;
 
         let statusMatch = true;
         if (statuses.length > 0) {
@@ -14746,6 +14750,185 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         return textMatch && statusMatch && tmMatch;
     }
+
+    function readTmImpAdvancedSpecFromDom() {
+        const tmEl = document.getElementById('tmImpSfTmMatch');
+        const rrEn = document.getElementById('tmImpSfRowRangeEnabled');
+        const rrExpr = document.getElementById('tmImpSfRowRangeExpr');
+        const rrEx = document.getElementById('tmImpSfRowRangeExclude');
+        const rrNorm = normalizeRowRangeFlags(rrEn ? !!rrEn.checked : false, rrEx ? !!rrEx.checked : false);
+        return {
+            tmVal: tmEl ? String(tmEl.value || '') : '',
+            statuses: Array.from(document.querySelectorAll('.tm-imp-status-cb:checked')).map((cb) => cb.value),
+            rowRangeEnabled: rrNorm.rowRangeEnabled,
+            rowRangeExpr: rrExpr ? String(rrExpr.value || '') : '',
+            rowRangeExclude: rrNorm.rowRangeExclude
+        };
+    }
+
+    /** 產品預設：非空白、已確認、鎖定與未鎖定同勾＝不篩鎖定；不勾空白／未確認；原文須非空白預設開 */
+    function resetTmXliffImportDialogDefaults() {
+        const inp = document.getElementById('tmImpSfInput');
+        if (inp) inp.value = '';
+        document.querySelectorAll('.tm-imp-sf-scope-btn').forEach((btn) => {
+            const sc = btn.getAttribute('data-scope');
+            if (sc === 'source' || sc === 'target') btn.classList.add('on');
+            else btn.classList.remove('on');
+        });
+        const rx = document.getElementById('tmImpSfRegexBtn');
+        const inv = document.getElementById('tmImpSfInvertBtn');
+        if (rx) {
+            rx.classList.remove('active');
+            rx.classList.remove('on');
+        }
+        if (inv) inv.classList.remove('active');
+        document.querySelectorAll('.tm-imp-status-cb').forEach((c) => {
+            const v = c.value;
+            c.checked = (v === 'not_empty' || v === 'confirmed' || v === 'locked' || v === 'unlocked');
+        });
+        const reqSrc = document.getElementById('tmImpRequireSrcNonEmpty');
+        if (reqSrc) reqSrc.checked = true;
+        const tmEl = document.getElementById('tmImpSfTmMatch');
+        if (tmEl) tmEl.value = '';
+        const rrEn = document.getElementById('tmImpSfRowRangeEnabled');
+        const rrExpr = document.getElementById('tmImpSfRowRangeExpr');
+        const rrEx = document.getElementById('tmImpSfRowRangeExclude');
+        if (rrEn) rrEn.checked = false;
+        if (rrExpr) rrExpr.value = '';
+        if (rrEx) rrEx.checked = false;
+    }
+
+    function buildTmImpUiCriteria() {
+        const adv = readTmImpAdvancedSpecFromDom();
+        const inp = document.getElementById('tmImpSfInput');
+        const scopes = Array.from(document.querySelectorAll('.tm-imp-sf-scope-btn.on'))
+            .map((b) => b.getAttribute('data-scope'))
+            .filter(Boolean);
+        const rxBtn = document.getElementById('tmImpSfRegexBtn');
+        const invBtn = document.getElementById('tmImpSfInvertBtn');
+        const isRegex = !!(rxBtn && (rxBtn.classList.contains('active') || rxBtn.classList.contains('on')));
+        const isInvert = !!(invBtn && invBtn.classList.contains('active'));
+        return {
+            term: inp ? String(inp.value || '') : '',
+            scopes,
+            statuses: adv.statuses,
+            tmVal: adv.tmVal,
+            isInvert,
+            isRegex,
+            rowSpec: sfRowSpecFromAdvancedPart(adv)
+        };
+    }
+
+    async function runTmXliffFilteredImport() {
+        const file = pendingTmXliffFile;
+        const dlg = document.getElementById('tmXliffImportDialog');
+        if (!file || !currentTmId) {
+            if (dlg && dlg.open) dlg.close();
+            pendingTmXliffFile = null;
+            return;
+        }
+        if (!window.CatToolXliffToTm || typeof window.CatToolXliffToTm.buildTmImportCandidates !== 'function') {
+            alert('XLIFF → TM 模組未載入（請確認 index.html 已引入 js/xliff-to-tm.js）');
+            return;
+        }
+        const tm = await DBService.getTM(currentTmId);
+        const tmSourceLang = (tm && tm.sourceLangs && tm.sourceLangs[0]) || '';
+        const tmTargetLang = (tm && tm.targetLangs && tm.targetLangs[0]) || '';
+        let pack;
+        try {
+            pack = await window.CatToolXliffToTm.buildTmImportCandidates(file, {
+                tmId: currentTmId,
+                tmSourceLang,
+                tmTargetLang
+            });
+        } catch (err) {
+            console.error(err);
+            alert('解析失敗：' + (err && err.message ? err.message : String(err)));
+            return;
+        }
+        const candidates = pack.candidates || [];
+        if (!candidates.length) {
+            alert('解析後沒有可匯入的句段（檔案可能為空或無有效翻譯單元）。');
+            if (dlg && dlg.open) dlg.close();
+            pendingTmXliffFile = null;
+            return;
+        }
+        const criteria = buildTmImpUiCriteria();
+        const reqSrcEl = document.getElementById('tmImpRequireSrcNonEmpty');
+        const requireSrcNonEmpty = reqSrcEl ? !!reqSrcEl.checked : false;
+        const parsedRows = [];
+        for (let i = 0; i < candidates.length; i++) {
+            const { evalSeg, tmPayload } = candidates[i];
+            if (requireSrcNonEmpty && !(evalSeg.sourceText && String(evalSeg.sourceText).trim())) continue;
+            const ok = evaluateSegment(
+                evalSeg,
+                criteria.term,
+                criteria.scopes,
+                criteria.isRegex,
+                criteria.isInvert,
+                criteria.statuses,
+                criteria.tmVal,
+                { sfMode: 'filter' }
+            );
+            if (!ok) continue;
+            if (!segmentPassesSfRowRangePure(i, criteria.rowSpec)) continue;
+            parsedRows.push(tmPayload);
+        }
+        if (!parsedRows.length) {
+            alert('篩選後沒有符合條件的句段（請調整篩選條件後再試）。');
+            if (dlg && dlg.open) dlg.close();
+            pendingTmXliffFile = null;
+            return;
+        }
+        try {
+            await DBService.bulkAddTMSegments(parsedRows);
+            await DBService.patchTM(currentTmId, {});
+            const entry = makeBaseLogEntry('create', 'tm-segment', {
+                entityId: currentTmId,
+                entityName: `TM #${currentTmId}`,
+                extra: { imported: parsedRows.length, fileName: file.name, ext: file.name.split('.').pop().toLowerCase() }
+            });
+            await appendTMChangeLog(currentTmId, entry);
+            await DBService.addModuleLog('tm', entry);
+            alert(`匯入成功！共匯入 ${parsedRows.length} 筆句段。`);
+            await loadTmSegments();
+        } catch (err) {
+            console.error(err);
+            alert('匯入失敗：' + (err && err.message ? err.message : String(err)));
+        } finally {
+            if (dlg && dlg.open) dlg.close();
+            pendingTmXliffFile = null;
+        }
+    }
+
+    (function wireTmXliffImportDialog() {
+        const tmXliffDlg = document.getElementById('tmXliffImportDialog');
+        if (!tmXliffDlg) return;
+        tmXliffDlg.querySelectorAll('.tm-imp-sf-scope-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                btn.classList.toggle('on');
+                if (!tmXliffDlg.querySelector('.tm-imp-sf-scope-btn.on')) btn.classList.add('on');
+            });
+        });
+        const tmRx = document.getElementById('tmImpSfRegexBtn');
+        if (tmRx) {
+            tmRx.addEventListener('click', () => {
+                tmRx.classList.toggle('active');
+                tmRx.classList.toggle('on', tmRx.classList.contains('active'));
+            });
+        }
+        const tmInv = document.getElementById('tmImpSfInvertBtn');
+        if (tmInv) tmInv.addEventListener('click', () => tmInv.classList.toggle('active'));
+        const btnCancel = document.getElementById('btnTmXliffImportCancel');
+        if (btnCancel) {
+            btnCancel.addEventListener('click', () => {
+                pendingTmXliffFile = null;
+                tmXliffDlg.close();
+            });
+        }
+        const btnOk = document.getElementById('btnTmXliffImportConfirm');
+        if (btnOk) btnOk.addEventListener('click', () => { void runTmXliffFilteredImport(); });
+    })();
 
     function evaluateSegmentWithGroupRow(seg, g, listIdx) {
         const textOk = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
