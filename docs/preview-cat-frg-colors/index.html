@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAT 比對列 — Frg 三色與 TM／TB 並排預覽</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, "Segoe UI", sans-serif;
+      max-width: 52rem;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+      color: #1e293b;
+      line-height: 1.45;
+      background: #f8fafc;
+    }
+    h1 { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.5rem 0; }
+    .note {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 1.25rem;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.75rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .tabs-fake {
+      display: flex;
+      gap: 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .tabs-fake span { color: #94a3b8; }
+    .tabs-fake span.active { color: #2563eb; font-weight: 600; border-bottom: 2px solid #2563eb; padding-bottom: 0.35rem; margin-bottom: -0.5rem; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      font-size: 0.78rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+      color: #475569;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.08); }
+
+    .result-table-header,
+    .result-item {
+      display: grid;
+      grid-template-columns: 28px 1fr minmax(72px, 92px) 1fr;
+      font-size: 0.8rem;
+    }
+    .result-table-header {
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0.2rem 0.35rem;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .result-header-cell {
+      padding: 0.1rem 0.25rem;
+      border-right: 1px solid #e2e8f0;
+      text-align: center;
+    }
+    .result-item {
+      align-items: stretch;
+      padding: 0.3rem 0.5rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .result-item:hover { background: #f8fafc; }
+    .result-cell {
+      padding: 0 0.25rem;
+      word-break: break-all;
+      border-right: 1px solid #e2e8f0;
+    }
+    .result-cell--index,
+    .result-cell--score {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .result-pct-main {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    /* 與 cat-tool 內建近似 */
+    .bg-tm-100 { background: #dcfce7; }
+    .bg-tm-mid { background: #ffedd5; }
+    .bg-tb { background: #fef9c3; }
+    .bg-frg-a { background: #ede9fe; } /* 霧紫 */
+    .bg-frg-b { background: #e0f2fe; } /* 冰青 */
+    .bg-frg-c { background: #ecfdf5; } /* 淡薄荷 */
+    .label-row {
+      font-size: 0.72rem;
+      color: #64748b;
+      margin: 0.5rem 0 0.25rem 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>CAT 比對表 — Frg 三色與 TM／TB 同畫面預覽</h1>
+  <p class="note">靜態示意，不連動 cat-tool。色票：Frg A 霧紫 <code>#ede9fe</code>、B 冰青 <code>#e0f2fe</code>、C 淡薄荷 <code>#ecfdf5</code>；TM／TB 底色對照程式內既有風格。</p>
+
+  <div class="panel">
+    <div class="tabs-fake">
+      <span class="active">CAT</span>
+      <span>TM 搜尋</span>
+      <span>新增術語</span>
+      <span>QA</span>
+    </div>
+
+    <p class="label-row">與你截圖相同情境的列（Basement／Gallery／Tower／TB／Frg）</p>
+    <div class="result-table-header">
+      <div class="result-header-cell">#</div>
+      <div class="result-header-cell">原文</div>
+      <div class="result-header-cell result-header-cell--pct">&nbsp;</div>
+      <div class="result-header-cell">譯文</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">1</div>
+      <div class="result-cell">Basement Vault</div>
+      <div class="result-cell result-cell--score bg-tm-100"><span class="result-pct-main">100%</span></div>
+      <div class="result-cell">地下室庫房</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">2</div>
+      <div class="result-cell">Gallery Vault</div>
+      <div class="result-cell result-cell--score bg-tm-mid"><span class="result-pct-main">57%</span></div>
+      <div class="result-cell">畫廊庫房</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">3</div>
+      <div class="result-cell">Tower Vault</div>
+      <div class="result-cell result-cell--score bg-tm-mid"><span class="result-pct-main">50%</span></div>
+      <div class="result-cell">塔樓庫房</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">4</div>
+      <div class="result-cell">basement</div>
+      <div class="result-cell result-cell--score bg-tm-mid"><span class="result-pct-main">50%</span></div>
+      <div class="result-cell">地下室</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">5</div>
+      <div class="result-cell">Vault</div>
+      <div class="result-cell result-cell--score bg-tb"><span class="result-pct-main">TB</span></div>
+      <div class="result-cell">庫房</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">6</div>
+      <div class="result-cell">en</div>
+      <div class="result-cell result-cell--score bg-frg-a"><span class="result-pct-main">Frg</span></div>
+      <div class="result-cell">zh-Hant</div>
+    </div>
+
+    <p class="label-row">同一列內容，僅換 Frg 底色（方便並排比對）</p>
+    <div class="result-table-header">
+      <div class="result-header-cell">#</div>
+      <div class="result-header-cell">原文</div>
+      <div class="result-header-cell">類型</div>
+      <div class="result-header-cell">譯文</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">6a</div>
+      <div class="result-cell">en</div>
+      <div class="result-cell result-cell--score bg-frg-a"><span class="result-pct-main">Frg · A</span></div>
+      <div class="result-cell">zh-Hant</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">6b</div>
+      <div class="result-cell">en</div>
+      <div class="result-cell result-cell--score bg-frg-b"><span class="result-pct-main">Frg · B</span></div>
+      <div class="result-cell">zh-Hant</div>
+    </div>
+    <div class="result-item">
+      <div class="result-cell result-cell--index">6c</div>
+      <div class="result-cell">en</div>
+      <div class="result-cell result-cell--score bg-frg-c"><span class="result-pct-main">Frg · C</span></div>
+      <div class="result-cell">zh-Hant</div>
+    </div>
+
+    <div class="legend">
+      <span><i class="sw" style="background:#dcfce7"></i> TM 高匹配（程式約 <code>#dcfce7</code>）</span>
+      <span><i class="sw" style="background:#ffedd5"></i> TM 中匹配（程式約 <code>#ffedd5</code>）</span>
+      <span><i class="sw" style="background:#fef9c3"></i> TB（程式約 <code>#fef9c3</code>）</span>
+      <span><i class="sw" style="background:#ede9fe"></i> Frg A 霧紫</span>
+      <span><i class="sw" style="background:#e0f2fe"></i> Frg B 冰青</span>
+      <span><i class="sw" style="background:#ecfdf5"></i> Frg C 淡薄荷</span>
+    </div>
+  </div>
+</body>
+</html>

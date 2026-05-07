@@ -6,6 +6,8 @@
 CAT 工具原本就為字數進度條建置了一個無延遲的自訂提示模組；
 2026-05-03 將此機制擴充為全系統通用方案，覆蓋工具列按鈕、搜尋篩選面板、句段鎖定列等高頻互動元素。
 
+**相關實作規劃（編輯器工具列／右欄 QA 等批次納入 `data-tip`）**：見 [CAT_EDITOR_UX_QA_WAVE_IMPLEMENTATION_PLAN.md](./CAT_EDITOR_UX_QA_WAVE_IMPLEMENTATION_PLAN.md) **§3.11**。
+
 ---
 
 ## 架構

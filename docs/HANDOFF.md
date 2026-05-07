@@ -8,7 +8,7 @@
 - **CAT 工具**：Vanilla JS，**唯一原始碼**在 [`cat-tool/`](../cat-tool/)，建置前以 `npm run sync:cat` 同步至 [`public/cat/`](../public/cat/)（見根目錄 [`AGENTS.md`](../AGENTS.md)）。
 - **功能對照**：[`docs/CODEMAP.md`](CODEMAP.md)。
 
-## 目前狀態（2026-05-05）
+## 目前狀態（2026-05-05；句段順序／紀錄 2026-05-07 補充）
 
 ### TMS 本體
 
@@ -21,6 +21,7 @@
 - **字數與 TM 加權分析（Modal）**：專案檔案或句段集勾選後可開啟；多檔或多句段集時顯示**合併範圍**與**各檔／各集分項**，執行中顯示進度並鎖定「執行分析」；本機報告可含 `viewUnitIds`、`perUnitResults`。編輯器工具列「**字數**」（`#btnEditorWordCount`，內部註記左側、白底樣式）開**同一** Modal：`window._wordCountOpenedFrom === 'editor'` 時顯示「統計全文／統計現在篩選結果」（僅**篩選模式**可選後者）、隱藏儲存報告與報告紀錄。詳見 [`docs/CAT_WORD_COUNT_WORKER_AND_UI.md`](CAT_WORD_COUNT_WORKER_AND_UI.md) **§9**、**§9.6**。
 - **TM 確認寫入（離線）效能（`f9f0b84`）**：寫入 TM 時若該 TM 已於開檔時完整載入（`_activeTmCacheReadyIds`），則以記憶體 `ActiveTmCache` 比對重複／更新，避免每次確認都 `getTMSegments` 全表掃描；IndexedDB 升級 **Dexie v21**，`tmSegments` 表新增複合索引 `[tmId+sourceText]`。路徑見 [`docs/CODEMAP.md`](CODEMAP.md)「TM 確認寫入」列。
 - **mqxliff 預設身分與匯入提示**：團隊庫 **`cat_files.default_mq_role`** 已與 RPC／專案檔案清單連動；清單對非 mqxliff 顯示 **`N/A`**；XLIFF 類匯入完成後若原始語言對與任務不符，以 **dialog 表格**（檔名／原語言對）提示。詳見 [`docs/CAT第四波主記錄.md`](CAT第四波主記錄.md) **§九點五**。
+- **句段排序與持久化順序**：Excel 等多欄／多分頁匯入後，開檔與句段集預設順序依 **`globalId`／`global_id`** 與匯入掃描一致；團隊庫須套用 migration `20260507120000_cat_segments_global_id.sql`。曾嘗試**譯文行內字型（rt-fmt）**後已 revert，問題與調查摘要見 [`CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md`](CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md)。
 - **尚未做**：離線句段集 UI、協作 view 房、建立精靈「自訂篩選」完整步驟二等（見下節）。
 
 ## 待實作（建議優先序）
@@ -39,6 +40,7 @@
 | 路徑與檔案 | [`CODEMAP.md`](CODEMAP.md) | — |
 | 字數／TM 加權（Worker、切換字數、分析 Modal） | [`CAT_WORD_COUNT_WORKER_AND_UI.md`](CAT_WORD_COUNT_WORKER_AND_UI.md) | — |
 | TM 確認寫入離線效能（快取路徑、Dexie v21） | [`CODEMAP.md`](CODEMAP.md)（CAT 表「TM 確認寫入」列） | [`CAT第四波主記錄.md`](CAT第四波主記錄.md) §八點二（`f9f0b84`） |
+| 句段匯入順序、`global_id`、rt-fmt 撤回紀錄 | [`CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md`](CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md) | 代表性實作 `d7ada85`；規格檔 `CAT_INLINE_FORMATTING_SPEC.md` 已隨 revert 自 main 移除 |
 
 ## 已知後續風險（簡記）
 

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>預覽 — Excel 匯入警語與轉 tag 選項</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif;
+      max-width: 44rem;
+      margin: 1.5rem auto;
+      padding: 0 1rem 2rem;
+      color: #1e293b;
+      line-height: 1.5;
+      background: #f1f5f9;
+    }
+    h1 { font-size: 1.2rem; font-weight: 600; margin: 0 0 0.35rem 0; }
+    .banner {
+      font-size: 0.82rem;
+      color: #b45309;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .panel h2 {
+      font-size: 0.95rem;
+      margin: 0 0 0.65rem 0;
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .warn-title { color: #b91c1c; font-weight: 600; margin-bottom: 0.35rem; }
+    .warn-body { font-size: 0.88rem; color: #475569; margin: 0; padding-left: 1.1rem; }
+    .warn-body li { margin: 0.25rem 0; }
+    .formats-note {
+      font-size: 0.85rem;
+      color: #334155;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.5rem 0.65rem;
+      margin: 0.5rem 0 0 0;
+    }
+    label.chk {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      margin: 0.45rem 0;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    label.chk input { margin-top: 0.2rem; }
+    .hint { font-size: 0.78rem; color: #64748b; margin-top: 0.15rem; }
+    .regex-row {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+      margin: 0.4rem 0;
+    }
+    .regex-row input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.82rem;
+      padding: 0.45rem 0.55rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+    }
+    .regex-row button.remove {
+      flex-shrink: 0;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.55rem;
+    }
+    .badge {
+      font-size: 0.72rem;
+      background: #fef3c7;
+      color: #92400e;
+      padding: 0.12rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .btn-row { margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    button {
+      font-size: 0.88rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      cursor: pointer;
+    }
+    button.primary {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    button.ghost { background: #f8fafc; }
+    .preview {
+      font-size: 0.82rem;
+      background: #f8fafc;
+      border: 1px dashed #94a3b8;
+      border-radius: 6px;
+      padding: 0.6rem 0.75rem;
+      font-family: ui-monospace, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 2.5rem;
+    }
+    .preview.err { border-color: #f87171; background: #fef2f2; color: #991b1b; }
+    .sample-textarea {
+      width: 100%;
+      min-height: 5rem;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.82rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      resize: vertical;
+    }
+    .mini-h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #475569;
+      margin: 0.75rem 0 0.35rem 0;
+    }
+    .static-example {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin: 0.25rem 0 0.35rem 1.4rem;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    footer.note {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-top: 1rem;
+    }
+    #customRegexList:empty + .hint-empty {
+      display: block;
+    }
+    .hint-empty { display: none; font-size: 0.78rem; color: #94a3b8; margin: 0.25rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Excel 匯入 — 警語與轉 tag 選項（預覽稿）</h1>
+  <p class="banner">本頁僅供版型與互動<strong>預覽</strong>，<strong>未連結</strong>實際 CAT。下方「套用預覽」為簡化示意，與正式匯入引擎可能略有差異。實作請依 <code>docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md</code>。</p>
+
+  <div class="panel">
+    <div class="warn-title">匯入試算表時請注意</div>
+    <p class="formats-note">
+      目前 CAT 專案<strong>支援匯入</strong>的試算表格式為：<strong><code>.xlsx</code></strong>（Excel 2007 以後）、<strong><code>.xls</code></strong>（舊版 Excel）。其他副檔名（例如 <code>.xlsm</code>、<code>.ods</code>）尚未列為支援；若使用 Google 試算表請先<strong>另存新檔</strong>為 <code>.xlsx</code> 再上傳。
+    </p>
+    <ul class="warn-body">
+      <li>可翻譯內容會轉為編輯器內部結構；<strong>多數儲存格格式、圖表、圖片可能無法保留</strong>。</li>
+      <li><strong>標記（tag）</strong>若前後不一致，之後<strong>匯出</strong>可能失敗；建議完成後執行品質檢查。</li>
+    </ul>
+    <p class="hint" style="margin-top:0.65rem;">無需勾選同意即可繼續（若實作時改為必勾，再於實際 UI 調整）。</p>
+  </div>
+
+  <div class="panel">
+    <h2>匯入時將下列樣式轉為行內 tag（選填）</h2>
+    <p class="hint">建議處理順序：先萃取儲存格<strong>富文字</strong>，再在純文字上套用下列規則。</p>
+    <label class="chk"><input type="checkbox" id="optAngle" checked /> <code>&lt; &gt;</code> 成對括號</label>
+    <div class="static-example" id="exAngle">範例（勾選時）：<code>Price &lt;x&gt;</code> → 可轉為帶 <code>{n}</code> 的行內標記（示意）</div>
+
+    <label class="chk"><input type="checkbox" id="optSquare" checked /> <code>[ ]</code> 成對括號</label>
+    <div class="static-example" id="exSquare">範例：<code>See [note]</code> → 括號區可轉為 tag（示意）</div>
+
+    <label class="chk"><input type="checkbox" id="optCurly" checked /> <code>{ }</code> 成對括號</label>
+    <div class="static-example">範例：<code>{token}</code> — 須與系統內部 <code>{1}</code> 編號規則並存時，由程式接續編號（正式版行為）。</div>
+
+    <label class="chk"><input type="checkbox" id="optLiteralNl" checked /> <code>\n</code> 純文字換行標記（非儲存格換行）</label>
+    <div class="hint">指字面上<strong>反斜線與字母 n 兩個字元</strong>，常見於客戶檔；非 Alt+Enter 的儲存格換行。</div>
+
+    <p class="mini-h2">自訂規則（正則表達式） <span class="badge">Regex</span></p>
+    <p class="hint">每點選一次「新增」多一列；條數可由產品訂上限。欄位內為 <strong>regex</strong>：錯誤語法將無法預覽。在 regex 裡 <code>\n</code> 常指<strong>換行字元</strong>；若要對應字面 <code>\n</code> 兩字元可另用上方勾選或使用跳脫寫法（如 <code>\\n</code>，視引擎而定）。</p>
+    <div id="customRegexList"></div>
+    <p class="hint-empty">（尚無自訂列，請按下方新增）</p>
+    <div class="btn-row">
+      <button type="button" class="ghost" id="btnAddRegex">+ 新增自訂規則</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>預設規則 — 對照預覽文案</h2>
+    <p class="hint">以下為與上方四個勾選對應的靜態說明（不依互動文字變動）。</p>
+    <ul class="warn-body" style="list-style: disc;">
+      <li><code>&lt; &gt;</code>：偵測成對尖括號內文，轉為行內 tag。</li>
+      <li><code>[ ]</code>：偵測成對方括號內文，轉為行內 tag。</li>
+      <li><code>{ }</code>：偵測成對大括號內文；編號與既有佔位符接續。</li>
+      <li><code>\n</code> 純文字換行標記：偵測字面 <code>\</code> + <code>n</code>，轉為行內 tag；與儲存格內換行無關。</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>互動預覽（自訂範例文字）</h2>
+    <p class="hint">在下方貼上或輸入<strong>純文字</strong>，按「套用預覽」依<strong>目前勾選與自訂 regex 列</strong>產生示意結果（簡化演算法，僅供預覽）。</p>
+    <textarea id="sampleInput" class="sample-textarea" placeholder="例如：Price &lt; 100 [SKU] end\\nhere（\\n 為反斜線+n 兩字元）">Price &lt; 100 [SKU] end\\nhere</textarea>
+    <div class="btn-row">
+      <button type="button" class="primary" id="btnPreview">套用預覽</button>
+      <button type="button" id="btnResetSample">還原範例</button>
+    </div>
+    <p class="mini-h2">預覽結果</p>
+    <div id="previewOut" class="preview">（按「套用預覽」）</div>
+  </div>
+
+  <div class="btn-row">
+    <button type="button" class="primary">下一步：對齊欄位</button>
+    <button type="button">取消</button>
+  </div>
+
+  <footer class="note">
+    本預覽檔完整路徑：<code>c:\Homemade Apps\1UP TMS\docs\preview-excel-import-tags\index.html</code><br />
+    計畫文件：<code>c:\Homemade Apps\1UP TMS\docs\EXCEL_IMPORT_TAG_WARNING_PLAN.md</code>
+  </footer>
+
+  <script>
+(function () {
+  const customList = document.getElementById('customRegexList');
+
+  function addRegexRow(initial) {
+    const wrap = document.createElement('div');
+    wrap.className = 'regex-row';
+    wrap.innerHTML =
+      '<input type="text" class="regex-line" placeholder="輸入正則表達式（Regex）" value="' +
+      (initial != null ? String(initial).replace(/"/g, '&quot;') : '') +
+      '" aria-label="自訂正則" />' +
+      '<button type="button" class="remove">移除</button>';
+    wrap.querySelector('.remove').addEventListener('click', function () {
+      wrap.remove();
+    });
+    customList.appendChild(wrap);
+  }
+
+  document.getElementById('btnAddRegex').addEventListener('click', function () {
+    addRegexRow('');
+  });
+
+  /** 簡化示意：由左而右將匹配片段包成 {n}…{/n}（不重疊重算同一位置） */
+  function wrapMatchesInOrder(text, regexList, startNum) {
+    let s = text;
+    let n = startNum;
+    for (const re of regexList) {
+      if (!re) continue;
+      let r;
+      try {
+        r = new RegExp(re.source, re.flags + (re.global ? '' : 'g'));
+      } catch (e) {
+        throw new Error('自訂正則錯誤：' + (e.message || String(e)));
+      }
+      const parts = [];
+      let last = 0;
+      let m;
+      const rr = new RegExp(r.source, r.flags.includes('g') ? r.flags : r.flags + 'g');
+      while ((m = rr.exec(s)) !== null) {
+        parts.push(s.slice(last, m.index));
+        const matched = m[0];
+        parts.push('{' + n + '}' + matched + '{/' + n + '}');
+        n++;
+        last = m.index + matched.length;
+        if (m.index === rr.lastIndex) rr.lastIndex++;
+      }
+      parts.push(s.slice(last));
+      s = parts.join('');
+    }
+    return { str: s, nextNum: n };
+  }
+
+  function applyDefaultRules(text, optAngle, optSquare, optCurly, optLiteral) {
+    const steps = [];
+    if (optAngle) steps.push(/<[^>]*>/g);
+    if (optSquare) steps.push(/\[[^\]]*\]/g);
+    if (optCurly) steps.push(/\{[^{}]*\}/g);
+    if (optLiteral) steps.push(/\\n/g);
+    let n = 1;
+    let s = text;
+    for (const pattern of steps) {
+      const r = wrapMatchesInOrder(s, [pattern], n);
+      s = r.str;
+      n = r.nextNum;
+    }
+    return { str: s, nextNum: n };
+  }
+
+  document.getElementById('btnPreview').addEventListener('click', function () {
+    const out = document.getElementById('previewOut');
+    out.classList.remove('err');
+    const raw = document.getElementById('sampleInput').value;
+
+    const lines = Array.from(customList.querySelectorAll('.regex-line'))
+      .map(function (el) { return el.value.trim(); })
+      .filter(Boolean);
+
+    const customRes = [];
+    for (const line of lines) {
+      try {
+        customRes.push(new RegExp(line, 'g'));
+      } catch (e) {
+        out.classList.add('err');
+        out.textContent = '自訂正則無法解析：「' + line + '」\n' + (e.message || String(e));
+        return;
+      }
+    }
+
+    try {
+      const first = applyDefaultRules(
+        raw,
+        document.getElementById('optAngle').checked,
+        document.getElementById('optSquare').checked,
+        document.getElementById('optCurly').checked,
+        document.getElementById('optLiteralNl').checked
+      );
+
+      let s = first.str;
+      if (customRes.length) {
+        const second = wrapMatchesInOrder(s, customRes, first.nextNum);
+        s = second.str;
+      }
+
+      out.textContent =
+        s +
+        '\n\n— 以上為簡化示意；大括號規則若與已產生之佔位符併存，正式匯入時會以接續編號與排除規則處理。';
+    } catch (e) {
+      out.classList.add('err');
+      out.textContent = String(e.message || e);
+    }
+  });
+
+  document.getElementById('btnResetSample').addEventListener('click', function () {
+    document.getElementById('sampleInput').value = 'Price < 100 [SKU] end\\nhere';
+    document.getElementById('previewOut').textContent = '（按「套用預覽」）';
+    document.getElementById('previewOut').classList.remove('err');
+  });
+})();
+  </script>
+</body>
+</html>

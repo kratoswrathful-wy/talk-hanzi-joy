@@ -11,6 +11,7 @@
 
 - [`docs/HANDOFF.md`](docs/HANDOFF.md) — TMS 本體（React / Vite）、維運邊界
 - [`docs/CODEMAP.md`](docs/CODEMAP.md) — 功能與路徑對照
+- [`docs/CAT_EDITOR_UX_QA_WAVE_IMPLEMENTATION_PLAN.md`](docs/CAT_EDITOR_UX_QA_WAVE_IMPLEMENTATION_PLAN.md) — CAT 內嵌：驗收波次（進階篩選／假游標／QA／篩選摘要／AI 批次／結果表多選）**實作規劃**
 - [`cat-tool/README.md`](cat-tool/README.md) — CAT 維護說明（含下拉選單樣式代號 `DD-A / DD-B / DD-C`）
 
 ### (C) 領域與深文件（非「Cursor 一律遵守的編輯總規則」）
@@ -21,6 +22,8 @@
 - [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) — 部署檢核
 - [`docs/SLACK_SETUP.md`](docs/SLACK_SETUP.md) — Slack 詢案與譯者通知設定；擴充決策與待落地項目見 [`docs/SLACK_NOTIFY_EXPANSION_2026-05.md`](docs/SLACK_NOTIFY_EXPANSION_2026-05.md)
 - [`docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md`](docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md) — **產品**內 CAT 團隊版「AI 準則」資料與 Supabase 流程；**不是**教編輯器如何改程式的通用規範
+- [`docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md`](docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md) — 句段依匯入順序排序（`global_id`）、更新作業檔與雲端一致；**行內字型／rt-fmt** 上架嘗試之問題與調查紀錄（已撤回）
+- [`docs/EXCEL_IMPORT_TAGS_SPEC.md`](docs/EXCEL_IMPORT_TAGS_SPEC.md) — Excel 匯入警語與括號／自訂正則轉 tag（**工程規格**）；高層計畫見 [`docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md`](docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md)；介面預覽 [`docs/preview-excel-import-tags/index.html`](docs/preview-excel-import-tags/index.html)
 
 ## 回覆與推送慣例
 
