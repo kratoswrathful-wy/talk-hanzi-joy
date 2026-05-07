@@ -1028,18 +1028,24 @@
                                     <label class="qa-check-label"><input type="checkbox" id="qaCheckTypos"> 錯字（由 AI 檢查）</label>
                                 </div>
                             </div>
-                            <!-- QA 選項列（各選項獨立一行；句段範圍與輸入同列） -->
-                            <div class="qa-options-bar">
-                                <div class="qa-options-line">
-                                    <label class="qa-label"><input type="checkbox" id="qaIncludeLocked"> 含鎖定</label>
-                                </div>
-                                <div class="qa-options-line qa-options-line-range">
-                                    <label class="qa-label qa-label-inline"><input type="checkbox" id="qaUseRange"> 句段範圍</label>
-                                    <input type="text" id="qaRangeExpr" class="form-input qa-range-expr-input" disabled placeholder="例：1-5, 10, 26-">
-                                </div>
-                                <div class="qa-options-line qa-options-line-filtered">
-                                    <label class="qa-label" id="qaScopeFilteredLabel"><input type="checkbox" id="qaScopeCurrentFiltered"> 目前篩選結果</label>
-                                    <div id="qaScopeLockInlineMsg" class="sf-lock-inline-msg">勾選期間無法變更篩選內容</div>
+                            <!-- QA 可折疊檢查範圍 -->
+                            <div class="qa-check-group">
+                                <button class="qa-collapse-btn" id="btnQaCollapseScope">▾ 檢查範圍</button>
+                                <div class="qa-collapse-body" id="qaScopeBody">
+                                    <!-- QA 選項列（各選項獨立一行；句段範圍與輸入同列） -->
+                                    <div class="qa-options-bar">
+                                        <div class="qa-options-line">
+                                            <label class="qa-label"><input type="checkbox" id="qaIncludeLocked"> 含鎖定</label>
+                                        </div>
+                                        <div class="qa-options-line qa-options-line-range">
+                                            <label class="qa-label qa-label-inline"><input type="checkbox" id="qaUseRange"> 句段範圍</label>
+                                            <input type="text" id="qaRangeExpr" class="form-input qa-range-expr-input" disabled placeholder="例：1-5, 10, 26-">
+                                        </div>
+                                        <div class="qa-options-line qa-options-line-filtered">
+                                            <label class="qa-label" id="qaScopeFilteredLabel"><input type="checkbox" id="qaScopeCurrentFiltered"> 目前篩選結果</label>
+                                            <div id="qaScopeLockInlineMsg" class="sf-lock-inline-msg">勾選期間無法變更篩選內容</div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <!-- QA 動作列 -->
@@ -1068,6 +1074,10 @@
                                     <tbody id="qaResultsBody"></tbody>
                                 </table>
                             </div>
+                        </div>
+                        
+                        <div style="display:flex; justify-content:flex-end; padding:0.35rem 0.5rem 0;">
+                            <button type="button" class="secondary-btn btn-sm" id="btnToggleLiveFooter">收合資訊</button>
                         </div>
                         
                         <div id="catPanelResizerBottom" class="cat-panel-resizer" data-tip="拖曳調整下方資訊區高度">

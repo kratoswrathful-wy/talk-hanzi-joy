@@ -2833,6 +2833,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const catPanelResizerBottom = document.getElementById('catPanelResizerBottom');
     const livePanelFooter = document.getElementById('livePanelFooter');
     let ptrCatBottom = null;
+
+    // 右下角資訊區：展開/收合（預設展開；不記住狀態）
+    const btnToggleLiveFooter = document.getElementById('btnToggleLiveFooter');
+    const sidePanelEl = document.querySelector('.editor-side-panel');
+    function isLiveFooterCollapsed() {
+        return !!(sidePanelEl && sidePanelEl.classList.contains('editor-side-panel--live-footer-collapsed'));
+    }
+    function syncLiveFooterToggleBtn() {
+        if (!btnToggleLiveFooter) return;
+        btnToggleLiveFooter.textContent = isLiveFooterCollapsed() ? '展開資訊' : '收合資訊';
+    }
+    if (btnToggleLiveFooter && sidePanelEl) {
+        syncLiveFooterToggleBtn();
+        btnToggleLiveFooter.addEventListener('click', () => {
+            sidePanelEl.classList.toggle('editor-side-panel--live-footer-collapsed');
+            syncLiveFooterToggleBtn();
+        });
+    }
+
     if (catPanelResizerBottom && livePanelFooter) {
         const endCatBottom = (e) => {
             if (ptrCatBottom && e.pointerId === ptrCatBottom.pid) {
@@ -2842,6 +2861,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         };
         catPanelResizerBottom.addEventListener('pointerdown', (e) => {
+            if (isLiveFooterCollapsed()) return;
             e.preventDefault();
             const tabCAT = document.getElementById('tabCAT');
             ptrCatBottom = {
@@ -20799,6 +20819,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // QA 折疊檢查範圍
+    const btnQaCollapseScope = document.getElementById('btnQaCollapseScope');
+    if (btnQaCollapseScope) {
+        btnQaCollapseScope.addEventListener('click', () => {
+            const body = document.getElementById('qaScopeBody');
+            if (!body) return;
+            const collapsed = body.style.display === 'none';
+            body.style.display = collapsed ? '' : 'none';
+            btnQaCollapseScope.textContent = (collapsed ? '▾' : '▸') + ' 檢查範圍';
+        });
+    }
+
     // QA 句段範圍核取方塊（啟用/停用輸入框）
     const qaUseRangeCb = document.getElementById('qaUseRange');
     const qaRangeExprEl = document.getElementById('qaRangeExpr');
@@ -20820,6 +20852,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         qaRunInProgress = !!locked;
         const btnQaCollapseChecks = document.getElementById('btnQaCollapseChecks');
         if (btnQaCollapseChecks) btnQaCollapseChecks.disabled = !!locked;
+        const btnQaCollapseScope = document.getElementById('btnQaCollapseScope');
+        if (btnQaCollapseScope) btnQaCollapseScope.disabled = !!locked;
         qaConfigControls.forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;

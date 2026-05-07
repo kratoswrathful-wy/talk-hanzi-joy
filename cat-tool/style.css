@@ -1490,6 +1490,18 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .panel-footer { flex: 0 0 auto; padding: 1rem; border-top: 1px solid var(--border-color); background: white; font-size: 0.8rem; }
 .footer-meta { color: var(--text-light); margin-bottom: 0.2rem;}
 
+/* 右下角資訊區：展開/收合（預設展開；不記住狀態） */
+.editor-side-panel.editor-side-panel--live-footer-collapsed #livePanelFooter {
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border-top: 0 !important;
+    overflow: hidden !important;
+}
+.editor-side-panel.editor-side-panel--live-footer-collapsed #catPanelResizerBottom {
+    display: none !important;
+}
+
 .search-bar { background: white; padding: 0.5rem 1rem; border: 1px solid var(--border-color); border-radius: 16px; font-size: 0.85rem; color: var(--text-light); margin-bottom: 1rem; text-align: center;}
 
 /* CAT 分頁：雙擊套用開關（預覽列，靠左） */
