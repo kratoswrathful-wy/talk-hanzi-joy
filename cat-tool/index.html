@@ -1800,6 +1800,39 @@
                                     </div>
                                     <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">指定列數</label><input type="text" id="configRows" placeholder="例如: 2-" value="2-" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
                                 </div>
+                                <div id="excelImportTagOptionsBlock" style="margin-top:1.25rem; padding-top:1rem; border-top:1px solid #e2e8f0;">
+                                    <details style="margin-bottom:0.85rem;">
+                                        <summary style="cursor:pointer; font-size:0.88rem; font-weight:600; color:#b45309;">試算表匯入說明（請展開）</summary>
+                                        <div style="margin-top:0.5rem; font-size:0.82rem; color:#475569; line-height:1.55;">
+                                            <p style="margin:0 0 0.5rem 0;">可翻譯內容會轉成編輯器內部結構；<strong>多數儲存格格式、圖表、圖片可能無法保留</strong>。</p>
+                                            <p style="margin:0 0 0.5rem 0;">警語所稱支援格式為 <strong>.xlsx</strong>、<strong>.xls</strong>。若為 <strong>.xlsm</strong>、<strong>.ods</strong> 等，請在 Excel 另存為 .xlsx 再上傳。Google 試算表請下載為 .xlsx。</p>
+                                            <p style="margin:0;">行內 tag 若前後不一致，之後匯出可能失敗；建議完成後執行品質檢查。無須額外勾選同意即可繼續。</p>
+                                        </div>
+                                    </details>
+                                    <h4 style="margin:0 0 0.5rem 0; font-size:0.92rem; color:#0f172a;">將下列內容轉成行內 tag（先套用 Rich Text 萃取，再於純文字套用）</h4>
+                                    <p style="margin:0 0 0.65rem 0; font-size:0.8rem; color:#64748b;">巢狀括號採簡化規則：若一對內含同類開括號則略過該對。自訂欄位為 JavaScript 正則；<code>\n</code> 在正則中表示換行字元，與下方「字面 \n」勾選不同。</p>
+                                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                                        <label style="display:flex; align-items:flex-start; gap:0.45rem; font-size:0.88rem; cursor:pointer;"><input type="checkbox" id="excelImportTagAngle" checked /> <span>尖括號 <code>&lt; &gt;</code> 成對範圍</span></label>
+                                        <label style="display:flex; align-items:flex-start; gap:0.45rem; font-size:0.88rem; cursor:pointer;"><input type="checkbox" id="excelImportTagSquare" checked /> <span>方括號 <code>[ ]</code> 成對範圍</span></label>
+                                        <label style="display:flex; align-items:flex-start; gap:0.45rem; font-size:0.88rem; cursor:pointer;"><input type="checkbox" id="excelImportTagCurly" checked /> <span>大括號 <code>{ }</code> 成對範圍（略過已產生之 <code>{1}</code> 佔位）</span></label>
+                                        <label style="display:flex; align-items:flex-start; gap:0.45rem; font-size:0.88rem; cursor:pointer;"><input type="checkbox" id="excelImportTagLiteralN" checked /> <span>字面 <code>\n</code>（反斜線 + n 兩個字元，非儲存格換行）</span></label>
+                                    </div>
+                                    <div style="margin-top:0.85rem;">
+                                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.35rem;">
+                                            <span style="font-size:0.85rem; font-weight:600;">自訂規則（由上而下套用）</span>
+                                            <button type="button" id="btnExcelImportAddCustomRegex" class="secondary-btn btn-sm">新增一列</button>
+                                        </div>
+                                        <div id="excelImportCustomRegexList"></div>
+                                    </div>
+                                    <div style="margin-top:0.85rem;">
+                                        <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.35rem;">預覽範例（與匯入引擎相同邏輯）</label>
+                                        <textarea id="excelImportTagPreviewSample" class="form-input" rows="3" placeholder="貼上範例文字…"></textarea>
+                                        <div style="display:flex; gap:0.5rem; margin-top:0.45rem; flex-wrap:wrap;">
+                                            <button type="button" id="btnExcelImportTagPreviewApply" class="secondary-btn btn-sm">套用預覽</button>
+                                        </div>
+                                        <pre id="excelImportTagPreviewOut" style="margin:0.5rem 0 0; font-size:0.8rem; background:#f8fafc; border:1px dashed #94a3b8; border-radius:6px; padding:0.55rem 0.65rem; white-space:pre-wrap; word-break:break-all; min-height:2rem; font-family:ui-monospace,Consolas,monospace;"></pre>
+                                    </div>
+                                </div>
                                 <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                                     <button id="btnWizBack1" class="secondary-btn">取消重選</button>
                                     <button id="btnWizFinish" class="success-btn">匯入檔案</button>
@@ -3078,6 +3111,7 @@
     <script src="js/po-import.js"></script>
     <script src="js/file-update.js"></script>
     <script src="js/xlsx-rich-tags.js"></script>
+    <script src="js/excel-import-string-tags.js"></script>
     <script src="js/select-add-new.js"></script>
     <script src="js/cat-mutex-dropdown.js"></script>
     <script src="js/cat-fake-caret.js"></script>

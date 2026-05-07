@@ -3200,6 +3200,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _batchMqRoles = new Map();
     let _batchExcelGlobalCfg = null;
     let _batchExcelModalExcelFiles = [];
+    /** 單檔／批次 Excel 匯入句段萃取時，字串層 tag 規則（由欄位設定畫面讀取）；null 表示用模組預設（四項皆開）。 */
+    let _activeExcelStringTagRules = null;
+    let _excelImportTagUiBound = false;
 
     // --- Sort State ---
     const sortColSelect = document.getElementById('sortColSelect');
@@ -9876,6 +9879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         _batchMqRoles = new Map();
         _batchExcelGlobalCfg = null;
         _batchExcelModalExcelFiles = [];
+        _activeExcelStringTagRules = null;
         if (btnWizFinish) btnWizFinish.textContent = '匯入檔案';
         if (wizardStep2SheetColumn) wizardStep2SheetColumn.style.display = '';
     }
@@ -10011,6 +10015,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _openBatchExcelColumnEditor(isGlobal, targetFile) {
+        _bindExcelImportTagOptionsUiOnce();
         const files = _batchExcelModalExcelFiles;
         const file = isGlobal ? files[0] : targetFile;
         if (!file) return;
@@ -10046,6 +10051,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectAllSheets.checked = Array.from(document.querySelectorAll('#sheetList .sheet-checkbox')).every(c => c.checked);
             }));
 
+            const existingCfg = isGlobal ? _batchExcelGlobalCfg : (targetFile ? _batchExcelConfigs.get(targetFile) : null);
+            if (existingCfg && existingCfg.stringTagRules) {
+                _applyExcelImportTagOptionsToDom(existingCfg.stringTagRules);
+            } else {
+                _resetExcelImportTagOptionsUiToDefaults();
+            }
+
             _batchExcelGlobalSheetMode = isGlobal;
             _batchExcelConfigMode = true;
             _batchExcelConfigTarget = isGlobal ? null : file;
@@ -10070,7 +10082,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             _batchExcelGlobalCfg = null;
             _batchExcelConfigs = new Map();
 
+            _bindExcelImportTagOptionsUiOnce();
             let html = `<div style="padding:0 0.25rem;">
+                <p style="margin:0 0 0.65rem 0; font-size:0.82rem; color:#b45309; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:0.5rem 0.65rem;">試算表支援格式為 <strong>.xlsx</strong>、<strong>.xls</strong>。.xlsm／.ods 請另存 .xlsx；Google 試算表請下載為 .xlsx。</p>
                 <p style="margin:0 0 1rem 0; font-size:0.85rem; color:#64748b;">請設定 Excel 欄位對應；勾選「全部使用相同欄位設定」時，將以<strong>第一個檔案</strong>預覽（匯入時每個檔案仍會匯入<strong>全部工作表</strong>）。</p>
                 <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem; cursor:pointer; flex-wrap:wrap;">
                     <input type="checkbox" id="batchExcelSameCfg" checked />
@@ -10976,6 +10990,137 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let extractedSegmentsBackup = [];
 
+    function _resetExcelImportTagOptionsUiToDefaults() {
+        const ids = ['excelImportTagAngle', 'excelImportTagSquare', 'excelImportTagCurly', 'excelImportTagLiteralN'];
+        ids.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = true;
+        });
+        const list = document.getElementById('excelImportCustomRegexList');
+        if (list) list.innerHTML = '';
+        const prevOut = document.getElementById('excelImportTagPreviewOut');
+        if (prevOut) {
+            prevOut.textContent = '';
+            prevOut.classList.remove('err');
+        }
+        const ta = document.getElementById('excelImportTagPreviewSample');
+        if (ta) ta.value = '';
+    }
+
+    function _addExcelImportCustomRegexRow(value) {
+        const list = document.getElementById('excelImportCustomRegexList');
+        if (!list) return;
+        const row = document.createElement('div');
+        row.className = 'excel-import-custom-regex-row';
+        row.style.cssText = 'display:flex;gap:0.5rem;align-items:center;margin-bottom:0.35rem;flex-wrap:wrap;';
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'form-input excel-import-custom-regex-input';
+        inp.placeholder = '例如：\\d+';
+        inp.value = value != null ? String(value) : '';
+        inp.style.flex = '1';
+        inp.style.minWidth = '120px';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'secondary-btn btn-sm excel-import-custom-regex-remove';
+        btn.textContent = '移除';
+        const hint = document.createElement('span');
+        hint.style.fontSize = '0.75rem';
+        hint.style.color = '#64748b';
+        hint.textContent = '正則表達式';
+        row.appendChild(inp);
+        row.appendChild(btn);
+        row.appendChild(hint);
+        list.appendChild(row);
+    }
+
+    function _applyExcelImportTagOptionsToDom(opts) {
+        if (!opts) {
+            _resetExcelImportTagOptionsUiToDefaults();
+            return;
+        }
+        const setChk = (id, v) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!v;
+        };
+        setChk('excelImportTagAngle', opts.angleBracket);
+        setChk('excelImportTagSquare', opts.squareBracket);
+        setChk('excelImportTagCurly', opts.curlyBracket);
+        setChk('excelImportTagLiteralN', opts.literalBackslashN);
+        const list = document.getElementById('excelImportCustomRegexList');
+        if (list) {
+            list.innerHTML = '';
+            (opts.customPatterns || []).forEach((p) => _addExcelImportCustomRegexRow(p));
+        }
+    }
+
+    function _readExcelStringTagOptionsFromDom() {
+        const g = (id) => {
+            const el = document.getElementById(id);
+            return el ? !!el.checked : true;
+        };
+        const list = document.getElementById('excelImportCustomRegexList');
+        const patterns = list
+            ? Array.from(list.querySelectorAll('.excel-import-custom-regex-input')).map((inp) => String(inp.value || '').trim()).filter(Boolean)
+            : [];
+        const X = window.CatToolExcelImportStringTags;
+        if (X && typeof X.validateCustomRegexList === 'function') {
+            const v = X.validateCustomRegexList(patterns);
+            if (!v.ok) throw new Error(v.errors.join('\n'));
+        }
+        return {
+            angleBracket: g('excelImportTagAngle'),
+            squareBracket: g('excelImportTagSquare'),
+            curlyBracket: g('excelImportTagCurly'),
+            literalBackslashN: g('excelImportTagLiteralN'),
+            customPatterns: patterns
+        };
+    }
+
+    function _bindExcelImportTagOptionsUiOnce() {
+        if (_excelImportTagUiBound) return;
+        const addBtn = document.getElementById('btnExcelImportAddCustomRegex');
+        const list = document.getElementById('excelImportCustomRegexList');
+        const previewBtn = document.getElementById('btnExcelImportTagPreviewApply');
+        if (!addBtn || !list) return;
+        _excelImportTagUiBound = true;
+        addBtn.addEventListener('click', () => {
+            _addExcelImportCustomRegexRow('');
+        });
+        list.addEventListener('click', (e) => {
+            const rm = e.target.closest('.excel-import-custom-regex-remove');
+            if (rm) {
+                const row = rm.closest('.excel-import-custom-regex-row');
+                if (row) row.remove();
+            }
+        });
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => {
+                const out = document.getElementById('excelImportTagPreviewOut');
+                const ta = document.getElementById('excelImportTagPreviewSample');
+                const X = window.CatToolExcelImportStringTags;
+                try {
+                    const opts = _readExcelStringTagOptionsFromDom();
+                    if (X && typeof X.applyPipeline === 'function') {
+                        const r = X.applyPipeline(ta ? ta.value : '', null, opts);
+                        if (out) {
+                            out.textContent = r.skipped ? '（範例過長，未套用）' : (r.text || '');
+                            out.classList.remove('err');
+                        }
+                    } else if (out) {
+                        out.textContent = '模組未載入（js/excel-import-string-tags.js）';
+                        out.classList.add('err');
+                    }
+                } catch (err) {
+                    if (out) {
+                        out.textContent = (err && err.message) ? err.message : String(err);
+                        out.classList.add('err');
+                    }
+                }
+            });
+        }
+    }
+
     function _readExcelConfigFromStep2() {
         const sCols = parseColumnString(configSourceCol.value);
         const tCols = parseColumnString(configTargetCol.value);
@@ -10989,7 +11134,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (idCols.length > 1) throw new Error('String Key 欄位僅允許輸入單一欄位，不支援多個欄');
         const useAllSheets = !!_batchExcelGlobalSheetMode;
         if (!useAllSheets && !selSheets.length) throw new Error('請勾選至少一個工作表');
-        return { sCols, tCols, idCols, extCols, rowRanges, dir, selSheets, useAllSheets };
+        const stringTagRules = _readExcelStringTagOptionsFromDom();
+        return { sCols, tCols, idCols, extCols, rowRanges, dir, selSheets, useAllSheets, stringTagRules };
     }
 
     btnWizFinish.addEventListener('click', async () => {
@@ -11027,6 +11173,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(idCols.length > 1) throw new Error('String Key 欄位僅允許輸入單一欄位，不支援多個欄');
             const selSheets = Array.from(document.querySelectorAll('#sheetList .sheet-checkbox')).filter(c=>c.checked).map(c=>c.value);
             if(!selSheets.length) throw new Error('請勾選至少一個工作表');
+
+            let stringTagRules;
+            try {
+                stringTagRules = _readExcelStringTagOptionsFromDom();
+            } catch (ve) {
+                alert('設定無法套用：' + (ve.message || ve));
+                return;
+            }
+            _activeExcelStringTagRules = stringTagRules;
 
             extractedSegmentsBackup = [];
             selSheets.forEach(sheetName => {
@@ -11147,7 +11302,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
                 await loadFilesList();
             }
-        } catch(e) { alert('匯入失敗: ' + e.message); } finally { btnWizFinish.disabled = false; btnWizFinish.textContent = '匯入檔案'; }
+        } catch(e) { alert('匯入失敗: ' + e.message); } finally {
+            _activeExcelStringTagRules = null;
+            btnWizFinish.disabled = false;
+            btnWizFinish.textContent = '匯入檔案';
+        }
     });
 
     function extractSegmentIntoBackup(data, sheetName, r, sC, tC, idCols, extCols, extraDelimiter, rawSheet) {
@@ -11205,6 +11364,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.warn('xlsx rich tag 萃取失敗（row', r, 'col', sC, '）', err);
                 }
             }
+            const StrTags = window.CatToolExcelImportStringTags;
+            if (!locked && StrTags && typeof StrTags.applyPipeline === 'function') {
+                const def = StrTags.defaultOpts ? StrTags.defaultOpts() : null;
+                const opts = _activeExcelStringTagRules || def || {
+                    angleBracket: true, squareBracket: true, curlyBracket: true, literalBackslashN: true, customPatterns: []
+                };
+                const rs = StrTags.applyPipeline(finalSrc || '', sourceTags || null, opts);
+                finalSrc = rs.text;
+                sourceTags = rs.tags;
+                const rt = StrTags.applyPipeline(finalTgt || '', targetTags || null, opts);
+                finalTgt = rt.text;
+                targetTags = rt.tags;
+            }
             const seg = {
                 sheetName, rowIdx: r, colSrc: sC, colTgt: tC,
                 idValue: idVal, extraValue: extVal,
@@ -11234,48 +11406,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!store) throw new Error('找不到 Excel 資料：請先完成「欄位設定」');
         const { workbook, rawBuffer, dataBySheet } = store;
         const { sCols, tCols, idCols, extCols, rowRanges, dir } = config;
-        let sheetsToUse;
-        if (config.useAllSheets) {
-            sheetsToUse = workbook.SheetNames.slice();
-        } else {
-            sheetsToUse = config.selSheets || [];
-            if (!sheetsToUse.length) throw new Error('請勾選至少一個工作表');
-        }
-        const extraDelimiter = '\n';
-        extractedSegmentsBackup = [];
-        sheetsToUse.forEach(sheetName => {
-            const data = dataBySheet[sheetName];
-            if (!data) return;
-            const rawSheet = workbook.Sheets[sheetName];
-            if (dir === 'top-down') {
-                for (let c = 0; c < sCols.length; c++) for (let r = 0; r < data.length; r++) {
-                    if (isTbRowInRanges(r + 1, rowRanges)) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
-                }
+        const prevRules = _activeExcelStringTagRules;
+        _activeExcelStringTagRules = (config && config.stringTagRules) ? config.stringTagRules : null;
+        try {
+            let sheetsToUse;
+            if (config.useAllSheets) {
+                sheetsToUse = workbook.SheetNames.slice();
             } else {
-                for (let r = 0; r < data.length; r++) {
-                    if (!isTbRowInRanges(r + 1, rowRanges)) continue;
-                    for (let c = 0; c < sCols.length; c++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
-                }
+                sheetsToUse = config.selSheets || [];
+                if (!sheetsToUse.length) throw new Error('請勾選至少一個工作表');
             }
-        });
-        const fId = await DBService.createFile(
-            currentProjectId, file.name, rawBuffer,
-            langChoice.sourceLang, langChoice.targetLang
-        );
-        const entry = makeBaseLogEntry('create', 'project-file', {
-            entityId: fId,
-            entityName: file.name
-        });
-        if (currentProjectId) {
-            await appendProjectChangeLog(currentProjectId, entry);
-            await DBService.addModuleLog('projects', entry);
+            const extraDelimiter = '\n';
+            extractedSegmentsBackup = [];
+            sheetsToUse.forEach(sheetName => {
+                const data = dataBySheet[sheetName];
+                if (!data) return;
+                const rawSheet = workbook.Sheets[sheetName];
+                if (dir === 'top-down') {
+                    for (let c = 0; c < sCols.length; c++) for (let r = 0; r < data.length; r++) {
+                        if (isTbRowInRanges(r + 1, rowRanges)) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                    }
+                } else {
+                    for (let r = 0; r < data.length; r++) {
+                        if (!isTbRowInRanges(r + 1, rowRanges)) continue;
+                        for (let c = 0; c < sCols.length; c++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                    }
+                }
+            });
+            const fId = await DBService.createFile(
+                currentProjectId, file.name, rawBuffer,
+                langChoice.sourceLang, langChoice.targetLang
+            );
+            const entry = makeBaseLogEntry('create', 'project-file', {
+                entityId: fId,
+                entityName: file.name
+            });
+            if (currentProjectId) {
+                await appendProjectChangeLog(currentProjectId, entry);
+                await DBService.addModuleLog('projects', entry);
+            }
+            const mappedSegments = extractedSegmentsBackup.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
+            const savedCount = await DBService.addSegments(mappedSegments);
+            if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
+                console.warn('[CAT] addSegments returned 0 — segments may not have been saved to cloud.');
+            }
+            extractedSegmentsBackup = [];
+        } finally {
+            _activeExcelStringTagRules = prevRules;
         }
-        const mappedSegments = extractedSegmentsBackup.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
-        const savedCount = await DBService.addSegments(mappedSegments);
-        if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
-            console.warn('[CAT] addSegments returned 0 — segments may not have been saved to cloud.');
-        }
-        extractedSegmentsBackup = [];
     }
 
     // ==========================================
