@@ -1295,78 +1295,236 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyNonPrintMarkers(el);
     }
 
+    /** 與 extractSubtree 一致：單一子樹對應到 extract 字串長度。 */
+    function extractLengthOfSubtree(node, root) {
+        return (extractSubtree(node, root) || '').length;
+    }
+
+    /** 游標在 .rt-tag 內時，對應到 data-ph 線性座標的尾端或起端（與 extract 將整顆 tag 視為一 token 一致）。 */
+    function plainOffsetInsideRtTag(rt, container, offset) {
+        const phLen = (rt.getAttribute('data-ph') || '').length;
+        if (!phLen) return 0;
+        try {
+            const rEnd = document.createRange();
+            rEnd.selectNodeContents(rt);
+            rEnd.collapse(false);
+            const rCaret = document.createRange();
+            rCaret.setStart(container, offset);
+            rCaret.collapse(true);
+            if (rCaret.compareBoundaryPoints(Range.START_TO_START, rEnd) >= 0) return phLen;
+        } catch (_) { /* ignore */ }
+        return 0;
+    }
+
     /**
-     * 以字元偏移量記錄游標位置（跳過非列印標記，BR 計為 1 字元）。
-     * 用於 refreshNonPrintMarkers 前後保存/還原游標，避免游標跳位。
+     * 與 extractTextFromEditor／extractSubtree 相同線性模型，將 (container,offset) 轉成「純 extract」字元偏移。
+     * 用於 show-non-print 下 slice／還原游標；.rt-tag 視為原子（長度 = data-ph），不計入 chip 內文字。
+     */
+    function linearPlainOffsetAtCaret(editorEl, container, offset) {
+        if (!editorEl || !container) return null;
+        if (container === editorEl) {
+            const childIdx = Math.min(Math.max(0, offset), editorEl.childNodes.length);
+            let acc = 0;
+            let idx = 0;
+            for (const node of editorEl.childNodes) {
+                if (idx === childIdx) return acc;
+                if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV') acc += 1;
+                acc += extractLengthOfSubtree(node, editorEl);
+                idx++;
+            }
+            return acc;
+        }
+        if (!editorEl.contains(container)) return null;
+        let acc = 0;
+        let idx = 0;
+        for (const node of editorEl.childNodes) {
+            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV') acc += 1;
+            if (node === container && node.nodeType === 3) {
+                return acc + Math.min(offset, (node.nodeValue || '').length);
+            }
+            if (node.nodeType === 1 && node.classList && node.classList.contains('rt-tag') &&
+                (node === container || (node.contains && node.contains(container)))) {
+                return acc + plainOffsetInsideRtTag(node, container, offset);
+            }
+            if (node === container && node.nodeType === 1) {
+                let sub = 0;
+                for (let i = 0; i < offset && i < node.childNodes.length; i++) {
+                    sub += extractLengthOfSubtree(node.childNodes[i], editorEl);
+                }
+                return acc + sub;
+            }
+            if (node.contains(container)) {
+                return acc + linearPlainOffsetInSubtree(node, editorEl, container, offset);
+            }
+            acc += extractLengthOfSubtree(node, editorEl);
+            idx++;
+        }
+        return null;
+    }
+
+    function linearPlainOffsetInSubtree(node, root, container, offset) {
+        if (!node) return 0;
+        if (node.nodeType === 3) {
+            return (node === container) ? Math.min(offset, (node.nodeValue || '').length) : extractLengthOfSubtree(node, root);
+        }
+        if (node.nodeType !== 1) return 0;
+        if (node.classList && node.classList.contains('non-print-marker')) {
+            if (node.classList.contains('np-inline-char')) {
+                let subAcc = 0;
+                for (const ch of node.childNodes) {
+                    if (ch === container || (ch.nodeType === 1 && ch.contains && ch.contains(container))) {
+                        return subAcc + linearPlainOffsetInSubtree(ch, root, container, offset);
+                    }
+                    subAcc += extractLengthOfSubtree(ch, root);
+                }
+                return subAcc;
+            }
+            return 0;
+        }
+        if (node.tagName === 'BR') return 0;
+        if (node.classList && node.classList.contains('rt-tag')) {
+            if (node === container || node.contains(container)) return plainOffsetInsideRtTag(node, container, offset);
+            return extractLengthOfSubtree(node, root);
+        }
+        let subAcc = 0;
+        for (const ch of node.childNodes) {
+            if (ch === container || (ch.nodeType === 1 && ch.contains && ch.contains(container))) {
+                return subAcc + linearPlainOffsetInSubtree(ch, root, container, offset);
+            }
+            subAcc += extractLengthOfSubtree(ch, root);
+        }
+        if (node === container && typeof offset === 'number') {
+            let s = 0;
+            for (let i = 0; i < offset && i < node.childNodes.length; i++) {
+                s += extractLengthOfSubtree(node.childNodes[i], root);
+            }
+            return s;
+        }
+        return subAcc;
+    }
+
+    /** 由線性 extract 偏移還原摺疊 Range（與 linearPlainOffsetAtCaret 互逆）。 */
+    function buildCollapsedRangeAtPlainOffsetInSubtree(node, root, remaining) {
+        if (!node) return null;
+        if (node.nodeType === 3) {
+            const len = (node.nodeValue || '').length;
+            const pos = Math.min(Math.max(0, remaining), len);
+            try {
+                const rng = document.createRange();
+                rng.setStart(node, pos);
+                rng.collapse(true);
+                return rng;
+            } catch (_) {
+                return null;
+            }
+        }
+        if (node.nodeType !== 1) return null;
+        if (node.classList && node.classList.contains('non-print-marker')) {
+            if (node.classList.contains('np-inline-char')) {
+                for (const ch of node.childNodes) {
+                    const clen = extractLengthOfSubtree(ch, root);
+                    if (remaining <= clen) return buildCollapsedRangeAtPlainOffsetInSubtree(ch, root, remaining);
+                    remaining -= clen;
+                }
+                return null;
+            }
+            return null;
+        }
+        if (node.tagName === 'BR') {
+            if (isGhostBr(node, root)) return null;
+            try {
+                const rng = document.createRange();
+                if (remaining <= 0) rng.setStartBefore(node);
+                else rng.setStartAfter(node);
+                rng.collapse(true);
+                return rng;
+            } catch (_) {
+                return null;
+            }
+        }
+        if (node.classList && node.classList.contains('rt-tag')) {
+            const phLen = (node.getAttribute('data-ph') || '').length;
+            try {
+                const rng = document.createRange();
+                if (remaining <= 0) {
+                    rng.setStartBefore(node);
+                } else if (remaining >= phLen) {
+                    rng.setStartAfter(node);
+                } else {
+                    rng.selectNodeContents(node);
+                    rng.collapse(true);
+                }
+                return rng;
+            } catch (_) {
+                return null;
+            }
+        }
+        for (const ch of node.childNodes) {
+            const clen = extractLengthOfSubtree(ch, root);
+            if (remaining <= clen) return buildCollapsedRangeAtPlainOffsetInSubtree(ch, root, remaining);
+            remaining -= clen;
+        }
+        return null;
+    }
+
+    /**
+     * 以字元偏移量記錄游標位置（與 extractTextFromEditor 線性模型一致；供 NP 模式 slice／還原）。
      */
     function getNpCaretOffset(el) {
         const sel = window.getSelection();
         if (!sel || !sel.rangeCount) return null;
         const r = sel.getRangeAt(0);
-        if (!el.contains(r.startContainer)) return null;
-        let offset = 0;
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_ALL, {
-            acceptNode: n => {
-                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker') && !n.classList.contains('np-inline-char')) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-                return NodeFilter.FILTER_ACCEPT;
-            }
-        });
-        let nd;
-        while ((nd = walker.nextNode())) {
-            if (nd === r.startContainer) { offset += r.startOffset; break; }
-            if (nd.nodeType === 3) offset += nd.nodeValue.length;
-            else if (nd.nodeType === 1 && nd.tagName === 'BR') {
-                if (!isGhostBr(nd, el)) offset += 1;
-            }
-        }
-        return offset;
+        return linearPlainOffsetAtCaret(el, r.startContainer, r.startOffset);
     }
 
     /** 建立 NP 模式下之摺疊 Range，不操作 Selection（供失焦後避免 addRange 搶焦點）。 */
     function buildCollapsedNpRangeAtOffset(el, targetOffset) {
         let remaining = targetOffset;
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_ALL, {
-            acceptNode: n => {
-                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker') && !n.classList.contains('np-inline-char')) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-                return NodeFilter.FILTER_ACCEPT;
+        let idx = 0;
+        if (!el.childNodes.length) {
+            try {
+                const rng = document.createRange();
+                rng.setStart(el, 0);
+                rng.collapse(true);
+                return rng;
+            } catch (_) {
+                return null;
             }
-        });
-        let nd;
-        while ((nd = walker.nextNode())) {
-            if (nd.nodeType === 3) {
-                const len = nd.nodeValue.length;
-                if (remaining <= len) {
-                    const parentEl = nd.parentElement;
-                    // 游標落在 np-inline-char 末端 → 移到 span 後方，避免游標卡在 span 內導致 Del 隔次無反應
-                    if (remaining === len && parentEl && parentEl.classList && parentEl.classList.contains('np-inline-char')) {
-                        try {
-                            const rng = document.createRange();
-                            rng.setStartAfter(parentEl);
-                            rng.collapse(true);
-                            return rng;
-                        } catch (_) {
-                            return null;
-                        }
-                    }
+        }
+        for (const node of el.childNodes) {
+            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV') {
+                if (remaining <= 0) {
                     try {
                         const rng = document.createRange();
-                        rng.setStart(nd, Math.max(0, remaining));
+                        rng.setStartBefore(node);
                         rng.collapse(true);
                         return rng;
                     } catch (_) {
                         return null;
                     }
                 }
-                remaining -= len;
-            } else if (nd.nodeType === 1 && nd.tagName === 'BR') {
-                if (!isGhostBr(nd, el)) remaining -= 1;
+                remaining -= 1;
             }
+            const segLen = extractLengthOfSubtree(node, el);
+            if (segLen === 0) {
+                idx++;
+                continue;
+            }
+            if (remaining <= segLen) {
+                return buildCollapsedRangeAtPlainOffsetInSubtree(node, el, remaining);
+            }
+            remaining -= segLen;
+            idx++;
         }
-        return null;
+        try {
+            const rng = document.createRange();
+            if (el.lastChild) rng.setStartAfter(el.lastChild);
+            else rng.setStart(el, 0);
+            rng.collapse(true);
+            return rng;
+        } catch (_) {
+            return null;
+        }
     }
 
     /** 依字元偏移量還原游標位置（跳過非列印標記）。 */
@@ -17408,6 +17566,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         return matchCount;
     }
 
+    /** 從 tag 的 xml 字串取出 rid（memoQ bpt/ept 成對用）；著色修補專用，與 normalizeXmlForSig 略過 rid 無關。 */
+    function parseXmlRidForPairRepair(xml) {
+        const s = String(xml ?? '');
+        const m = s.match(/\brid\s*=\s*"([^"]*)"/i) || s.match(/\brid\s*=\s*'([^']*)'/i);
+        return m ? String(m[1]).trim() : '';
+    }
+
+    /**
+     * 淺拷貝 tags 並依 rid 將 close 的 pairNum 對到對應 open（buildTagTokenSequence 用 pairNum 找 closePh）。
+     * 修正 XLIFF 關閉 tag id 與 open 不同號、但 rid 成對時，{/5}{/6} 等無 tag-present 的問題。
+     */
+    function repairPairNumsFromRidInTags(tags) {
+        if (!tags || !tags.length) return tags || [];
+        const ridToOpenPairNum = {};
+        for (const t of tags) {
+            if (!t || t.type !== 'open') continue;
+            const rid = parseXmlRidForPairRepair(t.xml);
+            if (rid) ridToOpenPairNum[rid] = t.pairNum;
+        }
+        return tags.map(t => {
+            if (!t || t.type !== 'close') return t;
+            const rid = parseXmlRidForPairRepair(t.xml);
+            if (!rid || ridToOpenPairNum[rid] === undefined) return t;
+            const newPn = ridToOpenPairNum[rid];
+            if (newPn === t.pairNum) return t;
+            return { ...t, pairNum: newPn };
+        });
+    }
+
     function buildTagTokenSequence(tags, text) {
         const tagByPh = {};
         const openByPairNum = new Map();   // pairNum -> open tag
@@ -17491,8 +17678,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearClasses(sourceEditor);
         clearClasses(targetEditor);
 
-        const sourceTokens = buildTagTokenSequence(sourceTags, sourceText);
-        const targetTokens = buildTagTokenSequence(effectiveTargetTags, tgtText);
+        const sourceTokens = buildTagTokenSequence(repairPairNumsFromRidInTags([...(sourceTags || [])]), sourceText);
+        const targetTokens = buildTagTokenSequence(repairPairNumsFromRidInTags([...(effectiveTargetTags || [])]), tgtText);
 
         /** 譯文只先插入成對 tag 的 open 時，pair 的 sig 會帶 `::INCOMPLETE`（buildTagTokenSequence），須與原文完整 pair 當成同一簽名比對，否則會全紅/全橘。 */
         const sigForColorMatch = (sig) => {
@@ -18438,30 +18625,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                         !e.ctrlKey && !e.metaKey && !e.altKey &&
                         document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
                         const sel = window.getSelection();
-                        // 非收起選取：手動刪除並還原 NP 游標，避免瀏覽器預設刪除後焦點／游標遺失
+                        // 非收起選取：先記 extract 線性起點，deleteContents 再以 extract 重建（避免 slice 與 NP／rt-tag 座標不一致）
                         if (sel && !sel.isCollapsed && sel.rangeCount) {
                             const r0 = sel.getRangeAt(0).cloneRange();
                             if (targetInput.contains(r0.commonAncestorContainer)) {
-                                const startOff = getNpCaretOffset(targetInput);
-                                const rangeEnd = r0.cloneRange();
-                                rangeEnd.collapse(false);
-                                sel.removeAllRanges();
-                                sel.addRange(rangeEnd);
-                                const endOff = getNpCaretOffset(targetInput);
-                                if (startOff != null && endOff != null) {
+                                const startPlain = linearPlainOffsetAtCaret(targetInput, r0.startContainer, r0.startOffset);
+                                if (startPlain != null) {
                                     e.preventDefault();
-                                    const lo = Math.min(startOff, endOff);
-                                    const hi = Math.max(startOff, endOff);
+                                    try {
+                                        sel.getRangeAt(0).deleteContents();
+                                    } catch (_) {
+                                        sel.removeAllRanges();
+                                        sel.addRange(r0);
+                                        return;
+                                    }
                                     const plain = extractTextFromEditor(targetInput);
-                                    const newPlain = plain.slice(0, lo) + plain.slice(hi);
-                                    setEditorHtml(targetInput, buildTaggedHtml(newPlain, effectiveTags(seg)));
+                                    const caretPlain = Math.max(0, Math.min(startPlain, plain.length));
+                                    setEditorHtml(targetInput, buildTaggedHtml(plain, effectiveTags(seg)));
                                     refreshNonPrintMarkers(targetInput);
-                                    setNpCaretOffset(targetInput, lo);
+                                    setNpCaretOffset(targetInput, caretPlain);
                                     targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                                     return;
                                 }
-                                sel.removeAllRanges();
-                                sel.addRange(r0);
                             }
                         }
                         if (sel && sel.isCollapsed && sel.rangeCount) {
