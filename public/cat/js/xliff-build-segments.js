@@ -122,6 +122,10 @@
     }
 
     function buildSegmentsFromXliffXml(xml, fileName) {
+        const Xliff = global.CatToolXliffTags;
+        if (!Xliff || typeof Xliff.extractTaggedText !== 'function') {
+            throw new Error('XLIFF 標籤模組未載入（請確認 index.html 已引入 js/xliff-tag-pipeline.js）');
+        }
 
                 // 讀取原始檔的語言對（XLIFF <file> 元素屬性）
                 const fileNode = xml.getElementsByTagName('file')[0];
