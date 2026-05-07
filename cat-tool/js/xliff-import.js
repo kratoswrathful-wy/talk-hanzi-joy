@@ -79,15 +79,36 @@
         function augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags }) {
             if (!isMqxliffFile) return;
             if (!sourceTags || !sourceTags.length) return;
-            if (targetTags && targetTags.length) return;
             if (!targetText || !String(targetText).trim()) return;
             if (!/<mq:/i.test(String(targetText))) return;
+            const existingPhs = new Set((targetTags || []).map(t => t && t.ph).filter(Boolean));
             for (const st of sourceTags) {
-                if (!st) continue;
+                if (!st || existingPhs.has(st.ph)) continue;
                 const x = st.xml != null ? String(st.xml) : '';
                 const d = st.display != null ? String(st.display) : '';
                 if (!/mq:/i.test(x) && !/mq:/i.test(d)) continue;
                 targetTags.push({ ...st });
+                existingPhs.add(st.ph);
+            }
+        }
+
+        /**
+         * Bug #5：譯文 targetTags 僅部分解析時，依 targetText 內佔位符從 sourceTags 補齊缺漏 ph。
+         * 已存在之條目不覆寫（保留自 &lt;target&gt; 解析到的 xml 等）。
+         */
+        function mergeMqxliffPartialTargetTagsFromSource({ isMqxliffFile, targetText, sourceTags, targetTags }) {
+            if (!isMqxliffFile) return;
+            if (!sourceTags || !sourceTags.length) return;
+            if (!targetText) return;
+            const presentPhs = new Set((String(targetText).match(/\{\/?\d+\}/g) || []));
+            if (!presentPhs.size) return;
+            const existingPhs = new Set((targetTags || []).map(t => t && t.ph).filter(Boolean));
+            for (const st of sourceTags) {
+                if (!st || existingPhs.has(st.ph)) continue;
+                if (presentPhs.has(st.ph)) {
+                    targetTags.push({ ...st });
+                    existingPhs.add(st.ph);
+                }
             }
         }
 
@@ -316,6 +337,7 @@
             }
 
             augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags });
+            mergeMqxliffPartialTargetTagsFromSource({ isMqxliffFile, targetText, sourceTags, targetTags });
 
             if (!sourceText && !targetText) return;
 

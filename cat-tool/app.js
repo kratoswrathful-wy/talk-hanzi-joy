@@ -13772,6 +13772,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const oldTarget = seg.targetText;
         const oldMv = seg.matchValue;
         seg.targetText = extractTextFromEditor(editorDiv);
+        // 插入後同步 targetTags（確保 effectiveTags / 重畫仍為 pill，Bug #5）
+        if (!seg.targetTags) seg.targetTags = [];
+        if (shouldWrapSelection) {
+            if (!seg.targetTags.some(t => t.ph === openTag.ph)) seg.targetTags.push({ ...openTag });
+            if (!seg.targetTags.some(t => t.ph === closeTag.ph)) seg.targetTags.push({ ...closeTag });
+        } else {
+            if (!seg.targetTags.some(t => t.ph === firstMissing.ph)) seg.targetTags.push({ ...firstMissing });
+        }
         const row = editorDiv.closest('.grid-data-row');
         updateTagColors(row, seg.targetText);
         if (seg && oldTarget !== seg.targetText) {
@@ -13781,7 +13789,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             editorUndoEditStart[seg.id] = seg.targetText;
         }
-        applyUpdateSegmentTarget(seg, seg.targetText).catch(console.error);
+        applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags }).catch(console.error);
         refreshTagNextHighlight(row);
     }
 
@@ -18254,6 +18262,99 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Ctrl+Enter logic（先從 DOM 強制寫庫，再執行確認／TM／傳播／undo）
                 targetInput.addEventListener('keydown', (e) => {
+                    // rt-tag 旁 Backspace／Delete（與 show-non-print 無關）：避免游標落入 contenteditable=false 內而「焦點消失」
+                    if ((e.key === 'Backspace' || e.key === 'Delete') &&
+                        !e.ctrlKey && !e.metaKey && !e.altKey) {
+                        const selRt = window.getSelection();
+                        if (selRt && selRt.isCollapsed && selRt.rangeCount) {
+                            const rangeRt = selRt.getRangeAt(0);
+                            const containerRt = rangeRt.startContainer;
+                            const offsetRt = rangeRt.startOffset;
+                            const insideTag = containerRt.nodeType === 3
+                                ? (containerRt.parentElement && containerRt.parentElement.closest('.rt-tag'))
+                                : (containerRt.nodeType === 1 && containerRt.classList && containerRt.classList.contains('rt-tag')
+                                    ? containerRt
+                                    : (containerRt.nodeType === 1 && containerRt.closest ? containerRt.closest('.rt-tag') : null));
+                            if (insideTag && targetInput.contains(insideTag)) {
+                                e.preventDefault();
+                                const rngPop = document.createRange();
+                                if (e.key === 'Backspace') rngPop.setStartBefore(insideTag);
+                                else rngPop.setStartAfter(insideTag);
+                                rngPop.collapse(true);
+                                selRt.removeAllRanges();
+                                selRt.addRange(rngPop);
+                                return;
+                            }
+                            if (e.key === 'Backspace') {
+                                if (containerRt.nodeType === 3 && offsetRt === 0) {
+                                    const prevRt = containerRt.previousSibling;
+                                    if (prevRt && prevRt.nodeType === 1 && prevRt.classList && prevRt.classList.contains('rt-tag')) {
+                                        e.preventDefault();
+                                        prevRt.remove();
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(containerRt, 0);
+                                            rng.collapse(true);
+                                            selRt.removeAllRanges();
+                                            selRt.addRange(rng);
+                                        } catch (_) { /* ignore */ }
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
+                                if (containerRt.nodeType === 1 && offsetRt > 0) {
+                                    const prevCh = containerRt.childNodes[offsetRt - 1];
+                                    if (prevCh && prevCh.nodeType === 1 && prevCh.classList && prevCh.classList.contains('rt-tag')) {
+                                        e.preventDefault();
+                                        prevCh.remove();
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(containerRt, offsetRt - 1);
+                                            rng.collapse(true);
+                                            selRt.removeAllRanges();
+                                            selRt.addRange(rng);
+                                        } catch (_) { /* ignore */ }
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
+                            }
+                            if (e.key === 'Delete') {
+                                if (containerRt.nodeType === 3 && offsetRt === containerRt.nodeValue.length) {
+                                    const nextRt = containerRt.nextSibling;
+                                    if (nextRt && nextRt.nodeType === 1 && nextRt.classList && nextRt.classList.contains('rt-tag')) {
+                                        e.preventDefault();
+                                        nextRt.remove();
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(containerRt, offsetRt);
+                                            rng.collapse(true);
+                                            selRt.removeAllRanges();
+                                            selRt.addRange(rng);
+                                        } catch (_) { /* ignore */ }
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
+                                if (containerRt.nodeType === 1 && offsetRt < containerRt.childNodes.length) {
+                                    const nextCh = containerRt.childNodes[offsetRt];
+                                    if (nextCh && nextCh.nodeType === 1 && nextCh.classList && nextCh.classList.contains('rt-tag')) {
+                                        e.preventDefault();
+                                        nextCh.remove();
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(containerRt, offsetRt);
+                                            rng.collapse(true);
+                                            selRt.removeAllRanges();
+                                            selRt.addRange(rng);
+                                        } catch (_) { /* ignore */ }
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     // Backspace / Delete：非列印字元模式下攔截游標緊鄰標記 span 的刪除操作，
                     // 確保標記 span 與對應空格字元能同步被刪除，避免孤立 span 殘留。
                     if ((e.key === 'Backspace' || e.key === 'Delete') &&
