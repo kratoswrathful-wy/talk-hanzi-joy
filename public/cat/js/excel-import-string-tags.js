@@ -1,5 +1,6 @@
 /**
- * Excel 匯入：Rich Text 萃取之後，於純文字層套用括號／字面 \n／自訂正則，產生 {N}{/N} 與 tags。
+ * Excel 匯入：Rich Text 萃取之後，於純文字層套用可逆 inline tag（角／方／字面 \\n／{}／自訂正則）。
+ * 規格：docs/EXCEL_IMPORT_TAGS_SPEC.md §6、docs/EXCEL_IMPORT_REVERSIBLE_INLINE_TAGS_IMPLEMENTATION_PLAN.md
  * 掛在 window.CatToolExcelImportStringTags。
  */
 (function (window) {
@@ -56,77 +57,453 @@
         return /^\{\d+\}$/.test(part) || /^\{\/\d+\}$/.test(part);
     }
 
-    /**
-     * 成對括號：由 open 找第一個 close；若 inner 含 forbidInner 字元則略過（不支援巢狀 MVP）。
-     * open 為 `{` 時，略過已符合內部佔位符之 {\d+}、{\/\d+}。
-     */
-    function applyGenericPair(seg, openCh, closeCh, forbidInner, startNum, displayOpen) {
-        var out = '';
+    function parseAngleToken(str, i) {
+        var gt = str.indexOf('>', i + 1);
+        if (gt < 0) return { error: true };
+        var raw = str.slice(i, gt + 1);
+        var closeM = /^<\/([\w:-]+)[^>]*>$/.exec(raw);
+        if (closeM) {
+            return { start: i, end: gt + 1, raw: raw, kind: 'angle_close', name: closeM[1] };
+        }
+        var trimmed = raw.replace(/\s+$/, '');
+        if (/\/\s*>$/.test(trimmed)) {
+            var sm = /^<([\w:-]+)/.exec(raw);
+            return {
+                start: i,
+                end: gt + 1,
+                raw: raw,
+                kind: 'angle_sc',
+                name: sm ? sm[1] : ''
+            };
+        }
+        var om = /^<([\w:-]+)/.exec(raw);
+        if (!om) {
+            return { start: i, end: gt + 1, raw: raw, kind: 'angle_lit' };
+        }
+        return { start: i, end: gt + 1, raw: raw, kind: 'angle_open', name: om[1] };
+    }
+
+    function parseSquareToken(str, i) {
+        var rb = str.indexOf(']', i + 1);
+        if (rb < 0) return { error: true };
+        var raw = str.slice(i, rb + 1);
+        var inner = raw.slice(1, -1);
+        if (inner.charAt(0) === '/') {
+            var nm = /^\/([\w:-]+)$/.exec(inner);
+            if (!nm) return { start: i, end: rb + 1, raw: raw, kind: 'sq_lit' };
+            return { start: i, end: rb + 1, raw: raw, kind: 'sq_close', name: nm[1] };
+        }
+        if (/^[\w:-]+$/.test(inner)) {
+            return { start: i, end: rb + 1, raw: raw, kind: 'sq_open_cand', name: inner };
+        }
+        return { start: i, end: rb + 1, raw: raw, kind: 'sq_stand', name: inner };
+    }
+
+    function parseCurlyToken(str, i) {
+        if (str.charAt(i) !== '{') return null;
+        var slice = str.slice(i);
+        if (/^\{\d+\}/.test(slice)) return null;
+        if (/^\{\/\d+\}/.test(slice)) return null;
+        var rb = str.indexOf('}', i + 1);
+        if (rb < 0) return { error: true };
+        var raw = str.slice(i, rb + 1);
+        var inner = raw.slice(1, -1);
+        if (inner.charAt(0) === '/') {
+            var nm = /^\/([\w:-]+)$/.exec(inner);
+            if (!nm) return { start: i, end: rb + 1, raw: raw, kind: 'cy_lit' };
+            return { start: i, end: rb + 1, raw: raw, kind: 'cy_close', name: nm[1] };
+        }
+        if (/^[\w:-]+$/.test(inner)) {
+            return { start: i, end: rb + 1, raw: raw, kind: 'cy_open_cand', name: inner };
+        }
+        return { start: i, end: rb + 1, raw: raw, kind: 'cy_stand', name: inner };
+    }
+
+    function tokenizeAngleSquareLit(seg, opts) {
+        var tokens = [];
         var i = 0;
-        var num = startNum;
-        var newTags = [];
         while (i < seg.length) {
-            if (seg[i] !== openCh) {
-                out += seg[i];
-                i++;
+            if (opts.literalBackslashN && seg.charAt(i) === '\\' && seg.charAt(i + 1) === 'n') {
+                tokens.push({ start: i, end: i + 2, raw: '\\n', kind: 'litn' });
+                i += 2;
                 continue;
             }
-            if (openCh === '{') {
-                var sys = seg.slice(i).match(/^\{\d+\}|\{\/\d+\}/);
-                if (sys) {
-                    out += sys[0];
-                    i += sys[0].length;
+            if (opts.angleBracket && seg.charAt(i) === '<') {
+                var a = parseAngleToken(seg, i);
+                if (a && a.error) return { error: true };
+                tokens.push(a);
+                i = a.end;
+                continue;
+            }
+            if (opts.squareBracket && seg.charAt(i) === '[') {
+                var s = parseSquareToken(seg, i);
+                if (s && s.error) return { error: true };
+                tokens.push(s);
+                i = s.end;
+                continue;
+            }
+            i++;
+        }
+        return { tokens: tokens };
+    }
+
+    function attachAngleDepthBefore(tokens) {
+        var depth = 0;
+        for (var i = 0; i < tokens.length; i++) {
+            tokens[i].angleDepthBefore = depth;
+            var k = tokens[i].kind;
+            if (k === 'angle_open') depth++;
+            else if (k === 'angle_close') depth--;
+        }
+    }
+
+    function validateAngleStack(tokens) {
+        var stack = [];
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (t.kind === 'angle_open') stack.push(t.name);
+            else if (t.kind === 'angle_close') {
+                if (!stack.length || stack[stack.length - 1] !== t.name) return false;
+                stack.pop();
+            }
+        }
+        return stack.length === 0;
+    }
+
+    function squareOpenIsPaired(tokens, idx) {
+        var t0 = tokens[idx];
+        var name = t0.name;
+        var ad = t0.angleDepthBefore;
+        var j;
+        for (j = idx + 1; j < tokens.length; j++) {
+            var t = tokens[j];
+            if (t.kind === 'angle_open') ad++;
+            else if (t.kind === 'angle_close') ad--;
+            if (ad < t0.angleDepthBefore) return false;
+            if (t.kind === 'sq_close' && t.name === name && ad === t0.angleDepthBefore) return true;
+        }
+        return false;
+    }
+
+    function decorateSquarePairing(tokens) {
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            t.sqPaired = false;
+            if (t.kind === 'sq_open_cand') {
+                t.sqPaired = squareOpenIsPaired(tokens, i);
+            }
+        }
+    }
+
+    /** 僅含 {} token 的區段：以巢狀 stack 尋找對應 `{/name}` */
+    function curlyOpenIsPairedSimple(tokens, idx) {
+        var name = tokens[idx].name;
+        var stack = [];
+        var j;
+        for (j = idx + 1; j < tokens.length; j++) {
+            var t = tokens[j];
+            if (t.kind === 'cy_open_cand') stack.push(t.name);
+            else if (t.kind === 'cy_close') {
+                if (!stack.length) return t.name === name;
+                var inner = stack.pop();
+                if (inner !== t.name) return false;
+            }
+        }
+        return false;
+    }
+
+    function tokenizeCurlyOnly(seg) {
+        var tokens = [];
+        var i = 0;
+        while (i < seg.length) {
+            if (seg.charAt(i) === '{') {
+                var c = parseCurlyToken(seg, i);
+                if (c && c.error) return { error: true };
+                if (c) {
+                    tokens.push(c);
+                    i = c.end;
                     continue;
                 }
             }
-            var innerStart = i + 1;
-            var j = seg.indexOf(closeCh, innerStart);
-            if (j < 0) {
-                out += seg[i];
-                i++;
-                continue;
-            }
-            var inner = seg.slice(innerStart, j);
-            if (forbidInner && inner.indexOf(forbidInner) >= 0) {
-                out += seg[i];
-                i++;
-                continue;
-            }
-            num++;
-            var phO = '{' + num + '}';
-            var phC = '{/' + num + '}';
-            var dispC = displayOpen.indexOf('[') === 0 ? displayOpen.replace('[', '[/') : ('[/' + displayOpen + ']');
-            newTags.push({ ph: phO, xml: '', display: displayOpen, type: 'open', pairNum: num, num: num });
-            newTags.push({ ph: phC, xml: '', display: dispC, type: 'close', pairNum: num, num: num });
-            // 將「括號本身 + 內容」視為同一區段
-            out += phO + openCh + inner + closeCh + phC;
-            i = j + 1;
+            i++;
         }
-        return { text: out, nextNum: num, newTags: newTags };
+        return { tokens: tokens };
     }
 
-    function applyLiteralBackslashN(seg, startNum) {
-        var out = '';
+    function decorateCurlyPairing(tokens) {
+        for (var i = 0; i < tokens.length; i++) {
+            tokens[i].cyPaired = false;
+        }
+        for (var j = 0; j < tokens.length; j++) {
+            if (tokens[j].kind === 'cy_open_cand') {
+                tokens[j].cyPaired = curlyOpenIsPairedSimple(tokens, j);
+            }
+        }
+    }
+
+    /** 在不含角／方／litn 的區段內處理 {}（略過 {\d+}{/\d+}） */
+    function applyCurlySegment(seg, startNum) {
+        var tok = tokenizeCurlyOnly(seg);
+        if (tok.error) return { text: seg, nextNum: startNum, newTags: [] };
+        var tokens = tok.tokens;
+        if (!tokens.length) return { text: seg, nextNum: startNum, newTags: [] };
+        decorateCurlyPairing(tokens);
+        var stack = [];
+        var i;
+        for (i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (t.kind === 'cy_open_cand' && t.cyPaired) stack.push(t.name);
+            else if (t.kind === 'cy_close' && t.cyPaired) {
+                if (!stack.length || stack[stack.length - 1] !== t.name) {
+                    return { text: seg, nextNum: startNum, newTags: [] };
+                }
+                stack.pop();
+            }
+        }
+        if (stack.length) return { text: seg, nextNum: startNum, newTags: [] };
+
         var num = startNum;
         var newTags = [];
-        for (var i = 0; i < seg.length; i++) {
-            if (seg[i] === '\\' && seg[i + 1] === 'n') {
+        var out = '';
+        var pos = 0;
+        var curlyPairNs = [];
+        function shortDisp(kind, name, raw) {
+            if (kind === 'cy_stand') return raw.length > 32 ? raw.slice(0, 32) + '…' : raw;
+            return '{' + name + '}';
+        }
+        for (i = 0; i < tokens.length; i++) {
+            var tt = tokens[i];
+            out += seg.slice(pos, tt.start);
+            pos = tt.end;
+            if (tt.kind === 'cy_stand' || tt.kind === 'cy_lit') {
                 num++;
+                var ph0 = '{' + num + '}';
+                newTags.push({
+                    ph: ph0,
+                    xml: tt.raw,
+                    display: shortDisp(tt.kind, tt.name, tt.raw),
+                    type: 'standalone',
+                    pairNum: num,
+                    num: num
+                });
+                out += ph0;
+            } else if (tt.kind === 'cy_open_cand' && tt.cyPaired) {
+                num++;
+                curlyPairNs.push(num);
                 var phO = '{' + num + '}';
-                var phC = '{/' + num + '}';
-                newTags.push({ ph: phO, xml: '', display: '[\\\\n]', type: 'open', pairNum: num, num: num });
-                newTags.push({ ph: phC, xml: '', display: '[/\\\\n]', type: 'close', pairNum: num, num: num });
-                // 將字面兩字元「\\n」包進同一區段
-                out += phO + '\\n' + phC;
-                i++;
-            } else {
-                out += seg[i];
+                newTags.push({
+                    ph: phO,
+                    xml: tt.raw,
+                    display: '{' + tt.name + '}',
+                    type: 'open',
+                    pairNum: num,
+                    num: num
+                });
+                out += phO;
+            } else if (tt.kind === 'cy_close' && tt.cyPaired) {
+                var pc = curlyPairNs.pop();
+                newTags.push({
+                    ph: '{/' + pc + '}',
+                    xml: tt.raw,
+                    display: '{/' + tt.name + '}',
+                    type: 'close',
+                    pairNum: pc,
+                    num: pc
+                });
+                out += '{/' + pc + '}';
+            } else if (tt.kind === 'cy_open_cand' && !tt.cyPaired) {
+                num++;
+                var phU = '{' + num + '}';
+                newTags.push({
+                    ph: phU,
+                    xml: tt.raw,
+                    display: shortDisp('cy_stand', tt.name, tt.raw),
+                    type: 'standalone',
+                    pairNum: num,
+                    num: num
+                });
+                out += phU;
+            } else if (tt.kind === 'cy_close' && !tt.cyPaired) {
+                out += tt.raw;
             }
         }
+        out += seg.slice(pos);
         return { text: out, nextNum: num, newTags: newTags };
     }
 
-    function applyOneRegexGrow(seg, pattern, startNum) {
+    function transformAngleSquareLit(seg, startNum, opts) {
+        var tok = tokenizeAngleSquareLit(seg, opts);
+        if (tok.error) return { text: seg, nextNum: startNum, newTags: [] };
+        var tokens = tok.tokens;
+        if (!tokens.length) return { text: seg, nextNum: startNum, newTags: [] };
+
+        attachAngleDepthBefore(tokens);
+        if (!validateAngleStack(tokens)) {
+            return { text: seg, nextNum: startNum, newTags: [] };
+        }
+        decorateSquarePairing(tokens);
+
+        var stack = [];
+        var i;
+        for (i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (t.kind === 'sq_open_cand' && t.sqPaired) stack.push(t.name);
+            else if (t.kind === 'sq_close' && t.sqPaired) {
+                if (!stack.length || stack[stack.length - 1] !== t.name) {
+                    return { text: seg, nextNum: startNum, newTags: [] };
+                }
+                stack.pop();
+            }
+        }
+        if (stack.length) return { text: seg, nextNum: startNum, newTags: [] };
+
+        var num = startNum;
+        var newTags = [];
+        var out = '';
+        var pos = 0;
+        var anglePairNs = [];
+        var squarePairNs = [];
+
+        function dispAngle(nm, raw) {
+            return raw.length > 36 ? '<' + nm + '>' : raw;
+        }
+
+        for (i = 0; i < tokens.length; i++) {
+            var tt = tokens[i];
+            out += seg.slice(pos, tt.start);
+            pos = tt.end;
+
+            if (tt.kind === 'angle_lit') {
+                out += tt.raw;
+                continue;
+            }
+            if (tt.kind === 'litn') {
+                num++;
+                var phN = '{' + num + '}';
+                newTags.push({
+                    ph: phN,
+                    xml: '\\n',
+                    display: '[\\\\n]',
+                    type: 'standalone',
+                    pairNum: num,
+                    num: num
+                });
+                out += phN;
+                continue;
+            }
+            if (tt.kind === 'angle_sc') {
+                num++;
+                var phS = '{' + num + '}';
+                newTags.push({
+                    ph: phS,
+                    xml: tt.raw,
+                    display: dispAngle(tt.name, tt.raw),
+                    type: 'standalone',
+                    pairNum: num,
+                    num: num
+                });
+                out += phS;
+                continue;
+            }
+            if (tt.kind === 'sq_lit') {
+                out += tt.raw;
+                continue;
+            }
+            if (tt.kind === 'sq_stand') {
+                num++;
+                var phQ = '{' + num + '}';
+                var dq = tt.raw.length > 36 ? tt.raw.slice(0, 36) + '…' : tt.raw;
+                newTags.push({
+                    ph: phQ,
+                    xml: tt.raw,
+                    display: dq,
+                    type: 'standalone',
+                    pairNum: num,
+                    num: num
+                });
+                out += phQ;
+                continue;
+            }
+            if (tt.kind === 'sq_open_cand' && tt.sqPaired) {
+                num++;
+                squarePairNs.push(num);
+                var phSo = '{' + num + '}';
+                newTags.push({
+                    ph: phSo,
+                    xml: tt.raw,
+                    display: '[' + tt.name + ']',
+                    type: 'open',
+                    pairNum: num,
+                    num: num
+                });
+                out += phSo;
+                continue;
+            }
+            if (tt.kind === 'sq_close' && tt.sqPaired) {
+                var ps = squarePairNs.pop();
+                newTags.push({
+                    ph: '{/' + ps + '}',
+                    xml: tt.raw,
+                    display: '[/' + tt.name + ']',
+                    type: 'close',
+                    pairNum: ps,
+                    num: ps
+                });
+                out += '{/' + ps + '}';
+                continue;
+            }
+            if (tt.kind === 'sq_open_cand' && !tt.sqPaired) {
+                num++;
+                var phSs = '{' + num + '}';
+                newTags.push({
+                    ph: phSs,
+                    xml: tt.raw,
+                    display: '[' + tt.name + ']',
+                    type: 'standalone',
+                    pairNum: num,
+                    num: num
+                });
+                out += phSs;
+                continue;
+            }
+            if (tt.kind === 'sq_close' && !tt.sqPaired) {
+                out += tt.raw;
+                continue;
+            }
+            if (tt.kind === 'angle_open') {
+                num++;
+                anglePairNs.push(num);
+                var phAo = '{' + num + '}';
+                newTags.push({
+                    ph: phAo,
+                    xml: tt.raw,
+                    display: dispAngle(tt.name, tt.raw),
+                    type: 'open',
+                    pairNum: num,
+                    num: num
+                });
+                out += phAo;
+                continue;
+            }
+            if (tt.kind === 'angle_close') {
+                var pa = anglePairNs.pop();
+                newTags.push({
+                    ph: '{/' + pa + '}',
+                    xml: tt.raw,
+                    display: '</' + tt.name + '>',
+                    type: 'close',
+                    pairNum: pa,
+                    num: pa
+                });
+                out += '{/' + pa + '}';
+                continue;
+            }
+        }
+        out += seg.slice(pos);
+        return { text: out, nextNum: num, newTags: newTags };
+    }
+
+    function applyOneRegexStandalone(seg, pattern, startNum) {
         var num = startNum;
         var newTags = [];
         var s = seg;
@@ -147,11 +524,16 @@
             }
             var inner = m[0];
             num++;
-            var phO = '{' + num + '}';
-            var phC = '{/' + num + '}';
-            newTags.push({ ph: phO, xml: '', display: disp, type: 'open', pairNum: num, num: num });
-            newTags.push({ ph: phC, xml: '', display: disp.replace('[', '[/'), type: 'close', pairNum: num, num: num });
-            s = s.slice(0, m.index) + phO + inner + phC + s.slice(m.index + inner.length);
+            var ph = '{' + num + '}';
+            newTags.push({
+                ph: ph,
+                xml: inner,
+                display: disp,
+                type: 'standalone',
+                pairNum: num,
+                num: num
+            });
+            s = s.slice(0, m.index) + ph + s.slice(m.index + inner.length);
         }
         return { text: s, nextNum: num, newTags: newTags };
     }
@@ -183,45 +565,43 @@
             return { text: t, tags: tags.length ? tags : null, skipped: true };
         }
 
-        function runBracketPass(kind) {
+        function runAngleSquareLitPass() {
             var parts = splitPreservingPh(t);
             var n = maxTagNum(t, tags);
             var accTags = [];
-            var rebuilt = parts.map(function (part, pi) {
+            var rebuilt = parts.map(function (part) {
                 if (isPhToken(part)) return part;
-                var seg = part;
-                var r;
-                if (kind === 'angle' && merged.angleBracket) {
-                    r = applyGenericPair(seg, '<', '>', '<', n, '[<>]');
-                    seg = r.text;
-                    n = r.nextNum;
-                    accTags = accTags.concat(r.newTags);
-                } else if (kind === 'square' && merged.squareBracket) {
-                    r = applyGenericPair(seg, '[', ']', '[', n, '[[]]');
-                    seg = r.text;
-                    n = r.nextNum;
-                    accTags = accTags.concat(r.newTags);
-                } else if (kind === 'curly' && merged.curlyBracket) {
-                    r = applyGenericPair(seg, '{', '}', '{', n, '[{}]');
-                    seg = r.text;
-                    n = r.nextNum;
-                    accTags = accTags.concat(r.newTags);
-                } else if (kind === 'literal' && merged.literalBackslashN) {
-                    r = applyLiteralBackslashN(seg, n);
-                    seg = r.text;
+                var r = transformAngleSquareLit(part, n, merged);
+                if (r.newTags.length) {
                     n = r.nextNum;
                     accTags = accTags.concat(r.newTags);
                 }
-                return seg;
+                return r.text;
             });
             t = rebuilt.join('');
             tags = tags.concat(accTags);
         }
 
-        runBracketPass('angle');
-        runBracketPass('square');
-        runBracketPass('curly');
-        runBracketPass('literal');
+        function runCurlyPass() {
+            if (!merged.curlyBracket) return;
+            var parts = splitPreservingPh(t);
+            var n = maxTagNum(t, tags);
+            var accTags = [];
+            var rebuilt = parts.map(function (part) {
+                if (isPhToken(part)) return part;
+                var r = applyCurlySegment(part, n);
+                if (r.newTags.length) {
+                    n = r.nextNum;
+                    accTags = accTags.concat(r.newTags);
+                }
+                return r.text;
+            });
+            t = rebuilt.join('');
+            tags = tags.concat(accTags);
+        }
+
+        runAngleSquareLitPass();
+        runCurlyPass();
 
         if (merged.customPatterns && merged.customPatterns.length) {
             var parts2 = splitPreservingPh(t);
@@ -230,9 +610,11 @@
             var out2 = parts2.map(function (part) {
                 if (isPhToken(part)) return part;
                 var seg = part;
-                var patterns = merged.customPatterns.map(function (p) { return String(p || '').trim(); }).filter(Boolean);
+                var patterns = merged.customPatterns.map(function (p) {
+                    return String(p || '').trim();
+                }).filter(Boolean);
                 patterns.forEach(function (pat) {
-                    var r = applyOneRegexGrow(seg, pat, n2);
+                    var r = applyOneRegexStandalone(seg, pat, n2);
                     seg = r.text;
                     n2 = r.nextNum;
                     acc2 = acc2.concat(r.newTags);
@@ -247,13 +629,48 @@
         return { text: t, tags: has ? tags : null };
     }
 
+    /**
+     * Excel 純文字匯出：將譯文內 `{n}`、`{/n}` 依 tags[].xml 還原為匯入前 token。
+     * 若某 placeholder 無對應 xml（例如舊資料），保留原字樣。
+     */
+    function restorePlaceholdersForExport(text, tags) {
+        if (text == null) return '';
+        var s = String(text);
+        if (!tags || !tags.length) return s;
+        var map = [];
+        for (var i = 0; i < tags.length; i++) {
+            var t = tags[i];
+            if (!t || !t.ph) continue;
+            var xml = t.xml;
+            if (xml === undefined || xml === null || xml === '') continue;
+            map.push({ ph: String(t.ph), xml: String(xml) });
+        }
+        map.sort(function (a, b) {
+            return b.ph.length - a.ph.length;
+        });
+        var out = s;
+        for (var j = 0; j < map.length; j++) {
+            var ph = map[j].ph;
+            var xm = map[j].xml;
+            out = out.split(ph).join(xm);
+        }
+        return out;
+    }
+
     window.CatToolExcelImportStringTags = {
         MAX_CUSTOM_REGEX_ROWS: MAX_CUSTOM_REGEX_ROWS,
         MAX_PATTERN_CHARS: MAX_PATTERN_CHARS,
         validateCustomRegexList: validateCustomRegexList,
         applyPipeline: applyPipeline,
+        restorePlaceholdersForExport: restorePlaceholdersForExport,
         defaultOpts: function () {
-            return { angleBracket: true, squareBracket: true, curlyBracket: true, literalBackslashN: true, customPatterns: [] };
+            return {
+                angleBracket: true,
+                squareBracket: true,
+                curlyBracket: true,
+                literalBackslashN: true,
+                customPatterns: []
+            };
         }
     };
 })(window);

@@ -5815,6 +5815,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return prefix + exportedName;
     }
 
+    /** 試算表純文字匯出：將 `{n}`／`{/n}` 依 targetTags[].xml 還原為原始 token */
+    function excelExportPlainTargetCell(targetText, targetTags) {
+        const StrTags = window.CatToolExcelImportStringTags;
+        if (StrTags && typeof StrTags.restorePlaceholdersForExport === 'function') {
+            return StrTags.restorePlaceholdersForExport(targetText, targetTags);
+        }
+        return targetText || '';
+    }
+
     async function _batchExportBuildBlob(f, segs, format) {
         if (format === 'xliff' || format === 'mqxliff' || format === 'sdlxliff') {
             if (!Xliff || typeof Xliff.exportXliffFamilyToBlob !== 'function') {
@@ -5838,7 +5847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const rowData = [headers, ...segs.map(s => {
                 const row = [];
                 if (hasKey) row.push(s.stringKey || '');
-                row.push(s.sourceText || '', s.targetText || '');
+                row.push(s.sourceText || '', excelExportPlainTargetCell(s.targetText, s.targetTags));
                 if (hasExtra) row.push(s.extraText || '');
                 return row;
             })];
@@ -5873,7 +5882,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const s of sheetSegs) {
                 while (data.length <= s.rowIdx) data.push([]);
                 while (data[s.rowIdx].length <= s.colTgt) data[s.rowIdx].push('');
-                data[s.rowIdx][s.colTgt] = s.targetText || '';
+                data[s.rowIdx][s.colTgt] = excelExportPlainTargetCell(s.targetText, s.targetTags);
             }
             wb.Sheets[actualName] = XLSX.utils.aoa_to_sheet(data);
         }
@@ -22396,7 +22405,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const rows = [headers, ...segs.map(s => {
                     const row = [];
                     if (hasKey) row.push(s.stringKey || '');
-                    row.push(s.sourceText || '', s.targetText || '');
+                    row.push(s.sourceText || '', excelExportPlainTargetCell(s.targetText, s.targetTags));
                     if (hasExtra) row.push(s.extraText || '');
                     return row;
                 })];
@@ -22452,7 +22461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // 確保陣列有足夠的列/欄
                         while (data.length <= s.rowIdx) data.push([]);
                         while (data[s.rowIdx].length <= s.colTgt) data[s.rowIdx].push('');
-                        data[s.rowIdx][s.colTgt] = s.targetText || '';
+                        data[s.rowIdx][s.colTgt] = excelExportPlainTargetCell(s.targetText, s.targetTags);
                         excelWriteCount++;
                     }
 
