@@ -13240,8 +13240,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const undoItems = [];
                 for (let idx = 0; idx < affectedSegments.length; idx++) {
                     const seg = affectedSegments[idx];
+                    const segSrcTrim = String(seg.sourceText || '').trim();
+                    const segSrcLen = segSrcTrim.length;
                     const beforeSnap = snapshotSegForUndo(seg);
                     if (isTargetWriteProtected(seg) || (!overwrite && seg.targetText.trim() !== '')) {
+                        setPreTranslateProgress(idx + 1, total);
+                        if ((idx + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+                        continue;
+                    }
+                    if (!segSrcLen) {
                         setPreTranslateProgress(idx + 1, total);
                         if ((idx + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
                         continue;
@@ -13253,8 +13260,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const _batchPenalties = window.ActiveTmPenalties || {};
                     if (window.ActiveTmCache && window.ActiveTmCache.length > 0) {
                         for (const tms of window.ActiveTmCache) {
-                            const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
+                            // 快速上界：Levenshtein 的最小距離 ≥ |len1-len2|，因此最高可能相似度 ≤ (maxLen - diff)/maxLen
+                            // 若連上界都達不到門檻，就不必做 O(n*m) 的 levenshtein 計算。
+                            const tmsSrc = tms.sourceText || '';
+                            const tmsLen = (tms._srcTrimLen != null) ? tms._srcTrimLen : (tms._srcTrimLen = String(tmsSrc).trim().length);
+                            const maxLen = segSrcLen > tmsLen ? segSrcLen : tmsLen;
+                            const diffLen = segSrcLen > tmsLen ? (segSrcLen - tmsLen) : (tmsLen - segSrcLen);
+                            const upperSim = maxLen === 0 ? 100 : Math.floor(((maxLen - diffLen) / maxLen) * 100);
                             const penalty = _batchPenalties[tms._tmId] ?? 0;
+                            if (upperSim - penalty <= bestScore) continue;
+                            if (upperSim < 50) continue;
+                            const sim = calculateSimilarity(segSrcTrim, tmsSrc);
                             const effectiveScore = Math.max(0, sim - penalty);
                             if (effectiveScore > bestScore) {
                                 bestScore = effectiveScore;
@@ -17558,11 +17574,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function pickBestTmForAuto(seg) {
         if (!window.ActiveTmCache || !window.ActiveTmCache.length || !seg.sourceText) return null;
+        const segSrcTrim = String(seg.sourceText || '').trim();
+        const segSrcLen = segSrcTrim.length;
         const rawTm = [];
         const _activePenalties = window.ActiveTmPenalties || {};
         window.ActiveTmCache.forEach(tms => {
-            const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
+            const tmsSrc = tms.sourceText || '';
+            const tmsLen = (tms._srcTrimLen != null) ? tms._srcTrimLen : (tms._srcTrimLen = String(tmsSrc).trim().length);
+            const maxLen = segSrcLen > tmsLen ? segSrcLen : tmsLen;
+            const diffLen = segSrcLen > tmsLen ? (segSrcLen - tmsLen) : (tmsLen - segSrcLen);
+            const upperSim = maxLen === 0 ? 100 : Math.floor(((maxLen - diffLen) / maxLen) * 100);
             const penalty = (_activePenalties[tms._tmId] ?? 0);
+            if (upperSim < 50) return;
+            if (upperSim - penalty < 50) return;
+            const sim = calculateSimilarity(segSrcTrim, tmsSrc);
             const effectiveScore = Math.max(0, sim - penalty);
             if (sim >= 50) rawTm.push({ ...tms, score: effectiveScore, _rawScore: sim, type: 'TM' });
         });
@@ -19046,12 +19071,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (hasTm) {
                 const rawTm = [];
                 const _activePenalties = window.ActiveTmPenalties || {};
+            const segSrcTrim = String(seg.sourceText || '').trim();
+            const segSrcLen = segSrcTrim.length;
             window.ActiveTmCache.forEach(tms => {
-                const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
+                const tmsSrc = tms.sourceText || '';
+                const tmsLen = (tms._srcTrimLen != null) ? tms._srcTrimLen : (tms._srcTrimLen = String(tmsSrc).trim().length);
+                const maxLen = segSrcLen > tmsLen ? segSrcLen : tmsLen;
+                const diffLen = segSrcLen > tmsLen ? (segSrcLen - tmsLen) : (tmsLen - segSrcLen);
+                const upperSim = maxLen === 0 ? 100 : Math.floor(((maxLen - diffLen) / maxLen) * 100);
                 const penalty = (_activePenalties[tms._tmId] ?? 0) / 100;
-                const effectiveScore = Math.max(0, Math.round((sim - penalty * 100)));
+                // 先用上界快速排除，減少 levenshtein 的呼叫次數
+                if (upperSim < 50) return;
+                const sim = calculateSimilarity(segSrcTrim, tmsSrc);
+                const effectiveScore2 = Math.max(0, Math.round((sim - penalty * 100)));
                 if (sim >= 50) {
-                        rawTm.push({ ...tms, score: effectiveScore, _rawScore: sim, type: 'TM' });
+                        rawTm.push({ ...tms, score: effectiveScore2, _rawScore: sim, type: 'TM' });
                     } else if (tms.sourceText && tms.sourceText.length >= 2 && seg.sourceText.includes(tms.sourceText)) {
                         rawTm.push({ ...tms, score: 'S', type: 'Fragment' });
                     }
