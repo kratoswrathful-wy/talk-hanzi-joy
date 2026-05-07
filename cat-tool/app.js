@@ -14847,6 +14847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (isSfNavAnchorUiActive() && sfActiveMatchIdx >= 0 && sfSearchMatches[sfActiveMatchIdx]) {
             const m = sfSearchMatches[sfActiveMatchIdx];
+            if (!document.body.contains(m.markEl)) return null;
             const r = document.createRange();
             if (collapseToEnd) {
                 r.setStartAfter(m.markEl);
@@ -14866,6 +14867,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!anchorRange) return 0;
         for (let i = 0; i < n; i++) {
             const mk = sfSearchMatches[i].markEl;
+            if (!document.body.contains(mk)) continue;
             const startR = document.createRange();
             startR.setStartBefore(mk);
             startR.collapse(true);
@@ -14880,6 +14882,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!anchorRange) return n - 1;
         for (let i = n - 1; i >= 0; i--) {
             const mk = sfSearchMatches[i].markEl;
+            if (!document.body.contains(mk)) continue;
             const endR = document.createRange();
             endR.setStartAfter(mk);
             endR.collapse(true);
@@ -14901,6 +14904,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function goToSearchMatchStep(delta) {
         if (!sfSearchMatches.length || (!currentFileId && !_currentViewId)) return;
+        if (sfSearchMatches.some((m) => !document.body.contains(m.markEl))) {
+            runSearchAndFilter({ keepFilterSnapshot: true });
+            if (!sfSearchMatches.length) return;
+        }
         const dir = delta > 0 ? 'next' : 'prev';
         const anchor = getSearchNavAnchorCollapsed(dir);
         const idx = dir === 'next'
