@@ -1504,6 +1504,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         window._tmsManagedIdentity = true;
         enforceTeamRoleLayout();
+        syncExecutiveCatDebugApi();
     }
 
     /** 顯示 TMS 個人資訊唯讀卡片。 */
@@ -11494,6 +11495,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentMqConfirmationRole = 'T_ALLOW_R1'; // mqxliff 用的目前確認身分
     let currentFileDefaultMqRole = null; // 匯入時儲存的預設身分，用於字數/句段統計基準
 
+    /**
+     * 僅 TMS primaryRole 為 executive（執行長／身分卡「主管」）時掛載 Console 除錯 API。
+     * 不用 _isCatExecutive()（離線模式會誤對所有人開放）。
+     */
+    function syncExecutiveCatDebugApi() {
+        delete window.__catDebugDumpSegment;
+        delete window.__catDebugSegmentTagsHelp;
+        if ((window._tmsRole || '').toLowerCase() !== 'executive') return;
+
+        window.__catDebugSegmentTagsHelp = function () {
+            console.info(
+                '[CAT tag 除錯 — 僅執行長]\n' +
+                '__catDebugSegmentTagsHelp()  — 此說明\n' +
+                '__catDebugDumpSegment()     — 依 catPanelSelectedIndex 輸出該句 tags\n' +
+                '__catDebugDumpSegment(id)   — 指定句段 id（列 data-seg-id）'
+            );
+        };
+
+        window.__catDebugDumpSegment = function (segIdOpt) {
+            let seg = null;
+            if (segIdOpt != null && String(segIdOpt).trim() !== '') {
+                const want = String(segIdOpt);
+                seg = currentSegmentsList.find((s) => s && String(s.id) === want);
+                if (!seg && !isTeamMode()) {
+                    const n = parseInt(want, 10);
+                    if (!Number.isNaN(n)) seg = currentSegmentsList.find((s) => s && s.id === n);
+                }
+            } else {
+                const rel = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : -1;
+                if (rel >= 0 && rel < currentSegmentsList.length) seg = currentSegmentsList[rel];
+            }
+            if (!seg) {
+                console.warn('[CAT debug] 找不到句段。請傳入 id，或先在編輯網格選取列。');
+                return null;
+            }
+            const trimXml = (t) => {
+                const x = t && t.xml != null ? String(t.xml) : '';
+                return x.length > 220 ? x.slice(0, 220) + '…' : x;
+            };
+            const summarize = (tags) => (tags || []).map((t) => ({
+                ph: t && t.ph,
+                type: t && t.type,
+                num: t && t.num,
+                pairNum: t && t.pairNum,
+                xmlPreview: trimXml(t),
+            }));
+            const out = {
+                id: seg.id,
+                sourceText: seg.sourceText,
+                targetText: seg.targetText,
+                sourceTagsSummary: summarize(seg.sourceTags),
+                targetTagsSummary: summarize(seg.targetTags),
+                sourceTags: seg.sourceTags,
+                targetTags: seg.targetTags,
+            };
+            console.log('[CAT debug] segment', seg.id, out);
+            return out;
+        };
+    }
+
     // 禁止編輯核心判斷：以 role 等級與句段 originalRole 計算是否禁止
     // 規則（角色等級：T < R1 < R2）：
     //   ‧ R2 確認句段：只有 R2 session 可編輯，其餘均禁止
@@ -17696,6 +17757,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderEditorSegments() {
+        syncExecutiveCatDebugApi();
         gridBody.innerHTML = '';
         // 重建 DOM 後列皆為預設可見；若不清快取，runSearchAndFilter 以 rowCache.vis 比對會誤判為「無需更新 display」而留下錯誤可見狀態，篩選亦會失效。
         sfRowRenderCache.clear();
