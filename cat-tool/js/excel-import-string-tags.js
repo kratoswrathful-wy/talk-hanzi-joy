@@ -98,7 +98,8 @@
             var dispC = displayOpen.indexOf('[') === 0 ? displayOpen.replace('[', '[/') : ('[/' + displayOpen + ']');
             newTags.push({ ph: phO, xml: '', display: displayOpen, type: 'open', pairNum: num, num: num });
             newTags.push({ ph: phC, xml: '', display: dispC, type: 'close', pairNum: num, num: num });
-            out += phO + inner + phC;
+            // 將「括號本身 + 內容」視為同一區段
+            out += phO + openCh + inner + closeCh + phC;
             i = j + 1;
         }
         return { text: out, nextNum: num, newTags: newTags };
@@ -115,7 +116,8 @@
                 var phC = '{/' + num + '}';
                 newTags.push({ ph: phO, xml: '', display: '[\\\\n]', type: 'open', pairNum: num, num: num });
                 newTags.push({ ph: phC, xml: '', display: '[/\\\\n]', type: 'close', pairNum: num, num: num });
-                out += phO + phC;
+                // 將字面兩字元「\\n」包進同一區段
+                out += phO + '\\n' + phC;
                 i++;
             } else {
                 out += seg[i];
