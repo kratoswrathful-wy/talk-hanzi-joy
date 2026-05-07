@@ -4568,6 +4568,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
             ensureStatusColumnLast();
+            ensureSourceFileColAfterKeys();
+            applyAutoHiddenCols(currentSegmentsList);
 
             const gridHeaderRow = document.getElementById('gridHeaderRow');
             if (gridHeaderRow) {
@@ -4577,6 +4579,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     cell.className = 'grid-header-cell';
                     cell.setAttribute('data-col-id', c.id);
                     populateGridHeaderTitleCell(cell, c);
+                    attachColResizer(cell, c, gridHeaderRow);
                     cell.style.order = idx;
                     cell.style.display = c.visible ? '' : 'none';
                     gridHeaderRow.appendChild(cell);
@@ -13032,6 +13035,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         ensureStatusColumnLast();
+        ensureSourceFileColAfterKeys();
+        applyAutoHiddenCols(currentSegmentsList);
 
         // Initialize grid headers
         const gridHeaderRow = document.getElementById('gridHeaderRow');
@@ -13043,60 +13048,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             populateGridHeaderTitleCell(cell, c);
             
-            // Status, Match, and Repetition don't have resizers and are fixed/sticky
-            if (c.id !== 'col-status' && c.id !== 'col-match' && c.id !== 'col-repetition') {
-                const resizer = document.createElement('div');
-                resizer.className = 'col-resizer';
-                resizer.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    
-                    const activeColsList = colSettings.filter(cx => cx.visible);
-                    const otherColsObj = activeColsList.filter(cx => cx.id !== 'col-status');
-                    
-                    const visibleIndex = otherColsObj.findIndex(cx => cx.id === c.id);
-                    const nextCol = visibleIndex >= 0 && visibleIndex < otherColsObj.length - 1 ? otherColsObj[visibleIndex + 1] : null;
-
-                    // 如果右側是「重複」欄，就不要提供拖曳調整，避免影響重複欄寬度
-                    if (nextCol && nextCol.id === 'col-repetition') return;
-
-                    if (!nextCol) return;
-
-                    let startX = e.clientX;
-                    const leftCell = cell;
-                    const rightCell = gridHeaderRow.querySelector(`.grid-header-cell[data-col-id="${nextCol.id}"]`);
-                    if (!leftCell || !rightCell) return;
-                    
-                    let startWidthLeft = leftCell.offsetWidth;
-                    let startWidthRight = rightCell.offsetWidth;
-
-                    const onMove = (ev) => {
-                        let deltaX = ev.clientX - startX;
-                        
-                        let minLeft = c.id.startsWith('col-key') || c.id === 'col-extra' ? 120 : (c.id === 'col-source' || c.id === 'col-target' ? 200 : 50);
-                        let minRight = nextCol.id.startsWith('col-key') || nextCol.id === 'col-extra' ? 120 : (nextCol.id === 'col-source' || nextCol.id === 'col-target' ? 200 : 50);
-                        
-                        if (startWidthLeft + deltaX < minLeft) deltaX = minLeft - startWidthLeft;
-                        if (startWidthRight - deltaX < minRight) deltaX = startWidthRight - minRight;
-                        
-                        let newWidthLeft = startWidthLeft + deltaX;
-                        let newWidthRight = startWidthRight - deltaX;
-                        
-                        c.width = `minmax(${minLeft}px, ${newWidthLeft}fr)`;
-                        nextCol.width = `minmax(${minRight}px, ${newWidthRight}fr)`;
-                        applyColSettings();
-                    };
-                    const onUp = () => {
-                        document.removeEventListener('mousemove', onMove);
-                        document.removeEventListener('mouseup', onUp);
-                        resizer.classList.remove('is-resizing');
-                        localStorage.setItem('catToolColSettings', JSON.stringify(colSettings));
-                    };
-                    resizer.classList.add('is-resizing');
-                    document.addEventListener('mousemove', onMove);
-                    document.addEventListener('mouseup', onUp);
-                });
-                cell.appendChild(resizer);
-            }
+            attachColResizer(cell, c, gridHeaderRow);
 
             // set styles directly to avoid grid flash
             cell.style.order = index;
@@ -21581,6 +21533,92 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function attachColResizer(cell, c, gridHeaderRowEl) {
+        // Status, Match, and Repetition don't have resizers and are fixed/sticky
+        if (['col-status', 'col-match', 'col-repetition'].includes(c.id)) return;
+        if (!cell || !gridHeaderRowEl) return;
+
+        const resizer = document.createElement('div');
+        resizer.className = 'col-resizer';
+        resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+
+            const activeColsList = colSettings.filter(cx => cx.visible);
+            const otherColsObj = activeColsList.filter(cx => cx.id !== 'col-status');
+
+            const visibleIndex = otherColsObj.findIndex(cx => cx.id === c.id);
+            const nextCol = visibleIndex >= 0 && visibleIndex < otherColsObj.length - 1 ? otherColsObj[visibleIndex + 1] : null;
+
+            // 如果右側是「重複」欄，就不要提供拖曳調整，避免影響重複欄寬度
+            if (nextCol && nextCol.id === 'col-repetition') return;
+            if (!nextCol) return;
+
+            let startX = e.clientX;
+            const leftCell = cell;
+            const rightCell = gridHeaderRowEl.querySelector(`.grid-header-cell[data-col-id="${nextCol.id}"]`);
+            if (!leftCell || !rightCell) return;
+
+            let startWidthLeft = leftCell.offsetWidth;
+            let startWidthRight = rightCell.offsetWidth;
+
+            const onMove = (ev) => {
+                let deltaX = ev.clientX - startX;
+
+                let minLeft = c.id.startsWith('col-key') || c.id === 'col-extra' ? 120 : (c.id === 'col-source' || c.id === 'col-target' ? 200 : 50);
+                let minRight = nextCol.id.startsWith('col-key') || nextCol.id === 'col-extra' ? 120 : (nextCol.id === 'col-source' || nextCol.id === 'col-target' ? 200 : 50);
+
+                if (startWidthLeft + deltaX < minLeft) deltaX = minLeft - startWidthLeft;
+                if (startWidthRight - deltaX < minRight) deltaX = startWidthRight - minRight;
+
+                let newWidthLeft = startWidthLeft + deltaX;
+                let newWidthRight = startWidthRight - deltaX;
+
+                c.width = `minmax(${minLeft}px, ${newWidthLeft}fr)`;
+                nextCol.width = `minmax(${minRight}px, ${newWidthRight}fr)`;
+                applyColSettings();
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                resizer.classList.remove('is-resizing');
+                localStorage.setItem('catToolColSettings', JSON.stringify(colSettings));
+            };
+            resizer.classList.add('is-resizing');
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+        cell.appendChild(resizer);
+    }
+
+    function applyAutoHiddenCols(segments) {
+        if (!Array.isArray(segments) || segments.length === 0) return;
+        colSettings.forEach(c => {
+            if (!c || (!String(c.id).startsWith('col-key-') && c.id !== 'col-extra')) return;
+
+            const isEmpty = segments.every(seg => {
+                if (!seg) return true;
+                if (c.id === 'col-extra') return !seg.extraValue || String(seg.extraValue).trim() === '';
+                const keyIdx = parseInt(String(c.id).replace('col-key-', ''), 10);
+                const keyText = (seg.keys && seg.keys[keyIdx] != null) ? String(seg.keys[keyIdx]) : '';
+                return keyText.trim() === '';
+            });
+
+            c.autoHidden = isEmpty;
+            if (isEmpty) c.visible = false;
+        });
+    }
+
+    function ensureSourceFileColAfterKeys() {
+        const sfIdx = colSettings.findIndex(c => c.id === 'col-source-file');
+        if (sfIdx === -1) return;
+        const lastKeyIdx = colSettings.reduce((last, c, i) => (c.id && c.id.startsWith('col-key-')) ? i : last, -1);
+        const targetIdx = lastKeyIdx + 1;
+        if (sfIdx === targetIdx) return;
+        const [sf] = colSettings.splice(sfIdx, 1);
+        const insertIdx = targetIdx > sfIdx ? targetIdx - 1 : targetIdx;
+        colSettings.splice(Math.max(0, insertIdx), 0, sf);
+    }
+
     function ensureStatusColumnLast() {
         const idx = colSettings.findIndex(c => c.id === 'col-status');
         if (idx >= 0 && idx < colSettings.length - 1) {
@@ -21599,16 +21637,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             item.dataset.index = String(index);
             item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:0.5rem; background:white; border:1px solid #cbd5e1; border-radius:4px;';
             const isStatus = c.id === 'col-status';
+            const isAutoHidden = c.autoHidden === true;
+            const isLocked = isStatus || isAutoHidden;
             
             item.innerHTML = `
                 <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:0;">
-                    <span class="col-drag-handle" style="color:#94a3b8; user-select:none;" title="${isStatus ? '狀態欄固定於最右' : '拖曳排序'}">${isStatus ? '🔒' : '☰'}</span>
-                    <label style="display:flex; align-items:center; gap:0.5rem; margin:0; cursor:${isStatus ? 'not-allowed' : 'pointer'};">
-                        <input type="checkbox" ${c.visible ? 'checked' : ''} data-id="${c.id}" class="col-vis-toggle" ${isStatus ? 'disabled' : ''}>
-                        <span style="${isStatus ? 'color:#94a3b8;' : ''}">${c.name}</span>
-                    </label>
+                    <span class="col-drag-handle" style="color:#94a3b8; user-select:none;" title="${isStatus ? '狀態欄固定於最右' : (isAutoHidden ? '此欄位完全空白，已自動隱藏' : '拖曳排序')}">${isLocked ? '🔒' : '☰'}</span>
+                    <div style="display:flex; flex-direction:column; gap:0.15rem; flex:1; min-width:0;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; margin:0; cursor:${isLocked ? 'not-allowed' : 'pointer'};">
+                            <input type="checkbox" ${c.visible ? 'checked' : ''} data-id="${c.id}" class="col-vis-toggle" ${isLocked ? 'disabled' : ''}>
+                            <span style="${isLocked ? 'color:#94a3b8;' : ''}">${c.name}</span>
+                        </label>
+                        ${isAutoHidden ? `<div style="font-size:0.75rem; color:#94a3b8; padding-left:1.6rem;">此欄位在目前檔案／句段集中完全空白，已自動隱藏</div>` : ``}
+                    </div>
                 </div>`;
-            if (!isStatus) item.draggable = true;
+            if (!isLocked) item.draggable = true;
             colSettingsListContainer.appendChild(item);
         });
 
@@ -21702,6 +21745,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         defaultCols.push({ id: 'col-id', name: 'ID', visible: true, width: '50px' });
         for(let i=0; i<maxKeys; i++) {
             defaultCols.push({ id: `col-key-${i}`, name: `Key`, visible: true, width: '100px' });
+        }
+        if (_currentViewId) {
+            defaultCols.push({ id: 'col-source-file', name: '所屬檔案', visible: true, width: '120px' });
         }
         defaultCols.push({ id: 'col-source', name: '原文 (Source)', visible: true, width: '1fr' });
         defaultCols.push({ id: 'col-target', name: '譯文 (Target)', visible: true, width: '1fr' });
