@@ -17128,8 +17128,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!tags || !tags.length) {
             return escapeHtml(text).replace(/\n/g, '<br data-cat-nl="1">');
         }
+        // data-pair 與著色一致：依 xml rid 將 close 的 pairNum 對到對應 open（memoQ bpt/ept）
+        const tagsRep = repairPairNumsFromRidInTags([...tags]);
         const tagMap = {};
-        tags.forEach(t => { tagMap[t.ph] = t; });
+        tagsRep.forEach(t => { tagMap[t.ph] = t; });
 
         let html = '';
         const parts = text.split(/(\{\/?\d+\})/);
