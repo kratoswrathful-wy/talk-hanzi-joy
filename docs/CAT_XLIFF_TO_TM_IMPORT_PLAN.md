@@ -105,3 +105,75 @@
 | 2026-05-03 | 初版：討論收斂、映射表、實作錨點與驗收。 |
 | 2026-05-08 | §2.1：Modal 預設勾選（非空白、已確認、鎖定+未鎖定）、每次重置不記憶；原文非空白之補充檢查。 |
 | 2026-05-08 | §4／§5：改為 `buildTmImportCandidates` + `#tmXliffImportDialog` + `evaluateSegment`／`segmentPassesSfRowRangePure`；廢止解析端硬編碼篩選。 |
+| 2026-05-09 | §8：補登完整開發過程、依賴順序、已知錯誤修復與驗收結果（產品驗收通過後入檔）。 |
+
+---
+
+## 8. 開發過程紀錄（完整）
+
+本章記錄本功能從規格到上線驗收的實作脈絡，供日後維護或擴充（例如多組篩選群組）時對照。**程式真值**仍以 `cat-tool/` 原始碼為準。
+
+### 8.1 規格來源與目標
+
+- 內部計畫：**TM XLIFF 篩選匯入**——選 `.xliff`／`.xlf`／`.mqxliff`／`.sdlxliff` 後，先經與**編輯器進階篩選相同語意**的 UI，再寫入 TM；**不重複實作篩選規則**，改重用既有函式。
+- **核心重用點**（皆在 [`cat-tool/app.js`](../cat-tool/app.js)）：
+  - **`evaluateSegment`**：文字搜尋（含標籤展開後比對）、句段狀態六維、TM 相符度區間。
+  - **`segmentPassesSfRowRangePure`**：句段編號範圍（顯示／排除、表達式），行為與 [`scripts/test-cat-sf-row-range.mjs`](../scripts/test-cat-sf-row-range.mjs) 一致。
+- **刻意不做（第一版）**：編輯器 **`sfFilterGroups`** 多組條件 AND／OR 鏈；TM 匯入僅單一條件平面，降低複雜度。
+
+### 8.2 架構：解析與篩選分離
+
+| 階段 | 責任 | 主要檔案／符號 |
+|------|------|----------------|
+| 解析 | 自 XML 產出與編輯器相容的句段形狀（含 `sourceTags`／`targetTags`、`status`、`isLocked`、`matchValue` 等），**不在此階段**依 mq／sdl 產品規則硬刪句 | [`cat-tool/js/xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) `buildSegmentsFromXliffXml` → `parseXliffFileToSegmentRows` |
+| 組候選 | 每筆拆成 **`evalSeg`**（餵 `evaluateSegment`）與 **`tmPayload`**（餵 `bulkAddTMSegments`，形狀同 TMX 匯入列）；同 key 去重 | [`cat-tool/js/xliff-to-tm.js`](../cat-tool/js/xliff-to-tm.js) `buildTmImportCandidates` |
+| 篩選 | 讀 Modal → `evaluateSegment(..., { sfMode: 'filter' })` → `segmentPassesSfRowRangePure(i, rowSpec)`；可選 **`tmImpRequireSrcNonEmpty`**（`sourceText.trim()`） | [`cat-tool/app.js`](../cat-tool/app.js) `buildTmImpUiCriteria`、`readTmImpAdvancedSpecFromDom`、`runTmXliffFilteredImport` |
+| 寫入 | 與既有 TMX 相同 | `DBService.bulkAddTMSegments` 等 |
+
+作業檔匯入 [`cat-tool/js/xliff-import.js`](../cat-tool/js/xliff-import.js) 改為呼叫 **`CatToolXliffBuildSegments.buildSegmentsFromXliffXml`**，與 TM 路徑共用同一段 trans-unit／unit 解析，避免兩套規則漂移。
+
+### 8.3 `evaluateSegment` 注入 `sfMode`（必做原因）
+
+編輯器內「不包含」（反轉）依 closure 內全域 **`sfMode`** 判定：僅在 **`sfMode === 'filter'`** 時對文字結果取反。TM 詳情頁使用者未必處於編輯器搜尋／篩選上下文，若不改會誤用當前 `sfMode`。
+
+- **作法**：為 `evaluateSegment` 增加可選第八參數 **`evalOpts`**；若傳入 **`evalOpts.sfMode`**，反轉邏輯以該值為準（TM 匯入固定傳 **`'filter'`**），未傳入則維持既有行為，**不影響編輯器**。
+- **正則**：TM Modal 自有「.*」按鈕狀態；**`isRegex` 以 criteria 傳入 `evaluateSegment`**，不依賴編輯器 DOM 上的 `sfUseRegexChecked`。
+
+### 8.4 UI：`#tmXliffImportDialog` 與流程
+
+- [`cat-tool/index.html`](../cat-tool/index.html) 於 **`#viewTmDetail`** 內新增 `<dialog id="tmXliffImportDialog">`：搜尋框、四 scope（原文／譯文／Key／額外）、正則、反轉、六個狀態 checkbox、TM%、句段編號範圍、**原文須非空白**。輸入框遵循 **`.form-input`**（見 [`.cursor/rules/ui-conventions.mdc`](../.cursor/rules/ui-conventions.mdc)）。
+- **預設勾選**（產品已定案，見 §2.1）：`not_empty`、`confirmed`、`locked` **與** `unlocked` 同勾（鎖定維度等於不篩）；**每次開啟**呼叫 **`resetTmXliffImportDialogDefaults`**，**不**寫入 `localStorage`。
+- **`tmImportInput`**：若副檔名為 XLIFF 系 → **暫存 `pendingTmXliffFile`** → 開 Modal → **`return`**（不立即解析）；確認後 **`runTmXliffFilteredImport`**。
+- **錯誤文案區分**：**解析後無候選**（檔案空或無有效 TU）vs **篩選後無符合**（條件過嚴），避免使用者以為檔案損毀。
+
+### 8.5 腳本載入順序（必須）
+
+標籤 API **`window.CatToolXliffTags`**（[`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)）須先於句段建構載入：
+
+`xliff-tag-pipeline.js` → **`xliff-build-segments.js`** → `xliff-import.js` → **`xliff-to-tm.js`**
+
+### 8.6 建置與同步
+
+依 [`AGENTS.md`](../AGENTS.md)：修改 `cat-tool/` 後於專案根目錄執行 **`npm run sync:cat`**，使 [`public/cat/`](../public/cat/) 與內嵌路徑一致，並與 `cat-tool` **一併提交**。
+
+### 8.7 實作過程中的錯誤與修復（mqxliff）
+
+| 現象 | 原因 | 修復 |
+|------|------|------|
+| 匯入 mqxliff／sdlxliff 單段路徑時 **`ReferenceError: Xliff is not defined`**（或大小寫類似訊息） | [`buildSegmentsFromXliffXml`](../cat-tool/js/xliff-build-segments.js) 在 XLIFF 1.2／mqxliff／sdl 分支內呼叫 **`Xliff.extractTaggedText`**，但函式開頭未宣告 **`const Xliff = global.CatToolXliffTags`**；僅 **`buildXliff2SegmentRows`** 內曾宣告，故 XLIFF 2 路徑正常、其餘副檔名會炸 | 在 **`buildSegmentsFromXliffXml` 開頭**補上與 XLIFF 2 相同之模組檢查與 `Xliff` 綁定；缺模組時拋出與其他入口一致之錯誤訊息 |
+
+修復後再以實際 **mqxliff**（例如 memoQ 匯出檔）於 TM 詳情走 Modal 匯入，可正常解析並進入篩選。
+
+### 8.8 版本對照（Git）
+
+以下為 **main** 上與本功能直接相關之提交訊息，便於 `git show`／blame；若日後 rebase／squash，請以訊息關鍵字搜尋。
+
+| 類型 | 訊息關鍵字（約） |
+|------|------------------|
+| 功能主體 | `feat(cat): TM XLIFF import dialog shares editor filter semantics`（Modal、`evaluateSegment` 注入、`buildTmImportCandidates`、`xliff-build-segments`、文件與 `sync:cat`） |
+| mqxliff 修復 | `fix(cat): define CatToolXliffTags scope in buildSegmentsFromXliffXml for mqxliff/sdl path` |
+
+### 8.9 驗收結果
+
+- **產品驗收**：已通過（含實際 mqxliff 匯入、篩選條件與預設行為符合 §2.1／§5）。
+- 後續若擴充 **多組篩選群組**，建議另開規格小節，並評估是否共用 `sfFilterGroups` 序列化格式與 `evaluateSegmentWithGroupRow` 之路徑。
