@@ -48,4 +48,4 @@ Excel 匯入若僅把儲存格內的標記轉成編輯器佔位符 `{N}`／`{/N}
 ## 版本／追溯
 
 - **可逆 inline tag 核心**：commit `9bd0173`（`main`，訊息：`feat(cat): Excel 可逆 inline tag 解析與匯出 placeholder 還原`）
-- **Tag 三態（Alt+S 循環／工具列下拉）+ 本紀錄文件**：見同系列之後續 commit（與 `docs/CAT_EXCEL_REVERSIBLE_INLINE_TAGS_HISTORY_2026-05.md` 一併推送者）。
+- **Tag 三態（Alt+S 循環／工具列下拉）+ 本紀錄文件**：commit `a19b6ad`（`main`）。
