@@ -81,7 +81,7 @@
 | 由編輯器建立註記的預填與命名規則收斂 | `src/pages/InternalNotesPage.tsx`、`src/pages/CatToolPage.tsx` |
 | 既有內部註記建立入口（對照 `relatedCase` 語意） | `src/pages/CaseDetailPage.tsx`：`handleCreateInternalNote` |
 | 內部註記 `relatedCase` 映射 | `src/stores/internal-notes-store.ts`：`relatedCase` ↔ `related_case` |
-| 案件狀態驅動 CAT 指派同步（`詢案中 -> 已派出`） | `src/stores/case-store.ts`（狀態轉換偵測與同步） |
+| 案件狀態驅動 CAT 指派同步（`非已派出 -> 已派出`，不限次數；只新增不移除） | `src/stores/case-store.ts`（狀態轉換偵測 → 呼叫 DB 函式 `sync_cat_file_assignments_for_case`）＋ migrations：`20260508120000_sync_cat_file_assignments_fn.sql`、`20260508130000_sync_cat_file_assignments_fn_fix_translator_jsonb.sql` |
 | CAT 資料表（提問/綁案/指派） | `cat_projects`、`cat_files`、`cat_file_assignments` |
 | 內部註記資料表 | `internal_notes`（**規劃**欄位 `consultation_slack_records`，見 [`SLACK_NOTIFY_EXPANSION_2026-05.md`](SLACK_NOTIFY_EXPANSION_2026-05.md) §4） |
 

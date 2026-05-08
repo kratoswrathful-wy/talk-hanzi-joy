@@ -385,6 +385,18 @@
 - **案件狀態驅動同步**：當案件狀態由 `詢案中` 變為 `已派出`，會將案件頁「譯者」「審稿人員」對應到已連結的 CAT 檔案指派名單（採 A 規則：只新增、不移除）。
 - 同步規則補強：查無可對應帳號時跳過該筆，不中斷整批更新流程。
 
+#### 七點四.1 狀態驅動同步：譯者承接路徑修正（2026-05-08）
+
+- **現象**：PM/管理員把案件改為 `已派出` 時可正確同步；但譯者按「承接本案」導致狀態變 `已派出` 時，CAT 檔案常無法自動指派。
+- **根因**（兩層）
+  - **RLS 批次寫入**：譯者僅允許替自己新增 `cat_file_assignments`，但同步批次同時寫入「審稿人員」指派，導致資料庫整批拒絕；前端 `try/catch` 吃掉錯誤，看起來像「沒觸發」。
+  - **欄位型別**：`cases.translator` 在 DB 為 `jsonb`（字串陣列）；若以 `text[]` 讀取會在 DB 函式內報錯，造成任何身分同步都失敗。
+- **修正**：將同步寫入移至 DB `SECURITY DEFINER` 函式 `sync_cat_file_assignments_for_case(p_case_id uuid)`（繞過 RLS），並修正 `translator jsonb` 解析；前端改以 RPC 呼叫。觸發條件放寬為「任何 `非已派出 → 已派出`」皆觸發（不限次數），仍遵守 A 規則（只新增、不移除）。
+- **落地追溯**：
+  - commit：`3508c75`（case-store 觸發條件放寬 + 同步改 RPC）
+  - commit：`ee29dfa`（修正 DB 函式以支援 `translator jsonb`）
+  - migrations：`20260508120000_sync_cat_file_assignments_fn.sql`、`20260508130000_sync_cat_file_assignments_fn_fix_translator_jsonb.sql`
+
 ### 七點五、內部註記一致化（命名、預填、焦點）
 
 - 修正編輯器建立註記命名規則，統一為 **`案件標題_Note_xxxx`**（與案件頁流程一致）。
