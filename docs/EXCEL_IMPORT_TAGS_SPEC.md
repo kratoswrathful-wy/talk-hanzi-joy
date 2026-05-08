@@ -123,6 +123,30 @@ flowchart LR
 - **保留原字串**（不插入 `{n}`、不新增 `tags[]`）
 - 由使用者自行決定是否關閉該規則或改用自訂 regex
 
+**補充（實作演進，作為實做依據）**：
+
+- **尾端未關閉的 `<tag ...>`**（整段掃完 stack 仍非空）：實作可將剩餘 open **降級為 standalone** `{n}`，避免整格放棄；見歷史紀錄 commit `61da2f6`（`main`）。
+- **巢狀 close 不匹配**（常見於遊戲字串）：見 **§6.5**；若未實作 §6.5，則仍適用本節「整段不轉換」。
+
+### 6.5 遊戲佔位符巢狀：外層 `</color>` 關閉、內層無獨立 `</SpriteName>`（必須支援）
+
+**典型原文**（zh-CN 與 zh-TW 皆常見）：
+
+`<color=ColorChenLingCoin><SpriteName=ActivityChenLingCoin>遊樂幣+#1</color>`
+
+語意上：
+
+- `<color=…>` 與 `</color>` **成對**（包住一段可上色文字）。
+- `<SpriteName=…>` 為 **單側占位**（無 `</SpriteName>`），應視為 **standalone** `{n}`，**不得**因缺少 `</SpriteName>` 而讓整段失敗。
+
+**規格要求（角括號 stack 處理）**：
+
+1. 遇到 `</outerName>` 時，若 stack 頂端為 `innerName` 且 `innerName !== outerName`，應自頂向下將「擋住」的內層 open（如 `SpriteName`）**逐一降級為 standalone**（或等價：先輸出對應 `{n}`／`tags[]`），直到 stack 頂端為 `outerName`，再正常配對 `</outerName>`。
+2. 若最終仍無法配對（例如 `</color>` 但從未出現 `<color`），則整段維持 §6.3「不轉換」。
+3. **等號 `=`** 僅為 tag 內文，**不**影響 tag 名稱擷取；本節重點在 **close 與 stack 順序**，而非 `=`。
+
+> **驗收**：含 `<color=…><SpriteName=…>…</color>` 的儲存格匯入後，句段內應出現 **至少三個**字串層 tag（`color` open、`SpriteName` standalone、`color` close），且譯文可編輯、匯出可逆。
+
 ### 6.4 字面 `\\n`（純文字換行標記）
 
 - 比對連續兩字元：**`\\`**（U+005C）+ **`n`**（U+006E），視為 standalone token。
@@ -164,11 +188,27 @@ flowchart LR
 
 ---
 
-## 9. 匯出（後續波次）
+## 9. 匯出（Excel `.xlsx`：可逆 token + 富文本）
 
-- 富文字還原理論上使用 [`buildRichTextXml`](../cat-tool/js/xlsx-rich-tags.js) 與 `baseRprXml`。
-- **現況**（撰寫時）：[`cat-tool/app.js`](../cat-tool/app.js) Excel 匯出常徑為工作表轉陣列後寫回**純文字**，**未**全面接 `buildRichTextXml`— 詳見程式內匯出註解。
-- 本規格**不要求**第一波即完成富文字匯出對齊；若另開 **Excel export v2**，應連結本規格之 tag 結構。
+### 9.1 字串佔位符還原（可逆 inline tag）
+
+- 字串層產生的 `{n}`／`{/n}`：匯出時以 [`restorePlaceholdersForExport`](../cat-tool/js/excel-import-string-tags.js) 依 `tags[].xml` 還原為原始 token（不殘留 `{n}`）。
+
+### 9.2 儲存格內 Rich Text（`cell.r`）與 `tagLayer: 'xlsxRpr'`
+
+- Rich Text 萃取：[`extractCellRichTags`](../cat-tool/js/xlsx-rich-tags.js) 產生之 `{n}`／`{/n}` 佔位，於 tag 物件上標 **`tagLayer: 'xlsxRpr'`**（與字串層 tag 區隔）。
+- 匯出寫譯文格時：先對**非** `xlsxRpr` 的 tags 做 `restorePlaceholdersForExport`，再以 [`buildRichTextXml`](../cat-tool/js/xlsx-rich-tags.js) 組 `cell.r`，並以 SheetJS cell 物件寫入（`t: 's'`、`v`、`r`）；見 [`cat-tool/app.js`](../cat-tool/app.js) `excelExportTargetCellForSheet`、`excelApplyTranslatedSegmentsToWorkbook`。
+- **不得**再使用「整張 `sheet_to_json` → `aoa_to_sheet` 重蓋」作為預設路徑：會破壞非譯文欄之富文本與樣式；預設改為 **`sheet_add_aoa` 僅覆寫譯文位址**。
+
+### 9.3 上／下標（匯入／匯出一致）
+
+- [`parseRpr`](../cat-tool/js/xlsx-rich-tags.js) 須辨識 `<vertAlign val="superscript|subscript"/>`，避免 run 誤合併導致匯入即丟失上／下標。
+
+### 9.4 已匯入資料之再處理
+
+- 若句段已以「無 `tags` 的純文字」寫入雲端／IndexedDB，**僅部署新程式無法自動修復**；須 **重新匯入**原 xlsx，或另案提供批次重算 tags 之工具／RPC。
+
+**追溯（`main`）**：Excel 匯出保留富文本與 `tagLayer`／`vertAlign` 等 — commit `5e84fae` 起；後續若有「寫回時保留 `cell.s`」等補強，應追加於本節與 [CAT_EXCEL_REVERSIBLE_INLINE_TAGS_HISTORY_2026-05.md](./CAT_EXCEL_REVERSIBLE_INLINE_TAGS_HISTORY_2026-05.md)。
 
 ---
 
@@ -180,6 +220,7 @@ flowchart LR
 - 產生之 `{n}` 編號在單句內**連續、不重複**，且**不破壞** Rich Text 既有 tag。
 - **手測**：含富文字之儲存格 — 確認順序為先萃取再套規則（必要時 log 或斷點檢查）。
 - **回歸**：既有純 Excel 匯入（未開任何新選項）行為與現行一致。
+- **§6.5 回歸**：至少一則含 `<color=…><SpriteName=…>…</color>` 之儲存格，匯入後 `tags` 非空且可匯出可逆；並以「重新匯入」驗證舊雲端句段可更新。
 
 ---
 

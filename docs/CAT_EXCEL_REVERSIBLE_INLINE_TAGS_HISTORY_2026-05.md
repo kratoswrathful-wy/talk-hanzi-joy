@@ -49,3 +49,48 @@ Excel 匯入若僅把儲存格內的標記轉成編輯器佔位符 `{N}`／`{/N}
 
 - **可逆 inline tag 核心**：commit `9bd0173`（`main`，訊息：`feat(cat): Excel 可逆 inline tag 解析與匯出 placeholder 還原`）
 - **Tag 三態（Alt+S 循環／工具列下拉）+ 本紀錄文件**：commit `a19b6ad`（`main`）。
+
+---
+
+## 2026-05-08 波次：Excel 富文本匯出、上／下標、與 `<color><SpriteName>…</color>` 匯入缺口
+
+### 背景（現象）
+
+1. **匯出 xlsx 後原文欄出現 `<sz`、`<color theme=` 等字面 XML**  
+   根因：整張工作表 `sheet_to_json` → `aoa_to_sheet` 重蓋，非譯文欄富文本被破壞。  
+   **修正**：僅以 `sheet_add_aoa` patch 譯文格；見 `5e84fae`（`main`）。
+
+2. **譯文欄富文本／`{n}` 併存時匯出失真**  
+   **修正**：`tagLayer: 'xlsxRpr'` 區隔 Rich Text 佔位與字串層佔位；匯出先 `restorePlaceholdersForExport`（僅字串層）再 `buildRichTextXml`；同見 `5e84fae`。
+
+3. **上／下標匯入即不見**  
+   **修正**：`xlsx-rich-tags.js` 的 `parseRpr`／`styleEq` 等納入 `vertAlign`；同見 `5e84fae`。
+
+4. **大量句段含 `<color=…><SpriteName=…>…</color>` 卻完全沒有 `tags`（雲端可查）**  
+   根因（第一階段）：角括號 stack 驗證把「尾端未關閉的 `<tag>`」導致整段放棄 → **部分緩解**：`61da2f6` 將尾端殘留 open 降級 standalone。  
+   **仍殘留**：當 `</color>` 出現時 stack 頂為 `SpriteName`（內層無 `</SpriteName>`）→ 仍判定不合法 → **整段不轉換**。此為 **§6.5** 規格要補的演算法（文件已寫入 [EXCEL_IMPORT_TAGS_SPEC.md](./EXCEL_IMPORT_TAGS_SPEC.md) §6.5；程式待落地）。
+
+5. **`col_tgt` 以字串型別寫入導致寫錯欄**  
+   **修正**：`02ef3f4`（`main`）；事後紀錄見 [CAT_EXCEL_EXPORT_COLTGT_STRING_BUG_2026-05.md](./CAT_EXCEL_EXPORT_COLTGT_STRING_BUG_2026-05.md)（若檔案已存在於 repo）。
+
+### 後端對照（範例檔名）
+
+以 Supabase `public.cat_files`／`public.cat_segments` 抽查兩個檔名（2026-05-08 匯入）：
+
+- `P1_2026年4月W4_V4.3_尘灵+飞机大巴扎等活动_繁体中文+zh-TW_翻译_source+target_20260508145511.xlsx`
+- `P1_2026年5月W1_V4.3_活动+狸狸周刊与任务文本迭代_繁体中文+zh-TW_翻译_source+target_20260508144827.xlsx`
+
+曾觀測到：含 `<color=` 的句段中，**多數** `source_tags`／`target_tags` 仍為空（代表匯入時整段未 tag 化），與 UI「整段仍是 `<color=...>` 字面」一致。
+
+### 驗收要點（本波）
+
+- **重新匯入**上述檔案後（或任意含 `<color><SpriteName>…</color>` 之格）：在 §6.5 實作完成前，**不可**要求「全部句段必有 tags」；完成後應可 tag 化。
+- **匯出**：非譯文欄富文本不被破壞；譯文含 Rich 佔位者能寫回 `cell.r`。
+- **部署**：Vercel 可能只顯示最新 Production deployment；中間 commit 未必各列一筆，但 **`main` 歷史**仍可追溯。
+
+### 追溯（`main`，依時間大致順序）
+
+- `5e84fae` — `fix(cat): Excel export keeps rich text; xlsxRpr tags and vertAlign import`
+- `61da2f6` — `fix(cat): tolerate unpaired <tag> placeholders in Excel import`（**僅尾端未關閉**；**不含** §6.5 之 close 不匹配）
+- `02ef3f4` — `fix(cat): Excel export colTgt string type writes to wrong column`
+- `bb324d2` — `fix(cat): keep centered scroll after confirm focus`（與本波 Excel 無直接關係，常為 Production 清單可見之最新部署）

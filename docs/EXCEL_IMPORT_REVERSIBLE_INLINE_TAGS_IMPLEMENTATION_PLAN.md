@@ -58,6 +58,11 @@
 
 若 open/close 無法配對（缺 closing、交錯），則保留原字串，不插入 `{n}`，不新增 `tags[]`。
 
+**補充（作為實做依據）**：
+
+- **尾端未關閉的 `<tag ...>`**：可將剩餘 open 降級為 standalone，避免整格放棄（已落地：`61da2f6`）。
+- **`<color=…><SpriteName=…>文字</color>` 類巢狀**：外層 `</color>` 出現時，stack 頂可能是 `SpriteName`；**必須**先將內層無獨立 close 的 open 視為 standalone 再關 `color`，否則整段仍會被 §3.4 整段放棄。規格細節見 [EXCEL_IMPORT_TAGS_SPEC.md](./EXCEL_IMPORT_TAGS_SPEC.md) §6.5。
+
 ## 4. 實作落點（建議）
 
 ### 4.1 匯入：產生 tags[]（保存可逆 token）
@@ -99,6 +104,8 @@
 ### 5.3 容錯
 
 - 若只有 `<color=...>` 沒有 `</color>`：應保留原字串、不轉換、不產生 `{N}`（允許但不轉換）。
+- **含 `<SpriteName=…>` 且無 `</SpriteName>`、但外層有 `</color>`**：匯入後應可 tag 化（`SpriteName` 為 standalone，`color` 成對）；見 [EXCEL_IMPORT_TAGS_SPEC.md](./EXCEL_IMPORT_TAGS_SPEC.md) §6.5。
+- **已寫入雲端之舊句段**（當時整段未轉換、無 `tags`）：須 **重新匯入**原檔或批次重算，否則線上仍顯示純文字 `<color=...>`。
 
 ---
 
