@@ -16941,10 +16941,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const row = rows[segIdx];
         if (!row) return;
-        const ed = row.querySelector('.grid-textarea');
+        const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
-            row.scrollIntoView({ behavior: scrollBehavior, block: getAfterConfirmScrollBlock() });
-            ed.focus();
+            const block = getAfterConfirmScrollBlock();
+            const doScroll = () => row.scrollIntoView({ behavior: scrollBehavior, block });
+            try {
+                ed.focus({ preventScroll: true });
+            } catch (_) {
+                ed.focus();
+            }
+            if (block === 'center') {
+                requestAnimationFrame(doScroll);
+            } else {
+                doScroll();
+            }
         }
     }
 
