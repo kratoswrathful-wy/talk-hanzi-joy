@@ -1172,6 +1172,12 @@
                         <span style="font-size:0.78rem; color:#64748b;">使用者</span>
                         <div id="collabPresenceBar" style="display:none; gap:0.35rem; align-items:center; flex-wrap:wrap;"></div>
                     </div>
+                    <!-- TM 背景載入進度（大型 TM 時避免空白畫面） -->
+                    <div id="tmLoadStatus" style="display:none; align-items:center; gap:0.5rem; flex-wrap:wrap; min-width:360px;">
+                        <span id="tmLoadStatusText" style="font-size:0.78rem; color:#64748b; white-space:nowrap;">TM 載入中…</span>
+                        <span id="tmLoadStatusDetail" style="font-size:0.78rem; color:#334155; white-space:nowrap;"></span>
+                        <button type="button" id="tmLoadRetryBtn" class="secondary-btn btn-sm" style="display:none; padding:0.15rem 0.5rem;">重試</button>
+                    </div>
                     <div style="flex:1; text-align:right; font-size:0.78rem; color:#64748b;">完整清單請點工具列 <span title="快捷鍵一覽">⌨️</span>。常用：<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認、<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">F3</kbd>／<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Shift+F3</kbd> 搜尋下／上一命中、<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">F4</kbd> 全部取代譯文</div>
                 </footer>
             </section>

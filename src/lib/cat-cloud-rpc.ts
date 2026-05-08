@@ -1322,6 +1322,30 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       }
       return rows.map(mapTmSegmentRow);
     }
+    case "db.countTMSegments": {
+      const { count, error } = await supabase
+        .from("cat_tm_segments")
+        .select("id", { count: "exact", head: true })
+        .eq("tm_id", payload.tmId);
+      if (error) throw error;
+      return Number(count || 0);
+    }
+    case "db.getTMSegmentsPage": {
+      const tmId = payload.tmId;
+      const offset = Math.max(0, Number(payload.offset || 0) || 0);
+      const limitRaw = Number(payload.limit || 1000) || 1000;
+      const limit = Math.min(1000, Math.max(1, limitRaw));
+      const { data, error } = await supabase
+        .from("cat_tm_segments")
+        .select("*")
+        .eq("tm_id", tmId)
+        .order("id", { ascending: true })
+        .range(offset, offset + limit - 1);
+      if (error) throw error;
+      const batch = (data ?? []).map(mapTmSegmentRow);
+      const nextOffset = batch.length < limit ? null : offset + batch.length;
+      return { segments: batch, nextOffset };
+    }
     case "db.getTMSegmentById": {
       const { data } = await supabase.from("cat_tm_segments").select("*").eq("id", payload.id).maybeSingle();
       return data ? mapTmSegmentRow(data) : null;

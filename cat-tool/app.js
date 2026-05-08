@@ -4638,7 +4638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 進入編輯器
         const proj = await DBService.getProject(currentProjectId);
-        const viewTitle = `句段集：${proj?.name || '專案'} - ${view.name}`;
+        const viewTitle = `句段集：${proj?.name || '專案'} — ${view.name}`;
         await openEditorWithSegments(segments, {
             title: viewTitle,
             viewId: _currentViewId,
@@ -4703,6 +4703,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.ActiveTmPenalties = {};
             window._activeTmCacheReadyIds = new Set();
             window._activeTmNames = {};
+            window._tmLoadState = null;
             window.ActiveFileLangs = { sourceLang: '', targetLang: '' };
             window.ActiveWriteTb = null;
             if (project) {
@@ -4714,27 +4715,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sourceLang: (project.sourceLangs || [])[0] || '',
                     targetLang: (project.targetLangs || [])[0] || '',
                 };
-                for (const tmId of (project.readTms || [])) {
-                    const segs = await DBService.getTMSegments(tmId);
-                    const tm = await DBService.getTM(tmId);
-                    const tmName = tm ? tm.name : `TM #${tmId}`;
-                    segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
-                    window.ActiveTmCache.push(...segs);
-                    window._activeTmNames[String(tmId)] = tmName;
-                    window._activeTmCacheReadyIds.add(String(tmId));
-                }
-                // 僅寫入而未在讀取清單的 TM 也需載入快取，以支援確認時快取比對去重
-                const _rdSet = new Set((project.readTms || []).map(String));
-                for (const tmId of (project.writeTms || [])) {
-                    if (_rdSet.has(String(tmId))) continue;
-                    const tm = await DBService.getTM(tmId);
-                    const tmName = tm ? tm.name : `TM #${tmId}`;
-                    const segs = await DBService.getTMSegments(tmId);
-                    segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
-                    window.ActiveTmCache.push(...segs);
-                    window._activeTmNames[String(tmId)] = tmName;
-                    window._activeTmCacheReadyIds.add(String(tmId));
-                }
+                // 重要：先進入編輯器顯示句段；TM 改為背景逐一載入，避免大型 TM timeout 造成空白畫面
+                void loadProjectTmCacheInBackground(project);
                 for (const tbId of (project.readTbs || [])) {
                     const full = await DBService.getTB(tbId);
                     if (!full) continue;
@@ -4868,6 +4850,221 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncEditorWordCountToolbarBtn();
         } finally {
             hideCatLoadingOverlay();
+        }
+    }
+
+    function _updateTmLoadStatusUi(state) {
+        const wrap = document.getElementById('tmLoadStatus');
+        const textEl = document.getElementById('tmLoadStatusText');
+        const detailEl = document.getElementById('tmLoadStatusDetail');
+        const retryBtn = document.getElementById('tmLoadRetryBtn');
+        if (!wrap || !textEl || !detailEl || !retryBtn) return;
+
+        if (!state || state.phase === 'idle') {
+            wrap.style.display = 'none';
+            retryBtn.style.display = 'none';
+            return;
+        }
+
+        wrap.style.display = 'flex';
+        const i = Math.min(state.currentIndex || 0, state.totalTms || 0);
+        const n = state.totalTms || 0;
+        const tmName = state.currentTmName || '';
+        const perDone = state.currentLoaded || 0;
+        const perTotal = state.currentTotal || 0;
+        const overallDone = state.overallLoaded || 0;
+        const overallTotal = state.overallTotal || 0;
+
+        if (state.phase === 'error') {
+            textEl.textContent = `TM 載入逾時／失敗（${i}/${n}）`;
+            detailEl.textContent = tmName ? `${tmName}（${perDone}/${perTotal || '？'}）` : '';
+            retryBtn.style.display = 'inline-flex';
+        } else if (state.phase === 'done') {
+            textEl.textContent = `TM 已載入完成（${n}/${n}）`;
+            detailEl.textContent = overallTotal ? `總句段 ${overallDone}/${overallTotal}` : '';
+            retryBtn.style.display = 'none';
+            // 完成後延遲隱藏，避免閃爍
+            setTimeout(() => {
+                const s = window._tmLoadState;
+                if (s && s.phase === 'done') {
+                    wrap.style.display = 'none';
+                }
+            }, 2500);
+        } else {
+            textEl.textContent = `TM 背景載入中（${i}/${n}）`;
+            const per = perTotal ? `${perDone}/${perTotal}` : `${perDone}/…`;
+            const overall = overallTotal ? `；總 ${overallDone}/${overallTotal}` : '';
+            detailEl.textContent = tmName ? `${tmName}（${per}${overall}）` : `${per}${overall}`;
+            retryBtn.style.display = 'none';
+        }
+
+        if (!retryBtn._tmRetryBound) {
+            retryBtn._tmRetryBound = true;
+            retryBtn.addEventListener('click', () => {
+                const s = window._tmLoadState;
+                if (s && typeof s.retry === 'function') s.retry();
+            });
+        }
+    }
+
+    function _uniqueTmIdsInOrder(project) {
+        const out = [];
+        const seen = new Set();
+        const push = (id) => {
+            const k = String(id);
+            if (!k || seen.has(k)) return;
+            seen.add(k);
+            out.push(id);
+        };
+        (project.readTms || []).forEach(push);
+        (project.writeTms || []).forEach(push);
+        return out;
+    }
+
+    async function loadProjectTmCacheInBackground(project) {
+        try {
+            const tmIds = _uniqueTmIdsInOrder(project);
+            const totalTms = tmIds.length;
+            if (totalTms === 0) {
+                window._tmLoadState = { phase: 'idle' };
+                _updateTmLoadStatusUi(window._tmLoadState);
+                return;
+            }
+
+            // 預先計數（逐一，避免併發壓垮 RPC）
+            const totalsByTmId = {};
+            let overallTotal = 0;
+            for (const tmId of tmIds) {
+                try {
+                    const c = await DBService.countTMSegments(tmId);
+                    totalsByTmId[String(tmId)] = c;
+                    overallTotal += c;
+                } catch (e) {
+                    // 計數失敗不阻塞載入；UI 會顯示未知總數
+                    totalsByTmId[String(tmId)] = null;
+                }
+            }
+
+            let overallLoaded = 0;
+            let stopRequested = false;
+
+            const setState = (patch) => {
+                window._tmLoadState = {
+                    ...(window._tmLoadState || {}),
+                    ...patch,
+                };
+                _updateTmLoadStatusUi(window._tmLoadState);
+            };
+
+            const doLoad = async () => {
+                stopRequested = false;
+                for (let idx = 0; idx < tmIds.length; idx++) {
+                    if (stopRequested) return;
+                    const tmId = tmIds[idx];
+                    const tmKey = String(tmId);
+                    if (window._activeTmCacheReadyIds && window._activeTmCacheReadyIds.has(tmKey)) continue;
+
+                    let tmName = window._activeTmNames?.[tmKey] || '';
+                    if (!tmName) {
+                        try {
+                            const tm = await DBService.getTM(tmId);
+                            tmName = tm ? tm.name : `TM #${tmId}`;
+                        } catch (e) {
+                            tmName = `TM #${tmId}`;
+                        }
+                        window._activeTmNames[tmKey] = tmName;
+                    }
+
+                    const currentTotal = totalsByTmId[tmKey];
+                    let currentLoaded = 0;
+                    let offset = 0;
+                    const limit = 1000;
+
+                    setState({
+                        phase: 'loading',
+                        totalTms,
+                        currentIndex: idx + 1,
+                        currentTmId: tmId,
+                        currentTmName: tmName,
+                        currentTotal: currentTotal,
+                        currentLoaded,
+                        overallTotal,
+                        overallLoaded,
+                    });
+
+                    for (;;) {
+                        if (stopRequested) return;
+                        try {
+                            const page = await DBService.getTMSegmentsPage(tmId, offset, limit);
+                            const segs = (page && page.segments) ? page.segments : [];
+                            segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
+                            window.ActiveTmCache.push(...segs);
+
+                            currentLoaded += segs.length;
+                            overallLoaded += segs.length;
+                            offset = page && page.nextOffset != null ? page.nextOffset : null;
+
+                            setState({
+                                phase: 'loading',
+                                currentLoaded,
+                                overallLoaded,
+                            });
+
+                            if (offset == null) break;
+                        } catch (e) {
+                            const retry = () => {
+                                // 只要重試目前 TM（保留已載入的 cache）
+                                setState({ phase: 'loading' });
+                                // 重新跑 doLoad，會從未 ready 的 TM 續跑；目前 TM offset 會從 0 開始
+                                // （保守做法：避免 offset 狀態不一致）
+                                doLoad();
+                            };
+                            setState({
+                                phase: 'error',
+                                totalTms,
+                                currentIndex: idx + 1,
+                                currentTmId: tmId,
+                                currentTmName: tmName,
+                                currentTotal: currentTotal,
+                                currentLoaded,
+                                overallTotal,
+                                overallLoaded,
+                                retry,
+                                lastError: String(e && e.message ? e.message : e),
+                            });
+                            return;
+                        }
+                    }
+
+                    window._activeTmCacheReadyIds.add(tmKey);
+                }
+
+                setState({
+                    phase: 'done',
+                    totalTms,
+                    currentIndex: totalTms,
+                    overallTotal,
+                    overallLoaded,
+                });
+            };
+
+            setState({
+                phase: 'loading',
+                totalTms,
+                currentIndex: 0,
+                currentTmName: '',
+                currentTotal: 0,
+                currentLoaded: 0,
+                overallTotal,
+                overallLoaded,
+                retry: () => doLoad(),
+                stop: () => { stopRequested = true; },
+            });
+
+            void doLoad();
+        } catch (e) {
+            window._tmLoadState = { phase: 'idle' };
+            _updateTmLoadStatusUi(window._tmLoadState);
         }
     }
 
