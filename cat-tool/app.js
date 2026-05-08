@@ -6145,7 +6145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const sheet = wb.Sheets[actualName];
             if (!sheet) continue;
             for (const s of sheetSegs) {
-                const addr = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
+                const addr = XLSX.utils.encode_cell({ r: s.rowIdx, c: Number(s.colTgt ?? 0) });
                 const val = excelExportTargetCellForSheet(s);
                 if (val && typeof val === 'object' && val.r) {
                     XLSX.utils.sheet_add_aoa(sheet, [[val]], { origin: addr });
