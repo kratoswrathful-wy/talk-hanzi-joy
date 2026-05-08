@@ -161,13 +161,20 @@
         var stack = [];
         for (var i = 0; i < tokens.length; i++) {
             var t = tokens[i];
-            if (t.kind === 'angle_open') stack.push(t.name);
+            if (t.kind === 'angle_open') stack.push({ name: t.name, idx: i });
             else if (t.kind === 'angle_close') {
-                if (!stack.length || stack[stack.length - 1] !== t.name) return false;
+                if (!stack.length || stack[stack.length - 1].name !== t.name) return false;
                 stack.pop();
             }
         }
-        return stack.length === 0;
+        // Tolerant mode: treat unpaired <tag ...> as standalone tokens rather than failing the whole segment.
+        // This supports game-style placeholders like: <color=...><SpriteName=...>TEXT</color>
+        while (stack.length) {
+            var top = stack.pop();
+            var tok = tokens[top.idx];
+            if (tok && tok.kind === 'angle_open') tok.kind = 'angle_stand';
+        }
+        return true;
     }
 
     function squareOpenIsPaired(tokens, idx) {
@@ -483,6 +490,21 @@
                     num: num
                 });
                 out += phAo;
+                continue;
+            }
+            if (tt.kind === 'angle_stand') {
+                num++;
+                var phAs = '{' + num + '}';
+                var da = tt.raw.length > 36 ? '<' + tt.name + '>' : tt.raw;
+                newTags.push({
+                    ph: phAs,
+                    xml: tt.raw,
+                    display: da,
+                    type: 'standalone',
+                    pairNum: num,
+                    num: num
+                });
+                out += phAs;
                 continue;
             }
             if (tt.kind === 'angle_close') {
