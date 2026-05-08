@@ -4638,7 +4638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 進入編輯器
         const proj = await DBService.getProject(currentProjectId);
-        const viewTitle = `句段集：（${proj?.name || '專案'} — ${view.name}）`;
+        const viewTitle = `句段集：${proj?.name || '專案'} - ${view.name}`;
         await openEditorWithSegments(segments, {
             title: viewTitle,
             viewId: _currentViewId,
@@ -16732,14 +16732,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
-    function focusTargetEditorAtSegmentIndex(segIdx) {
+    const AFTER_CONFIRM_SCROLL_BLOCK_KEY = 'catToolAfterConfirmScrollBlock';
+
+    function getAfterConfirmScrollBlock() {
+        const v = localStorage.getItem(AFTER_CONFIRM_SCROLL_BLOCK_KEY);
+        return v === 'nearest' ? 'nearest' : 'center';
+    }
+
+    function focusTargetEditorAtSegmentIndex(segIdx, scrollBehavior = 'smooth') {
         if (segIdx == null || segIdx < 0) return;
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const row = rows[segIdx];
         if (!row) return;
         const ed = row.querySelector('.grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.scrollIntoView({ behavior: scrollBehavior, block: getAfterConfirmScrollBlock() });
             ed.focus();
         }
     }
@@ -18278,6 +18285,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderEditorSegments() {
         syncExecutiveCatDebugApi();
+        const gridViewport = document.getElementById('editorGrid');
+        const savedScrollTop = gridViewport ? gridViewport.scrollTop : 0;
         gridBody.innerHTML = '';
         // 重建 DOM 後列皆為預設可見；若不清快取，runSearchAndFilter 以 rowCache.vis 比對會誤判為「無需更新 display」而留下錯誤可見狀態，篩選亦會失效。
         sfRowRenderCache.clear();
@@ -19554,6 +19563,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         gridBody.appendChild(fragment);
+        if (gridViewport) gridViewport.scrollTop = savedScrollTop;
         updateProgress();
         applyCollabFocusOutlines();
         applyCollabEditHardLocks();
@@ -19567,7 +19577,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const pi = _pendingFocusSegIdxAfterRender;
             _pendingFocusSegIdxAfterRender = null;
             queueMicrotask(() => {
-                focusTargetEditorAtSegmentIndex(pi);
+                focusTargetEditorAtSegmentIndex(pi, 'instant');
                 maybeSwitchRightPanelToCatAfterConfirm();
             });
         }
@@ -22454,6 +22464,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('input[name="afterConfirmNav"]').forEach((el) => {
             el.checked = el.value === nav;
         });
+        const scrollBlock = getAfterConfirmScrollBlock();
+        document.querySelectorAll('input[name="afterConfirmScroll"]').forEach((el) => {
+            el.checked = el.value === scrollBlock;
+        });
     }
 
     if (btnColSettings) btnColSettings.addEventListener('click', () => {
@@ -22478,6 +22492,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const navEl = document.querySelector('input[name="afterConfirmNav"]:checked');
         const nav = navEl && (navEl.value === 'nextRow' || navEl.value === 'nextUnconfirmed') ? navEl.value : 'nextUnconfirmed';
         localStorage.setItem(AFTER_CONFIRM_NAV_KEY, nav);
+        const scrollEl = document.querySelector('input[name="afterConfirmScroll"]:checked');
+        const scrollBlock = scrollEl && (scrollEl.value === 'nearest' || scrollEl.value === 'center') ? scrollEl.value : 'center';
+        localStorage.setItem(AFTER_CONFIRM_SCROLL_BLOCK_KEY, scrollBlock);
         applyColSettings();
         viewSettingsModal.classList.add('hidden');
     });
@@ -22504,10 +22521,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem('catToolEmptySegMode', 'off');
         localStorage.setItem('catToolEmptySegTmMinPct', '70');
         localStorage.setItem(AFTER_CONFIRM_NAV_KEY, 'nextUnconfirmed');
+        localStorage.setItem(AFTER_CONFIRM_SCROLL_BLOCK_KEY, 'center');
         if (emptySegModeSelect) emptySegModeSelect.value = 'off';
         if (emptySegTmMinPctInput) emptySegTmMinPctInput.value = '70';
         document.querySelectorAll('input[name="afterConfirmNav"]').forEach((el) => {
             el.checked = el.value === 'nextUnconfirmed';
+        });
+        document.querySelectorAll('input[name="afterConfirmScroll"]').forEach((el) => {
+            el.checked = el.value === 'center';
         });
         renderColSettings();
     });

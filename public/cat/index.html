@@ -1518,6 +1518,20 @@
                     </div>
 
                     <div style="padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        <strong style="display:block; margin-bottom: 0.5rem; font-size: 0.9rem;">確認跳行後的捲動方式</strong>
+                        <div style="display:flex; flex-direction:column; gap: 0.4rem; font-size: 0.85rem;">
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="確認跳到下一個句段後，將該句段置中顯示">
+                                <input type="radio" name="afterConfirmScroll" value="center" checked>
+                                確認跳行後置中目標列（預設）
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="僅在下一個句段即將超出畫面下緣時才捲動，避免頻繁置中">
+                                <input type="radio" name="afterConfirmScroll" value="nearest">
+                                僅於畫面底部捲動
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
                         <strong style="display:block; margin-bottom: 0.5rem; font-size: 0.9rem;">空白句段自動處理</strong>
                         <p style="margin:0 0 0.5rem 0; font-size:0.78rem; color:#64748b; line-height:1.4;">空白譯文於<strong>首次</strong>取得焦點時執行一次（若您曾編輯過該句譯文則略過）。</p>
                         <label for="emptySegMode" style="display:block; margin-bottom:0.35rem; font-size:0.82rem; color:#475569;">模式</label>
