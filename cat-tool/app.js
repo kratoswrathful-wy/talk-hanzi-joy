@@ -4921,9 +4921,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         return out;
     }
 
-    async function loadProjectTmCacheInBackground(project) {
+    function _tmSegLangOk(seg, fileLangs) {
+        const fileSrc = (fileLangs && fileLangs.sourceLang) ? String(fileLangs.sourceLang) : '';
+        const fileTgt = (fileLangs && fileLangs.targetLang) ? String(fileLangs.targetLang) : '';
+        if (!fileSrc && !fileTgt) return true;
+        const segSrc = String(seg && seg.sourceLang ? seg.sourceLang : '');
+        const segTgt = String(seg && seg.targetLang ? seg.targetLang : '');
+        // 句段沒有語言標記（舊資料）→ 納入；有語言標記 → 必須相符
+        if (!segSrc && !segTgt) return true;
+        return segSrc.toLowerCase() === fileSrc.toLowerCase() &&
+               segTgt.toLowerCase() === fileTgt.toLowerCase();
+    }
+
+    async function loadProjectTmCacheInBackground(project, opts) {
         try {
-            const tmIds = _uniqueTmIdsInOrder(project);
+            const tmIds = (opts && Array.isArray(opts.tmIds)) ? opts.tmIds : _uniqueTmIdsInOrder(project);
+            const fileLangs = opts && opts.fileLangs ? opts.fileLangs : null;
             const totalTms = tmIds.length;
             if (totalTms === 0) {
                 window._tmLoadState = { phase: 'idle' };
@@ -4932,17 +4945,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // 預先計數（逐一，避免併發壓垮 RPC）
+            // 若有語言過濾（檔案模式），count 會與實際載入數不一致；此時以「…」顯示即可。
             const totalsByTmId = {};
             let overallTotal = 0;
-            for (const tmId of tmIds) {
-                try {
-                    const c = await DBService.countTMSegments(tmId);
-                    totalsByTmId[String(tmId)] = c;
-                    overallTotal += c;
-                } catch (e) {
-                    // 計數失敗不阻塞載入；UI 會顯示未知總數
-                    totalsByTmId[String(tmId)] = null;
+            if (!fileLangs || (!fileLangs.sourceLang && !fileLangs.targetLang)) {
+                for (const tmId of tmIds) {
+                    try {
+                        const c = await DBService.countTMSegments(tmId);
+                        totalsByTmId[String(tmId)] = c;
+                        overallTotal += c;
+                    } catch (e) {
+                        // 計數失敗不阻塞載入；UI 會顯示未知總數
+                        totalsByTmId[String(tmId)] = null;
+                    }
                 }
+            } else {
+                tmIds.forEach((tmId) => { totalsByTmId[String(tmId)] = null; });
+                overallTotal = 0;
             }
 
             let overallLoaded = 0;
@@ -4996,7 +5015,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (stopRequested) return;
                         try {
                             const page = await DBService.getTMSegmentsPage(tmId, offset, limit);
-                            const segs = (page && page.segments) ? page.segments : [];
+                            const rawSegs = (page && page.segments) ? page.segments : [];
+                            const segs = fileLangs ? rawSegs.filter((s) => _tmSegLangOk(s, fileLangs)) : rawSegs;
                             segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
                             window.ActiveTmCache.push(...segs);
 
@@ -5036,6 +5056,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
 
+                    // 若做語言過濾，cacheReady 仍視為「此 TM 已完成背景掃描」
                     window._activeTmCacheReadyIds.add(tmKey);
                 }
 
@@ -5606,21 +5627,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         {
             const _prevReady = window._activeTmCacheReadyIds || new Set();
             const _allPickedIds = [...new Set([...readTms.map(String), ...writeTms.map(String)])];
-            for (const tmId of _allPickedIds) {
-                if (_prevReady.has(String(tmId))) continue;
-                try {
-                    const tm = await DBService.getTM(tmId);
-                    const tmName = tm ? tm.name : `TM #${tmId}`;
-                    if (!window._activeTmNames) window._activeTmNames = {};
-                    window._activeTmNames[String(tmId)] = tmName;
-                    const segs = await DBService.getTMSegments(tmId);
-                    segs.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
-                    const existingIds = new Set((window.ActiveTmCache || []).map(s => String(s.id)));
-                    if (!window.ActiveTmCache) window.ActiveTmCache = [];
-                    window.ActiveTmCache.push(...segs.filter(s => !existingIds.has(String(s.id))));
-                    if (!window._activeTmCacheReadyIds) window._activeTmCacheReadyIds = new Set();
-                    window._activeTmCacheReadyIds.add(String(tmId));
-                } catch (_) { /* 補載失敗不阻斷；下次確認自動回退 DB 查詢 */ }
+            const toLoad = _allPickedIds.filter((tmId) => !_prevReady.has(String(tmId))).map(parseId).filter(Boolean);
+            if (toLoad.length) {
+                const pseudoProject = { readTms: toLoad, writeTms: [] };
+                void loadProjectTmCacheInBackground(pseudoProject);
             }
         }
         const p = await DBService.getProject(currentProjectId);
@@ -5851,6 +5861,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         _editorTmNormListCache = null;
     }
 
+    async function _buildTmNormListPaged(tmIds, onProgress) {
+        const WCE = window.WordCountEngine;
+        if (!WCE || !tmIds || !tmIds.length) return [];
+        const normList = [];
+        const limit = 1000;
+        for (let i = 0; i < tmIds.length; i++) {
+            const tmId = tmIds[i];
+            let offset = 0;
+            let loaded = 0;
+            let total = null;
+            try { total = await DBService.countTMSegments(tmId); } catch (_) { total = null; }
+            if (onProgress) onProgress({ phase: 'tm', index: i + 1, totalTms: tmIds.length, tmId, loaded, total });
+            for (;;) {
+                const page = await DBService.getTMSegmentsPage(tmId, offset, limit);
+                const segs = (page && page.segments) ? page.segments : [];
+                segs.forEach((s) => {
+                    const n = WCE.normKey(s.sourceText);
+                    if (n) normList.push(n);
+                });
+                loaded += segs.length;
+                if (onProgress) onProgress({ phase: 'page', index: i + 1, totalTms: tmIds.length, tmId, loaded, total });
+                if (!page || page.nextOffset == null) break;
+                offset = page.nextOffset;
+            }
+        }
+        return normList;
+    }
+
     async function getProjectTmNormListCached(projectId) {
         if (!projectId || !window.WordCountEngine) return [];
         if (_projectTmNormListCache && String(_projectTmNormListCache.projectId) === String(projectId)) {
@@ -5858,14 +5896,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const p = await DBService.getProject(projectId);
         const readTms = (p && p.readTms) ? p.readTms : [];
-        const tmNormList = [];
-        for (const tid of readTms) {
-            const segs = await DBService.getTMSegments(tid);
-            segs.forEach((s) => {
-                const n = WordCountEngine.normKey(s.sourceText);
-                if (n) tmNormList.push(n);
-            });
-        }
+        const tmNormList = await _buildTmNormListPaged(readTms);
         _projectTmNormListCache = { projectId, normList: tmNormList };
         return tmNormList;
     }
@@ -6528,19 +6559,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             let tmNormList = [];
             if (wordCountTmCheckboxes) {
                 const checked = Array.from(wordCountTmCheckboxes.querySelectorAll('.word-count-tm-cb:checked'));
-                const nTm = checked.length;
-                let ti = 0;
-                for (const cb of checked) {
-                    const tmId = cb.value;
-                    if (!tmId) continue;
-                    ti += 1;
-                    setProg(nTm ? `讀取 TM 資料…（${ti}/${nTm}）` : '讀取 TM 資料…');
-                    const segs = await DBService.getTMSegments(tmId);
-                    segs.forEach((s) => {
-                        const n = WCE.normKey(s.sourceText);
-                        if (n) tmNormList.push(n);
-                    });
-                }
+                const tmIds = checked.map(cb => cb.value).filter(Boolean);
+                tmNormList = await _buildTmNormListPaged(tmIds, (p) => {
+                    const base = `讀取 TM 資料…（${p.index}/${p.totalTms}）`;
+                    const tail = p.total != null ? ` · ${p.loaded}/${p.total}` : ` · ${p.loaded}/…`;
+                    setProg(base + tail);
+                });
             }
 
             if (!fromEditor) {
@@ -6825,15 +6849,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const useTm = !!(splitHintTmCheckboxes && splitHintTmCheckboxes.querySelector('.split-hint-tm-cb:checked'));
         if (useTm && window.WordCountEngine) {
             const checked = splitHintTmCheckboxes.querySelectorAll('.split-hint-tm-cb:checked');
-            for (const cb of checked) {
-                const tmId = cb.value;
-                if (!tmId) continue;
-                const segs = await DBService.getTMSegments(tmId);
-                segs.forEach((s) => {
-                    const nk = WordCountEngine.normKey(s.sourceText);
-                    if (nk) tmNormList.push(nk);
-                });
-            }
+            const tmIds = Array.from(checked).map(cb => cb.value).filter(Boolean);
+            tmNormList = await _buildTmNormListPaged(tmIds, (p) => {
+                const tail = p.total != null ? ` · ${p.loaded}/${p.total}` : ` · ${p.loaded}/…`;
+                wrap.innerHTML = `<div style="padding:0.75rem;color:#64748b;">計算中…（讀取 TM ${p.index}/${p.totalTms}${tail}）</div>`;
+            });
         }
         const tmExact = new Set(tmNormList.filter(Boolean));
 
@@ -6934,12 +6954,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const useTm = !!(splitHintTmCheckboxes && splitHintTmCheckboxes.querySelector('.split-hint-tm-cb:checked'));
         if (useTm && window.WordCountEngine) {
             const checked = splitHintTmCheckboxes.querySelectorAll('.split-hint-tm-cb:checked');
-            for (const cb of checked) {
-                const tmId = cb.value;
-                if (!tmId) continue;
-                const segs = await DBService.getTMSegments(tmId);
-                segs.forEach((s) => { const nk = WordCountEngine.normKey(s.sourceText); if (nk) tmNormList.push(nk); });
-            }
+            const tmIds = Array.from(checked).map(cb => cb.value).filter(Boolean);
+            tmNormList = await _buildTmNormListPaged(tmIds, (p) => {
+                const tail = p.total != null ? ` · ${p.loaded}/${p.total}` : ` · ${p.loaded}/…`;
+                wrap.innerHTML = `<div style="padding:0.75rem;color:#64748b;">計算中…（讀取 TM ${p.index}/${p.totalTms}${tail}）</div>`;
+            });
         }
         const tmExact = new Set(tmNormList.filter(Boolean));
         let allSegs = await DBService.getSegmentsByIds(segIds);
@@ -9562,9 +9581,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadTmSegments() {
         if(!currentTmId || !tmSegmentsListBody) return;
-        const segments = await DBService.getTMSegments(currentTmId);
-        tmSegmentsFullCache = segments;
-        const display = tmDupFilterActive ? _tmSegFilterDuplicatesOnly(segments) : segments;
+        tmSegmentsListBody.innerHTML = '<tr><td colspan="6" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
+        const all = [];
+        const limit = 1000;
+        let offset = 0;
+        let total = null;
+        try { total = await DBService.countTMSegments(currentTmId); } catch (_) { total = null; }
+        for (;;) {
+            const page = await DBService.getTMSegmentsPage(currentTmId, offset, limit);
+            const segs = (page && page.segments) ? page.segments : [];
+            all.push(...segs);
+            const done = all.length;
+            const tail = total != null ? `${done}/${total}` : `${done}/…`;
+            tmSegmentsListBody.innerHTML = `<tr><td colspan="6" style="padding:0.75rem; color:#64748b;">載入中…（${tail}）</td></tr>`;
+            if (!page || page.nextOffset == null) break;
+            offset = page.nextOffset;
+        }
+        tmSegmentsFullCache = all;
+        const display = tmDupFilterActive ? _tmSegFilterDuplicatesOnly(all) : all;
         renderTmSegmentsTable(display);
     }
 
@@ -9731,7 +9765,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (_exportType === 'TM') {
                 const tm = await DBService.getTM(currentTmId);
                 if (!tm) return alert('無法取得 TM 資料');
-                const segs = await DBService.getTMSegments(currentTmId);
+                showCatLoadingOverlay('正在準備匯出 TM…');
+                const segs = [];
+                const limit = 1000;
+                let offset = 0;
+                let total = null;
+                try { total = await DBService.countTMSegments(currentTmId); } catch (_) { total = null; }
+                for (;;) {
+                    const page = await DBService.getTMSegmentsPage(currentTmId, offset, limit);
+                    const batch = (page && page.segments) ? page.segments : [];
+                    segs.push(...batch);
+                    const tail = total != null ? `${segs.length}/${total}` : `${segs.length}/…`;
+                    showCatLoadingOverlay(`正在準備匯出 TM…（${tail}）`);
+                    if (!page || page.nextOffset == null) break;
+                    offset = page.nextOffset;
+                }
                 const srcLang = (tm.sourceLangs || [])[0] || 'zh-TW';
                 const tgtLang = (tm.targetLangs || [])[0] || 'en-US';
                 const safeName = (tm.name || 'export').replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, '_');
@@ -9761,6 +9809,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     XLSX.utils.book_append_sheet(wb, ws, 'TM');
                     XLSX.writeFile(wb, `${safeName}.xlsx`);
                 }
+                hideCatLoadingOverlay();
             } else {
                 const tb = await DBService.getTB(currentTbId);
                 if (!tb) return alert('無法取得 TB 資料');
@@ -9852,8 +9901,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnClearTmSegments.addEventListener('click', async () => {
             if(!currentTmId) return;
             if (await openCatConfirmModal('是否確定要清空此記憶庫中所有的句段？此動作無法復原。')) {
-                const existing = await DBService.getTMSegments(currentTmId);
-                const total = existing.length;
+                let total = 0;
+                try { total = await DBService.countTMSegments(currentTmId); } catch (_) { total = 0; }
                 await DBService.deleteTMSegmentsByTMId(currentTmId);
                 await DBService.patchTM(currentTmId, {});
                 if (total > 0) {
@@ -13451,6 +13500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTmPenalties = {};
         window._activeTmCacheReadyIds = new Set();
         window._activeTmNames = {};
+        window._tmLoadState = null;
         // 記錄當前檔案的語言對，供 TM 篩選及寫入使用
         window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
         let project = await DBService.getProject(resolvedProjectId);
@@ -13463,45 +13513,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTmPenalties = (project && project.tmPenalties) ? project.tmPenalties : {};
         updateEditorQuestionButtons(file, project);
         window.ActiveReadTmIds = (project && Array.isArray(project.readTms)) ? project.readTms : [];
-        if (project && project.readTms && project.readTms.length > 0) {
-            for (const tmId of project.readTms) {
-                const tm = await DBService.getTM(tmId);
-                const tmName = tm ? tm.name : `TM #${tmId}`;
-                const segs = await DBService.getTMSegments(tmId);
-                // 若檔案有設定語言對，則只保留語言對相符或未設語言的 TM 句段（向下相容）
-                const fileSrc = window.ActiveFileLangs.sourceLang;
-                const fileTgt = window.ActiveFileLangs.targetLang;
-                const filtered = (fileSrc || fileTgt)
-                    ? segs.filter(s => {
-                        const segSrc = s.sourceLang || '';
-                        const segTgt = s.targetLang || '';
-                        // 句段沒有語言標記（舊資料）→ 納入；有語言標記 → 必須相符
-                        if (!segSrc && !segTgt) return true;
-                        return segSrc.toLowerCase() === fileSrc.toLowerCase() &&
-                               segTgt.toLowerCase() === fileTgt.toLowerCase();
-                    })
-                    : segs;
-                // Stamp each segment with its source TM id + name
-                filtered.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
-                window.ActiveTmCache.push(...filtered);
-                window._activeTmNames[String(tmId)] = tmName;
-                window._activeTmCacheReadyIds.add(String(tmId));
-            }
-        }
         if (project && project.writeTms) window.ActiveWriteTms = project.writeTms;
-        // 僅寫入而未在讀取清單的 TM 也需載入快取，以支援確認時快取比對去重
-        {
-            const _rdSet = new Set((project && project.readTms || []).map(String));
-            for (const tmId of (project && project.writeTms || [])) {
-                if (_rdSet.has(String(tmId))) continue;
-                const tm = await DBService.getTM(tmId);
-                const tmName = tm ? tm.name : `TM #${tmId}`;
-                const segs = await DBService.getTMSegments(tmId);
-                segs.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
-                window.ActiveTmCache.push(...segs);
-                window._activeTmNames[String(tmId)] = tmName;
-                window._activeTmCacheReadyIds.add(String(tmId));
-            }
+        // 重要：檔案模式也要「先渲染句段、TM 背景載入」，避免大型 TM timeout 造成空白/卡住
+        if (project) {
+            void loadProjectTmCacheInBackground(project, { fileLangs: window.ActiveFileLangs });
         }
 
         // --- LOAD TB TERMS: only TBs listed in project.readTbs (no language fallback) ---
@@ -19828,6 +19843,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             sourceLang: fileLangs.sourceLang || '',
             targetLang: fileLangs.targetLang || ''
         };
+        async function _findTmMatchPaged(tmId, sourceText, srcLang, tgtLang) {
+            // 先用 session 內已載入的快取（含本 session 新增）快速找
+            const tmIdStr = String(tmId);
+            const cache = (window.ActiveTmCache || []).filter(t => String(t._tmId) === tmIdStr);
+            const cacheHit = cache.find((tms) => {
+                if (tms.sourceText !== sourceText) return false;
+                if (!srcLang && !tgtLang) return true;
+                const segSrc = (tms.sourceLang || '').toLowerCase();
+                const segTgt = (tms.targetLang || '').toLowerCase();
+                if (!segSrc && !segTgt) return true;
+                return segSrc === srcLang && segTgt === tgtLang;
+            });
+            if (cacheHit) return cacheHit;
+
+            // DB 分頁掃描：找到第一筆相符即可，不做全量拉回
+            const limit = 1000;
+            let offset = 0;
+            for (;;) {
+                const page = await DBService.getTMSegmentsPage(tmId, offset, limit);
+                const segs = (page && page.segments) ? page.segments : [];
+                const hit = segs.find((tms) => {
+                    if (tms.sourceText !== sourceText) return false;
+                    if (!srcLang && !tgtLang) return true;
+                    const segSrc = (tms.sourceLang || '').toLowerCase();
+                    const segTgt = (tms.targetLang || '').toLowerCase();
+                    if (!segSrc && !segTgt) return true;
+                    return segSrc === srcLang && segTgt === tgtLang;
+                });
+                if (hit) return hit;
+                if (!page || page.nextOffset == null) break;
+                offset = page.nextOffset;
+            }
+            return null;
+        }
         for (const rawTmId of window.ActiveWriteTms) {
             const tmId = rawTmId;
             const tmIdStr = String(tmId);
@@ -19844,29 +19893,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const tmRow = await DBService.getTM(tmId);
                 tmName = tmRow ? tmRow.name : `TM #${tmId}`;
             }
-            let existing;
-            if (isCacheReady) {
-                // 快取完整：從記憶體直接篩出此 TM 的所有條目（含本 session 已新增者）
-                existing = (window.ActiveTmCache || []).filter(t => String(t._tmId) === tmIdStr);
-            } else {
-                // 快取未備：仍需查 DB，同時補入 session 內已新增但 DB 尚未回傳的條目
-                const dbExisting = await DBService.getTMSegments(tmId);
-                const dbIds = new Set(dbExisting.map(s => s.id));
-                const sessionAdds = (window.ActiveTmCache || []).filter(
-                    t => t._tmId === tmId && !dbIds.has(t.id)
-                );
-                existing = [...dbExisting, ...sessionAdds];
-            }
             const srcLang = metaBase.sourceLang.toLowerCase();
             const tgtLang = metaBase.targetLang.toLowerCase();
-            const match = existing.find(tms => {
-                if (tms.sourceText !== seg.sourceText) return false;
-                if (!srcLang && !tgtLang) return true;
-                const segSrc = (tms.sourceLang || '').toLowerCase();
-                const segTgt = (tms.targetLang || '').toLowerCase();
-                if (!segSrc && !segTgt) return true;
-                return segSrc === srcLang && segTgt === tgtLang;
-            });
+            const match = isCacheReady
+                ? (window.ActiveTmCache || []).filter(t => String(t._tmId) === tmIdStr).find((tms) => {
+                    if (tms.sourceText !== seg.sourceText) return false;
+                    if (!srcLang && !tgtLang) return true;
+                    const segSrc = (tms.sourceLang || '').toLowerCase();
+                    const segTgt = (tms.targetLang || '').toLowerCase();
+                    if (!segSrc && !segTgt) return true;
+                    return segSrc === srcLang && segTgt === tgtLang;
+                })
+                : await _findTmMatchPaged(tmId, seg.sourceText, srcLang, tgtLang);
             if (!match) {
                 const metaFull = { ...metaBase, changeLog: [] };
                 let newId;
