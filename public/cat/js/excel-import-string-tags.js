@@ -163,12 +163,26 @@
             var t = tokens[i];
             if (t.kind === 'angle_open') stack.push({ name: t.name, idx: i });
             else if (t.kind === 'angle_close') {
-                if (!stack.length || stack[stack.length - 1].name !== t.name) return false;
-                stack.pop();
+                // Tolerant matching:
+                // If close tag does not match the top-of-stack, treat intervening opens as standalone
+                // (e.g. <color=...><SpriteName=...>TEXT</color> where SpriteName has no closing tag).
+                if (!stack.length) return false;
+                if (stack[stack.length - 1].name !== t.name) {
+                    // Pop until we find a matching open; convert popped opens to 'angle_stand'
+                    var found = false;
+                    while (stack.length) {
+                        var top = stack[stack.length - 1];
+                        if (top.name === t.name) { found = true; break; }
+                        stack.pop();
+                        var tok = tokens[top.idx];
+                        if (tok && tok.kind === 'angle_open') tok.kind = 'angle_stand';
+                    }
+                    if (!found) return false;
+                }
+                stack.pop(); // pop the matching open
             }
         }
-        // Tolerant mode: treat unpaired <tag ...> as standalone tokens rather than failing the whole segment.
-        // This supports game-style placeholders like: <color=...><SpriteName=...>TEXT</color>
+        // Tolerant mode: treat trailing unpaired <tag ...> as standalone tokens rather than failing the whole segment.
         while (stack.length) {
             var top = stack.pop();
             var tok = tokens[top.idx];
