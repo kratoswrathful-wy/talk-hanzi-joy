@@ -5898,6 +5898,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         return targetText || '';
     }
 
+    /** 將 xlsx-rich-tags 產生的 `{n}`／`{/n}` 從純文字剝除，供 SheetJS cell.v 顯示用 */
+    function excelStripXlsxRichPlaceholders(text, richTags) {
+        if (!text || !richTags || !richTags.length) return text || '';
+        const phSet = new Set(richTags.map((t) => t && t.ph).filter(Boolean));
+        return text.split(/(\{\/?\d+\})/).filter((p) => !phSet.has(p)).join('');
+    }
+
+    function excelPartitionTargetTagsForExport(targetTags) {
+        const rich = [];
+        const str = [];
+        (targetTags || []).forEach((t) => {
+            if (t && t.tagLayer === 'xlsxRpr') rich.push(t);
+            else str.push(t);
+        });
+        return { richTags: rich, stringTags: str };
+    }
+
+    /**
+     * Excel 匯出寫入單格：字串或 SheetJS 富文本 cell 物件（t、s、r、v）。
+     * 先還原字串規則 tag，再以 buildRichTextXml 還原儲存格內 rPr 佔位（見 xlsx-rich-tags.js）。
+     */
+    function excelExportTargetCellForSheet(seg) {
+        const StrTags = window.CatToolExcelImportStringTags;
+        const XlsxRich = window.CatToolXlsxRichTags;
+        const rawTags = seg.targetTags;
+        const { richTags, stringTags } = excelPartitionTargetTagsForExport(rawTags);
+        let text = seg.targetText != null ? String(seg.targetText) : '';
+        if (StrTags && stringTags.length && typeof StrTags.restorePlaceholdersForExport === 'function') {
+            text = StrTags.restorePlaceholdersForExport(text, stringTags);
+        }
+        const baseRpr = seg.baseRprXml != null ? String(seg.baseRprXml) : '';
+        if (XlsxRich && typeof XlsxRich.buildRichTextXml === 'function' && (richTags.length || baseRpr)) {
+            const xml = XlsxRich.buildRichTextXml(text, richTags, baseRpr);
+            const plainV = excelStripXlsxRichPlaceholders(text, richTags);
+            return { t: 's', v: plainV, r: xml };
+        }
+        return excelExportPlainTargetCell(seg.targetText, rawTags);
+    }
+
+    /**
+     * 將譯文寫回已 XLSX.read 的工作簿：只 patch 譯文格，保留其餘儲存格（含原文欄富文本）。
+     */
+    function excelApplyTranslatedSegmentsToWorkbook(wb, segsBySheet) {
+        for (const [segSheetName, sheetSegs] of segsBySheet) {
+            const actualName = (wb.SheetNames || []).find((n) =>
+                String(n || '').trim().toLowerCase() === segSheetName.trim().toLowerCase()
+            ) || segSheetName;
+            const sheet = wb.Sheets[actualName];
+            if (!sheet) continue;
+            for (const s of sheetSegs) {
+                const addr = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
+                const val = excelExportTargetCellForSheet(s);
+                if (val && typeof val === 'object' && val.r) {
+                    XLSX.utils.sheet_add_aoa(sheet, [[val]], { origin: addr });
+                } else {
+                    XLSX.utils.sheet_add_aoa(sheet, [[val != null ? val : '']], { origin: addr });
+                }
+            }
+        }
+    }
+
     async function _batchExportBuildBlob(f, segs, format) {
         if (format === 'xliff' || format === 'mqxliff' || format === 'sdlxliff') {
             if (!Xliff || typeof Xliff.exportXliffFamilyToBlob !== 'function') {
@@ -5946,20 +6007,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!segsBySheet.has(k)) segsBySheet.set(k, []);
             segsBySheet.get(k).push(s);
         });
-        for (const [segSheetName, sheetSegs] of segsBySheet) {
-            const actualName = (wb.SheetNames || []).find(n =>
-                String(n || '').trim().toLowerCase() === segSheetName.trim().toLowerCase()
-            ) || segSheetName;
-            const sheet = wb.Sheets[actualName];
-            if (!sheet) continue;
-            const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-            for (const s of sheetSegs) {
-                while (data.length <= s.rowIdx) data.push([]);
-                while (data[s.rowIdx].length <= s.colTgt) data[s.rowIdx].push('');
-                data[s.rowIdx][s.colTgt] = excelExportPlainTargetCell(s.targetText, s.targetTags);
-            }
-            wb.Sheets[actualName] = XLSX.utils.aoa_to_sheet(data);
-        }
+        excelApplyTranslatedSegmentsToWorkbook(wb, segsBySheet);
         const arr = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
         const blob = new Blob([arr], { type: 'application/octet-stream' });
         return { blob, filename: `Translated_${f.name}` };
@@ -22675,21 +22723,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     alert('無法匯出：遺失原始檔案內容，請確認檔案已自雲端完整同步後再試。');
                     return;
                 }
-                const _dbgFmt = (arr) => Array.isArray(arr) ? arr.slice(0, 5).map(s => String(s.id).slice(-6) + ' r' + s.rowIdx + ' c' + s.colTgt + ' | ' + (s.targetText || '').slice(0, 50)).join('\n') : String(arr);
-                console.log('[EXPORT DEBUG] currentSegmentsList:\n' + _dbgFmt(currentSegmentsList));
-                console.log('[EXPORT DEBUG] rawSegs:\n' + _dbgFmt(rawSegs));
-                console.log('[EXPORT DEBUG] segs:\n' + _dbgFmt(segs));
                 const originalData = new Uint8Array(f.originalFileBuffer);
                 const wb = XLSX.read(originalData, { type: 'array' });
-                const XlsxRich = window.CatToolXlsxRichTags;
 
                 let excelWriteCount = 0;
                 let excelSkipLocked = 0;
                 let excelSkipNoSheet = 0;
                 const couldWriteSegs = segs.filter((s) => !isTargetWriteProtected(s));
 
-                // SheetJS 0.20 讀入後有內部工作表 XML 快取；直接修改 cell 物件無法反映在 writeFile 輸出。
-                // 解法：將整張工作表轉成 AoA → 更新目標欄 → aoa_to_sheet 重建，再整張替換進 wb.Sheets。
                 const segsBySheet = new Map();
                 segs.forEach(s => {
                     if (isTargetWriteProtected(s)) { excelSkipLocked++; return; }
@@ -22699,30 +22740,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
 
                 for (const [segSheetName, sheetSegs] of segsBySheet) {
-                    // 找到工作簿中實際的 sheet 鍵（不區分大小寫）
                     const actualName = (wb.SheetNames || []).find(n =>
                         String(n || '').trim().toLowerCase() === segSheetName.trim().toLowerCase()
                     ) || segSheetName;
-                    const sheet = wb.Sheets[actualName];
-                    if (!sheet) {
+                    if (!wb.Sheets[actualName]) {
                         excelSkipNoSheet += sheetSegs.length;
                         continue;
                     }
-
-                    // 整張轉 AoA（header:1 保留所有欄位；defval 填空字串避免 undefined）
-                    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
-                    for (const s of sheetSegs) {
-                        // 確保陣列有足夠的列/欄
-                        while (data.length <= s.rowIdx) data.push([]);
-                        while (data[s.rowIdx].length <= s.colTgt) data[s.rowIdx].push('');
-                        data[s.rowIdx][s.colTgt] = excelExportPlainTargetCell(s.targetText, s.targetTags);
-                        excelWriteCount++;
-                    }
-
-                    // 重建工作表並替換（aoa_to_sheet 從 JS 資料直接序列化，無快取問題）
-                    wb.Sheets[actualName] = XLSX.utils.aoa_to_sheet(data);
+                    excelWriteCount += sheetSegs.length;
                 }
+                excelApplyTranslatedSegmentsToWorkbook(wb, segsBySheet);
 
                 if (couldWriteSegs.length > 0 && excelWriteCount === 0) {
                     alert('匯出時無法寫入任何譯文儲存格（可能為工作表名稱與匯入時不一致，或資料異常）。已略過：鎖定 ' + excelSkipLocked + ' 句、找不到工作表 ' + excelSkipNoSheet + ' 句。');

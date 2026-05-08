@@ -41,12 +41,15 @@
         if (cm) s.color = cm[1].slice(2); // 去 alpha → RRGGBB
         const szm = rprXml.match(/<sz\s+val="([^"]+)"/);
         if (szm) s.sz = szm[1];
+        const va = rprXml.match(/<(?:\w+:)?vertAlign\s+val="([^"]+)"/);
+        if (va) s.vertAlign = va[1];
         return s;
     }
 
     function styleEq(a, b) {
         return a.b === b.b && a.i === b.i && a.u === b.u &&
-               a.strike === b.strike && a.color === b.color && a.sz === b.sz;
+               a.strike === b.strike && a.color === b.color && a.sz === b.sz &&
+               a.vertAlign === b.vertAlign;
     }
 
     function styleToDisplay(s) {
@@ -55,6 +58,8 @@
         if (s.i)      parts.push('I');
         if (s.u)      parts.push('U');
         if (s.strike) parts.push('S');
+        if (s.vertAlign === 'superscript') parts.push('sup');
+        if (s.vertAlign === 'subscript') parts.push('sub');
         if (s.color)  parts.push('#' + s.color);
         if (s.sz)     parts.push(s.sz + 'pt');
         return '[' + (parts.length ? parts.join(',') : 'fmt') + ']';
@@ -133,8 +138,14 @@
                 const ph = `{${counter}}`;
                 const phClose = `{/${counter}}`;
                 const disp = styleToDisplay(run.style);
-                tags.push({ ph,       xml: run.rprXml, display: disp,               type: 'open',  pairNum: counter, num: counter });
-                tags.push({ ph: phClose, xml: '',       display: disp.replace('[', '[/'), type: 'close', pairNum: counter, num: counter });
+                tags.push({
+                    ph, xml: run.rprXml, display: disp, type: 'open', pairNum: counter, num: counter,
+                    tagLayer: 'xlsxRpr'
+                });
+                tags.push({
+                    ph: phClose, xml: '', display: disp.replace('[', '[/'), type: 'close', pairNum: counter, num: counter,
+                    tagLayer: 'xlsxRpr'
+                });
                 text += ph + run.text + phClose;
             } else {
                 text += run.text;
