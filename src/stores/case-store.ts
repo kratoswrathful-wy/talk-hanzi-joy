@@ -368,7 +368,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   const prev = getById(id);
   const shouldSyncCatAssignments =
     !!prev &&
-    prev.status === "inquiry" &&
+    prev.status !== "dispatched" &&
     partial.status === "dispatched";
   let merged: Partial<CaseRecord> = partial;
   if (
@@ -430,44 +430,9 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     await load();
   }
 
-  if (!error && shouldSyncCatAssignments && prev) {
+  if (!error && shouldSyncCatAssignments) {
     try {
-      const next = { ...prev, ...merged } as CaseRecord;
-      const translatorNames = Array.isArray(next.translator) ? next.translator.map((n) => String(n || "").trim()).filter(Boolean) : [];
-      const reviewerName = String(next.reviewer || "").trim();
-      const assigneeNames = [...new Set([...translatorNames, reviewerName].filter(Boolean))];
-      if (assigneeNames.length > 0) {
-        const { data: linkedFiles } = await (supabase.from("cat_files") as any)
-          .select("id")
-          .eq("related_lms_case_id", id);
-        const fileIds = (linkedFiles ?? []).map((r: any) => String(r.id || "")).filter(Boolean);
-        if (fileIds.length > 0) {
-          const [byDisplay, byEmail] = await Promise.all([
-            (supabase.from("profiles") as any).select("id,display_name,email").in("display_name", assigneeNames),
-            (supabase.from("profiles") as any).select("id,display_name,email").in("email", assigneeNames),
-          ]);
-          const userIdSet = new Set<string>();
-          [...(byDisplay.data ?? []), ...(byEmail.data ?? [])].forEach((r: any) => {
-            const uid = String(r?.id || "").trim();
-            if (uid) userIdSet.add(uid);
-          });
-          const userIds = Array.from(userIdSet);
-          if (userIds.length > 0) {
-            const now = new Date().toISOString();
-            const rows = fileIds.flatMap((fileId) =>
-              userIds.map((uid) => ({
-                file_id: fileId,
-                assignee_user_id: uid,
-                assigned_by: null,
-                status: "assigned",
-                assigned_at: now,
-                updated_at: now,
-              }))
-            );
-            await (supabase.from("cat_file_assignments") as any).upsert(rows as any, { onConflict: "file_id,assignee_user_id" });
-          }
-        }
-      }
+      await (supabase as any).rpc("sync_cat_file_assignments_for_case", { p_case_id: id });
     } catch (e) {
       console.warn("[case-store] sync CAT assignments skipped:", e);
     }
