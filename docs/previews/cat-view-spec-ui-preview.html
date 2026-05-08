@@ -192,7 +192,7 @@
     }
     .preview-grid.preview-grid-ext > .row {
       display: grid;
-      grid-template-columns: 32px 88px 72px 56px 1fr 1fr 52px 48px;
+      grid-template-columns: 28px 52px 82px minmax(0, 1fr) minmax(0, 1fr) 44px 40px 52px;
       font-size: 0.72rem;
     }
     .preview-grid.preview-grid-ext > .row.hdr { background: #f1f5f9; font-weight: 600; color: #475569; }
@@ -283,7 +283,7 @@
     .grid-wrap { display: flex; flex-direction: column; min-height: 180px; max-height: 320px; overflow: auto; }
     .grid-header {
       display: grid;
-      grid-template-columns: 40px 72px 1fr 1fr 100px;
+      grid-template-columns: 40px 64px 1fr 1fr 72px 56px;
       background: #f1f5f9;
       font-size: 0.72rem;
       font-weight: 600;
@@ -294,10 +294,10 @@
       border-bottom: 1px solid var(--border);
     }
     .grid-header.has-src-file {
-      grid-template-columns: 40px 72px 100px 1fr 1fr 100px;
+      grid-template-columns: 40px 64px 92px 1fr 1fr 72px 56px;
     }
     .grid-header:not(.has-src-file) {
-      grid-template-columns: 40px 72px 1fr 1fr 100px;
+      grid-template-columns: 40px 64px 1fr 1fr 72px 56px;
     }
     .grid-header span, .grid-row span {
       padding: 0.35rem 0.45rem;
@@ -306,16 +306,16 @@
     .grid-header span:last-child, .grid-row span:last-child { border-right: none; }
     .grid-row {
       display: grid;
-      grid-template-columns: 40px 72px 1fr 1fr 100px;
+      grid-template-columns: 40px 64px 1fr 1fr 72px 56px;
       font-size: 0.78rem;
       border-bottom: 1px solid #e2e8f0;
       align-items: center;
     }
     .grid-row.has-src-file {
-      grid-template-columns: 40px 72px 100px 1fr 1fr 100px;
+      grid-template-columns: 40px 64px 92px 1fr 1fr 72px 56px;
     }
     .grid-row.has-src-file:not(.show-file-col) {
-      grid-template-columns: 40px 72px 1fr 1fr 100px;
+      grid-template-columns: 40px 64px 1fr 1fr 72px 56px;
     }
     .grid-row.focus { outline: 2px solid #818cf8; outline-offset: -2px; }
     .col-src-file { display: none; }
@@ -585,13 +585,13 @@
         </div>
         <div class="preview-grid preview-grid-ext">
           <div class="row hdr">
-            <span class="cell">#</span><span class="cell">所屬檔案</span><span class="cell">狀態</span><span class="cell">Key</span><span class="cell">原文</span><span class="cell">譯文</span><span class="cell">TM%</span><span class="cell">備註</span>
+            <span class="cell">#</span><span class="cell">Key</span><span class="cell">所屬檔案</span><span class="cell">原文</span><span class="cell">譯文</span><span class="cell">TM%</span><span class="cell">備註</span><span class="cell">狀態</span>
           </div>
           <div class="row">
-            <span class="cell">1</span><span class="cell">#1 Manual…</span><span class="cell">草稿</span><span class="cell">—</span><span class="cell">Save the document.</span><span class="cell">（唯讀）</span><span class="cell">78</span><span class="cell"></span>
+            <span class="cell">1</span><span class="cell">—</span><span class="cell">#1 Manual…</span><span class="cell">Save the document.</span><span class="cell">（唯讀）</span><span class="cell">78</span><span class="cell"></span><span class="cell">草稿</span>
           </div>
           <div class="row">
-            <span class="cell">2</span><span class="cell">#1 Manual…</span><span class="cell">已確認</span><span class="cell">id_ok</span><span class="cell">Click OK.</span><span class="cell">按一下確定。</span><span class="cell">100</span><span class="cell"></span>
+            <span class="cell">2</span><span class="cell">id_ok</span><span class="cell">#1 Manual…</span><span class="cell">Click OK.</span><span class="cell">按一下確定。</span><span class="cell">100</span><span class="cell"></span><span class="cell">已確認</span>
           </div>
         </div>
         <div class="btn-row">
@@ -632,16 +632,16 @@
           </div>
           <div class="grid-wrap">
             <div class="grid-header has-src-file" id="gridHdr">
-              <span>#</span><span>狀態</span><span class="col-src-file">所屬檔案</span><span>原文</span><span>譯文</span><span>備註</span>
+              <span>#</span><span>Key</span><span class="col-src-file">所屬檔案</span><span>原文</span><span>譯文</span><span>備註</span><span>狀態</span>
             </div>
             <div class="grid-row has-src-file show-file-col focus">
-              <span>1</span><span>草稿</span><span class="col-src-file">#1 Manual…</span><span>Save the document.</span><span>儲存文件。</span><span></span>
+              <span>1</span><span>—</span><span class="col-src-file">#1 Manual…</span><span>Save the document.</span><span>儲存文件。</span><span></span><span>草稿</span>
             </div>
             <div class="grid-row has-src-file show-file-col">
-              <span>2</span><span>未確認</span><span class="col-src-file">#1 Manual…</span><span>Revision 2.</span><span>修訂版 2。</span><span></span>
+              <span>2</span><span>—</span><span class="col-src-file">#1 Manual…</span><span>Revision 2.</span><span>修訂版 2。</span><span></span><span>未確認</span>
             </div>
             <div class="grid-row has-src-file show-file-col">
-              <span>1</span><span>草稿</span><span class="col-src-file">#2 Release…</span><span>What is new</span><span>新功能</span><span></span>
+              <span>1</span><span>—</span><span class="col-src-file">#2 Release…</span><span>What is new</span><span>新功能</span><span></span><span>草稿</span>
             </div>
           </div>
           <div class="notes-panel-mock">
@@ -746,7 +746,7 @@
     </section>
 
     <footer class="note">
-      產生方式：依 1UP TMS <code>docs/CAT_VIEW_SPEC.md</code>（§3.1 譯者導覽、§6 無整檔分隔列、§12「所屬檔案」欄等）靜態排版；與實作後像素級畫面可能略有差異。
+      產生方式：依 1UP TMS <code>docs/CAT_VIEW_SPEC.md</code>（§3.1 譯者導覽、§6 無整檔分隔列、§12「所屬檔案」欄位於 Key 與原文之間等）靜態排版；與實作後像素級畫面可能略有差異。正式欄序與欄寬／空欄隱藏行為以該文件 §12.2／§12.4／§12.5 為準。
     </footer>
   </main>
 

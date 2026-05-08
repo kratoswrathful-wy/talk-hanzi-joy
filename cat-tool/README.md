@@ -5,6 +5,7 @@
 ## 與 TMS 的銜接
 
 - **批次匯入作業檔精靈**（多選、mqxliff 角色、Excel 欄位、進度）：構想與驗收備忘見 [`docs/CAT_BATCH_IMPORT_WIZARD_SESSION.md`](../docs/CAT_BATCH_IMPORT_WIZARD_SESSION.md)。
+- **編輯器主格線欄位**（句段集「所屬檔案」與 Key／原文之固定順序、單檔／句段集欄寬拖曳、Key／額外資訊全空白自動隱藏與 ⚙️ 設定鎖定）：見 [`docs/CAT_VIEW_SPEC.md`](../docs/CAT_VIEW_SPEC.md) §12.2、§12.4、§12.5；函式對照見 [`docs/CODEMAP.md`](../docs/CODEMAP.md)。
 - **句段匯入順序**：多工作表／多欄時清單以 **`globalId`（離線 Dexie）／`global_id`（團隊 Postgres）** 對齊匯入掃描順序；更新作業檔會同步新版序。說明、migration 與**曾嘗試行內字型後撤回**之調查紀錄見 [`docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md`](../docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md)。
 - **字數／TM 加權**（Web Worker、專案列表／句段集／編輯器進度、「切換字數」、**字數與 TM 加權分析 Modal**；編輯器工具列「字數」`#btnEditorWordCount`、篩選模式統計範圍）：見 [`docs/CAT_WORD_COUNT_WORKER_AND_UI.md`](../docs/CAT_WORD_COUNT_WORKER_AND_UI.md)（**§9**、**§9.6**）。
 - **TM 確認寫入（離線）**：開檔快取就緒時寫入路徑以 `ActiveTmCache` 為主；Dexie `tmSegments` **v21** 複合索引 `[tmId+sourceText]`。索引與路徑對照見 [`docs/CODEMAP.md`](../docs/CODEMAP.md)（`f9f0b84`）。
