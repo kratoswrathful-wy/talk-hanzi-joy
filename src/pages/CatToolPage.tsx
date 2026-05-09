@@ -687,10 +687,13 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             window.location.origin
           );
         } catch (error: any) {
+          const rawMsg = error?.message || String(error);
+          const m = String(rawMsg).toLowerCase();
+          const isNotFound = m.includes("object not found") || m.includes("file not found");
           iframeRef.current?.contentWindow?.postMessage(
             {
               type: "CAT_CLOUD_RPC_RESULT",
-              payload: { requestId, ok: false, error: error?.message || String(error) },
+              payload: { requestId, ok: false, error: isNotFound ? "CAT_OBJECT_NOT_FOUND" : rawMsg },
             },
             window.location.origin
           );

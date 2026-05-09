@@ -24305,7 +24305,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (data.projectId != null && data.projectId !== '') {
                     currentProjectId = data.projectId;
                 }
-                await openEditor(data.fileId);
+                try {
+                    await openEditor(data.fileId);
+                } catch (e) {
+                    const msg = String((e && e.message) ? e.message : e || '');
+                    const m = msg.toLowerCase();
+                    const isNotFound = m.includes('cat_object_not_found') || m.includes('object not found') || m.includes('file not found') || (m.includes('not found') && m.includes('cat'));
+                    if (isNotFound) {
+                        try { sessionStorage.removeItem(getSessionRouteStorageKey()); } catch (_) { /* ignore */ }
+                        try { showCatToast('上一個檔案已不存在或無權限，已回到首頁', 'error'); } catch (_) { /* ignore */ }
+                        try {
+                            switchView('viewDashboard');
+                            await loadDashboardData();
+                            persistCatRoute();
+                        } catch (_) { /* ignore */ }
+                        return;
+                    }
+                    throw e;
+                }
                 const ve = document.getElementById('viewEditor');
                 if (!ve || ve.classList.contains('hidden')) {
                     switchView('viewDashboard');
