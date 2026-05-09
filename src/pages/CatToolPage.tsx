@@ -128,6 +128,19 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
   const isTranslatorOnly = primaryRole === "member";
   const collabChannelRef = useRef<RealtimeChannel | null>(null);
+
+  // Keep iframe sidebar in sync with current CAT route (team mode only).
+  useEffect(() => {
+    if (mode !== "team") return;
+    const iframe = iframeRef.current;
+    const win = iframe?.contentWindow;
+    if (!win) return;
+    const path = location.pathname || "";
+    const isCatTeam = path.startsWith("/cat/team");
+    if (!isCatTeam) return;
+    const isEditor = path.includes("/files/");
+    win.postMessage({ type: "TMS_SIDEBAR_MODE", mode: isEditor ? "editor" : "module" }, "*");
+  }, [location.pathname, mode]);
   const collabFileIdRef = useRef<string | null>(null);
   const collabSessionIdRef = useRef<string | null>(null);
   const collabFocusRef = useRef<Record<string, any>>({});

@@ -2890,6 +2890,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const reqId = String(p.requestId || '');
             if (reqId && catQfNotesListRequestId && reqId !== catQfNotesListRequestId) return;
             renderInNoteListFromPayload(p);
+        } else if (event.data.type === 'TMS_SIDEBAR_MODE') {
+            const mode = String((event.data && event.data.mode) || '');
+            if (mode === 'editor') {
+                sidebar.classList.add('collapsed');
+            } else if (mode === 'module') {
+                sidebar.classList.remove('collapsed');
+            }
         }
     });
 
@@ -8064,6 +8071,174 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         return h.includes(n);
+    }
+
+    // --- TB inline superscript hints in source cells (previewed at docs/preview-tb-in-source/index.html) ---
+    function getCatRightPanelPageSlice(maxItems = 9) {
+        const matches = window.currentTmMatches;
+        if (!matches || !matches.length) return [];
+        const page = window.catMatchPageIndex | 0;
+        const start = Math.max(0, page * maxItems);
+        return matches.slice(start, start + maxItems);
+    }
+
+    function clearTbInlineHintsInRow(row) {
+        if (!row) return;
+        const srcCell = row.querySelector('.col-source');
+        if (!srcCell) return;
+        const rt = srcCell.querySelector('.rt-editor');
+        if (rt) {
+            // remove previous wrappers but keep underlying text
+            rt.querySelectorAll('.tb-inline-term').forEach((el) => {
+                const parent = el.parentNode;
+                while (el.firstChild) parent.insertBefore(el.firstChild, el);
+                parent.removeChild(el);
+            });
+            rt.querySelectorAll('.tb-inline-sup').forEach((el) => el.remove());
+        }
+        const sub = srcCell.querySelector('.tb-inline-subline');
+        if (sub) {
+            sub.innerHTML = '';
+            sub.classList.remove('is-visible');
+        }
+    }
+
+    function decorateTbInlineHintsForActiveRow() {
+        const viewEditor = document.getElementById('viewEditor');
+        if (!viewEditor || viewEditor.classList.contains('hidden')) return;
+
+        const row = document.querySelector('.grid-data-row.active-row');
+        if (!row) return;
+
+        clearTbInlineHintsInRow(row);
+
+        const srcCell = row.querySelector('.col-source');
+        const rt = srcCell ? srcCell.querySelector('.rt-editor') : null;
+        if (!srcCell || !rt) return;
+
+        const pageSlice = getCatRightPanelPageSlice(9);
+        const tbList = pageSlice
+            .map((m, i) => ({ m, n: i + 1 }))
+            .filter((x) => x.m && x.m.type === 'TB' && x.n >= 1 && x.n <= 9 && x.m.sourceText);
+        if (!tbList.length) return;
+
+        // Build a quick lookup for subline generation.
+        const subItems = [];
+        const srcPlain = (rt.textContent || '').trim();
+
+        // Decorate only text nodes; do not attempt to match across tag-pill boundaries.
+        const walker = document.createTreeWalker(rt, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) {
+                if (!node || !node.nodeValue) return NodeFilter.FILTER_REJECT;
+                // Skip empty / whitespace-only nodes
+                if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+                // Skip text inside tag pill elements (if any)
+                const p = node.parentElement;
+                if (p && (p.classList.contains('tag-pill') || p.closest('.tag-pill'))) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+
+        function findRangesInNodeText(text, needle, flags) {
+            const ranges = [];
+            if (!needle) return ranges;
+            const ci = flags && flags.caseInsensitive !== false;
+            const ww = !!(flags && flags.wholeWord);
+            const h = ci ? text.toLowerCase() : text;
+            const n = ci ? needle.toLowerCase() : needle;
+            let pos = 0;
+            while (pos <= h.length) {
+                const idx = h.indexOf(n, pos);
+                if (idx < 0) break;
+                const end = idx + n.length;
+                if (ww) {
+                    const before = idx > 0 ? h[idx - 1] : '';
+                    const after = end < h.length ? h[end] : '';
+                    // Same heuristic as termMatches(): use \W boundaries
+                    const okBefore = !before || /\W/.test(before);
+                    const okAfter = !after || /\W/.test(after);
+                    if (!(okBefore && okAfter)) {
+                        pos = idx + 1;
+                        continue;
+                    }
+                }
+                ranges.push({ start: idx, end });
+                pos = end;
+            }
+            return ranges;
+        }
+
+        // For each text node, collect non-overlapping ranges from all TB terms.
+        const nodesToProcess = [];
+        while (walker.nextNode()) nodesToProcess.push(walker.currentNode);
+
+        nodesToProcess.forEach((node) => {
+            const text = node.nodeValue || '';
+            const all = [];
+            tbList.forEach(({ m, n }) => {
+                const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
+                const ranges = findRangesInNodeText(text, m.sourceText || '', mf);
+                ranges.forEach((r) => all.push({ ...r, n, src: m.sourceText, tgt: m.targetText || '' }));
+            });
+            if (!all.length) return;
+            all.sort((a, b) => (a.start - b.start) || ((b.end - b.start) - (a.end - a.start)));
+            const picked = [];
+            let cursor = -1;
+            all.forEach((r) => {
+                if (r.start < cursor) return;
+                picked.push(r);
+                cursor = r.end;
+            });
+            if (!picked.length) return;
+
+            const frag = document.createDocumentFragment();
+            let last = 0;
+            picked.forEach((r) => {
+                if (r.start > last) frag.appendChild(document.createTextNode(text.slice(last, r.start)));
+
+                const termSpan = document.createElement('span');
+                termSpan.className = 'tb-inline-term';
+                termSpan.textContent = text.slice(r.start, r.end);
+                frag.appendChild(termSpan);
+
+                const sup = document.createElement('span');
+                sup.className = 'tb-inline-sup';
+                sup.textContent = String(r.n);
+                frag.appendChild(sup);
+
+                last = r.end;
+            });
+            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+
+            node.parentNode.replaceChild(frag, node);
+        });
+
+        // Subline: include only items that actually match the segment source text.
+        tbList.forEach(({ m, n }) => {
+            const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
+            if (!termMatches(srcPlain, m.sourceText || '', mf)) return;
+            subItems.push({ n, src: m.sourceText || '', tgt: m.targetText || '' });
+        });
+        if (!subItems.length) return;
+
+        const sub = srcCell.querySelector('.tb-inline-subline');
+        if (!sub) return;
+        sub.classList.add('is-visible');
+        const list = document.createElement('div');
+        list.className = 'tb-inline-list';
+        subItems.forEach((it) => {
+            const item = document.createElement('span');
+            item.className = 'tb-inline-item';
+            const nEl = document.createElement('span');
+            nEl.className = 'n';
+            nEl.textContent = String(it.n);
+            const pair = document.createElement('span');
+            pair.textContent = `${it.src}→${it.tgt}`;
+            item.appendChild(nEl);
+            item.appendChild(pair);
+            list.appendChild(item);
+        });
+        sub.appendChild(list);
     }
 
     function syncTbTermSelectAllLabel() {
@@ -18637,7 +18812,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const tabQaEl = document.getElementById('tabQA');
                 if (!tabQaEl || !tabQaEl.classList.contains('active')) {
-                    renderLiveTmMatches(seg);
+                renderLiveTmMatches(seg);
+                // keep inline TB hints in source cell aligned with right panel page (1~9)
+                try { decorateTbInlineHintsForActiveRow(); } catch (_) { /* ignore */ }
                 }
                 renderSegmentComments(seg);
                 refreshTagNextHighlight(row);
@@ -18685,7 +18862,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="source-change-prev" style="font-size:0.82rem; color:#b45309; text-decoration:line-through; word-break:break-all; padding:0.2rem 0.25rem; background:#fef3c7; border-radius:3px;">${prevSrc}</div>
                     </div>`;
             }
-            rowInnerContent += `<div class="col-source"${seg.sourceChangeInfo ? ' data-source-changed="true"' : ''}><div class="rt-editor" contenteditable="false">${sourceHtml}</div>${sourceChangeHtml}</div>`;
+            rowInnerContent += `<div class="col-source"${seg.sourceChangeInfo ? ' data-source-changed="true"' : ''}><div class="rt-editor" contenteditable="false">${sourceHtml}</div><div class="tb-inline-subline" aria-hidden="true"></div>${sourceChangeHtml}</div>`;
             const targetHtml = buildTaggedHtml(seg.targetText, effectiveTags(seg));
             const _initCharCount = seg.targetText ? seg.targetText.replace(/\{\/?\d+\}/g, '').length : 0;
             rowInnerContent += `<div class="col-target" style="position:relative;">
@@ -20300,6 +20477,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const abs = catMatchAbsSelectionIndex();
                     renderFooter(marr[abs]);
                     updateCatTrackPanelContent();
+                    // Inline TB hints in source cell should follow right panel pagination.
+                    try { decorateTbInlineHintsForActiveRow(); } catch (_) { /* ignore */ }
                 }
 
                 window.updateCatPanelSelection = function () {

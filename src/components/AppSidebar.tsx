@@ -42,7 +42,7 @@ export function AppSidebar() {
     { title: "個人檔案", url: "/profile", icon: User },
     ...(isAdmin ? [{ title: "設定", url: "/settings", icon: Settings }] : []),
     ...(canViewFieldRef ? [{ title: "內部資料", url: "/field-reference", icon: Table2 }] : []),
-    { title: "CAT 團隊線上版", url: "/cat/team", icon: Languages },
+    { title: "1UP CAT", url: "/cat/team", icon: Languages },
     { title: "CAT 個人離線版", url: "/cat/offline", icon: Languages },
   ];
 
@@ -56,7 +56,7 @@ export function AppSidebar() {
             <Receipt className="h-4 w-4 text-primary-foreground" />
           </div>
           <span className="text-base font-semibold tracking-tight text-foreground">
-            追蹤器
+            1UP LMS
           </span>
         </div>
       </SidebarHeader>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>術語在原文格內顯示方式 — 預覽（僅設計稿）</title>
+  <style>
+    :root {
+      --bg: #f4f4f5;
+      --card: #fff;
+      --border: #e4e4e7;
+      --text: #18181b;
+      --muted: #71717a;
+      --accent: #2563eb;
+      --term-bg: rgba(37, 99, 235, 0.08);
+      --term-underline: rgba(37, 99, 235, 0.45);
+      --sup-text: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 1.5rem 1.25rem 3rem;
+      font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 15px;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.35rem; }
+    .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.25rem;
+      max-width: 640px;
+    }
+    section h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+      color: var(--accent);
+    }
+    .tag { display: inline-block; font-size: 0.7rem; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 0.5rem; }
+    /* 模擬 CAT 表格一格 */
+    .cell {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6rem 0.75rem;
+      background: #fafafa;
+      min-height: 2.5rem;
+    }
+    .cell--tall { min-height: 4rem; }
+
+    /* 你選定的方案：極淡標示 + 術語旁上標數字 + 副行對照 */
+    .tb-term {
+      border-bottom: 1px solid var(--term-underline);
+      background: linear-gradient(to bottom, transparent 72%, var(--term-bg) 72%);
+      border-radius: 2px;
+      padding: 0 0.05em;
+      white-space: nowrap;
+    }
+    .tb-sup {
+      color: var(--sup-text);
+      font-size: 0.72em;
+      font-weight: 700;
+      line-height: 1;
+      vertical-align: super;
+      margin-left: 0.06em;
+      pointer-events: none;
+    }
+    .cell-main {
+      position: relative;
+      padding-right: 0;
+    }
+    .cell-sub {
+      margin-top: 0.35rem;
+      padding-top: 0.35rem;
+      border-top: 1px dashed var(--border);
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    .subline-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.6rem;
+    }
+    .subline-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      padding: 0.1rem 0.35rem;
+      border-radius: 999px;
+      background: rgba(100, 116, 139, 0.08);
+      border: 1px solid rgba(100, 116, 139, 0.18);
+    }
+    .subline-item .n {
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .subline-item .pair {
+      color: var(--muted);
+    }
+    .hint {
+      margin-top: 0.65rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* 模擬右欄（分頁 + 1~9） */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 230px;
+      gap: 0.9rem;
+      align-items: start;
+    }
+    @media (max-width: 720px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.8rem;
+      background: #fff;
+    }
+    .panel h3 { margin: 0 0 0.35rem; font-size: 0.75rem; color: var(--muted); font-weight: 700; letter-spacing: 0.04em; }
+    .panel .row {
+      display: grid;
+      grid-template-columns: 1.75rem 1fr;
+      gap: 0.4rem;
+      padding: 0.3rem 0.2rem;
+      border-radius: 6px;
+    }
+    .panel .row:hover { background: #f8fafc; }
+    .panel .idx {
+      font-weight: 800;
+      color: #0f172a;
+      text-align: right;
+    }
+    .panel .txt { color: var(--text); }
+    .panel .mini { display:block; color: var(--muted); font-size: 0.78rem; margin-top: 0.1rem; }
+    .pager {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 6px;
+      padding: 0.25rem 0.45rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .btn[aria-pressed="true"] {
+      border-color: rgba(37, 99, 235, 0.35);
+      background: rgba(37, 99, 235, 0.08);
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+    .note {
+      margin-top: 0.65rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    nav.toc {
+      margin-bottom: 1.25rem;
+      font-size: 0.88rem;
+    }
+    nav.toc a { color: var(--accent); margin-right: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>術語在「原文」格內顯示（你選定版本）— 預覽</h1>
+  <p class="sub">此檔僅供產品／設計比對，未連接 TMS 或 CAT 程式。重點：<strong>極淡標示</strong> + <strong>術語旁顯示 1–9 小上標數字</strong>（對應右欄當頁編號，可用 Ctrl+1～9 插入） + <strong>副行列出每個數字代表的原文→譯文</strong>。若右欄換頁，原文格內上標與副行同步更新。</p>
+
+  <section id="opt-selected">
+    <span class="tag">SELECTED</span>
+    <h2>極淡標示 + 術語旁上標數字 + 副行對照（跟著右欄分頁同步）</h2>
+    <div class="layout">
+      <div>
+        <div class="cell" id="previewCell">
+          <div class="cell-main" id="cellMain">
+            <span id="cellText"></span>
+          </div>
+          <div class="cell-sub" id="cellSub"></div>
+        </div>
+        <p class="hint">示意：同一術語在句中重複出現會<strong>淡標示多次</strong>，且每次出現都顯示上標（更直覺知道該按哪個 Ctrl+數字）。</p>
+      </div>
+
+      <aside class="panel" aria-label="右欄術語比對（分頁）">
+        <h3>右欄術語（當頁最多 9 筆）</h3>
+        <div id="rightPanelList"></div>
+        <div class="pager" aria-label="分頁">
+          <button class="btn" type="button" id="btnPrev" title="模擬：右欄上一頁">← 上一頁</button>
+          <button class="btn" type="button" id="btnPage1" aria-pressed="true">第 1 頁</button>
+          <button class="btn" type="button" id="btnPage2" aria-pressed="false">第 2 頁</button>
+          <button class="btn" type="button" id="btnNext" title="模擬：右欄下一頁">下一頁 →</button>
+        </div>
+        <p class="note" style="margin-bottom:0">這裡用 2 頁假資料示範「換頁時編號重算」。實際 CAT：每頁固定 9（與 Ctrl+1～9 完全對齊）。</p>
+      </aside>
+    </div>
+  </section>
+
+  <p class="sub" style="margin-top:2rem">檔案路徑：<code>docs/preview-tb-in-source/index.html</code></p>
+
+  <script>
+    (function () {
+      // --- 假資料：右欄分頁（每頁 9 筆） ---
+      // 設計原則：原文格內的數字永遠跟「右欄當前頁」同步（1~9）。
+      var pages = [
+        [
+          { src: "Settings", tgt: "設定" },
+          { src: "Power management", tgt: "電源管理" },
+          { src: "Battery saver", tgt: "省電模式" },
+          { src: "Sleep", tgt: "睡眠" },
+          { src: "Display", tgt: "顯示器" },
+          { src: "Brightness", tgt: "亮度" },
+          { src: "Wi‑Fi", tgt: "Wi‑Fi" },
+          { src: "Bluetooth", tgt: "藍牙" },
+          { src: "Airplane mode", tgt: "飛航模式" }
+        ],
+        [
+          { src: "Preferences", tgt: "偏好設定" },
+          { src: "Update", tgt: "更新" },
+          { src: "Restart", tgt: "重新啟動" },
+          { src: "Shutdown", tgt: "關機" },
+          { src: "Sign in", tgt: "登入" },
+          { src: "Sign out", tgt: "登出" },
+          { src: "Account", tgt: "帳號" },
+          { src: "Privacy", tgt: "隱私" },
+          { src: "Security", tgt: "安全性" }
+        ]
+      ];
+      var pageIndex = 0;
+
+      // --- 假資料：這個句段的原文（包含重複出現） ---
+      // 需求：重複出現允許淡標示多次，但編號徽標只顯示一次。
+      // 刻意放多個命中，展示副行會自動換行
+      var sourceSentence = "請在 Settings 中調整 Settings、Display、Brightness、Wi‑Fi、Bluetooth 與 Airplane mode 相關選項。";
+
+      var elCellText = document.getElementById("cellText");
+      var elCellSub = document.getElementById("cellSub");
+      var elRightList = document.getElementById("rightPanelList");
+
+      var btnPrev = document.getElementById("btnPrev");
+      var btnNext = document.getElementById("btnNext");
+      var btnPage1 = document.getElementById("btnPage1");
+      var btnPage2 = document.getElementById("btnPage2");
+
+      function escapeHtml(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      function buildPageIndexMap(pageTerms) {
+        // key: src -> index(1..9)
+        var map = new Map();
+        for (var i = 0; i < pageTerms.length && i < 9; i++) {
+          map.set(pageTerms[i].src, i + 1);
+        }
+        return map;
+      }
+
+      function highlightSentenceWithTerms(sentence, pageTerms, idxMap) {
+        // 非實作，只是預覽：用最直觀的 string replace（避免牽扯真實 token/tag 問題）
+        // 重點：淡標示，非粗體、非醒目色。
+        var html = escapeHtml(sentence);
+        pageTerms.forEach(function (t) {
+          if (!t || !t.src) return;
+          var esc = escapeHtml(t.src);
+          var n = idxMap && idxMap.get(t.src);
+          // 全域替換：讓重複出現也會被淡標示
+          var re = new RegExp(esc.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&"), "g");
+          var sup = (n && n >= 1 && n <= 9)
+            ? '<span class="tb-sup" aria-label="術語編號 ' + n + '">' + n + "</span>"
+            : "";
+          html = html.replace(re, '<span class="tb-term" data-term-src="' + esc + '">' + esc + "</span>" + sup);
+        });
+        return html;
+      }
+
+      function renderRightPanel(pageTerms) {
+        var rows = [];
+        for (var i = 0; i < pageTerms.length && i < 9; i++) {
+          var t = pageTerms[i];
+          rows.push(
+            '<div class="row">' +
+              '<div class="idx">' + (i + 1) + "</div>" +
+              '<div class="txt">' +
+                escapeHtml(t.src) +
+                '<span class="mini">→ ' + escapeHtml(t.tgt) + "</span>" +
+              "</div>" +
+            "</div>"
+          );
+        }
+        elRightList.innerHTML = rows.join("");
+      }
+
+      function renderCellBadgesAndSubline(sentence, pageTerms) {
+        var idxMap = buildPageIndexMap(pageTerms);
+
+        // 句段內高亮（重複出現也高亮），並在術語旁帶小上標數字（1~9）
+        elCellText.innerHTML = highlightSentenceWithTerms(sentence, pageTerms, idxMap);
+
+        // 副行：列出「編號：原文→譯文」，不含備註；並示範多筆時會自動換行
+        var hit = [];
+        idxMap.forEach(function (n, src) {
+          if (sentence.indexOf(src) >= 0) hit.push({ n: n, src: src });
+        });
+        hit.sort(function (a, b) { return a.n - b.n; });
+        if (!hit.length) {
+          elCellSub.textContent = "（本頁無相符術語）";
+          return;
+        }
+        var parts = hit.map(function (x) {
+          var term = pageTerms[x.n - 1];
+          if (!term) return "";
+          return (
+            '<span class="subline-item">' +
+              '<span class="n">' + x.n + '</span>' +
+              '<span class="pair">' + escapeHtml(term.src) + "→" + escapeHtml(term.tgt) + '</span>' +
+            '</span>'
+          );
+        }).filter(Boolean);
+        elCellSub.innerHTML = '<div class="subline-list">' + parts.join("") + "</div>";
+      }
+
+      function setPage(next) {
+        pageIndex = Math.max(0, Math.min(pages.length - 1, next));
+        btnPage1.setAttribute("aria-pressed", pageIndex === 0 ? "true" : "false");
+        btnPage2.setAttribute("aria-pressed", pageIndex === 1 ? "true" : "false");
+        renderRightPanel(pages[pageIndex]);
+        renderCellBadgesAndSubline(sourceSentence, pages[pageIndex]);
+      }
+
+      btnPrev.addEventListener("click", function () { setPage(pageIndex - 1); });
+      btnNext.addEventListener("click", function () { setPage(pageIndex + 1); });
+      btnPage1.addEventListener("click", function () { setPage(0); });
+      btnPage2.addEventListener("click", function () { setPage(1); });
+
+      setPage(0);
+    })();
+  </script>
+</body>
+</html>
