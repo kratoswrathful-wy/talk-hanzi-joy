@@ -14358,6 +14358,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             if (!seg.targetTags.some(t => t.ph === firstMissing.ph)) seg.targetTags.push({ ...firstMissing });
         }
+        // 防呆：若 targetTags 原本為空（靠 sourceTags fallback 顯示），F8 單筆 push 會導致整列退化為純文字。
+        // 依譯文現有 {N}/{/N} 從 sourceTags 補齊缺漏 ph（不覆寫既有條目）。
+        mergeTargetTagsFromSourceForPresentPlaceholders(seg, seg.targetText);
         const row = editorDiv.closest('.grid-data-row');
         updateTagColors(row, seg.targetText);
         if (seg && oldTarget !== seg.targetText) {
@@ -16020,6 +16023,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const oldTarget = seg.targetText;
             const oldMv = seg.matchValue;
             seg.targetText = extractTextFromEditor(targetEditor);
+            if (!seg.targetTags) seg.targetTags = [];
+            if (!seg.targetTags.some(t => t && t.ph === tagObj.ph)) seg.targetTags.push({ ...tagObj });
+            mergeTargetTagsFromSourceForPresentPlaceholders(seg, seg.targetText);
             const updatedRow = targetEditor.closest('.grid-data-row');
             updateTagColors(updatedRow, seg.targetText);
             if (oldTarget !== seg.targetText) {
@@ -16029,7 +16035,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 editorUndoEditStart[seg.id] = seg.targetText;
             }
-            applyUpdateSegmentTarget(seg, seg.targetText).catch(console.error);
+            applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags }).catch(console.error);
             refreshTagNextHighlight(updatedRow);
             saveCatCaretFromSelection(targetEditor);
             targetEditor.focus();
@@ -17653,10 +17659,46 @@ document.addEventListener('DOMContentLoaded', async () => {
      * 凡是要把 targetTags/sourceTags 傳給 buildTaggedHtml 的地方，
      * 一律呼叫此 helper。
      */
+    function mergeTargetTagsFromSourceForPresentPlaceholders(seg, targetText) {
+        if (!seg) return false;
+        const sourceTags = seg.sourceTags || [];
+        if (!sourceTags.length) return false;
+
+        const text = targetText == null ? '' : String(targetText);
+        const present = text.match(/\{\/?\d+\}/g) || [];
+        if (!present.length) return false;
+
+        if (!seg.targetTags) seg.targetTags = [];
+        const targetTags = seg.targetTags;
+
+        const presentPhs = new Set(present);
+        const existingPhs = new Set((targetTags || []).map(t => t && t.ph).filter(Boolean));
+        if (existingPhs.size && existingPhs.size >= presentPhs.size) return false;
+
+        const sourceByPh = new Map();
+        for (const st of sourceTags) {
+            if (st && st.ph && !sourceByPh.has(st.ph)) sourceByPh.set(st.ph, st);
+        }
+
+        let changed = false;
+        for (const ph of presentPhs) {
+            if (existingPhs.has(ph)) continue;
+            const st = sourceByPh.get(ph);
+            if (!st) continue;
+            targetTags.push({ ...st });
+            existingPhs.add(ph);
+            changed = true;
+        }
+        return changed;
+    }
+
     function effectiveTags(seg) {
-        return (seg.targetTags && seg.targetTags.length > 0)
-            ? seg.targetTags
-            : (seg.sourceTags || []);
+        if (seg && seg.targetTags && seg.targetTags.length > 0) {
+            // 防呆：若譯文已有 {N}/{/N} 但 targetTags 缺 ph，從 sourceTags 補洞（不覆寫既有）。
+            mergeTargetTagsFromSourceForPresentPlaceholders(seg, seg.targetText);
+            return seg.targetTags;
+        }
+        return (seg && seg.sourceTags) ? seg.sourceTags : [];
     }
 
     /** pill 內摘要（display）與全文（xml 優先，供 .tag-label / .tag-full） */

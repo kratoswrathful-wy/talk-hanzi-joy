@@ -179,8 +179,7 @@
                  * Bug #5：譯文 targetTags 僅部分解析時，依 targetText 內佔位符從 sourceTags 補齊缺漏 ph。
                  * 已存在之條目不覆寫（保留自 &lt;target&gt; 解析到的 xml 等）。
                  */
-                function mergeMqxliffPartialTargetTagsFromSource({ isMqxliffFile, targetText, sourceTags, targetTags }) {
-                    if (!isMqxliffFile) return;
+                function mergePartialTargetTagsFromSource({ targetText, sourceTags, targetTags }) {
                     if (!sourceTags || !sourceTags.length) return;
                     if (!targetText) return;
                     const presentPhs = new Set((String(targetText).match(/\{\/?\d+\}/g) || []));
@@ -430,7 +429,7 @@
                     }
 
                     augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags });
-                    mergeMqxliffPartialTargetTagsFromSource({ isMqxliffFile, targetText, sourceTags, targetTags });
+                    mergePartialTargetTagsFromSource({ targetText, sourceTags, targetTags });
 
                     if (!sourceText && !targetText) return;
 
