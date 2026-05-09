@@ -24,6 +24,7 @@
 - [`docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md`](docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md) — **產品**內 CAT 團隊版「AI 準則」資料與 Supabase 流程；**不是**教編輯器如何改程式的通用規範
 - [`docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md`](docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md) — 句段依匯入順序排序（`global_id`）、更新作業檔與雲端一致；**行內字型／rt-fmt** 上架嘗試之問題與調查紀錄（已撤回）
 - [`docs/EXCEL_IMPORT_TAGS_SPEC.md`](docs/EXCEL_IMPORT_TAGS_SPEC.md) — Excel 匯入警語與括號／自訂正則轉 tag（**工程規格**）；高層計畫見 [`docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md`](docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md)；介面預覽 [`docs/preview-excel-import-tags/index.html`](docs/preview-excel-import-tags/index.html)
+- [`docs/bug-report_f8-targettags-empty-fallback-regression.md`](docs/bug-report_f8-targettags-empty-fallback-regression.md) — F8／`effectiveTags`／空 `targetTags` 導致整列譯文 tag pill 變純文字（sdlxliff 等常見觸發）；修正方案待實作；與 [`docs/bug-report_mqxliff-partial-target-tags.md`](docs/bug-report_mqxliff-partial-target-tags.md) §2.8 對照
 
 ## 回覆與推送慣例
 

@@ -144,6 +144,10 @@ function effectiveTags(seg) {
 2. F8 插入 3～8 號後，觸發搜尋篩選、失焦寫庫、重新開啟檔案，譯文欄仍為 pill，不變 `{N}` 純字串。
 3. 匯出 mqxliff  round-trip：與 [`XLIFF_TAG_PIPELINE.md`](XLIFF_TAG_PIPELINE.md) 既有規範一致，不因 display 文案改變而破壞 XML。
 
+### 2.8 關聯：空 `targetTags` + F8 單筆 push（sdlxliff 等常見）
+
+本檔 §2.2 主要描述 **mqxliff「部分」譯文**：`targetTags` **非空**但為 `sourceTags` 之**真子集**。另有一條觸發鏈：**匯入後 `targetTags` 為空陣列 `[]`** 時，`effectiveTags` 會退回 `sourceTags`，畫面仍正常；**首次按 F8** 僅 push 本次插入之一筆（或成對兩筆）至 `targetTags`，陣列變成**殘缺非空**，之後 `effectiveTags` 不再退回原文 → `buildTaggedHtml` 對其餘 `{N}` 無對應條目 → **整列 pill 變純文字**。sdlxliff 因 [`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) 部分合併邏輯僅對 mqxliff 執行，較易維持 `targetTags: []`。**完整敘事、修正方案與驗收**見 [`bug-report_f8-targettags-empty-fallback-regression.md`](bug-report_f8-targettags-empty-fallback-regression.md)。
+
 ---
 
 ## 調查與決策記錄
