@@ -1,4 +1,4 @@
-# CAT：確認跳行「置中」被焦點捲動蓋掉 — 修正規劃（2026-05）
+# CAT：確認跳行「置中」被焦點捲動蓋掉 — 開發紀錄（2026-05）
 
 > 本文件目的：將「問題症狀、調查過程、根因、方案取捨、實作落點、驗收方式」寫成可追溯紀錄，方便日後維運或回頭查找。
 
@@ -8,6 +8,13 @@
 
 - **需求**：在編輯器中按下「確認並跳到下一句」後，若設定為「置中」，則**每次**跳到新句段都應將新焦點句段**置中顯示**，避免使用者需手動調整視野。
 - **現況**：UI 設定已顯示且 localStorage 已寫入 `catToolAfterConfirmScrollBlock="center"`，但實際畫面顯示多數情況**未置中**（更像「僅捲到可見」）。
+
+---
+
+## 影響範圍
+
+- **受影響功能**：確認句段後的跳行／捲動（Ctrl+Enter 路徑與其他會呼叫 `focusTargetEditorAtSegmentIndex` 的路徑）。
+- **不影響功能**：「僅於畫面底部捲動（nearest）」模式仍應維持「只在需要時捲動到可見」。
 
 ---
 
@@ -100,7 +107,7 @@ CAT 在外層頁面以 `<iframe src="/cat/index.html?...">` 方式載入；若 C
 
 ---
 
-## 實作落點（預計）
+## 實作落點（已完成）
 
 > 單一來源仍為 `cat-tool/`；變更後以 `npm run sync:cat` 同步至 `public/cat/`。
 
@@ -117,10 +124,29 @@ CAT 在外層頁面以 `<iframe src="/cat/index.html?...">` 方式載入；若 C
 
 ---
 
-## 驗收清單（預計）
+## 驗收清單（已通過）
 
 1. 設定 `catToolAfterConfirmScrollBlock="center"`。
 2. 於任一句按 Ctrl+Enter 跳到下一句後，畫面應將新焦點句段置中（多次重複皆一致）。
 3. 以 Console 量測：`rowCenterDeltaPx` 應接近 0（建議門檻：\(|rowCenterDeltaPx| <= 10\)）。
 4. 切換至「僅於畫面底部捲動（nearest）」後，行為維持原先「只在需要時捲動到可見」不受影響。
+
+---
+
+## 版本控制
+
+- **Commit**：`bb324d2` — `fix(cat): keep centered scroll after confirm focus`
+- **同步**：已執行 `npm run sync:cat`，同步到 `public/cat/`
+
+---
+
+## 變更時間線（方便對照對話／ PR）
+
+| 日期（約） | 事項 |
+|------------|------|
+| 2026-05-08 | 新增「確認跳行後的捲動方式」設定（center/nearest），但使用者回報 center 體感仍像 nearest。 |
+| 2026-05-08 | 透過 DevTools 量測 `rowCenterDeltaPx = 62`，確認「設定已是 center 但未置中」為可量化問題。 |
+| 2026-05-08 | 確認 Console 必須切到 `/cat/index.html?...` iframe 內，避免外層 DOM 觀察誤判。 |
+| 2026-05-08 | 實作防線：`focus({ preventScroll:true })` + 下一 frame 再 `scrollIntoView(center)`，避免 focus 觸發瀏覽器捲動覆蓋置中。 |
+| 2026-05-08 | 使用者驗收成功，更新本文件為完整開發紀錄。 |
 
