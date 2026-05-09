@@ -4,7 +4,7 @@
 > 專案：1UP TMS — CAT 工具（`cat-tool/`）  
 > 範例情境：`.sdlxliff`（例如 `20260507 apple-tech-know-how-aus-oesterreich.docx.sdlxliff`）譯文缺 `{/1}`，按 **F8** 欲插入後，**整行** `{1}`、`{2}` 等佔位符均變為純文字（非藥丸）。
 
-本文採雙層結構：**Part 1** 白話摘要；**Part 2** 技術根因與修正規劃（**待實作**）。
+本文採雙層結構：**Part 1** 白話摘要；**Part 2** 技術根因與修正規劃（含追溯與驗收）。
 
 與 **mqxliff「部分 targetTags」**（真子集）問題對照見 [`bug-report_mqxliff-partial-target-tags.md`](bug-report_mqxliff-partial-target-tags.md) §2.8。
 
@@ -66,7 +66,7 @@
 
 [`cat-tool/js/xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) 內，依 `targetText` 從 `sourceTags` 補齊譯文側 tag 中繼的邏輯綁在 **`isMqxliffFile`**。sdlxliff 匯入後較容易留下 **`targetTags: []`** 而譯文已有 `{N}`，直到 F8 才首次寫入非空 `targetTags`，因而觸發本報告之退化。
 
-### 2.4 修正方案（待實作依據）
+### 2.4 修正方案（實作依據）
 
 **方案 A（建議必做）— 插入後合併補齊**
 
@@ -94,13 +94,13 @@
 
 | 項目 | 內容 |
 |------|------|
-| 分支／commit | （待填） |
-| `sync:cat` | 若改動 `cat-tool/app.js`，已執行 `npm run sync:cat` 並一併提交 `public/cat/` |
-| 驗收日期／備註 | （待填） |
+| 分支／commit | `main`：`485d4f7`（`fix(cat): prevent tag pills degrading after insert`） |
+| `sync:cat` | 已執行 `npm run sync:cat`，並一併提交 `public/cat/`（`public/cat/app.js`、`public/cat/js/xliff-build-segments.js`） |
+| 驗收日期／備註 | 2026-05-09：使用者回報「貌似驗收成功」；重點驗收為「F8 插入缺漏 `{/1}` 後，不再出現整列 pill 退化為純文字」 |
 
 ---
 
 ## 調查與決策記錄
 
 - 2026-05-08：使用者於 sdlxliff 譯文按 F8 補 `{/1}` 後整列 tag 變純文字；對照 `effectiveTags`、`insertNextMissingTag` 與 `xliff-build-segments.js` mqxliff 限定合併，歸因為 **空 `targetTags` fallback + F8 單筆 push 造成殘缺非空 `targetTags`**。
-- 本文件作為**修正前**之規劃與驗收依據；實作完成後於 §2.6 更新追溯資訊。
+- 2026-05-09：已完成修正並推送（見 §2.6）。本次同時落地三層：A) F8/點擊插入後補齊 `targetTags`、B) `effectiveTags` 自癒補洞、C) XLIFF 匯入層放寬「partial targetTags 合併」到所有格式；避免 sdlxliff/其他格式落入「空陣列 fallback → 單筆 push → 整列退化」。
