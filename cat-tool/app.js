@@ -8153,6 +8153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 while (el.firstChild) parent.insertBefore(el.firstChild, el);
                 parent.removeChild(el);
             });
+            rt.querySelectorAll('.tb-inline-sup-anchor').forEach((el) => el.remove());
         }
         const sub = srcCell.querySelector('.tb-inline-subline');
         if (sub) {
@@ -8254,21 +8255,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             if (!picked.length) return;
 
+            const isWordChar = (ch) => !!ch && /\w/.test(ch);
+            // Anchor positions are "word end" (exclusive index). If multiple TBs hit the same word,
+            // show only one superscript at the word end (choose smallest n).
+            const anchorByPos = new Map(); // pos -> { n, missing }
+            picked.forEach((r) => {
+                let wordEnd = r.end;
+                while (wordEnd < text.length && isWordChar(text[wordEnd])) wordEnd++;
+                const prev = anchorByPos.get(wordEnd);
+                if (!prev || r.n < prev.n) {
+                    anchorByPos.set(wordEnd, { n: r.n, missing: !!r.missing });
+                }
+            });
+            const anchors = Array.from(anchorByPos.entries())
+                .map(([pos, v]) => ({ pos, n: v.n, missing: v.missing }))
+                .sort((a, b) => a.pos - b.pos);
+            let anchorIdx = 0;
+
             const frag = document.createDocumentFragment();
             let last = 0;
+            function appendTextWithAnchors(from, to) {
+                while (anchorIdx < anchors.length && anchors[anchorIdx].pos >= from && anchors[anchorIdx].pos <= to) {
+                    const ap = anchors[anchorIdx].pos;
+                    if (ap > from) frag.appendChild(document.createTextNode(text.slice(from, ap)));
+                    const a = anchors[anchorIdx];
+                    const anchorEl = document.createElement('span');
+                    anchorEl.className = a.missing ? 'tb-inline-sup-anchor is-missing' : 'tb-inline-sup-anchor';
+                    anchorEl.setAttribute('data-tb-n', String(a.n));
+                    frag.appendChild(anchorEl);
+                    from = ap;
+                    anchorIdx++;
+                }
+                if (to > from) frag.appendChild(document.createTextNode(text.slice(from, to)));
+            }
+
             picked.forEach((r) => {
-                if (r.start > last) frag.appendChild(document.createTextNode(text.slice(last, r.start)));
+                if (r.start > last) appendTextWithAnchors(last, r.start);
 
                 const termSpan = document.createElement('span');
-                termSpan.className = 'tb-inline-term';
+                termSpan.className = r.missing ? 'tb-inline-term is-missing' : 'tb-inline-term';
                 termSpan.textContent = text.slice(r.start, r.end);
-                termSpan.setAttribute('data-tb-n', String(r.n));
-                if (r.missing) termSpan.classList.add('is-missing');
                 frag.appendChild(termSpan);
 
                 last = r.end;
             });
-            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+            if (last < text.length) appendTextWithAnchors(last, text.length);
+            // anchors exactly at end-of-node
+            if (anchorIdx < anchors.length) appendTextWithAnchors(text.length, text.length);
 
             node.parentNode.replaceChild(frag, node);
         });

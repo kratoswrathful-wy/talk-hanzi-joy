@@ -36,7 +36,11 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     padding: 0 0.05em;
     white-space: nowrap;
 }
-.col-source .tb-inline-term::after {
+.col-source .tb-inline-term.is-missing {
+    border-bottom-color: var(--tb-inline-missing-border);
+    background: linear-gradient(to bottom, transparent 72%, var(--tb-inline-missing-bg) 72%);
+}
+.col-source .tb-inline-sup-anchor::after {
     content: attr(data-tb-n);
     color: #475569;
     font-size: 0.72em;
@@ -47,13 +51,8 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     user-select: none;
     -webkit-user-select: none;
 }
-.col-source .tb-inline-term[data-tb-n=""]::after,
-.col-source .tb-inline-term:not([data-tb-n])::after {
-    content: '';
-}
-.col-source .tb-inline-term.is-missing {
-    border-bottom-color: var(--tb-inline-missing-border);
-    background: linear-gradient(to bottom, transparent 72%, var(--tb-inline-missing-bg) 72%);
+.col-source .tb-inline-sup-anchor.is-missing::after {
+    color: var(--tb-inline-missing-text);
 }
 .col-source .tb-inline-subline {
     margin-top: 0.35rem;
