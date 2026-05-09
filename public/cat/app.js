@@ -8132,6 +8132,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         return h.includes(n);
     }
 
+    /**
+     * Non-overlapping hit ranges of needle in text (same whole-word boundaries as termMatches).
+     */
+    function findTermHitRangesInPlainText(text, needle, flags) {
+        const ranges = [];
+        if (!needle) return ranges;
+        const ci = flags && flags.caseInsensitive !== false;
+        const ww = !!(flags && flags.wholeWord);
+        const h = ci ? String(text).toLowerCase() : String(text);
+        const n = ci ? needle.toLowerCase() : needle;
+        let pos = 0;
+        while (pos <= h.length) {
+            const idx = h.indexOf(n, pos);
+            if (idx < 0) break;
+            const end = idx + n.length;
+            if (ww) {
+                const before = idx > 0 ? h[idx - 1] : '';
+                const after = end < h.length ? h[end] : '';
+                const okBefore = !before || /\W/.test(before);
+                const okAfter = !after || /\W/.test(after);
+                if (!(okBefore && okAfter)) {
+                    pos = idx + 1;
+                    continue;
+                }
+            }
+            ranges.push({ start: idx, end });
+            pos = end;
+        }
+        return ranges;
+    }
+
     // --- TB inline superscript hints in source cells (previewed at docs/preview-tb-in-source/index.html) ---
     function getCatRightPanelPageSlice(maxItems = 9) {
         const matches = window.currentTmMatches;
@@ -8202,33 +8233,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        function findRangesInNodeText(text, needle, flags) {
-            const ranges = [];
-            if (!needle) return ranges;
-            const ci = flags && flags.caseInsensitive !== false;
-            const ww = !!(flags && flags.wholeWord);
-            const h = ci ? text.toLowerCase() : text;
-            const n = ci ? needle.toLowerCase() : needle;
-            let pos = 0;
-            while (pos <= h.length) {
-                const idx = h.indexOf(n, pos);
-                if (idx < 0) break;
-                const end = idx + n.length;
-                if (ww) {
-                    const before = idx > 0 ? h[idx - 1] : '';
-                    const after = end < h.length ? h[end] : '';
-                    // Same heuristic as termMatches(): use \W boundaries
-                    const okBefore = !before || /\W/.test(before);
-                    const okAfter = !after || /\W/.test(after);
-                    if (!(okBefore && okAfter)) {
-                        pos = idx + 1;
-                        continue;
-                    }
+        /** Pull leading word chars (\w) from following TEXT_NODE siblings only (do not cross tag pills / elements). */
+        function pullCrossNodeWordSuffix(afterNode) {
+            let out = '';
+            while (true) {
+                const sib = afterNode.nextSibling;
+                if (!sib || sib.nodeType !== Node.TEXT_NODE) break;
+                const sv = sib.nodeValue || '';
+                let j = 0;
+                while (j < sv.length && /\w/.test(sv[j])) j += 1;
+                if (j === 0) break;
+                out += sv.slice(0, j);
+                const rest = sv.slice(j);
+                if (rest) {
+                    sib.nodeValue = rest;
+                    break;
                 }
-                ranges.push({ start: idx, end });
-                pos = end;
+                sib.parentNode.removeChild(sib);
             }
-            return ranges;
+            return out;
         }
 
         // For each text node, collect non-overlapping ranges from all TB terms.
@@ -8236,11 +8259,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         while (walker.nextNode()) nodesToProcess.push(walker.currentNode);
 
         nodesToProcess.forEach((node) => {
+            if (!node.parentNode) return;
             const text = node.nodeValue || '';
             const all = [];
             tbList.forEach(({ m, n }) => {
                 const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
-                const ranges = findRangesInNodeText(text, m.sourceText || '', mf);
+                const ranges = findTermHitRangesInPlainText(text, m.sourceText || '', mf);
                 const missing = tgtPlain ? (!termMatches(tgtPlain, m.targetText || '', mf)) : false;
                 ranges.forEach((r) => all.push({ ...r, n, src: m.sourceText, tgt: m.targetText || '', missing }));
             });
@@ -8268,8 +8292,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
             const anchors = Array.from(anchorByPos.entries())
-                .map(([pos, v]) => ({ pos, n: v.n, missing: v.missing }))
+                .map(([pos, v]) => ({ pos, n: v.n, missing: v.missing, suffixBefore: '' }))
                 .sort((a, b) => a.pos - b.pos);
+            if (anchors.some((a) => a.pos === text.length)) {
+                const endSuffix = pullCrossNodeWordSuffix(node);
+                if (endSuffix) {
+                    anchors.forEach((a) => {
+                        if (a.pos === text.length) a.suffixBefore = endSuffix;
+                    });
+                }
+            }
             let anchorIdx = 0;
 
             const frag = document.createDocumentFragment();
@@ -8279,6 +8311,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const ap = anchors[anchorIdx].pos;
                     if (ap > from) frag.appendChild(document.createTextNode(text.slice(from, ap)));
                     const a = anchors[anchorIdx];
+                    if (a.suffixBefore) frag.appendChild(document.createTextNode(a.suffixBefore));
                     const anchorEl = document.createElement('span');
                     anchorEl.className = a.missing ? 'tb-inline-sup-anchor is-missing' : 'tb-inline-sup-anchor';
                     anchorEl.setAttribute('data-tb-n', String(a.n));
@@ -20402,11 +20435,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (hasTb) {
                 const src = (seg.sourceText || '').trim();
-                window.ActiveTbTerms.forEach(term => {
+                const tbHits = [];
+                window.ActiveTbTerms.forEach((term) => {
                     const termSrc = term.source || '';
                     if (!termSrc) return;
-                    if (termMatches(src, termSrc, term.matchFlags)) {
-                        matches.push({
+                    if (!termMatches(src, termSrc, term.matchFlags)) return;
+                    const mf = term.matchFlags || { caseInsensitive: true, wholeWord: false };
+                    const ranges = findTermHitRangesInPlainText(src, termSrc, mf);
+                    const firstStart = ranges.length ? ranges[0].start : Infinity;
+                    tbHits.push({
+                        firstStart,
+                        srcLen: termSrc.length,
+                        entry: {
                             type: 'TB',
                             sourceText: term.source,
                             targetText: term.target,
@@ -20414,12 +20454,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                             tabName: term.tabName || '',
                             note: term.note,
                             score: 100,
-                            matchFlags: term.matchFlags || { caseInsensitive: true, wholeWord: false },
+                            matchFlags: mf,
                             createdBy: term.createdBy || '',
                             createdAt: term.createdAt || ''
-                        });
-                    }
+                        }
+                    });
                 });
+                tbHits.sort((a, b) => (a.firstStart - b.firstStart) || (b.srcLen - a.srcLen));
+                tbHits.forEach((x) => matches.push(x.entry));
             }
 
             matches.sort((a, b) => {
