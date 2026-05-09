@@ -2787,11 +2787,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for (const viewId of currentAssignFileIds) {
                     try {
                         const existing = await DBService.listViewAssignments(viewId);
-                        const existingUids = new Set((existing || []).map(a => String(a.assigneeUserId || a.assignee_user_id)));
+                        // 僅考慮未取消的有效指派，避免已 cancelled 的記錄影響新增／移除邏輯
+                        const activeExisting = (existing || []).filter(a => a.status !== 'cancelled');
+                        const existingUids = new Set(activeExisting.map(a => String(a.assigneeUserId || a.assignee_user_id)));
                         for (const uid of selectedUserIds) {
                             if (!existingUids.has(uid)) await DBService.assignView(viewId, [uid]);
                         }
-                        for (const a of (existing || [])) {
+                        for (const a of activeExisting) {
                             const uid = String(a.assigneeUserId || a.assignee_user_id);
                             if (!selectedIds.has(uid)) await DBService.unassignView(viewId, uid);
                         }
@@ -4392,11 +4394,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? `指派句段集：${currentAssignFileNames[0] || currentAssignFileIds[0]}`
                 : `批次指派句段集（${currentAssignFileIds.length} 筆）`;
         }
-        // 取已指派人員（以第一個 view 的 assignments 作為預選）
+        // 取已指派人員（以第一個 view 的 assignments 作為預選；排除已取消）
         let selectedSet = new Set();
         try {
             const existingList = await DBService.listViewAssignments(currentAssignFileIds[0]);
-            selectedSet = new Set((existingList || []).map(a => String(a.assigneeUserId || a.assignee_user_id)));
+            selectedSet = new Set(
+                (existingList || [])
+                    .filter(a => a.status !== 'cancelled')
+                    .map(a => String(a.assigneeUserId || a.assignee_user_id))
+            );
         } catch (_) {}
         const members = window._tmsAssignableUsers || [];
         fileAssignMembersList.innerHTML = members.length ? members.map(m => {
