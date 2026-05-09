@@ -708,6 +708,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             desc: '切到「新增術語」分頁。若在原文欄或譯文欄有反白，會帶入對應欄位並聚焦，方便一次新增術語。',
             def: { ctrl:true, alt:false, shift:false, key:'q' }
         },
+        {
+            id: 'catResultPagePrev',
+            label: '比對結果換頁',
+            desc: '右欄在「CAT」分頁且比對結果多於 9 筆時換頁。在譯文／原文可編格內不觸發。',
+            subLabel: '上一頁 ◀',
+            pairWith: 'catResultPageNext',
+            def: { ctrl:true, alt:false, shift:false, key:',' }
+        },
+        {
+            id: 'catResultPageNext',
+            subLabel: '下一頁 ▶',
+            def: { ctrl:true, alt:false, shift:false, key:'.' }
+        },
     ];
 
     function _scFormat(sc) {
@@ -719,13 +732,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         return parts.join(' + ');
     }
 
+    function matchesCustomShortcutEvent(e, sc) {
+        if (!sc || e.metaKey) return false;
+        const wantKey = String(sc.key || '').toLowerCase();
+        const actualKey = String(e.key || '').toLowerCase();
+        return !!e.ctrlKey === !!sc.ctrl &&
+            !!e.altKey === !!sc.alt &&
+            !!e.shiftKey === !!sc.shift &&
+            actualKey === wantKey;
+    }
+
     /** 與 keydown 實際綁定一致之顯示字串（單一真相，供按鈕 title 與快捷鍵 modal 灌入） */
     const FIXED_SHORTCUT_LABELS = {
         copySourceToTarget: 'Ctrl + Insert',
         clearTarget: 'Ctrl + Shift + Insert',
         segNavUpDown: 'Ctrl + ↑ / ↓',
         catListNav: 'Alt + ↑ / ↓',
-        catResultPage: 'Alt + ← / →',
         rightPanelTab: 'Ctrl + Alt + ← / →',
         fakeCaretFocus: 'Ctrl + Alt + ↓'
     };
@@ -745,7 +767,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             ['scFixedKeyClearTarget', 'clearTarget'],
             ['scFixedKeyCopySource', 'copySourceToTarget'],
             ['scFixedKeyCatList', 'catListNav'],
-            ['scFixedKeyCatPage', 'catResultPage'],
             ['scFixedKeyRightTab', 'rightPanelTab'],
             ['scFixedKeyFakeCaret', 'fakeCaretFocus']
         ];
@@ -780,8 +801,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         container.innerHTML = '';
         // 使用 CSS Grid 讓標籤欄和 key input 欄寬度對齊
         container.style.cssText = 'display:grid; grid-template-columns:1fr minmax(108px,130px) auto; gap:0.5rem 0.75rem; align-items:start;';
-        CUSTOM_SC_DEFS.forEach(def => {
-            const sc = getCustomShortcut(def.id);
+        const rendered = new Set();
+
+        const buildLabelWrap = (def) => {
             const labelWrap = document.createElement('div');
             labelWrap.className = 'sc-custom-label-wrap';
             const label = document.createElement('span');
@@ -793,12 +815,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 p.textContent = def.desc;
                 labelWrap.appendChild(p);
             }
+            return labelWrap;
+        };
+
+        const buildShortcutControl = (def) => {
+            const sc = getCustomShortcut(def.id);
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'display:grid; grid-template-columns:minmax(74px,auto) minmax(108px,130px) auto; gap:0.35rem; align-items:center; min-width:0;';
+            if (def.subLabel) {
+                const subLabel = document.createElement('span');
+                subLabel.className = 'sc-custom-desc';
+                subLabel.textContent = def.subLabel;
+                subLabel.style.cssText = 'margin:0; white-space:nowrap;';
+                wrap.appendChild(subLabel);
+            }
             const keyInput = document.createElement('input');
             keyInput.type = 'text';
             keyInput.value = _scFormat(sc);
             keyInput.readOnly = true;
             keyInput.className = 'sc-key-input sc-custom-input';
             keyInput.style.cssText = 'width:100%; cursor:default;';
+            if (!def.subLabel) keyInput.style.gridColumn = '1 / 3';
             const recordBtn = document.createElement('button');
             recordBtn.type = 'button';
             recordBtn.className = 'secondary-btn btn-sm';
@@ -852,7 +889,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btns = document.createElement('div');
             btns.style.cssText = 'display:flex; gap:0.3rem; flex-shrink:0;';
             btns.append(recordBtn, resetBtn);
-            container.append(labelWrap, keyInput, btns);
+            wrap.append(keyInput, btns);
+            return wrap;
+        };
+
+        CUSTOM_SC_DEFS.forEach(def => {
+            if (rendered.has(def.id)) return;
+            const labelWrap = buildLabelWrap(def);
+            if (def.pairWith) {
+                const pair = CUSTOM_SC_DEFS.find(d => d.id === def.pairWith);
+                if (pair) {
+                    const controls = document.createElement('div');
+                    controls.style.cssText = 'grid-column:2 / 4; display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; min-width:0;';
+                    controls.append(buildShortcutControl(def), buildShortcutControl(pair));
+                    container.append(labelWrap, controls);
+                    rendered.add(def.id);
+                    rendered.add(pair.id);
+                    return;
+                }
+            }
+            const control = buildShortcutControl(def);
+            const keyInput = control.querySelector('input');
+            const btns = control.querySelector('div:last-child');
+            if (keyInput && btns) container.append(labelWrap, keyInput, btns);
         });
     }
     
@@ -20471,9 +20530,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const rowsHtml = buildCatMatchRowsHtml(pageSlice);
                     let pagerHtml = '';
                     if (total > CAT_MATCH_PAGE) {
-                        pagerHtml = `<div class="cat-tm-page-hint" style="padding:0.45rem 0.5rem; font-size:0.78rem; color:#64748b; border-top:1px solid #e2e8f0; background:#f8fafc;">比對結果共 ${total} 筆，第 ${p + 1} / ${totalPages} 頁；請以 <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">Alt</kbd> + <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">←</kbd> / <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">→</kbd> 切換</div>`;
+                        const escPager = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        const prevKey = escPager(_scFormat(getCustomShortcut('catResultPagePrev')));
+                        const nextKey = escPager(_scFormat(getCustomShortcut('catResultPageNext')));
+                        const prevDisabled = p <= 0 ? ' disabled' : '';
+                        const nextDisabled = p >= totalPages - 1 ? ' disabled' : '';
+                        pagerHtml = `<div class="cat-tm-page-hint" style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; padding:0.45rem 0.5rem; font-size:0.78rem; color:#64748b; border-top:1px solid #e2e8f0; background:#f8fafc;">
+                            <button type="button" class="cat-match-page-btn cat-match-page-prev" title="上一頁 (${prevKey})" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:4px; padding:1px 7px; cursor:pointer;"${prevDisabled}>◀</button>
+                            <span>比對結果共 ${total} 筆，第 ${p + 1} / ${totalPages} 頁</span>
+                            <button type="button" class="cat-match-page-btn cat-match-page-next" title="下一頁 (${nextKey})" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:4px; padding:1px 7px; cursor:pointer;"${nextDisabled}>▶</button>
+                            <span>快捷鍵：<kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">${prevKey}</kbd> / <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">${nextKey}</kbd></span>
+                        </div>`;
                     }
                     searchResultsDOM.innerHTML = headerHtml + rowsHtml + pagerHtml;
+                    const prevBtn = searchResultsDOM.querySelector('.cat-match-page-prev');
+                    const nextBtn = searchResultsDOM.querySelector('.cat-match-page-next');
+                    if (prevBtn) prevBtn.addEventListener('click', () => setCatMatchPageByDelta(-1));
+                    if (nextBtn) nextBtn.addEventListener('click', () => setCatMatchPageByDelta(1));
                     const abs = catMatchAbsSelectionIndex();
                     renderFooter(marr[abs]);
                     updateCatTrackPanelContent();
@@ -20747,9 +20820,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
     }, true);
 
-    // Alt+左/右：CAT 比對結果表換頁（每頁 9 筆；格內可編不攔）
+    function setCatMatchPageByDelta(delta) {
+        const matches = window.currentTmMatches;
+        if (!matches || matches.length <= 9) return false;
+        const totalPages = Math.ceil(matches.length / 9);
+        let p = window.catMatchPageIndex | 0;
+        p = Math.max(0, Math.min(totalPages - 1, p + delta));
+        window.catMatchPageIndex = p;
+        window.catPanelSelectedIndex = 0;
+        if (typeof window._repaintCatTmMatchTable === 'function') window._repaintCatTmMatchTable();
+        return true;
+    }
+
+    // 自訂快捷鍵：CAT 比對結果表換頁（每頁 9 筆；格內可編不攔）
     document.addEventListener('keydown', function catPanelPageKey(e) {
-        if (e.ctrlKey || e.metaKey || e.shiftKey || !e.altKey || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
+        const isPrev = matchesCustomShortcutEvent(e, getCustomShortcut('catResultPagePrev'));
+        const isNext = matchesCustomShortcutEvent(e, getCustomShortcut('catResultPageNext'));
+        if (!isPrev && !isNext) return;
         if (isCatPanelBlockWordNav()) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
@@ -20758,15 +20845,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!matches || matches.length <= 9) return;
         const catTab = document.getElementById('tabCAT');
         if (!catTab || !catTab.classList.contains('active')) return;
-        const totalPages = Math.ceil(matches.length / 9);
-        let p = window.catMatchPageIndex | 0;
-        if (e.code === 'ArrowLeft') p = Math.max(0, p - 1);
-        else p = Math.min(totalPages - 1, p + 1);
-        window.catMatchPageIndex = p;
-        window.catPanelSelectedIndex = 0;
         e.preventDefault();
         e.stopPropagation();
-        if (typeof window._repaintCatTmMatchTable === 'function') window._repaintCatTmMatchTable();
+        setCatMatchPageByDelta(isPrev ? -1 : 1);
     }, true);
 
     // Ctrl+Alt+左/右：右欄分頁切換

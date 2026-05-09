@@ -19,9 +19,60 @@
     --tb-bg: #fef08a;
     --locked-bg: #f1f5f9;
     --success-color: #16a34a;
+    --tb-inline-hint-bg: rgba(202, 138, 4, 0.10);
+    --tb-inline-hint-underline: rgba(202, 138, 4, 0.35);
 }
 body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden;}
 .app-layout { display: flex; height: 100vh; width: 100vw; }
+
+/* 編輯器原文格：TB 上標提示（與 Ctrl+1~9 對齊） */
+.col-source .tb-inline-term {
+    border-bottom: 1px solid var(--tb-inline-hint-underline);
+    background: linear-gradient(to bottom, transparent 72%, var(--tb-inline-hint-bg) 72%);
+    border-radius: 2px;
+    padding: 0 0.05em;
+    white-space: nowrap;
+}
+.col-source .tb-inline-sup {
+    color: #475569;
+    font-size: 0.72em;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: super;
+    margin-left: 0.06em;
+    pointer-events: none;
+}
+.col-source .tb-inline-subline {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed rgba(203, 213, 225, 0.9);
+    color: #64748b;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    display: none;
+}
+.col-source .tb-inline-subline.is-visible {
+    display: block;
+}
+.col-source .tb-inline-subline .tb-inline-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.6rem;
+}
+.col-source .tb-inline-subline .tb-inline-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    padding: 0.1rem 0.35rem;
+    border-radius: 999px;
+    background: rgba(100, 116, 139, 0.08);
+    border: 1px solid rgba(100, 116, 139, 0.18);
+}
+.col-source .tb-inline-subline .tb-inline-item .n {
+    font-weight: 900;
+    color: #0f172a;
+}
 
 /* 蓋版對話框（置中、滿版遮罩；勿放在會建立 stacking 異常的容器內） */
 .modal-overlay {
