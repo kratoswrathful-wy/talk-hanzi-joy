@@ -101,3 +101,62 @@
 - React Shell 左欄標題：`追蹤器` → `1UP LMS`
 - 左欄導覽入口名稱：僅將 **Team** 入口 `CAT Team（受派）` → `1UP CAT`（離線版入口維持原名）
 
+---
+
+## 7. 2026-05-09 實作與上線過程（今日詳細紀錄）
+
+本節記錄今天從「定案」到「上線驗收成功」的完整過程，方便日後回溯（包含一次 Vercel 編譯錯誤的修正）。
+
+### 7.1 先做預覽（不動主程式）
+
+- 建立／更新靜態預覽頁：`docs/preview-tb-in-source/index.html`
+- 預覽內容逐步收斂為：
+  - 術語極淡標示
+  - 術語旁顯示普通上標 1–9（例如 `Settings¹`）
+  - 副行以可換行樣式列出 `N 原文→譯文`（不含備註）
+  - 模擬右欄分頁切換時編號同步更新
+
+### 7.2 落地實作：CAT 編輯器原文格 TB 上標
+
+- 修改範圍：僅在 `cat-tool/`（CAT 原始碼），並透過 `npm run sync:cat` 同步到 `public/cat/`
+- 主要落點：
+  - `cat-tool/app.js`：在編輯器格線渲染/右欄重繪後更新原文格內的上標與副行
+  - `cat-tool/style.css`：新增 `.tb-inline-*` 樣式（淡標示、上標、與副行清單）
+- 核心設計原則仍遵守 §3.2：「本頁可用編號」以右欄當頁 1–9 為唯一真相，確保與 Ctrl+1～9 完全一致。
+
+### 7.3 落地實作：LMS/CAT 左側欄自動展開/收合 + 文案更名
+
+- React Shell（`src/`）：
+  - `src/components/AppLayout.tsx`：依路由判斷 LMS vs CAT(team) 模組/編輯器，控制最左側欄展開/收合
+  - `src/components/AppSidebar.tsx`：更名 `追蹤器` → `1UP LMS`，Team 入口 `CAT 團隊線上版` → `1UP CAT`
+  - `src/components/ui/sidebar.tsx`：將 `useSidebar()` 對外匯出供 Layout 控制
+- CAT iframe（`cat-tool/`）：
+  - `src/pages/CatToolPage.tsx`：Team 模式下依路由送出 `postMessage`，指定 iframe 內 CAT 側欄應為 `module`（展開）或 `editor`（收合）
+  - `cat-tool/app.js`：接收 `TMS_SIDEBAR_MODE` 訊息後，對 CAT 側欄 `collapsed` 做強制同步
+
+### 7.4 推送與 Vercel 編譯錯誤
+
+- 首次推送 commit：`38be175`（`feat(cat): TB superscripts and sidebar auto-toggle`）
+- Vercel Build Logs 顯示 TypeScript 錯誤：
+  - `TS2323: Cannot redeclare exported variable 'useSidebar'`
+  - `TS2484: Export declaration conflicts with exported declaration of 'useSidebar'`
+- 原因：`src/components/ui/sidebar.tsx` 同時存在
+  - `export function useSidebar() { ... }`
+  - 檔案底部 `export { ... useSidebar }` 的二次匯出
+
+### 7.5 修正並再次推送
+
+- 修正 commit：`fc68a47`（`fix(ui): avoid duplicate useSidebar export`）
+- 修正內容：移除 `src/components/ui/sidebar.tsx` 底部匯出清單中的 `useSidebar`，保留函式本身的匯出，避免重複匯出衝突
+- 重新部署後驗收成功（使用者回報「驗收成功」）
+
+### 7.6 今日驗收要點（實際觀察）
+
+- LMS 任意頁：React 左欄自動展開，標題顯示 **1UP LMS**
+- CAT Team 模組：React 左欄自動收合、iframe 內 CAT 側欄展開
+- CAT Team 編輯器：兩邊側欄收合
+- 編輯器原文格：
+  - 命中 TB 詞彙顯示淡標示 + 上標 1–9
+  - 副行顯示 `N 原文→譯文`（可換行）
+  - 右欄分頁切換後，上標與副行會同步更新
+
