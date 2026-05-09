@@ -8153,7 +8153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 while (el.firstChild) parent.insertBefore(el.firstChild, el);
                 parent.removeChild(el);
             });
-            rt.querySelectorAll('.tb-inline-sup').forEach((el) => el.remove());
+            rt.querySelectorAll('.tb-inline-sup-anchor').forEach((el) => el.remove());
         }
         const sub = srcCell.querySelector('.tb-inline-subline');
         if (sub) {
@@ -8184,6 +8184,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Build a quick lookup for subline generation.
         const subItems = [];
         const srcPlain = (rt.textContent || '').trim();
+        const rowIdEl = row.querySelector('.col-id');
+        const segId = rowIdEl ? rowIdEl.getAttribute('data-id') : null;
+        const seg = segId ? currentSegmentsList.find((s) => String(s.id) === String(segId)) : null;
+        const tgtPlain = seg ? String(seg.targetText || '').trim() : '';
 
         // Decorate only text nodes; do not attempt to match across tag-pill boundaries.
         const walker = document.createTreeWalker(rt, NodeFilter.SHOW_TEXT, {
@@ -8237,7 +8241,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             tbList.forEach(({ m, n }) => {
                 const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
                 const ranges = findRangesInNodeText(text, m.sourceText || '', mf);
-                ranges.forEach((r) => all.push({ ...r, n, src: m.sourceText, tgt: m.targetText || '' }));
+                const missing = tgtPlain ? (!termMatches(tgtPlain, m.targetText || '', mf)) : false;
+                ranges.forEach((r) => all.push({ ...r, n, src: m.sourceText, tgt: m.targetText || '', missing }));
             });
             if (!all.length) return;
             all.sort((a, b) => (a.start - b.start) || ((b.end - b.start) - (a.end - a.start)));
@@ -8250,24 +8255,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             if (!picked.length) return;
 
+            const isWordChar = (ch) => !!ch && /\w/.test(ch);
+            // Anchor positions are "word end" (exclusive index). If multiple TBs hit the same word,
+            // show only one superscript at the word end (choose smallest n).
+            const anchorByPos = new Map(); // pos -> { n, missing }
+            picked.forEach((r) => {
+                let wordEnd = r.end;
+                while (wordEnd < text.length && isWordChar(text[wordEnd])) wordEnd++;
+                const prev = anchorByPos.get(wordEnd);
+                if (!prev || r.n < prev.n) {
+                    anchorByPos.set(wordEnd, { n: r.n, missing: !!r.missing });
+                }
+            });
+            const anchors = Array.from(anchorByPos.entries())
+                .map(([pos, v]) => ({ pos, n: v.n, missing: v.missing }))
+                .sort((a, b) => a.pos - b.pos);
+            let anchorIdx = 0;
+
             const frag = document.createDocumentFragment();
             let last = 0;
+            function appendTextWithAnchors(from, to) {
+                while (anchorIdx < anchors.length && anchors[anchorIdx].pos >= from && anchors[anchorIdx].pos <= to) {
+                    const ap = anchors[anchorIdx].pos;
+                    if (ap > from) frag.appendChild(document.createTextNode(text.slice(from, ap)));
+                    const a = anchors[anchorIdx];
+                    const anchorEl = document.createElement('span');
+                    anchorEl.className = a.missing ? 'tb-inline-sup-anchor is-missing' : 'tb-inline-sup-anchor';
+                    anchorEl.setAttribute('data-tb-n', String(a.n));
+                    frag.appendChild(anchorEl);
+                    from = ap;
+                    anchorIdx++;
+                }
+                if (to > from) frag.appendChild(document.createTextNode(text.slice(from, to)));
+            }
+
             picked.forEach((r) => {
-                if (r.start > last) frag.appendChild(document.createTextNode(text.slice(last, r.start)));
+                if (r.start > last) appendTextWithAnchors(last, r.start);
 
                 const termSpan = document.createElement('span');
-                termSpan.className = 'tb-inline-term';
+                termSpan.className = r.missing ? 'tb-inline-term is-missing' : 'tb-inline-term';
                 termSpan.textContent = text.slice(r.start, r.end);
                 frag.appendChild(termSpan);
 
-                const sup = document.createElement('span');
-                sup.className = 'tb-inline-sup';
-                sup.textContent = String(r.n);
-                frag.appendChild(sup);
-
                 last = r.end;
             });
-            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+            if (last < text.length) appendTextWithAnchors(last, text.length);
+            // anchors exactly at end-of-node
+            if (anchorIdx < anchors.length) appendTextWithAnchors(text.length, text.length);
 
             node.parentNode.replaceChild(frag, node);
         });
@@ -8276,7 +8310,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         tbList.forEach(({ m, n }) => {
             const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
             if (!termMatches(srcPlain, m.sourceText || '', mf)) return;
-            subItems.push({ n, src: m.sourceText || '', tgt: m.targetText || '' });
+            const missing = tgtPlain ? (!termMatches(tgtPlain, m.targetText || '', mf)) : false;
+            subItems.push({ n, src: m.sourceText || '', tgt: m.targetText || '', missing });
         });
         if (!subItems.length) return;
 
@@ -8287,7 +8322,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         list.className = 'tb-inline-list';
         subItems.forEach((it) => {
             const item = document.createElement('span');
-            item.className = 'tb-inline-item';
+            item.className = it.missing ? 'tb-inline-item is-missing' : 'tb-inline-item';
             const nEl = document.createElement('span');
             nEl.className = 'n';
             nEl.textContent = String(it.n);
@@ -19141,11 +19176,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 targetInput.addEventListener('compositionstart', () => {
                     _isComposing = true;
+                    targetInput.classList.add('is-composing');
                     clearTimeout(targetDebounceTimer);
                     targetDebounceTimer = null;
                 });
                 targetInput.addEventListener('compositionend', () => {
                     _isComposing = false;
+                    targetInput.classList.remove('is-composing');
                     const sanitized = sanitizeTargetEditorInlineArtifacts(targetInput, seg, row);
                     if (!sanitized) {
                         const gridNp = document.getElementById('editorGrid')?.classList.contains('show-non-print');
@@ -20465,9 +20502,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const CAT_MATCH_PAGE = 9;
                 function buildCatMatchRowsHtml(pageSlice) {
+                    const seg = window.currentCatFooterSeg;
+                    const segTarget = seg ? String(seg.targetText || '').trim() : '';
                     return pageSlice.map((m, idx) => {
                         const isFragment = m.type === 'Fragment';
                         const isTb = m.type === 'TB';
+                        const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
+                        const isTbMissing = isTb && segTarget ? !termMatches(segTarget, m.targetText || '', mf) : false;
                         let scoreInner = '';
                         let scoreBg = '';
                         if (isTb) {
@@ -20495,9 +20536,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }).join('')}
                     </div>` : '';
                         const isSelected = idx === window.catPanelSelectedIndex;
+                        const missingClass = isTbMissing ? ' result-item--tb-missing' : '';
                         return `
                     <div class="result-block">
-                    <div class="result-item${isSelected ? ' result-item--selected' : ''}" data-index="${idx}" title="單擊選取；雙擊套用譯文"
+                    <div class="result-item${isSelected ? ' result-item--selected' : ''}${missingClass}" data-index="${idx}" title="單擊選取；雙擊套用譯文"
                          onclick="handleCatResultClick(this, ${idx})"
                          ondblclick="handleCatResultDblClick(this)">
                         <div class="result-cell result-cell--index">${idx + 1}</div>
@@ -20837,7 +20879,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isPrev = matchesCustomShortcutEvent(e, getCustomShortcut('catResultPagePrev'));
         const isNext = matchesCustomShortcutEvent(e, getCustomShortcut('catResultPageNext'));
         if (!isPrev && !isNext) return;
-        if (isCatPanelBlockWordNav()) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         if (!currentFileId && !_currentViewId) return;

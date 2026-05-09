@@ -19176,11 +19176,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 targetInput.addEventListener('compositionstart', () => {
                     _isComposing = true;
+                    targetInput.classList.add('is-composing');
                     clearTimeout(targetDebounceTimer);
                     targetDebounceTimer = null;
                 });
                 targetInput.addEventListener('compositionend', () => {
                     _isComposing = false;
+                    targetInput.classList.remove('is-composing');
                     const sanitized = sanitizeTargetEditorInlineArtifacts(targetInput, seg, row);
                     if (!sanitized) {
                         const gridNp = document.getElementById('editorGrid')?.classList.contains('show-non-print');

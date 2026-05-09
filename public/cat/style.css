@@ -20,7 +20,10 @@
     --locked-bg: #f1f5f9;
     --success-color: #16a34a;
     --tb-inline-hint-bg: rgba(202, 138, 4, 0.10);
-    --tb-inline-hint-underline: rgba(202, 138, 4, 0.35);
+    --tb-inline-hint-underline: rgba(202, 138, 4, 0.72);
+    --tb-inline-missing-bg: rgba(220, 38, 38, 0.10);
+    --tb-inline-missing-border: rgba(220, 38, 38, 0.30);
+    --tb-inline-missing-text: #b91c1c;
 }
 body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden;}
 .app-layout { display: flex; height: 100vh; width: 100vw; }
@@ -33,14 +36,23 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     padding: 0 0.05em;
     white-space: nowrap;
 }
-.col-source .tb-inline-sup {
+.col-source .tb-inline-term.is-missing {
+    border-bottom-color: var(--tb-inline-missing-border);
+    background: linear-gradient(to bottom, transparent 72%, var(--tb-inline-missing-bg) 72%);
+}
+.col-source .tb-inline-sup-anchor::after {
+    content: attr(data-tb-n);
     color: #475569;
     font-size: 0.72em;
     font-weight: 700;
     line-height: 1;
     vertical-align: super;
     margin-left: 0.06em;
-    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.col-source .tb-inline-sup-anchor.is-missing::after {
+    color: var(--tb-inline-missing-text);
 }
 .col-source .tb-inline-subline {
     margin-top: 0.35rem;
@@ -68,6 +80,17 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     border-radius: 999px;
     background: rgba(100, 116, 139, 0.08);
     border: 1px solid rgba(100, 116, 139, 0.18);
+}
+.col-source .tb-inline-subline .tb-inline-item.is-missing {
+    background: var(--tb-inline-missing-bg);
+    border-color: var(--tb-inline-missing-border);
+}
+.col-source .tb-inline-subline .tb-inline-item.is-missing .n,
+.col-source .tb-inline-subline .tb-inline-item.is-missing {
+    color: var(--tb-inline-missing-text);
+}
+.col-source .tb-inline-subline .tb-inline-item.is-missing .n {
+    color: var(--tb-inline-missing-text);
 }
 .col-source .tb-inline-subline .tb-inline-item .n {
     font-weight: 900;
@@ -1764,6 +1787,12 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     outline-offset: -2px;
     border-radius: 2px;
     background: #f8fafc;
+}
+.result-item--tb-missing {
+    background: rgba(220, 38, 38, 0.08);
+}
+.result-item--tb-missing:hover {
+    background: rgba(220, 38, 38, 0.10);
 }
 .result-table-header {
     border-bottom: 1px solid var(--border-color);
@@ -3733,6 +3762,10 @@ select.cat-mutex-dd-native-hidden {
 .show-non-print .non-print-marker.np-inline-char {
     color: transparent;
     caret-color: #0f172a;
+}
+/* 輸入法組字中：覆蓋 transparent，避免組字文字看不見 */
+.show-non-print .rt-editor.is-composing .non-print-marker.np-inline-char {
+    color: var(--text-main);
 }
 .show-non-print .non-print-marker.np-inline-char::after {
     display: inline;

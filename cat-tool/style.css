@@ -3763,6 +3763,10 @@ select.cat-mutex-dd-native-hidden {
     color: transparent;
     caret-color: #0f172a;
 }
+/* 輸入法組字中：覆蓋 transparent，避免組字文字看不見 */
+.show-non-print .rt-editor.is-composing .non-print-marker.np-inline-char {
+    color: var(--text-main);
+}
 .show-non-print .non-print-marker.np-inline-char::after {
     display: inline;
     pointer-events: none;

@@ -662,7 +662,7 @@
                     <label style="font-size:0.9rem;">譯文</label>
                     <input type="text" id="tbTermEditTarget" placeholder="譯文" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px;">
                     <label style="font-size:0.9rem;">備註</label>
-                    <textarea id="tbTermEditNote" placeholder="備註（選填）" rows="3" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; resize:vertical;"></textarea>
+                    <textarea id="tbTermEditNote" placeholder="備註（選填）" rows="3" spellcheck="false" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; resize:vertical;"></textarea>
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.6rem 0.75rem; display:flex; gap:1.5rem; flex-wrap:wrap;">
                         <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.88rem; cursor:pointer; font-weight:normal;">
                             <input type="checkbox" id="tbTermEditCaseInsensitive">
@@ -1241,11 +1241,11 @@
                     <div class="form-group" id="aiPromptsExecBlock">
                         <h4 style="font-size:0.9rem; margin:0 0 0.5rem 0; color:#334155;">可編系統提示（選填，置於內建提示之前）</h4>
                         <label class="form-label" style="font-size:0.8rem;">翻譯前綴</label>
-                        <textarea id="aiPromptTranslatePrefix" class="form-input" rows="2" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <textarea id="aiPromptTranslatePrefix" class="form-input" rows="2" spellcheck="false" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
                         <label class="form-label" style="font-size:0.8rem; margin-top:0.5rem;">全文掃描前綴</label>
-                        <textarea id="aiPromptScanPrefix" class="form-input" rows="2" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <textarea id="aiPromptScanPrefix" class="form-input" rows="2" spellcheck="false" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
                         <label class="form-label" style="font-size:0.8rem; margin-top:0.5rem;">錯字檢查（可覆寫內建檢查說明；須能輸出與內建相同之 JSON 結尾）</label>
-                        <textarea id="aiPromptTypoSystem" class="form-input" rows="3" placeholder="可留空則用內建" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <textarea id="aiPromptTypoSystem" class="form-input" rows="3" spellcheck="false" placeholder="可留空則用內建" style="resize:vertical; font-size:0.85rem;"></textarea>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.75rem;">
                         <button type="button" id="btnSaveAiSettings" class="primary-btn">儲存設定</button>
@@ -1309,7 +1309,7 @@
                 <div style="max-width:800px; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; background:#f8fafc;">
                     <h4 style="margin:0 0 0.75rem 0; font-size:0.9rem; color:#374151;">新增準則條目</h4>
                     <div style="display:flex; flex-direction:column; gap:0.6rem;">
-                        <textarea id="aiGuidelineNewContent" class="form-input" rows="2" placeholder="輸入準則內容（建議 1–2 句，例如：稱謂使用「你」而非「您」）" style="resize:vertical;"></textarea>
+                        <textarea id="aiGuidelineNewContent" class="form-input" rows="2" spellcheck="false" placeholder="輸入準則內容（建議 1–2 句，例如：稱謂使用「你」而非「您」）" style="resize:vertical;"></textarea>
                         <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
                             <div style="display:flex; align-items:center; gap:0.4rem; position:relative;">
                                 <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">類別</label>
@@ -1906,7 +1906,7 @@
                                     </div>
                                     <div style="margin-top:0.85rem;">
                                         <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.35rem;">預覽範例（與匯入引擎相同邏輯）</label>
-                                        <textarea id="excelImportTagPreviewSample" class="form-input" rows="3" placeholder="貼上範例文字…"></textarea>
+                                        <textarea id="excelImportTagPreviewSample" class="form-input" rows="3" spellcheck="false" placeholder="貼上範例文字…"></textarea>
                                         <div style="display:flex; gap:0.5rem; margin-top:0.45rem; flex-wrap:wrap;">
                                             <button type="button" id="btnExcelImportTagPreviewApply" class="secondary-btn btn-sm">套用預覽</button>
                                         </div>
@@ -2451,7 +2451,7 @@
                 <div style="font-size:0.78rem; color:#64748b; margin-top:-0.45rem;">大範圍內容會依每批句數與每批字元上限自動拆成多批，逐批送交 AI。</div>
                 <div>
                     <label class="form-label">提示語開頭（introduction）</label>
-                    <textarea id="aiBatchIntroduction" class="form-input" rows="3" placeholder="選填。會接在專案系統前綴之後、其餘指示與候選條目之前送給 AI。" style="resize:vertical; min-height:3.5rem; width:100%; box-sizing:border-box;"></textarea>
+                    <textarea id="aiBatchIntroduction" class="form-input" rows="3" spellcheck="false" placeholder="選填。會接在專案系統前綴之後、其餘指示與候選條目之前送給 AI。" style="resize:vertical; min-height:3.5rem; width:100%; box-sizing:border-box;"></textarea>
                 </div>
                 <!-- 候選條目池 -->
                 <div id="aiBatchCandidatePoolSection">
@@ -2651,7 +2651,7 @@
             <div id="aiPickerMgmtAddPanel" class="ai-guideline-picker-add-panel" style="flex-shrink:0; border-top:1px solid #e2e8f0; padding:1rem 1.25rem; background:#f8fafc;">
                 <h4 style="margin:0 0 0.65rem 0; font-size:0.9rem; color:#374151;">新增準則條目</h4>
                 <div style="display:flex; flex-direction:column; gap:0.6rem;">
-                    <textarea id="aiPickerMgmtNewContent" class="form-input" rows="2" placeholder="輸入準則內容（建議 1–2 句，例如：稱謂使用「你」而非「您」）" style="resize:vertical; width:100%; box-sizing:border-box;"></textarea>
+                    <textarea id="aiPickerMgmtNewContent" class="form-input" rows="2" spellcheck="false" placeholder="輸入準則內容（建議 1–2 句，例如：稱謂使用「你」而非「您」）" style="resize:vertical; width:100%; box-sizing:border-box;"></textarea>
                     <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
                         <div style="display:flex; align-items:center; gap:0.4rem; position:relative;">
                             <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">類別</label>
@@ -2749,7 +2749,7 @@
                 <h3 style="margin:0 0 0.75rem 0;">編輯準則條目</h3>
                 <div class="form-group">
                     <label class="form-label" for="agEditGuidelineContent">內容</label>
-                    <textarea id="agEditGuidelineContent" class="form-input ag-edit-guideline-field" rows="5" placeholder="準則內文…"></textarea>
+                    <textarea id="agEditGuidelineContent" class="form-input ag-edit-guideline-field" rows="5" spellcheck="false" placeholder="準則內文…"></textarea>
                 </div>
                 <div class="ag-edit-prop-row">
                     <div class="form-group">
@@ -2819,7 +2819,7 @@
                 <h3 id="pgEditProjectGuidelineHeading" style="margin:0 0 0.75rem 0;">編輯專案準則</h3>
                 <div class="form-group">
                     <label class="form-label" for="pgEditProjectGuidelineContent">內容</label>
-                    <textarea id="pgEditProjectGuidelineContent" class="form-input ag-edit-guideline-field" rows="5" placeholder="專案準則內文…"></textarea>
+                    <textarea id="pgEditProjectGuidelineContent" class="form-input ag-edit-guideline-field" rows="5" spellcheck="false" placeholder="專案準則內文…"></textarea>
                 </div>
                 <div class="form-group">
                     <label class="form-label">套用標籤</label>
@@ -2874,7 +2874,7 @@
             <div style="max-width:800px; width:100%; box-sizing:border-box; margin:0 1.25rem 1.25rem; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; background:#f8fafc; flex-shrink:0;">
                 <h4 style="margin:0 0 0.75rem 0; font-size:0.9rem; color:#374151;">新增專案準則條目</h4>
                 <div style="display:flex; flex-direction:column; gap:0.6rem;">
-                    <textarea id="pgManageNewProjectGuidelineContent" class="form-input" rows="2" placeholder="專案準則內文…" style="resize:vertical; width:100%; box-sizing:border-box;"></textarea>
+                    <textarea id="pgManageNewProjectGuidelineContent" class="form-input" rows="2" spellcheck="false" placeholder="專案準則內文…" style="resize:vertical; width:100%; box-sizing:border-box;"></textarea>
                     <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
                         <div style="display:flex; align-items:center; gap:0.4rem; position:relative;">
                             <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">套用標籤</label>
@@ -2909,7 +2909,7 @@
             <h3 style="margin:0 0 0.75rem 0;">掃描全文</h3>
             <p style="font-size:0.85rem; color:#475569; margin:0 0 0.75rem 0;">AI 將閱讀全文並產生翻譯建議報告（推薦準則與標籤）。</p>
             <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.35rem;">附加提示（選填）</label>
-            <textarea id="aiScanPromptInput" class="form-input" rows="4" placeholder="例如：這是一款動作 RPG 遊戲，請特別注意技能名稱的一致性…" style="width:100%; resize:vertical;"></textarea>
+            <textarea id="aiScanPromptInput" class="form-input" rows="4" spellcheck="false" placeholder="例如：這是一款動作 RPG 遊戲，請特別注意技能名稱的一致性…" style="width:100%; resize:vertical;"></textarea>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
                 <button type="button" id="btnCancelAiScan" class="secondary-btn">取消</button>
                 <button type="button" id="btnConfirmAiScan" class="primary-btn">繼續</button>
