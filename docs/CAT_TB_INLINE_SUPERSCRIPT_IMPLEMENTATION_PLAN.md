@@ -163,3 +163,80 @@
   - 左欄標題：`追蹤器` → `1UP LMS`
   - 導覽入口：僅將 **Team** 入口 `CAT Team（受派）` → `1UP CAT`（離線版入口維持原名）
 
+---
+
+## 8. 下一波調整（2026-05-09 後續）：複製不含上標、顏色加深、缺漏術語紅色提示、快捷鍵可隨時使用
+
+本節為下一次實作的計畫（不改變 Ctrl+1～9 的核心規則；仍以右欄當頁 1–9 為唯一真相）。
+
+### 8.1 上標數字改為 CSS `::after`（避免複製/搜尋污染）
+
+**目標**
+
+- 使用者在原文格拖曳反白後 Ctrl+C 複製，不應包含上標數字（例如不應複製出 `Settings1`）
+- 瀏覽器 Ctrl+F 或其他依 DOM 文字的搜尋，不應因上標數字而干擾命中
+
+**做法**
+
+- `cat-tool/app.js`：停止插入 `.tb-inline-sup` 文字節點，改為：
+  - `.tb-inline-term` 上設定 `data-tb-n="1"`（或 `data-n`）
+- `cat-tool/style.css`：用 pseudo-element 顯示：
+  - `.tb-inline-term::after { content: attr(data-tb-n); ... vertical-align: super; }`
+
+**驗收**
+
+- 複製命中術語的原文字串時，剪貼簿內容不含上標數字
+
+### 8.2 標示更顯眼（僅加深底線）
+
+**目標**
+
+- 在不變更背景色的前提下，將底線顏色加深，使命中術語更易被看見
+
+**做法**
+
+- 只調整 `cat-tool/style.css` 的 `--tb-inline-hint-underline`（提高 alpha 或改為更深色）
+
+### 8.3 缺漏術語紅色提示（右欄 TB 列 + 原文格副行）
+
+**定義**
+
+- 若原文命中某 TB（依 `termMatches(source, term.source, flags)`）
+- 且譯文未出現對應譯法（依 `!termMatches(target, term.target, flags)`）
+  - 視為「缺漏術語」
+
+**UI**
+
+- 右欄 TB 列：背景/標示改為淡紅（例如加 `.is-missing` class）
+- 原文格副行：該 TB item 改為淡紅底與紅色邊框/文字
+- 已包含譯文者：維持原本（或加深後）的正常用色
+
+**做法**
+
+- `cat-tool/app.js`：產生副行 item 時附帶 `isMissing`，並在右欄渲染 TB row 時加 class
+- `cat-tool/style.css`：新增對應 `.is-missing` 樣式
+
+**驗收**
+
+- 選取句段時，若譯文未包含某 TB 譯法，右欄與副行能立刻顯示淡紅提示；補上譯法後提示消失
+
+### 8.4 Ctrl+, / Ctrl+. 換頁快捷鍵：改成隨時可用
+
+**背景**
+
+- 目前 `catResultPagePrev/Next`（預設 Ctrl+, / Ctrl+.）在「格內可編」情境下會被刻意擋掉，導致需要點右欄才會生效
+
+**目標**
+
+- 行為比照 `Ctrl+Alt+←/→`：不論焦點在譯文編輯區或其他區域，都能換頁
+
+**做法**
+
+- `cat-tool/app.js`：調整 `catPanelPageKey` handler 的阻擋條件
+  - 移除或放寬「格內可編不攔」的限制（目前由 `isCatPanelBlockWordNav()` 導致）
+  - 保留必要條件：在 `viewEditor`、有 `currentTmMatches` 且 > 9、且右欄 tabCAT active
+
+**驗收**
+
+- 游標在譯文編輯區時，按 Ctrl+, / Ctrl+. 可直接切換右欄比對列表頁面
+
