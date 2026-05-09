@@ -79,8 +79,7 @@
 ### 4.2 匯出：placeholder → xml 反向替換（Excel）
 
 - 檔案：`cat-tool/app.js`
-  - Excel 匯出路徑（`_batchExportBuildBlob` 的 excel 分支）目前直接寫入 `s.targetText`。
-  - 新增匯出前轉換：以 `s.targetTags` 建立 `ph → xml` map，將 `targetText` 中的 `{N}`/`{/N}` 替換回原始 token，再寫回 `data[row][col]`。
+  - Excel（保留原檔）匯出：以 `excelApplyTranslatedSegmentsToWorkbook` 僅 patch 譯文格；單格內容由 `excelExportTargetCellForSheet` 組裝（字串層 `restorePlaceholdersForExport` + 可選 `buildRichTextXml`／`tagLayer: 'xlsxRpr'`），**不再**預設整表 `aoa_to_sheet` 重蓋（見 `5e84fae` 與 [EXCEL_IMPORT_TAGS_SPEC.md](./EXCEL_IMPORT_TAGS_SPEC.md) §9）。
   - 若 `targetTags` 缺失或 map 中找不到某些 placeholder：可保留 placeholder 或記錄 warning（依產品決策）。
 
 ### 4.3 同步 public/cat
@@ -104,8 +103,9 @@
 ### 5.3 容錯
 
 - 若只有 `<color=...>` 沒有 `</color>`：應保留原字串、不轉換、不產生 `{N}`（允許但不轉換）。
-- **含 `<SpriteName=…>` 且無 `</SpriteName>`、但外層有 `</color>`**：匯入後應可 tag 化（`SpriteName` 為 standalone，`color` 成對）；見 [EXCEL_IMPORT_TAGS_SPEC.md](./EXCEL_IMPORT_TAGS_SPEC.md) §6.5。
+- **含 `<SpriteName=…>` 且無 `</SpriteName>`、但外層有 `</color>`**：匯入後應可 tag 化（`SpriteName` 為 standalone，`color` 成對）；見 [EXCEL_IMPORT_TAGS_SPEC.md](./EXCEL_IMPORT_TAGS_SPEC.md) §6.5；**已落地**於 `b8da3d0`（`validateAngleStack`）。
 - **已寫入雲端之舊句段**（當時整段未轉換、無 `tags`）：須 **重新匯入**原檔或批次重算，否則線上仍顯示純文字 `<color=...>`。
+- **最小回歸（本機 Node）**：`node scripts/test-excel-import-angle-tolerance.mjs`（不依賴瀏覽器）。
 
 ---
 
@@ -113,4 +113,5 @@
 
 - 核心行為（token 解析、`tags[].xml`、匯出 `restorePlaceholdersForExport`）已落地；驗收紀錄與編輯器 Tag 檢視三態說明見 [CAT_EXCEL_REVERSIBLE_INLINE_TAGS_HISTORY_2026-05.md](./CAT_EXCEL_REVERSIBLE_INLINE_TAGS_HISTORY_2026-05.md)。
 - 程式碼追溯：commit `9bd0173` 起（`main`）；詳見該 HISTORY 檔「版本／追溯」小節。
+- **2026-05-08 波次（Excel 富文本匯出 + 巢狀角括號）**：`5e84fae`（匯出 patch／`xlsxRpr`／`vertAlign`）、`61da2f6`（尾端未關閉 open）、`02ef3f4`（`col_tgt` 數字化）、`1cd2d80`（規格與歷史文件）、`b8da3d0`（§6.5 巢狀 close 容錯 + 腳本 `scripts/test-excel-import-angle-tolerance.mjs`）。完整過程見 [CAT_EXCEL_REVERSIBLE_INLINE_TAGS_HISTORY_2026-05.md](./CAT_EXCEL_REVERSIBLE_INLINE_TAGS_HISTORY_2026-05.md) §「2026-05-08 波次」。
 

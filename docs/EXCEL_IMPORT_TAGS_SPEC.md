@@ -126,7 +126,7 @@ flowchart LR
 **補充（實作演進，作為實做依據）**：
 
 - **尾端未關閉的 `<tag ...>`**（整段掃完 stack 仍非空）：實作可將剩餘 open **降級為 standalone** `{n}`，避免整格放棄；見歷史紀錄 commit `61da2f6`（`main`）。
-- **巢狀 close 不匹配**（常見於遊戲字串）：見 **§6.5**；若未實作 §6.5，則仍適用本節「整段不轉換」。
+- **巢狀 close 不匹配**（常見於遊戲字串）：見 **§6.5**（**已落地**：`b8da3d0`，`validateAngleStack`）；若關閉該容錯或遇到 §6.5 第 2 點仍無法配對之情形，則仍適用本節「整段不轉換」。
 
 ### 6.5 遊戲佔位符巢狀：外層 `</color>` 關閉、內層無獨立 `</SpriteName>`（必須支援）
 
@@ -146,6 +146,8 @@ flowchart LR
 3. **等號 `=`** 僅為 tag 內文，**不**影響 tag 名稱擷取；本節重點在 **close 與 stack 順序**，而非 `=`。
 
 > **驗收**：含 `<color=…><SpriteName=…>…</color>` 的儲存格匯入後，句段內應出現 **至少三個**字串層 tag（`color` open、`SpriteName` standalone、`color` close），且譯文可編輯、匯出可逆。
+
+**實作追溯**：`cat-tool/js/excel-import-string-tags.js` 之 `validateAngleStack`（`main` commit `b8da3d0`）；回歸腳本 `scripts/test-excel-import-angle-tolerance.mjs`。
 
 ### 6.4 字面 `\\n`（純文字換行標記）
 
