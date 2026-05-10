@@ -126,42 +126,46 @@
 ## 7. 同步納入：LMS/CAT 左側工具欄自動展開／收合（跨 React Shell 與 iframe）
 
 > 本節與 TB 上標功能屬同一波要落地的體驗改善，故納入同一份實作計畫；但實作落點分別在 `src/`（React Shell）與 `cat-tool/`（iframe 內 CAT）。
+>
+> **以 [`docs/LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md`](./LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md) 為準**（文案三層區分、`/cat/offline` 收合 LMS、`onLoad` 補送 `TMS_SIDEBAR_MODE`、不記住手動展開 LMS）。本節摘要如下；細節與驗收請讀該檔。
 
 ### 7.1 目標
 
 - 讓使用者在 LMS 與 CAT 之間切換時，左側欄（紅框：React Shell）與 CAT 側欄（藍框：iframe 內）保持符合情境的展開／收合狀態。
 
-### 7.2 規則（已定案）
+### 7.2 規則（已定案，與 LMS_CAT_SHELL 文件一致）
 
-- **進入 LMS 任意頁**（非 `/cat/*`）：
+- **進入 LMS 任意頁**（`pathname` 不以 `/cat/` 開頭）：
   - React Shell 左欄：**展開**
-- **進入 CAT 模組頁**（`/cat/team/*`，但不含 `/files/:id` 編輯器）：
+- **進入任意 CAT 路由**（`pathname` 以 **`/cat/`** 開頭，含 **`/cat/team`** 與 **`/cat/offline`**）：
   - React Shell 左欄：**收合**
-  - iframe 內 CAT 側欄：**展開**
-- **進入 CAT 編輯器**（`/cat/team/files/:id`）：
-  - React Shell 左欄：**收合**
-  - iframe 內 CAT 側欄：**收合**
+- **CAT 模組頁**（`/cat/` 下且路徑**不含** `/files/`）：
+  - iframe 內 CAT 側欄：**展開**（`TMS_SIDEBAR_MODE: module`）
+- **CAT 編輯器**（路徑含 **`/files/`**）：
+  - React Shell 左欄：**收合**（同上）
+  - iframe 內 CAT 側欄：**收合**（`TMS_SIDEBAR_MODE: editor`）
 
 ### 7.3 「尊重手動」與「例外強制」策略
 
-- **一般情況**：尊重使用者手動收合／展開狀態，不在同一區域內每次換頁都覆蓋。
-- **例外（強制套用）**：在 **CAT 模組 ↔ CAT 編輯器** 之間切換時，每次都必須強制套用上述規則（避免編輯器工具欄干擾）。
+- **LMS 最左欄**：依路由強制；**不記住**使用者曾手動展開（每次進入非 `/cat/` 頁即展開，進入 `/cat/` 即收合）。
+- **CAT 模組 ↔ CAT 編輯器**：在 iframe 內側欄狀態上仍**強制**套用 §7.2（避免編輯器工具欄干擾）；必要時於 `iframe` **`onLoad`** 再送 `TMS_SIDEBAR_MODE` 以補齊 listener 註冊競態。
 
 ### 7.4 技術落點（僅規劃，實作階段再落碼）
 
 - React Shell（`src/`）：
-  - 在 Layout 層讀取 `location.pathname` 判斷 LMS vs CAT（`/cat/team`）與是否為編輯器（`/files/:id`）
-  - 透過 `useSidebar().setOpen(true/false)` 控制最左側欄
+  - 在 Layout 層讀取 `location.pathname`：以 **`/cat/`** 開頭為 CAT（含 team／offline）；路徑含 **`/files/`** 為編輯器區域
+  - 透過 `useSidebar().setOpen(true/false)` 控制最左側欄（細節見 [LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md](./LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md)）
 - CAT iframe（`cat-tool/`）：
   - 進入編輯器 view 時目前已會 `sidebar.classList.add('collapsed')`（需在實作時確認 team/offline 一致性）
   - 若要「進入 CAT 模組時強制展開」，需在 `switchView()` 或模組載入點確保 `sidebar.classList.remove('collapsed')`
   - 若要從 React Shell 控制 iframe 內狀態，建議使用 `postMessage` 定義明確的「視圖狀態」訊息（避免依賴 sessionStorage 的上次狀態）
 
-### 7.5 文案更名（已定案）
+### 7.5 文案（已定案，與 LMS_CAT_SHELL 文件一致）
 
 - `src/components/AppSidebar.tsx`：
   - 左欄標題：`追蹤器` → `1UP LMS`
-  - 導覽入口：僅將 **Team** 入口 `CAT Team（受派）` → `1UP CAT`（離線版入口維持原名）
+  - 導覽 **Team** 入口：維持 **「CAT 團隊線上版」**（LMS 導覽）；**不可**改為「1UP CAT」。
+- `cat-tool/app.js`（team 模式 `.sidebar-title`）：顯示 **「1UP CAT」**（iframe 內可見標題，與 LMS 導覽分離）。
 
 ---
 

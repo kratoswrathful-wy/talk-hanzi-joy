@@ -7,37 +7,37 @@ import { useEffect, useRef } from "react";
 function SidebarAutoController() {
   const location = useLocation();
   const { setOpen } = useSidebar();
-  const lastAreaRef = useRef<"lms" | "catTeamModule" | "catTeamEditor" | "other">("other");
+  const lastAreaRef = useRef<"lms" | "catModule" | "catEditor" | "other">("other");
 
   useEffect(() => {
     const path = location.pathname || "";
-    const isCatTeam = path.startsWith("/cat/team");
-    const isCatTeamEditor = isCatTeam && path.includes("/files/");
-    const isCatTeamModule = isCatTeam && !isCatTeamEditor;
-    const isLms = !path.startsWith("/cat/");
+    const isCat = path.startsWith("/cat/");
+    const isCatEditor = isCat && path.includes("/files/");
+    const isCatModule = isCat && !isCatEditor;
+    const isLms = !isCat;
 
     const nextArea: typeof lastAreaRef.current = isLms
       ? "lms"
-      : isCatTeamEditor
-        ? "catTeamEditor"
-        : isCatTeamModule
-          ? "catTeamModule"
+      : isCatEditor
+        ? "catEditor"
+        : isCatModule
+          ? "catModule"
           : "other";
 
     const prevArea = lastAreaRef.current;
     lastAreaRef.current = nextArea;
 
-    // Default: respect manual toggles within the same area.
-    // Exception: CAT module <-> editor transitions must always enforce.
+    // LMS sidebar: route-driven (no sticky manual state). Exception: CAT module <-> editor
+    // still forces a re-run so iframe sidebar mode can re-apply.
     const isForcedCatBoundary =
-      (prevArea === "catTeamModule" && nextArea === "catTeamEditor") ||
-      (prevArea === "catTeamEditor" && nextArea === "catTeamModule");
+      (prevArea === "catModule" && nextArea === "catEditor") ||
+      (prevArea === "catEditor" && nextArea === "catModule");
 
     if (!isForcedCatBoundary && prevArea === nextArea) return;
 
     if (nextArea === "lms") {
       setOpen(true);
-    } else if (nextArea === "catTeamModule" || nextArea === "catTeamEditor") {
+    } else if (nextArea === "catModule" || nextArea === "catEditor") {
       setOpen(false);
     }
   }, [location.pathname, setOpen]);

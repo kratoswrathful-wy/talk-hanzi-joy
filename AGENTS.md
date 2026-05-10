@@ -16,6 +16,7 @@
 
 ### (C) 領域與深文件（非「Cursor 一律遵守的編輯總規則」）
 
+- [`docs/LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md`](docs/LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md) — LMS 殼層左欄與 CAT iframe 內側欄：導覽文案、收合規則、`TMS_SIDEBAR_MODE` 與驗收
 - [`docs/CAT_VIEW_SPEC.md`](docs/CAT_VIEW_SPEC.md) — 介面用語與檢視行為
 - [`docs/CAT_CTRL_DIGIT_SHORTCUT_SPEC.md`](docs/CAT_CTRL_DIGIT_SHORTCUT_SPEC.md) — Ctrl+1～9 右欄套用細部規格（與 [`docs/CAT第四波主記錄.md`](docs/CAT第四波主記錄.md) §5-i 對照）
 - [`docs/XLIFF_TAG_PIPELINE.md`](docs/XLIFF_TAG_PIPELINE.md) — XLIFF／tag 管線（與 [`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc) 呼應）
@@ -26,6 +27,7 @@
 - [`docs/EXCEL_IMPORT_TAGS_SPEC.md`](docs/EXCEL_IMPORT_TAGS_SPEC.md) — Excel 匯入警語與括號／自訂正則轉 tag（**工程規格**）；高層計畫見 [`docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md`](docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md)；介面預覽 [`docs/preview-excel-import-tags/index.html`](docs/preview-excel-import-tags/index.html)
 - [`docs/bug-report_f8-targettags-empty-fallback-regression.md`](docs/bug-report_f8-targettags-empty-fallback-regression.md) — F8／`effectiveTags`／空 `targetTags` 導致整列譯文 tag pill 變純文字（sdlxliff 等常見觸發）；修正方案待實作；與 [`docs/bug-report_mqxliff-partial-target-tags.md`](docs/bug-report_mqxliff-partial-target-tags.md) §2.8 對照
 - [`docs/bug-report_mqxliff-team-role-persistence.md`](docs/bug-report_mqxliff-team-role-persistence.md) — mqxliff 在 Team（Supabase）模式下 **T／R1／R2** 無法持久化（重開檔後狀態圖示與鎖定規則錯亂）；根因為 `cat_segments` 缺欄位與 `cat-cloud-rpc` 未映射；2026-05-10 已修（migration + RPC）
+- [`docs/bug-report_file-download-uuid-filename.md`](docs/bug-report_file-download-uuid-filename.md) — LMS 下載 `case-files` 附件時瀏覽器建議檔名為 UUID；調查紀錄與以 `downloadFile`（fetch→blob）修正之說明
 - [`docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md`](docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md) — 原文格 TB 上標／副行：**§9** 為 2026-05-09 第二波（跨節點錨點、TB 閱讀序、多上標、同範圍合併底線）開發與驗收紀錄；程式對照見 [`docs/CODEMAP.md`](docs/CODEMAP.md)
 - [`docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md`](docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md) — mqxliff **進階篩選「memoQ 確認身分」** 定案 UI、`evaluateSegment` 第四維、編輯器／TM 匯入／QA 摘要等**全部觸點**與驗收；靜態預覽見 [`docs/preview-mqxliff-filter-status-options/index.html`](docs/preview-mqxliff-filter-status-options/index.html)
 

@@ -801,6 +801,14 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           sendIdentity();
           if (mode === "team") sendAssignments();
           if (mode === "team") sendAssignableUsers();
+          if (mode === "team") {
+            const win = iframeRef.current?.contentWindow;
+            const path = location.pathname || "";
+            if (win && path.startsWith("/cat/team")) {
+              const isEditor = path.includes("/files/");
+              win.postMessage({ type: "TMS_SIDEBAR_MODE", mode: isEditor ? "editor" : "module" }, "*");
+            }
+          }
         }}
       />
     </div>

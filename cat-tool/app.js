@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const catStorage = (new URLSearchParams(window.location.search).get('catStorage') || '').toLowerCase();
         if (catStorage === 'team') {
             const sidebarTitle = document.querySelector('.sidebar-title');
-            if (sidebarTitle) sidebarTitle.textContent = 'CAT Team';
+            if (sidebarTitle) sidebarTitle.textContent = '1UP CAT';
         }
     } catch (_) { /* ignore */ }
 
@@ -2609,7 +2609,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const translatorOnly = role === 'member' || !!window._tmsTranslatorOnly;
         const nav = document.querySelector('.sidebar-nav');
         const sideTitle = document.querySelector('.sidebar-title');
-        if (sideTitle && translatorOnly) sideTitle.textContent = 'CAT Team（受派）';
+        if (sideTitle) sideTitle.textContent = '1UP CAT';
         if (projectFileAssignHint) {
             projectFileAssignHint.style.display = translatorOnly ? 'none' : '';
         }
