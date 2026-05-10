@@ -8280,26 +8280,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!picked.length) return;
 
             const isWordChar = (ch) => !!ch && /\w/.test(ch);
-            // Anchor positions are "word end" (exclusive index). If multiple TBs hit the same word,
-            // show only one superscript at the word end (choose smallest n).
-            const anchorByPos = new Map(); // pos -> { n, missing }
+            // Anchor positions are "word end" (exclusive index). Multiple TBs at the same word end
+            // each get their own superscript (same Ctrl+n as right panel).
+            const anchorByPos = new Map(); // pos -> { n, missing }[]
             picked.forEach((r) => {
                 let wordEnd = r.end;
                 while (wordEnd < text.length && isWordChar(text[wordEnd])) wordEnd++;
-                const prev = anchorByPos.get(wordEnd);
-                if (!prev || r.n < prev.n) {
-                    anchorByPos.set(wordEnd, { n: r.n, missing: !!r.missing });
+                let arr = anchorByPos.get(wordEnd);
+                if (!arr) {
+                    arr = [];
+                    anchorByPos.set(wordEnd, arr);
                 }
+                const nv = { n: r.n, missing: !!r.missing };
+                if (!arr.some((x) => x.n === nv.n)) arr.push(nv);
             });
-            const anchors = Array.from(anchorByPos.entries())
-                .map(([pos, v]) => ({ pos, n: v.n, missing: v.missing, suffixBefore: '' }))
-                .sort((a, b) => a.pos - b.pos);
+            const anchors = [];
+            for (const [pos, arr] of anchorByPos.entries()) {
+                arr.sort((a, b) => a.n - b.n);
+                arr.forEach((v) => anchors.push({ pos, n: v.n, missing: v.missing, suffixBefore: '' }));
+            }
+            anchors.sort((a, b) => a.pos - b.pos || a.n - b.n);
             if (anchors.some((a) => a.pos === text.length)) {
                 const endSuffix = pullCrossNodeWordSuffix(node);
                 if (endSuffix) {
-                    anchors.forEach((a) => {
-                        if (a.pos === text.length) a.suffixBefore = endSuffix;
-                    });
+                    const firstAtEnd = anchors.find((a) => a.pos === text.length);
+                    if (firstAtEnd) firstAtEnd.suffixBefore = endSuffix;
                 }
             }
             let anchorIdx = 0;

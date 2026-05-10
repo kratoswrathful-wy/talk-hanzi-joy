@@ -51,6 +51,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     user-select: none;
     -webkit-user-select: none;
 }
+.col-source .tb-inline-sup-anchor + .tb-inline-sup-anchor::after {
+    margin-left: 0.02em;
+}
 .col-source .tb-inline-sup-anchor.is-missing::after {
     color: var(--tb-inline-missing-text);
 }
