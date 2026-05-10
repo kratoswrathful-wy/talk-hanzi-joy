@@ -8270,29 +8270,45 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             if (!all.length) return;
             all.sort((a, b) => (a.start - b.start) || ((b.end - b.start) - (a.end - a.start)));
+            // Same (start,end) from multiple TB rows → one underline; all row numbers as superscripts at word end.
+            const byExactSpan = new Map();
+            for (const r of all) {
+                const k = `${r.start},${r.end}`;
+                let g = byExactSpan.get(k);
+                if (!g) {
+                    g = { start: r.start, end: r.end, items: [] };
+                    byExactSpan.set(k, g);
+                }
+                const nv = { n: r.n, missing: !!r.missing };
+                if (!g.items.some((x) => x.n === nv.n)) g.items.push(nv);
+            }
+            const spans = Array.from(byExactSpan.values()).sort(
+                (a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start)
+            );
             const picked = [];
             let cursor = -1;
-            all.forEach((r) => {
-                if (r.start < cursor) return;
-                picked.push(r);
-                cursor = r.end;
+            spans.forEach((s) => {
+                if (s.start < cursor) return;
+                picked.push(s);
+                cursor = s.end;
             });
             if (!picked.length) return;
 
             const isWordChar = (ch) => !!ch && /\w/.test(ch);
-            // Anchor positions are "word end" (exclusive index). Multiple TBs at the same word end
-            // each get their own superscript (same Ctrl+n as right panel).
+            // Anchor positions are "word end" (exclusive index). Multiple TBs → multiple superscripts.
             const anchorByPos = new Map(); // pos -> { n, missing }[]
-            picked.forEach((r) => {
-                let wordEnd = r.end;
+            picked.forEach((span) => {
+                let wordEnd = span.end;
                 while (wordEnd < text.length && isWordChar(text[wordEnd])) wordEnd++;
                 let arr = anchorByPos.get(wordEnd);
                 if (!arr) {
                     arr = [];
                     anchorByPos.set(wordEnd, arr);
                 }
-                const nv = { n: r.n, missing: !!r.missing };
-                if (!arr.some((x) => x.n === nv.n)) arr.push(nv);
+                span.items.forEach((item) => {
+                    const nv = { n: item.n, missing: !!item.missing };
+                    if (!arr.some((x) => x.n === nv.n)) arr.push(nv);
+                });
             });
             const anchors = [];
             for (const [pos, arr] of anchorByPos.entries()) {
@@ -8327,15 +8343,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (to > from) frag.appendChild(document.createTextNode(text.slice(from, to)));
             }
 
-            picked.forEach((r) => {
-                if (r.start > last) appendTextWithAnchors(last, r.start);
+            picked.forEach((span) => {
+                if (span.start > last) appendTextWithAnchors(last, span.start);
 
                 const termSpan = document.createElement('span');
-                termSpan.className = r.missing ? 'tb-inline-term is-missing' : 'tb-inline-term';
-                termSpan.textContent = text.slice(r.start, r.end);
+                const anyMiss = span.items.some((it) => it.missing);
+                termSpan.className = anyMiss ? 'tb-inline-term is-missing' : 'tb-inline-term';
+                termSpan.textContent = text.slice(span.start, span.end);
                 frag.appendChild(termSpan);
 
-                last = r.end;
+                last = span.end;
             });
             if (last < text.length) appendTextWithAnchors(last, text.length);
             // anchors exactly at end-of-node
