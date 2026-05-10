@@ -4764,6 +4764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const sfCellModeRow2 = document.getElementById('sfCellModeRow2');
                 if (sfCellModeRow2) sfCellModeRow2.classList.add('mq-role-hidden');
             }
+            syncSfMqRoleFilterRowVisibility();
 
             // TM / TB
             window.ActiveTmCache = [];
@@ -10401,6 +10402,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const dlg = document.getElementById('tmXliffImportDialog');
                     const lbl = document.getElementById('tmXliffImportFileLabel');
                     resetTmXliffImportDialogDefaults();
+                    syncTmMqRoleFilterRowVisibility(file.name);
                     if (lbl) lbl.textContent = '檔案：' + file.name;
                     if (dlg && typeof dlg.showModal === 'function') {
                         dlg.showModal();
@@ -13777,6 +13779,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const role = await showMqRoleModal({ defaultRole: importDefault });
             if (role === null) {
                 currentFileId = null;
+                currentFileFormat = 'excel';
+                currentFileDefaultMqRole = null;
+                currentMqConfirmationRole = null;
                 resetEditorTransientUi();
                 if (currentProjectId) {
                     await openProjectDetail(currentProjectId);
@@ -13820,6 +13825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (sfCellModeRow2) sfCellModeRow2.classList.add('mq-role-hidden');
             }
         }
+        syncSfMqRoleFilterRowVisibility();
 
         // LOAD PROJECT TM CACHE ---
         window.ActiveTmCache = [];
@@ -15047,6 +15053,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     /**
      * 進階篩選（#sfAdvancedPanel：TM%、狀態、列範圍）單一讀寫來源。
      * 新增欄位時請同步：ADVANCED_SF_SPEC_KEYS、read／clear／apply、getSfFilterSpecHash、群組 push、預設、卡片摘要、compute 列範圍。
+     * memoQ 身分鍵 mq_t／mq_r1／mq_r2 存於 statuses 陣列（evaluateSegment 第四維）；列 UI 見 #sfMqRoleFilterRow。
      */
     const ADVANCED_SF_SPEC_KEYS = [
         'tmVal',
@@ -15194,8 +15201,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmed: '已確認',
         unconfirmed: '未確認',
         locked: '鎖定',
-        unlocked: '未鎖定'
+        unlocked: '未鎖定',
+        mq_t: 'memoQ 確認身分：T（譯者）',
+        mq_r1: 'memoQ 確認身分：R1',
+        mq_r2: 'memoQ 確認身分：R2'
     };
+
+    /** mqxliff 進階篩選：顯示／隱藏 memoQ 身分列並清除非 mqxliff 時之勾選 */
+    function syncSfMqRoleFilterRowVisibility() {
+        const row = document.getElementById('sfMqRoleFilterRow');
+        const hint = document.getElementById('sfMqRoleFilterHint');
+        const mq = currentFileFormat === 'mqxliff';
+        if (row) {
+            if (mq) {
+                row.style.display = '';
+                row.removeAttribute('hidden');
+            } else {
+                row.style.display = 'none';
+                row.setAttribute('hidden', 'hidden');
+                row.querySelectorAll('.sf-mq-role-cb').forEach((cb) => { cb.checked = false; });
+            }
+        }
+        if (hint) {
+            if (mq) {
+                hint.style.display = '';
+                hint.removeAttribute('hidden');
+            } else {
+                hint.style.display = 'none';
+                hint.setAttribute('hidden', 'hidden');
+            }
+        }
+    }
+
+    /** TM XLIFF 匯入篩選對話：僅 .mqxliff 顯示 memoQ 身分列 */
+    function syncTmMqRoleFilterRowVisibility(fileName) {
+        const row = document.getElementById('tmMqRoleFilterRow');
+        const hint = document.getElementById('tmMqRoleFilterHint');
+        const mq = String(fileName || '').toLowerCase().endsWith('.mqxliff');
+        if (row) {
+            if (mq) {
+                row.style.display = 'flex';
+                row.removeAttribute('hidden');
+            } else {
+                row.style.display = 'none';
+                row.setAttribute('hidden', 'hidden');
+                row.querySelectorAll('.tm-mq-role-cb').forEach((cb) => { cb.checked = false; });
+            }
+        }
+        if (hint) {
+            if (mq) {
+                hint.style.display = '';
+                hint.removeAttribute('hidden');
+            } else {
+                hint.style.display = 'none';
+                hint.setAttribute('hidden', 'hidden');
+            }
+        }
+    }
 
     /** 單一篩選群組：供 chip 與 QA「當時篩選結果」共用的一行一條條件文字 */
     function getSfFilterGroupConditionLines(g) {
@@ -15291,7 +15353,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const contentKeys = ['empty', 'not_empty'];
             const confirmKeys = ['confirmed', 'unconfirmed'];
             const lockKeys = ['locked', 'unlocked'];
-            const dims = [contentKeys, confirmKeys, lockKeys];
+            const mqRoleKeys = ['mq_t', 'mq_r1', 'mq_r2'];
+            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys];
             statusMatch = true;
             for (const keys of dims) {
                 const picked = statuses.filter((s) => keys.includes(s));
@@ -15304,6 +15367,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (s === 'unconfirmed' && !isConfirmed) dimOk = true;
                     if (s === 'locked' && seg.isLocked) dimOk = true;
                     if (s === 'unlocked' && !seg.isLocked) dimOk = true;
+                    if (s === 'mq_t') {
+                        if (!isConfirmed) dimOk = true;
+                        else if ((seg.confirmationRole || 'T') === 'T') dimOk = true;
+                    }
+                    if (s === 'mq_r1') {
+                        if (!isConfirmed) dimOk = true;
+                        else if (seg.confirmationRole === 'R1') dimOk = true;
+                    }
+                    if (s === 'mq_r2') {
+                        if (!isConfirmed) dimOk = true;
+                        else if (seg.confirmationRole === 'R2') dimOk = true;
+                    }
                 }
                 if (!dimOk) { statusMatch = false; break; }
             }
@@ -22312,6 +22387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (currentSegmentsList && currentSegmentsList.length) {
             runSearchAndFilter();
         }
+        syncSfMqRoleFilterRowVisibility();
     }
 
     function getQaScopeVisibleSegIdSet() {

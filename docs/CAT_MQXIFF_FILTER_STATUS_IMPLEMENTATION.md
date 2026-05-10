@@ -1,0 +1,133 @@
+# mqxliff 進階篩選「確認身分」— 開發過程記錄與實作依據
+
+> 本文件為產品／工程單一依據：記錄決策、共用篩選引擎、所有 UI 與程式觸點、行為規格與驗收。  
+> 相關：**身分持久化**見 [`bug-report_mqxliff-team-role-persistence.md`](bug-report_mqxliff-team-role-persistence.md)；**靜態排版預覽**見 [`preview-mqxliff-filter-status-options/index.html`](preview-mqxliff-filter-status-options/index.html)。
+
+---
+
+## 1. 背景與時序
+
+| 事項 | 說明 |
+|------|------|
+| Team 模式 `confirmationRole`／`originalRole` 遺失 | 已於 `cat_segments` 新增欄位並修正 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)（commit `d9295c1`）。篩選與格線圖示依賴讀回的 `confirmationRole`。 |
+| 篩選 UI 預覽 | `docs/preview-mqxliff-filter-status-options/index.html` 收錄多變體；產品定案採 **變體 A 調整版**（見 §3）。 |
+| 定案（版面） | **第一列**：空白、非空白、已確認、未確認、鎖定、未鎖定（同一 `sf-adv-grid`）。**第二列**：前綴文案「memoQ 確認身分」+ T／R1／R2 勾選；僅 **mqxliff 開檔** 時顯示。非 mqxliff 須清除 memoQ 勾選，避免幽靈條件。 |
+
+---
+
+## 2. 篩選引擎（單一真相）
+
+所有句段是否符合搜尋／篩選，最終皆經 [`cat-tool/app.js`](../cat-tool/app.js) 的 **`evaluateSegment(seg, term, scopes, isRegex, isInvert, statuses, tmVal, evalOpts)`**。
+
+### 2.1 狀態維度（維度內 OR，維度間 AND）
+
+既有三維（見程式內 `contentKeys` / `confirmKeys` / `lockKeys`）：
+
+| 維度 | 鍵值 |
+|------|------|
+| 內容 | `empty`, `not_empty` |
+| 確認 | `confirmed`, `unconfirmed` |
+| 鎖定 | `locked`, `unlocked` |
+
+**第四維（memoQ 確認身分，本功能新增）**
+
+| 鍵值 | 意義 |
+|------|------|
+| `mq_t` | 已確認且 `confirmationRole` 為譯者 T（與格線單勾一致；空值視同 T） |
+| `mq_r1` | 已確認且為 R1 |
+| `mq_r2` | 已確認且為 R2 |
+
+**語意（產品定案）**
+
+1. **未確認句段**：第四維**一律視為通過**（不因勾選 T／R1／R2 而被排除）。即「未確認列不受 memoQ 確認身分勾選影響」。
+2. **已確認句段**：若第四維有任一勾選，則須滿足 **OR**（所勾身分之一與 `confirmationRole` 相符）；若第四維無勾選，則此維度不參與（與既有維度相同）。
+3. **隱含**：僅勾 `mq_*` 而未勾「已確認」時，仍可篩出「已確認且為該身分」的列；未確認列仍因 (1) 通過第四維，但若亦未勾「未確認」且勾了其他維度則由其他維度決定。
+
+`confirmationRole` 來源：匯入解析與使用者確認寫入；Team 模式見 `cat-cloud-rpc` 欄位 `confirmation_role`。
+
+### 2.2 資料流（mermaid）
+
+```mermaid
+flowchart LR
+  readSf["readSfAdvancedSpecFromDom"]
+  readTm["readTmImpAdvancedSpecFromDom"]
+  eval["evaluateSegment"]
+  buildSf["buildSfUiCriteria"]
+  tmImp["buildTmImpUiCriteria"]
+  grp["sfFilterGroups"]
+  qa["buildQaFilterConditionsSummaryLines"]
+  readSf --> buildSf
+  readSf --> grp
+  readSf --> qa
+  readTm --> tmImp
+  buildSf --> eval
+  tmImp --> eval
+  grp --> eval
+```
+
+---
+
+## 3. 定案 UI（編輯器 `#sfAdvancedPanel`）
+
+- **區塊標題**：維持「句段狀態」。
+- **列 1**（`sf-adv-status-row1`）：六個 `<label>`，class **`sf-status-cb`**，value 同現有 + 鎖定自原 row2 移入。
+- **列 2**（`id="sfMqRoleFilterRow"`**）**：`display` 由 `currentFileFormat === 'mqxliff'` 控制。內含：
+  - 非互動文字「memoQ 確認身分」（勿用 `sf-status-cb`，避免被全選讀取邏輯誤掃）。
+  - 三個 checkbox：`class="sf-status-cb sf-mq-role-cb"`，`value` 分別為 `mq_t`、`mq_r1`、`mq_r2`；標籤文案與格線圖示對齊（T ✓、R1 ✓+、R2 ✓✓）。
+  - 可選一行 `role-note` 說明（已確認句段才套用；未確認列不受影響）。
+- **樣式**：[`cat-tool/style.css`](../cat-tool/style.css) — 列 2 與列 1 間虛線分隔；`memoQ` 標籤 `white-space: nowrap`、`align-items: center`。
+
+---
+
+## 4. 程式與 HTML 觸點清單（實作時逐項打勾）
+
+### 4.1 HTML
+
+| 檔案 | 區塊 |
+|------|------|
+| [`cat-tool/index.html`](../cat-tool/index.html) | `#sfAdvancedPanel` 句段狀態：列 1／列 2 結構如上。 |
+| 同上 | `#tmXliffImportDialog`：與編輯器**相同順序與選項**；列 2 容器建議 `id="tmMqRoleFilterRow"`，於 `showModal` 前依 `pendingTmXliffFile.name` 是否 `.mqxliff` 顯示／隱藏並清除勾選。 |
+
+### 4.2 JavaScript（[`cat-tool/app.js`](../cat-tool/app.js)）
+
+| 區塊 | 動作 |
+|------|------|
+| `evaluateSegment` | 加入第四維 `mqRoleKeys` 迴圈分支（§2.1）。 |
+| `statusNames` | 補 `mq_t`、`mq_r1`、`mq_r2` 中文顯示字串。 |
+| `getSfFilterSpecHash` | 已含 `adv.statuses` 則自動含新鍵；確認 hash 重建正確。 |
+| `readSfAdvancedSpecFromDom` | 維持讀取所有 `.sf-status-cb:checked`（含 `sf-mq-role-cb`）。 |
+| `clearSfAdvancedSpecOnDom` | 不變（仍清全部 `sf-status-cb`）。 |
+| `applySfAdvancedSpecToDom` | 不變（`statuses.includes(c.value)` 含 mq 鍵）。 |
+| **`syncSfMqRoleFilterRowVisibility`**（新建） | 依 `currentFileFormat` 顯示／隱藏 `#sfMqRoleFilterRow`；非 mqxliff 時取消勾選 `.sf-mq-role-cb`。 |
+| 呼叫 sync | `openEditorForFile` 在格式與 mq 圖示設定後；句段集載入 `currentFileFormat = 'excel'` 後；`resetEditorTransientUi` 結尾（或 `clearUIFilters` 後一併）。 |
+| `readTmImpAdvancedSpecFromDom` / `resetTmXliffImportDialogDefaults` | TM 對話框第二列三格：預設**不**勾 mq；重置時清除 mq 勾選。 |
+| **TM `showModal` 前** | 依檔名顯示／隱藏 `#tmMqRoleFilterRow` 並清除隱藏時之 mq 勾選。 |
+| `isSfAdvancedFilterInUse` | 若 `statuses` 含任一 `mq_*` 視為進階篩選使用中（或依現有 `adv.statuses.length` 已涵蓋）。 |
+| `getSfFilterGroupConditionLines` / `buildQaFilterConditionsSummaryLines` | 依賴 `statusNames`，補鍵後即通。 |
+
+### 4.3 註解
+
+`ADVANCED_SF_SPEC_KEYS` 註解（約 15049 行）：本功能未新增獨立 spec 鍵（仍用 `statuses` 陣列），可於註解加一句「memoQ 身分鍵 mq_t／mq_r1／mq_r2 存於 statuses」。
+
+### 4.4 建置
+
+變更 `cat-tool/` 後執行 **`npm run sync:cat`**，並提交 `public/cat/`。
+
+---
+
+## 5. 驗收清單
+
+1. mqxliff 開檔：進階篩選列 2 顯示；Excel／XLIFF 等列 2 隱藏且 mq 勾選被清除。  
+2. 列 1 順序：空白、非空白、已確認、未確認、鎖定、未鎖定。  
+3. 僅勾 R1：已確認且 `confirmationRole === 'R1'` 的列通過；未確認列若同時允許「未確認」則仍出現。  
+4. TM mqxliff 匯入對話：列與行為與編輯器一致；非 mqxliff 匯入時列 2 隱藏。  
+5. 篩選群組／常用組合／QA 範圍摘要：出現可讀的 memoQ 身分描述。  
+6. 切換檔案後篩選快照 hash 與實際列一致（無殘留 mq 條件）。
+
+---
+
+## 6. 修訂紀錄
+
+| 日期 | 說明 |
+|------|------|
+| 2026-05-10 | 初版：整合計畫書、觸點表與 `evaluateSegment` 規格。 |

@@ -173,3 +173,40 @@
 
 對應的實作計畫已補在 [`docs/CAT_TB_INLINE_SUPERSCRIPT_IMPLEMENTATION_PLAN.md`](CAT_TB_INLINE_SUPERSCRIPT_IMPLEMENTATION_PLAN.md) §8。
 
+---
+
+## 9. 2026-05-09 第二波：上標位置、術語順序、多上標與「同字串一條底線」（驗收已通過）
+
+本節記錄同一日後續迭代：從使用者回報「上標卡在拆開的單字中間」「右欄術語順序不像閱讀順序」「同一詞多筆 TB 只看到一個上標」到最終驗收通過的過程與 commit 對照。**譯文欄刻意不做** TB 上標／底線（僅原文格）。
+
+### 9.1 問題與根因（摘要）
+
+| 現象 | 根因（白話） |
+|------|----------------|
+| 上標落在 `wreakin²g` 這類「字中間」 | 原文 DOM 常被 `buildTaggedHtml` 等拆成**多個相鄰 `Text` 節點**；舊邏輯只在**當前節點**內用 `\w` 延伸到字尾，錨點插在首段節點結尾。 |
+| 右欄 TB 順序與句中閱讀順序不一致 | `renderLiveTmMatches` 依 `ActiveTbTerms` 迭代順序 `push` TB，未依句段原文**首次出現位置**排序。 |
+| 同一詞兩筆 TB（列號 2、3）底下藥丸都有，原文卻只有一個上標（第一波「多上標」仍不足） | `picked` 用 `cursor` 做不重疊時，**第二筆與第一筆完全相同的 `(start,end)`** 會被 `r.start < cursor` 整段丟棄，根本進不了後續錨點合併邏輯。 |
+| Vercel 部署列表看不到某個短碼，以為沒推到 | 線上顯示的是**該次 build 的 HEAD commit**；祖先 commit 的改動已包進較新的部署，不會為每一個祖先各列一列標題。 |
+
+### 9.2 實作要點與相關 commit（由舊到新）
+
+1. **`5fb4dad`** — 先將上標改到「單字尾端」錨點（仍僅限單一 `Text` 節點內延伸）。
+2. **`bac463f`** — **跨節點字尾**：新增 `pullCrossNodeWordSuffix`，在替換節點前從後續**僅 `TEXT_NODE` 兄弟**拉出連續 `\w`（不跨元素／tag pill），插入錨點前；同 commit 抽出共用 **`findTermHitRangesInPlainText`**，並在 **`renderLiveTmMatches`** 將命中 TB 依 **`seg.sourceText` trim 後首次命中 offset** 排序（同起點則較長原文在前）；TM／Fragment 區塊與大類排序不變。
+3. **`080afd3`** — 同一 `wordEnd` 以 `Map` 陣列累積多個 `{n,missing}`，**多個** `tb-inline-sup-anchor`；`suffixBefore` 僅掛在該位置**第一個**錨點。樣式上為相鄰上標略縮間距（`style.css`）。
+4. **`b68611d`** — 先依 **`${start},${end}`** 合併「完全相同字範圍」的多筆 TB 為 **`{ start, end, items[] }`**：**一條** `tb-inline-term` 底線、`items` 內每個列號各一個上標；再對合併後的 `spans` 做原本的不重疊排序，以處理**不同**範圍重疊（長詞優先等）。
+
+以上皆在 **`cat-tool/app.js`／`cat-tool/style.css`** 完成，並依專案慣例 **`npm run sync:cat`** 同步 **`public/cat/`** 後一併提交。
+
+### 9.3 產品邊界（本輪未改、後續若要需另開需求）
+
+- **副行藥丸**仍依 `tbList` 與 `termMatches(rt.textContent, …)`；**右欄比對**仍依 `seg.sourceText`（trim）建 `matches`；兩者基準不同時，極少數列可能與「肉眼以格內為準」的感受不一致。
+- **未開精確比對**的 TB（`wholeWord: false`）仍可能出現子字串命中（例如 `lat` 在 `humiliation`）；屬術語比對規則，非上標幾何修正範圍。
+- **列號含 TM**：右欄第 1～9 筆含 TM 時，第一個 TB 不一定是「¹」；與 Ctrl+1～9 對齊之既有策略不變。
+
+### 9.4 驗收（使用者已確認）
+
+- 拆字 DOM 下，上標落在**完整英文單字視覺尾端**。
+- 多筆 TB 打在**同一字串、同一範圍**：**一條底線**，字尾**多個上標**與右欄列號一致。
+- 重新整理／部署後行為符合預期（必要時硬重新整理排除快取）。
+- **文件索引**：本檔 §9；[`docs/CODEMAP.md`](CODEMAP.md)（CAT 內嵌表新增「原文格 TB 內嵌提示」列）；[`docs/CAT_TB_INLINE_SUPERSCRIPT_IMPLEMENTATION_PLAN.md`](CAT_TB_INLINE_SUPERSCRIPT_IMPLEMENTATION_PLAN.md) §9；根目錄 [`AGENTS.md`](../AGENTS.md) 深文件索引。
+

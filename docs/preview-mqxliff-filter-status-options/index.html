@@ -169,7 +169,7 @@
 
   <nav class="toc">
     <strong>快速跳轉</strong>
-    <a href="#v-a">A 扁平第三列</a>
+    <a href="#v-a">A 產品定案</a>
     <a href="#v-b">B 左線子區塊</a>
     <a href="#v-c">C 圖示 pill</a>
     <a href="#v-d">D 窄欄橫向捲動</a>
@@ -179,10 +179,10 @@
 
   <!-- A -->
   <section class="variant" id="v-a">
-    <h2>變體 A — 扁平第三列（與現有 row1／row2 相同 grid 語感）<span class="tag">最接近現狀擴充</span></h2>
+    <h2>變體 A — 產品定案（編輯器／TM 匯入篩選對齊）<span class="tag">已定案</span></h2>
     <ul class="pros">
-      <li>實作成本低：在 <code>sf-adv-status-row2</code> 前（或後）插入 <code>sf-adv-status-row-mq</code> 即可。</li>
-      <li>建議加一行 <code class="role-note">role-note</code> 說明：勾選 T／R1／R2 時僅篩「已確認」句段（與 <code>evaluateSegment</code> 第四維度一致）。</li>
+      <li><strong>列 1</strong>：空白、非空白、已確認、未確認、鎖定、未鎖定（同一列）。</li>
+      <li><strong>列 2</strong>：前綴「memoQ 確認身分」+ T／R1／R2；僅 mqxliff 時顯示。說明文字與 <code>evaluateSegment</code> 第四維一致，見 <a href="../CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md" style="color:#2563eb;">CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md</a>。</li>
     </ul>
     <div class="mock-panel">
       <div class="sf-adv-section">
@@ -192,17 +192,16 @@
           <label><input type="checkbox" disabled> 非空白</label>
           <label><input type="checkbox" checked disabled> 已確認</label>
           <label><input type="checkbox" disabled> 未確認</label>
+          <label><input type="checkbox" disabled> 鎖定</label>
+          <label><input type="checkbox" disabled> 未鎖定</label>
         </div>
-        <div class="sf-adv-grid sf-adv-status-row-mq" style="margin-top:0.35rem;padding-top:0.35rem;border-top:1px dashed #e2e8f0;">
+        <div class="sf-adv-grid sf-adv-status-row-mq" style="margin-top:0.35rem;padding-top:0.35rem;border-top:1px dashed #e2e8f0;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+          <span style="font-size:0.8rem;font-weight:600;color:#475569;white-space:nowrap;">memoQ 確認身分</span>
           <label><input type="checkbox" disabled> T（譯者 ✓）</label>
           <label><input type="checkbox" checked disabled> R1（✓<sup style="font-size:0.55em">+</sup>）</label>
           <label><input type="checkbox" disabled> R2（✓✓）</label>
         </div>
-        <p class="role-note">已確認句段：篩選由誰按下最終確認（與格線狀態欄圖示相同）。未確認句段不受此列勾選影響。</p>
-        <div class="sf-adv-grid sf-adv-status-row2">
-          <label><input type="checkbox" disabled> 鎖定</label>
-          <label><input type="checkbox" disabled> 未鎖定</label>
-        </div>
+        <p class="role-note">已確認句段：篩選由誰按下最終確認（與格線狀態欄圖示相同）。未確認句段不受 memoQ 確認身分此列勾選影響。</p>
       </div>
     </div>
   </section>

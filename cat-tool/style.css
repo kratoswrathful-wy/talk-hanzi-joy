@@ -1352,6 +1352,26 @@ button:disabled { cursor: not-allowed; }
 .sf-adv-section strong { color: var(--text-dark); display: block; margin-bottom: 0.25rem; font-size: 0.8rem; }
 .sf-adv-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .sf-adv-status-row2 { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed #e2e8f0; }
+/* mqxliff：memoQ 確認身分列（與句段狀態第一列分隔） */
+.sf-adv-status-row-mq {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed #e2e8f0;
+    align-items: center;
+}
+.sf-mq-role-heading {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    white-space: nowrap;
+    margin-right: 0.15rem;
+}
+.sf-mq-role-hint {
+    font-size: 0.76rem;
+    color: var(--text-light);
+    margin: 0.35rem 0 0;
+    line-height: 1.35;
+}
 .sf-adv-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; padding-top: 0.5rem; border-top: 1px solid #e2e8f0;}
 .sf-presets-select { padding: 0.2rem; border: 1px solid var(--border-color); border-radius: 4px; outline: none; font-size: 0.8rem;}
 .sf-presets-select:focus-visible {

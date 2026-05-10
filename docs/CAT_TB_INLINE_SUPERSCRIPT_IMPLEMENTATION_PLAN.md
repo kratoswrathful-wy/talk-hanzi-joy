@@ -240,3 +240,15 @@
 
 - 游標在譯文編輯區時，按 Ctrl+, / Ctrl+. 可直接切換右欄比對列表頁面
 
+---
+
+## 9. 已落地補充（2026-05-09 第二波）
+
+下列項目已於 **`bac463f`／`080afd3`／`b68611d`** 等 commit 落地（細節、根因表、驗收與產品邊界見開發紀錄 **§9**）：
+
+- 上標錨點跨相鄰 `Text` 節點（`pullCrossNodeWordSuffix`）；共用 **`findTermHitRangesInPlainText`**
+- 右欄 TB 子序列依句段 **`seg.sourceText` trim** 之首次命中位置排序（TM／Fragment 仍在上）
+- 同一單字尾端多個上標；**同 `(start,end)` 多筆 TB** 合併為 **一條** `tb-inline-term`、**多個** `tb-inline-sup-anchor`
+
+[`docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md`](CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md) **§9**
+
