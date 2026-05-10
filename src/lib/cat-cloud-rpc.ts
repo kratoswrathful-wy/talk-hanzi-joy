@@ -56,6 +56,10 @@ function segmentExtraCamelToSnake(extra: Record<string, unknown> | null | undefi
     out.is_locked = !!e.isLockedUser || !!e.isLockedSystem;
   }
   if ("targetTags" in e) out.target_tags = Array.isArray(e.targetTags) ? e.targetTags : [];
+  if ("confirmationRole" in e) {
+    out.confirmation_role =
+      typeof e.confirmationRole === "string" ? e.confirmationRole : null;
+  }
   return out;
 }
 
@@ -224,6 +228,13 @@ const mapSegmentRow = (r: any) => {
     /** 匯入掃描順序（與本機 Dexie globalId 一致）；DB 舊列為 null */
     globalId:
       r.global_id != null && Number.isFinite(Number(r.global_id)) ? Number(r.global_id) : undefined,
+    /** mqxliff：memoQ 匯入時推斷的最後確認身分（T | R1 | R2）；無則 null */
+    originalRole: r.original_role != null && String(r.original_role).trim() !== "" ? String(r.original_role) : null,
+    /** mqxliff：目前確認身分（與 UI 狀態欄一致）；無則 null */
+    confirmationRole:
+      r.confirmation_role != null && String(r.confirmation_role).trim() !== ""
+        ? String(r.confirmation_role)
+        : null,
   };
 };
 
@@ -917,6 +928,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           segment_revision: 0,
           global_id:
             s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null,
+          original_role:
+            s.originalRole != null && String(s.originalRole).trim() !== "" ? String(s.originalRole) : null,
+          confirmation_role:
+            s.confirmationRole != null && String(s.confirmationRole).trim() !== ""
+              ? String(s.confirmationRole)
+              : null,
         };
       });
       let totalCount = 0;
