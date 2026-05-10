@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Paperclip, ExternalLink, Lock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Paperclip, Download, Lock } from "lucide-react";
+import { toast } from "sonner";
+import { downloadFile } from "@/lib/download-file";
 import { useAuth } from "@/hooks/use-auth";
 import { useFees } from "@/hooks/use-fee-store";
 
@@ -42,6 +44,7 @@ export function CommentContent({
   fileUrls?: { name: string; url: string }[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [downloadingFileIdx, setDownloadingFileIdx] = useState<number | null>(null);
   const canAccessRoute = useRouteAccessChecker();
 
   // Match [@title](/route) links and plain @mentions
@@ -138,17 +141,33 @@ export function CommentContent({
       {fileUrls && fileUrls.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
           {fileUrls.map((f, idx) => (
-            <a
+            <button
               key={idx}
-              href={f.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/30 px-2 py-1 text-xs hover:bg-secondary/50 transition-colors"
+              type="button"
+              disabled={downloadingFileIdx !== null}
+              onClick={() => {
+                void (async () => {
+                  setDownloadingFileIdx(idx);
+                  try {
+                    await downloadFile(f.url, f.name);
+                  } catch (e) {
+                    console.error(e);
+                    toast.error("下載失敗", {
+                      description: e instanceof Error ? e.message : "請稍後再試。",
+                    });
+                    window.open(f.url, "_blank", "noopener,noreferrer");
+                  } finally {
+                    setDownloadingFileIdx(null);
+                  }
+                })();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/30 px-2 py-1 text-xs hover:bg-secondary/50 transition-colors disabled:opacity-50"
+              title="下載附件"
             >
-              <Paperclip className="h-3 w-3 text-muted-foreground" />
-              <span className="truncate max-w-[160px]">{f.name}</span>
-              <ExternalLink className="h-3 w-3 text-muted-foreground" />
-            </a>
+              <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+              <span className="truncate max-w-[160px] text-left">{f.name}</span>
+              <Download className={`h-3 w-3 text-muted-foreground shrink-0 ${downloadingFileIdx === idx ? "animate-pulse" : ""}`} />
+            </button>
           ))}
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus, GripVertical, Pencil, Check, Plus } from "lucide-react";
+import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus, GripVertical, Pencil, Plus, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { useCommonLinks } from "@/stores/common-links-store";
 import { buildCaseFileObjectPath } from "@/lib/storage-case-files";
+import { downloadFile } from "@/lib/download-file";
 
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -195,6 +196,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [downloadingIdx, setDownloadingIdx] = useState<number | null>(null);
 
   const handleItemDrop = (targetIdx: number) => {
     if (dragIdx === null || dragIdx === targetIdx) return;
@@ -214,6 +216,24 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
       onChange(next);
     }
     setEditingIdx(null);
+  };
+
+  const isStorageObjectUrl = (u: string) => u.includes("/storage/v1/object/");
+
+  const handleDownloadItem = async (idx: number) => {
+    const item = value[idx];
+    if (!item?.url || downloadingIdx !== null) return;
+    setDownloadingIdx(idx);
+    try {
+      await downloadFile(item.url, item.name);
+    } catch (e) {
+      console.error(e);
+      toast.error("下載失敗", {
+        description: e instanceof Error ? e.message : "請稍後再試，或改以新分頁開啟後另存。",
+      });
+    } finally {
+      setDownloadingIdx(null);
+    }
   };
 
   return (
@@ -268,6 +288,17 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
                         : item.size < 1024 * 1024 ? `${(item.size / 1024).toFixed(1)} KB`
                         : `${(item.size / (1024 * 1024)).toFixed(1)} MB`}
                     </span>
+                  )}
+                  {isStorageObjectUrl(item.url) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadItem(idx)}
+                      disabled={downloadingIdx !== null}
+                      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0 opacity-0 group-hover:opacity-100 disabled:opacity-40"
+                      title="下載（使用顯示檔名）"
+                    >
+                      <Download className={`h-3 w-3 ${downloadingIdx === idx ? "animate-pulse" : ""}`} />
+                    </button>
                   )}
                 </>
               )}
