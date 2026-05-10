@@ -19,7 +19,7 @@
 | `cat_ai_guidelines` | 準則條目（翻譯／文風、互斥群組、預設旗標、**`examples` 範例卡** 等） |
 | `cat_ai_category_tags` | 準則「類別」標籤（含預設「通用」） |
 | `cat_ai_settings` | 全站 AI 連線／模型／prompt 等（單列 `id = 1`） |
-| `cat_ai_project_settings` | 每專案：已選準則 ID、文風 ID、`special_instructions`、`project_guidelines`（見第 5 節）、更新時間等 |
+| `cat_ai_project_settings` | 每專案：已選準則 ID、文風 ID、`special_instructions`（**現行程式**中與批次「專案 AI 指示」共用語意；**規劃中**將拆分為檔案特殊指示與專案 AI 指示兩類，見 [CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md](./CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md)）、`project_guidelines`（見第 5 節）、更新時間等 |
 | `cat_ai_style_examples` | AI 學習範例 |
 | `cat_ai_issue_groups` | **議題群組**定義（依 **scope** 區分翻譯準則／文風／專案；專案 scope 時綁定 `project_id`，見 **§5.6**） |
 
