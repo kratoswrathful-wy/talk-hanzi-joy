@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>預覽 — mqxliff 進階篩選「確認身分」排版選項</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif;
+      max-width: 52rem;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 2.5rem;
+      color: #334155;
+      line-height: 1.45;
+      background: #f1f5f9;
+    }
+    h1 { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.4rem 0; color: #0f172a; }
+    .intro {
+      font-size: 0.85rem;
+      color: #475569;
+      margin: 0 0 1rem 0;
+      padding: 0.65rem 0.75rem;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+    }
+    .intro code { font-size: 0.8rem; background: #fef3c7; padding: 0.08rem 0.25rem; border-radius: 4px; }
+    nav.toc {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.88rem;
+    }
+    nav.toc strong { display: block; margin-bottom: 0.35rem; color: #0f172a; }
+    nav.toc a { color: #2563eb; margin-right: 0.75rem; white-space: nowrap; }
+    .variant {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .variant h2 {
+      font-size: 0.95rem;
+      margin: 0 0 0.35rem 0;
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .variant .tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #0369a1;
+      background: #e0f2fe;
+      border-radius: 4px;
+      padding: 0.12rem 0.4rem;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+    .pros {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin: 0 0 0.75rem 0;
+      padding-left: 1rem;
+    }
+    .pros li { margin: 0.2rem 0; }
+    /* 模擬編輯器 #sfAdvancedPanel 內「句段狀態」區塊 */
+    .mock-panel {
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 0.75rem 0.85rem;
+      background: #f8fafc;
+    }
+    .sf-adv-section strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.8rem;
+      color: #1e293b;
+    }
+    .sf-adv-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      font-size: 0.88rem;
+      align-items: center;
+    }
+    .sf-adv-status-row2 {
+      margin-top: 0.35rem;
+      padding-top: 0.35rem;
+      border-top: 1px dashed #e2e8f0;
+    }
+    .mock-panel label { cursor: default; user-select: none; }
+    .role-note {
+      font-size: 0.76rem;
+      color: #64748b;
+      margin: 0.35rem 0 0 0;
+      line-height: 1.35;
+    }
+    /* 變體 B：子區塊 */
+    .mq-subbox {
+      margin-top: 0.4rem;
+      padding: 0.5rem 0.6rem;
+      border-left: 3px solid #3b82f6;
+      background: #fff;
+      border-radius: 0 6px 6px 0;
+      border: 1px solid #e2e8f0;
+      border-left-width: 3px;
+    }
+    .mq-subbox .sub-title {
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 0.35rem;
+    }
+    /* 變體 C：圖示強調 pill */
+    .pill-row { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    .pill-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 0.82rem;
+    }
+    .sym-t { font-size: 0.85rem; }
+    .sym-r1 { font-size: 0.72rem; }
+    .sym-r2 { font-size: 0.65rem; line-height: 1; display: inline-flex; flex-direction: column; }
+    /* 變體 D：窄欄 nowrap + 捲動 */
+    .narrow-wrap {
+      max-width: 280px;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+    .narrow-wrap .sf-adv-grid { flex-wrap: nowrap; min-width: min-content; }
+    /* 變體 E：兩欄大網格 */
+    .two-col-status {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem 1rem;
+      font-size: 0.85rem;
+    }
+    @media (max-width: 480px) {
+      .two-col-status { grid-template-columns: 1fr; }
+    }
+    .path-footer {
+      margin-top: 1.5rem;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+      color: #475569;
+      background: #e2e8f0;
+      border-radius: 8px;
+      word-break: break-all;
+    }
+    .path-footer strong { color: #0f172a; }
+  </style>
+</head>
+<body>
+  <h1>mqxliff 進階篩選：確認身分（T／R1／R2）與未確認 — 排版預覽</h1>
+  <p class="intro">
+    本頁為<strong>靜態視覺預覽</strong>，不連結實際 <code>cat-tool</code>。預設假設僅在
+    <code>.mqxliff</code> 開檔時顯示「確認身分」相關勾選；與現有「已確認／未確認」並列時的語意請見各變體說明。
+  </p>
+
+  <nav class="toc">
+    <strong>快速跳轉</strong>
+    <a href="#v-a">A 扁平第三列</a>
+    <a href="#v-b">B 左線子區塊</a>
+    <a href="#v-c">C 圖示 pill</a>
+    <a href="#v-d">D 窄欄橫向捲動</a>
+    <a href="#v-e">E 雙欄網格</a>
+    <a href="#v-f">F 與 TM 匯入對話框對照</a>
+  </nav>
+
+  <!-- A -->
+  <section class="variant" id="v-a">
+    <h2>變體 A — 扁平第三列（與現有 row1／row2 相同 grid 語感）<span class="tag">最接近現狀擴充</span></h2>
+    <ul class="pros">
+      <li>實作成本低：在 <code>sf-adv-status-row2</code> 前（或後）插入 <code>sf-adv-status-row-mq</code> 即可。</li>
+      <li>建議加一行 <code class="role-note">role-note</code> 說明：勾選 T／R1／R2 時僅篩「已確認」句段（與 <code>evaluateSegment</code> 第四維度一致）。</li>
+    </ul>
+    <div class="mock-panel">
+      <div class="sf-adv-section">
+        <strong>句段狀態</strong>
+        <div class="sf-adv-grid sf-adv-status-row1">
+          <label><input type="checkbox" disabled> 空白</label>
+          <label><input type="checkbox" disabled> 非空白</label>
+          <label><input type="checkbox" checked disabled> 已確認</label>
+          <label><input type="checkbox" disabled> 未確認</label>
+        </div>
+        <div class="sf-adv-grid sf-adv-status-row-mq" style="margin-top:0.35rem;padding-top:0.35rem;border-top:1px dashed #e2e8f0;">
+          <label><input type="checkbox" disabled> T（譯者 ✓）</label>
+          <label><input type="checkbox" checked disabled> R1（✓<sup style="font-size:0.55em">+</sup>）</label>
+          <label><input type="checkbox" disabled> R2（✓✓）</label>
+        </div>
+        <p class="role-note">已確認句段：篩選由誰按下最終確認（與格線狀態欄圖示相同）。未確認句段不受此列勾選影響。</p>
+        <div class="sf-adv-grid sf-adv-status-row2">
+          <label><input type="checkbox" disabled> 鎖定</label>
+          <label><input type="checkbox" disabled> 未鎖定</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="variant" id="v-b">
+    <h2>變體 B — 左色條子區塊（memoQ 身分視覺分群）<span class="tag">可讀性佳</span></h2>
+    <ul class="pros">
+      <li>與「一般狀態」用邊界區隔，較不易誤以為在篩 Key 內的角色名。</li>
+      <li>小螢幕仍建議整塊在 mqxliff 時才顯示。</li>
+    </ul>
+    <div class="mock-panel">
+      <div class="sf-adv-section">
+        <strong>句段狀態</strong>
+        <div class="sf-adv-grid sf-adv-status-row1">
+          <label><input type="checkbox" disabled> 空白</label>
+          <label><input type="checkbox" disabled> 非空白</label>
+          <label><input type="checkbox" disabled> 已確認</label>
+          <label><input type="checkbox" checked disabled> 未確認</label>
+        </div>
+        <div class="mq-subbox">
+          <div class="sub-title">memoQ 確認身分（僅已確認句段）</div>
+          <div class="sf-adv-grid">
+            <label><input type="checkbox" disabled> T（譯者）</label>
+            <label><input type="checkbox" disabled> R1</label>
+            <label><input type="checkbox" disabled> R2</label>
+          </div>
+        </div>
+        <div class="sf-adv-grid sf-adv-status-row2">
+          <label><input type="checkbox" disabled> 鎖定</label>
+          <label><input type="checkbox" disabled> 未鎖定</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="variant" id="v-c">
+    <h2>變體 C — 圖示 pill（與格線狀態欄強對齊）<span class="tag">辨識最快</span></h2>
+    <ul class="pros">
+      <li>勾選區較佔寬度；適合寬工具列或進階面板全寬時。</li>
+    </ul>
+    <div class="mock-panel">
+      <div class="sf-adv-section">
+        <strong>句段狀態</strong>
+        <div class="sf-adv-grid sf-adv-status-row1">
+          <label><input type="checkbox" disabled> 空白</label>
+          <label><input type="checkbox" disabled> 非空白</label>
+          <label><input type="checkbox" checked disabled> 已確認</label>
+          <label><input type="checkbox" disabled> 未確認</label>
+        </div>
+        <p class="role-note" style="margin-top:0.4rem;">已確認句段 — 確認身分</p>
+        <div class="pill-row" style="margin-top:0.25rem;">
+          <label class="pill-label"><input type="checkbox" disabled> <span class="sym-t" aria-hidden="true">&#10003;</span> T</label>
+          <label class="pill-label"><input type="checkbox" checked disabled> <span class="sym-r1" aria-hidden="true">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em">+</sup></span> R1</label>
+          <label class="pill-label"><input type="checkbox" disabled> <span class="sym-r2" aria-hidden="true">&#10003;&#10003;</span> R2</label>
+        </div>
+        <div class="sf-adv-grid sf-adv-status-row2">
+          <label><input type="checkbox" disabled> 鎖定</label>
+          <label><input type="checkbox" disabled> 未鎖定</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="variant" id="v-d">
+    <h2>變體 D — 窄欄＋橫向捲動（工具列極窄時）<span class="tag">防換行碎裂</span></h2>
+    <ul class="pros">
+      <li>外層 <code>max-width</code> 模擬側欄或窄視窗；內列 <code>flex-wrap:nowrap</code> 避免「✓+」斷行。</li>
+    </ul>
+    <div class="mock-panel">
+      <div class="narrow-wrap">
+        <div class="sf-adv-section">
+          <strong>句段狀態</strong>
+          <div class="sf-adv-grid">
+            <label><input type="checkbox" disabled> 已確認</label>
+            <label><input type="checkbox" disabled> 未確認</label>
+            <label><input type="checkbox" disabled> T</label>
+            <label><input type="checkbox" disabled> R1</label>
+            <label><input type="checkbox" disabled> R2</label>
+            <label><input type="checkbox" disabled> 鎖定</label>
+          </div>
+        </div>
+      </div>
+      <p class="role-note">若採此變體，建議仍將「內容／確認／鎖定／memoQ 身分」分維度實作，僅畫面擠在同一捲列。</p>
+    </div>
+  </section>
+
+  <!-- E -->
+  <section class="variant" id="v-e">
+    <h2>變體 E — 雙欄網格（左：確認與內容；右：memoQ 身分）<span class="tag">資訊密度高</span></h2>
+    <ul class="pros">
+      <li>寬螢幕下垂直空間較省；需留意小螢幕改單欄（下方已用 media query 示意）。</li>
+    </ul>
+    <div class="mock-panel">
+      <div class="sf-adv-section">
+        <strong>句段狀態</strong>
+        <div class="two-col-status">
+          <div>
+            <div style="font-size:0.72rem;color:#64748b;margin-bottom:0.25rem;">內容／確認</div>
+            <div class="sf-adv-grid" style="flex-direction:column;align-items:flex-start;gap:0.35rem;">
+              <label><input type="checkbox" disabled> 空白</label>
+              <label><input type="checkbox" disabled> 非空白</label>
+              <label><input type="checkbox" checked disabled> 已確認</label>
+              <label><input type="checkbox" disabled> 未確認</label>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:0.72rem;color:#64748b;margin-bottom:0.25rem;">memoQ 確認身分</div>
+            <div class="sf-adv-grid" style="flex-direction:column;align-items:flex-start;gap:0.35rem;">
+              <label><input type="checkbox" disabled> T</label>
+              <label><input type="checkbox" disabled> R1</label>
+              <label><input type="checkbox" disabled> R2</label>
+            </div>
+          </div>
+        </div>
+        <div class="sf-adv-grid sf-adv-status-row2">
+          <label><input type="checkbox" disabled> 鎖定</label>
+          <label><input type="checkbox" disabled> 未鎖定</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- F -->
+  <section class="variant" id="v-f">
+    <h2>變體 F — TM「XLIFF 匯入篩選」對話框對照<span class="tag">一致性</span></h2>
+    <ul class="pros">
+      <li>實際 DOM 見 <code>cat-tool/index.html</code> 內 <code>#tmXliffImportDialog</code>；若編輯器進階篩選新增選項，此對話框應同步文案與語意（產品已註記「與編輯器相同」）。</li>
+    </ul>
+    <div class="mock-panel" style="max-width:22rem;">
+      <h3 style="margin:0 0 0.5rem 0;font-size:1rem;">XLIFF 匯入篩選（示意）</h3>
+      <div class="sf-adv-section">
+        <strong style="font-size:0.9rem;">句段狀態</strong>
+        <div class="sf-adv-grid" style="margin-top:0.35rem;">
+          <label><input type="checkbox" disabled> 空白</label>
+          <label><input type="checkbox" disabled> 非空白</label>
+          <label><input type="checkbox" disabled> 已確認</label>
+          <label><input type="checkbox" disabled> 未確認</label>
+          <label style="opacity:0.55;"><input type="checkbox" disabled> T（mqxliff）</label>
+          <label style="opacity:0.55;"><input type="checkbox" disabled> R1</label>
+          <label style="opacity:0.55;"><input type="checkbox" disabled> R2</label>
+          <label><input type="checkbox" disabled> 鎖定</label>
+          <label><input type="checkbox" disabled> 未鎖定</label>
+        </div>
+        <p class="role-note">半透明項表示「建議與編輯器同組勾選一併出現」；實作時可改為 mqxliff 專用列與編輯器一致。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="path-footer">
+    <strong>本預覽檔完整路徑（Windows）：</strong><br>
+    c:\Homemade Apps\1UP TMS\docs\preview-mqxliff-filter-status-options\index.html
+    <br><br>
+    <strong>相對於專案根目錄：</strong><br>
+    docs/preview-mqxliff-filter-status-options/index.html
+    <br><br>
+    <strong>以檔案總管開啟：</strong>複製上述第一行路徑，貼到檔案總管網址列或於 VS Code／Cursor 從檔案樹開啟即可（不需啟動 dev server）。
+  </footer>
+</body>
+</html>
