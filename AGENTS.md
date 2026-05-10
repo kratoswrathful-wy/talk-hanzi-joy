@@ -25,6 +25,7 @@
 - [`docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md`](docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md) — 句段依匯入順序排序（`global_id`）、更新作業檔與雲端一致；**行內字型／rt-fmt** 上架嘗試之問題與調查紀錄（已撤回）
 - [`docs/EXCEL_IMPORT_TAGS_SPEC.md`](docs/EXCEL_IMPORT_TAGS_SPEC.md) — Excel 匯入警語與括號／自訂正則轉 tag（**工程規格**）；高層計畫見 [`docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md`](docs/EXCEL_IMPORT_TAG_WARNING_PLAN.md)；介面預覽 [`docs/preview-excel-import-tags/index.html`](docs/preview-excel-import-tags/index.html)
 - [`docs/bug-report_f8-targettags-empty-fallback-regression.md`](docs/bug-report_f8-targettags-empty-fallback-regression.md) — F8／`effectiveTags`／空 `targetTags` 導致整列譯文 tag pill 變純文字（sdlxliff 等常見觸發）；修正方案待實作；與 [`docs/bug-report_mqxliff-partial-target-tags.md`](docs/bug-report_mqxliff-partial-target-tags.md) §2.8 對照
+- [`docs/bug-report_mqxliff-team-role-persistence.md`](docs/bug-report_mqxliff-team-role-persistence.md) — mqxliff 在 Team（Supabase）模式下 **T／R1／R2** 無法持久化（重開檔後狀態圖示與鎖定規則錯亂）；根因為 `cat_segments` 缺欄位與 `cat-cloud-rpc` 未映射；2026-05-10 已修（migration + RPC）
 
 ## 回覆與推送慣例
 
