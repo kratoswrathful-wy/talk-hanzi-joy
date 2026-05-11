@@ -1,7 +1,8 @@
 # CAT：檔案特殊指示與專案 AI 指示分離 — 實作計畫
 
 > 狀態：**程式已落地**（IndexedDB v22、`cat-tool/app.js` 批次與共用資訊、Supabase migration `20260511120000_*`、`cat-cloud-rpc`）。若行為與本檔不符，以程式為準並回寫本檔。  
-> 背景：先前 UI 將「候選條目池」內區塊標為「本案特殊指示」，但資料與「專案 AI 指示」同來自 `specialInstructions`／`__aiBatchProjectInstructions`，與產品設計不符；見 [CAT_AI_BATCH_TOKEN_UX_2026-05.md](./CAT_AI_BATCH_TOKEN_UX_2026-05.md) 中「候選條目池」一節的歷史敘述（已加註將由本計畫取代）。
+> 背景：先前 UI 將「候選條目池」內區塊標為「本案特殊指示」，但資料與「專案 AI 指示」同來自 `specialInstructions`／`__aiBatchProjectInstructions`，與產品設計不符；見 [CAT_AI_BATCH_TOKEN_UX_2026-05.md](./CAT_AI_BATCH_TOKEN_UX_2026-05.md) 中「候選條目池」一節的歷史敘述（已加註將由本計畫取代）。  
+> **共用資訊 UI**（綠卡、專案頁 Modal、編輯器差異、tooltip）：見 [CAT_AI_FILE_SPECIAL_INSTRUCTIONS_UI_PLAN.md](./CAT_AI_FILE_SPECIAL_INSTRUCTIONS_UI_PLAN.md)。
 
 ---
 
