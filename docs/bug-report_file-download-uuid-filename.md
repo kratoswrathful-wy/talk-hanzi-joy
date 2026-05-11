@@ -56,14 +56,18 @@
 ### 2.4 實作（已落地）
 
 1. 共用函式 [`src/lib/download-file.ts`](../src/lib/download-file.ts)：`downloadFile(url, fileName)`、`sanitizeDownloadFileName` — `fetch` → `blob` → 暫時 `objectURL` → `<a download>` → `revokeObjectURL`。
-2. `FileField`：對 `item.url` 含 `/storage/v1/object/` 的項目，保留 `<a target="_blank">` 供預覽，另加下載按鈕（hover 顯示與編輯／刪除一致）呼叫 `downloadFile`；進行中禁用所有下載按鈕；失敗時 `toast.error`。
+2. `FileField`（兩階段）：
+   - **第一階段**：對 `item.url` 含 `/storage/v1/object/` 的項目另加下載按鈕（hover 顯示與編輯／刪除一致）呼叫 `downloadFile`；進行中禁用下載；失敗時 `toast.error`。
+   - **第二階段**：同一條 Storage 列的**顯示檔名**改為 `<button>`，點擊與下載按鈕相同呼叫 `handleDownloadItem`（不再以檔名開新分頁，避免另存成 UUID）；**非 Storage**（貼上網址等）檔名仍為 `<a target="_blank">`。
 3. `CommentContent`：附件改為 `button` + `Download` 圖示，點擊呼叫 `downloadFile`；失敗時 `toast.error` 並 `window.open` 後備。
 
 ### 2.5 驗收（白話）
 
-1. 在案件頁上傳一個檔名可辨識的 PDF 到「客戶準則」，點**下載**（或等效按鈕），另存後檔名應與上傳時一致（或可編輯後的顯示名稱）。
+1. 在案件頁上傳一個檔名可辨識的 PDF 到「客戶準則」：**點藍色檔名**或點**下載圖示**，下載建議檔名應與列表顯示名稱一致（或可編輯後的顯示名稱）。
 2. 在留言用迴紋針附檔，送出後點附件，下載檔名應為顯示名稱。
-3. 「貼上網址」的非 Storage 連結：行為與修正前一致（新分頁開啟），不強制走 blob 下載。
+3. 「貼上網址」的非 Storage 連結：點檔名仍為新分頁開啟，不強制走 blob 下載。
+
+**取捨**：Storage 列無法再以「點檔名」一鍵在新分頁預覽；若需預覽須另加「在新分頁開啟」控制（未實作）。
 
 ---
 

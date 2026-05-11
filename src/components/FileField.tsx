@@ -273,15 +273,27 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
                 />
               ) : (
                 <>
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline truncate max-w-[200px]"
-                    title={item.name}
-                  >
-                    {item.name}
-                  </a>
+                  {isStorageObjectUrl(item.url) ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadItem(idx)}
+                      disabled={downloadingIdx !== null}
+                      className="text-sm text-primary hover:underline truncate max-w-[200px] text-left bg-transparent border-0 p-0 cursor-pointer disabled:cursor-wait disabled:opacity-60"
+                      title={`${item.name}（點擊下載）`}
+                    >
+                      {item.name}
+                    </button>
+                  ) : (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline truncate max-w-[200px]"
+                      title={item.name}
+                    >
+                      {item.name}
+                    </a>
+                  )}
                   {item.size != null && (
                     <span className="text-[11px] text-muted-foreground shrink-0">
                       {item.size < 1024 ? `${item.size} B`
