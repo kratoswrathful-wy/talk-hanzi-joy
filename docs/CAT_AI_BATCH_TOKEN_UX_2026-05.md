@@ -27,9 +27,9 @@
 
 ### 1. 候選條目池加準則與指示合計
 
-`_renderAiBatchCandidatePool` 結尾新增：遍歷已勾選的 trans / style / pg / si，加總字元換算 token，更新 `#aiBatchCandidatePoolTotal`。
+`_renderAiBatchCandidatePool` 結尾：遍歷已勾選的 trans / style / pg / **fileSi（本案特殊指示）** / **projectAi（專案 AI 指示）**，加總字元換算 token，更新 `#aiBatchCandidatePoolTotal`。
 
-注意（**2026-05 當時實作**）：「專案 AI 指示」與候選條目池內標為「本案特殊指示」的區塊曾共用同一份資料（`__aiBatchProjectInstructions`／`specialInstructions`），token 合計不重複、僅計 `pool.si` 已勾選項。**產品目標**改為兩類分離後，此敘述僅作歷史對照；實作規格、遷移與觸點見 [CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md](./CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md)。
+**2026-05-11 起**：兩類指示已分欄儲存（`specialInstructions`＝檔案特殊指示、`projectAiInstructions`＝專案 AI 指示）；候選池分兩區勾選。歷史行為（同一份 `pool.si`）見 [CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md](./CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md)。
 
 ### 2. 參照來源分項改為每批概算
 

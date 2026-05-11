@@ -10526,6 +10526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let selectedGuidelineIds = normalizeGuidelineIdSet(psettings?.selectedGuidelineIds || []);
         let selectedStyleIds = normalizeGuidelineIdSet(psettings?.selectedStyleGuidelineIds || []);
         const siKeep = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        const projAiKeep = Array.isArray(psettings?.projectAiInstructions) ? psettings.projectAiInstructions : [];
         const pgKeep = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
 
         function previewHtml(ids, list) {
@@ -10546,6 +10547,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectedGuidelineIds: [...selectedGuidelineIds],
                 selectedStyleGuidelineIds: [...selectedStyleIds],
                 specialInstructions: siKeep,
+                projectAiInstructions: projAiKeep,
                 projectGuidelines: pgKeep
             }).catch(e => { console.error(e); });
         }
@@ -27173,6 +27175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let selectedGuidelineIds = normalizeGuidelineIdSet(psettings?.selectedGuidelineIds || []);
         let selectedStyleIds = normalizeGuidelineIdSet(psettings?.selectedStyleGuidelineIds || []);
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
+        let projectAiInstructions = Array.isArray(psettings?.projectAiInstructions) ? [...psettings.projectAiInstructions] : [];
         let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
         async function hydrateProjectGuidelineIssueGroupNames() {
             try {
@@ -27247,6 +27250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectedGuidelineIds: [...selectedGuidelineIds],
                 selectedStyleGuidelineIds: [...selectedStyleIds],
                 specialInstructions,
+                projectAiInstructions,
                 projectGuidelines
             });
         }
@@ -28356,6 +28360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 selectedGuidelineIds: [...selectedGuidelineIds],
                                 selectedStyleGuidelineIds: [...selectedStyleIds],
                                 specialInstructions,
+                                projectAiInstructions,
                                 projectGuidelines
                             });
                         } catch (e) {
@@ -29430,9 +29435,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let __aiBatchSelectedExampleIds = new Set();
     let __aiBatchPendingExampleIds = new Set();
     let __aiBatchProjectInstructions = [];
+    /** 檔案特殊指示（與共用資訊 specialInstructions 同步；僅供候選池顯示／token 估算） */
+    let __aiBatchFileSpecialInstructions = [];
     let __aiBatchProjectSiSaveTimer = null;
     let __aiBatchProjectSiSaving = false;
-    /** @type {{ trans: Object, style: Object, pg: Object, si: Object } | null} */
+    /** @type {{ trans: Object, style: Object, pg: Object, fileSi: Object, projectAi: Object } | null} */
     let __aiBatchPool = null;
     let __aiBatchPoolGuidelines = [];
     let __aiBatchPoolPgList = [];
@@ -29447,7 +29454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }));
     }
 
-    function _defaultAiBatchPoolFromProjectData(psettings, allGuidelines) {
+    function _defaultAiBatchPoolFromProjectData(psettings, allGuidelines, applicableFileSiIdSet) {
         const selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         const selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         const trans = {};
@@ -29469,35 +29476,57 @@ document.addEventListener('DOMContentLoaded', async () => {
             _poolNormalizeExamples(row.examples).forEach((ex) => { exMap[ex.id] = true; });
             pg[String(row.id)] = { item: true, ex: exMap };
         });
-        const si = {};
+        const fileSi = {};
         (Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : []).forEach((s) => {
             if (!s) return;
-            si[String(s.id)] = s.enabled !== false;
+            const idn = Number(s.id);
+            const id = String(s.id);
+            const onFile = applicableFileSiIdSet && !Number.isNaN(idn) && applicableFileSiIdSet.has(idn);
+            fileSi[id] = onFile;
         });
-        return { trans, style, pg, si };
+        const projectAi = {};
+        (Array.isArray(psettings?.projectAiInstructions) ? psettings.projectAiInstructions : []).forEach((s) => {
+            if (!s) return;
+            projectAi[String(s.id)] = s.enabled !== false;
+        });
+        return { trans, style, pg, fileSi, projectAi };
     }
 
     async function _initAiBatchCandidatePool() {
         const transEl = document.getElementById('aiBatchCandidatePoolTrans');
         const styleEl = document.getElementById('aiBatchCandidatePoolStyle');
         const pgEl = document.getElementById('aiBatchCandidatePoolPg');
-        const siEl = document.getElementById('aiBatchCandidatePoolSi');
-        if (!transEl || !styleEl || !pgEl || !siEl) return;
+        const fileSiEl = document.getElementById('aiBatchCandidatePoolFileSi');
+        const projectAiEl = document.getElementById('aiBatchCandidatePoolProjectAi');
+        if (!transEl || !styleEl || !pgEl || !fileSiEl || !projectAiEl) return;
         if (!currentProjectId) {
             __aiBatchPool = null;
             __aiBatchPoolGuidelines = [];
             __aiBatchPoolPgList = [];
+            __aiBatchFileSpecialInstructions = [];
             transEl.innerHTML = '<span style="font-size:0.78rem;color:#94a3b8;">（未選擇專案）</span>';
             styleEl.innerHTML = '';
             pgEl.innerHTML = '';
-            siEl.innerHTML = '';
+            fileSiEl.innerHTML = '';
+            projectAiEl.innerHTML = '';
             return;
         }
         const psettings = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
         const allGuidelines = await DBService.getAiGuidelines().catch(() => []);
         __aiBatchPoolGuidelines = allGuidelines;
         __aiBatchPoolPgList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
-        __aiBatchPool = _defaultAiBatchPoolFromProjectData(psettings, allGuidelines);
+        const fileRows = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        __aiBatchFileSpecialInstructions = fileRows.map((row, i) => ({
+            id: row?.id != null ? row.id : (`tmp_f_${Date.now()}_${i}`),
+            content: String(row?.content || ''),
+            enabled: row?.enabled !== false
+        }));
+        let fileAp = new Set();
+        if (currentFileId) {
+            const f = await DBService.getFile(currentFileId).catch(() => null);
+            fileAp = new Set(_normalizeApplicableSiIds(f));
+        }
+        __aiBatchPool = _defaultAiBatchPoolFromProjectData(psettings, allGuidelines, fileAp);
         _renderAiBatchCandidatePool();
     }
 
@@ -29511,8 +29540,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transEl = document.getElementById('aiBatchCandidatePoolTrans');
         const styleEl = document.getElementById('aiBatchCandidatePoolStyle');
         const pgEl = document.getElementById('aiBatchCandidatePoolPg');
-        const siEl = document.getElementById('aiBatchCandidatePoolSi');
-        if (!transEl || !styleEl || !pgEl || !siEl || !__aiBatchPool) return;
+        const fileSiEl = document.getElementById('aiBatchCandidatePoolFileSi');
+        const projectAiEl = document.getElementById('aiBatchCandidatePoolProjectAi');
+        if (!transEl || !styleEl || !pgEl || !fileSiEl || !projectAiEl || !__aiBatchPool) return;
         const pool = __aiBatchPool;
         const sectionHead = (title) => `<div style="font-size:0.78rem; font-weight:700; color:#166534; margin:0.35rem 0 0.25rem 0;">${title}</div>`;
         const renderGuidelineSection = (kind, labelEmpty) => {
@@ -29584,20 +29614,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>`;
             }).join('');
         }
-        const siIds = Object.keys(pool.si).sort((a, b) => String(a).localeCompare(String(b)));
-        if (!siIds.length) {
-            siEl.innerHTML = sectionHead('本案特殊指示') + '<span style="font-size:0.78rem;color:#94a3b8;">（無指示）</span>';
+        const fileSiIds = Object.keys(pool.fileSi || {}).sort((a, b) => String(a).localeCompare(String(b)));
+        if (!fileSiIds.length) {
+            fileSiEl.innerHTML = sectionHead('本案特殊指示') + '<span style="font-size:0.78rem;color:#94a3b8;">（無指示）</span>';
         } else {
-            siEl.innerHTML = sectionHead('本案特殊指示') + siIds.map((sid) => {
-                const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === String(sid));
+            fileSiEl.innerHTML = sectionHead('本案特殊指示') + fileSiIds.map((sid) => {
+                const row = (__aiBatchFileSpecialInstructions || []).find((r) => String(r.id) === String(sid));
                 const txt = row ? String(row.content || '').trim() : '';
                 const prev = txt.slice(0, 120) + (txt.length > 120 ? '…' : '');
-                const on = !!pool.si[sid];
+                const on = !!(pool.fileSi && pool.fileSi[sid]);
                 const est = _poolTokLine(txt, []);
                 const dis = row && row.enabled === false ? 'disabled' : '';
                 return `<div class="ai-batch-pool-card" style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem;">
                     <label style="display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.82rem; color:#14532d;">
-                        <input type="checkbox" class="ai-batch-pool-si" data-si-id="${_esc(sid)}" ${on ? 'checked' : ''} ${dis}>
+                        <input type="checkbox" class="ai-batch-pool-file-si" data-si-id="${_esc(sid)}" ${on ? 'checked' : ''} ${dis}>
+                        <span style="flex:1;">${_esc(prev || '（空白）')}<div style="font-size:0.72rem; color:#64748b;">${est}</div></span>
+                    </label>
+                </div>`;
+            }).join('');
+        }
+        const projIds = Object.keys(pool.projectAi || {}).sort((a, b) => String(a).localeCompare(String(b)));
+        if (!projIds.length) {
+            projectAiEl.innerHTML = sectionHead('專案 AI 指示') + '<span style="font-size:0.78rem;color:#94a3b8;">（無指示）</span>';
+        } else {
+            projectAiEl.innerHTML = sectionHead('專案 AI 指示') + projIds.map((sid) => {
+                const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === String(sid));
+                const txt = row ? String(row.content || '').trim() : '';
+                const prev = txt.slice(0, 120) + (txt.length > 120 ? '…' : '');
+                const on = !!(pool.projectAi && pool.projectAi[sid]);
+                const est = _poolTokLine(txt, []);
+                const dis = row && row.enabled === false ? 'disabled' : '';
+                return `<div class="ai-batch-pool-card" style="border:1px solid #dbeafe; background:#eff6ff; border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem;">
+                    <label style="display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.82rem; color:#1e3a8a;">
+                        <input type="checkbox" class="ai-batch-pool-project-ai" data-si-id="${_esc(sid)}" ${on ? 'checked' : ''} ${dis}>
                         <span style="flex:1;">${_esc(prev || '（空白）')}<div style="font-size:0.72rem; color:#64748b;">${est}</div></span>
                     </label>
                 </div>`;
@@ -29625,9 +29674,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const pickedEx = exNorm.filter((ex) => st.ex[ex.id]);
             _poolSumChars += _charsOfText(row.content) + pickedEx.reduce((s, ex) => s + _charsOfText(ex.src) + _charsOfText(ex.tgt) + _charsOfText(ex.note), 0);
         });
-        Object.keys(pool.si).forEach((sid) => {
-            if (!pool.si[sid]) return;
-            const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === sid);
+        Object.keys(pool.fileSi || {}).forEach((sid) => {
+            if (!pool.fileSi[sid]) return;
+            const row = (__aiBatchFileSpecialInstructions || []).find((r) => String(r.id) === String(sid));
+            if (!row || row.enabled === false) return;
+            _poolSumChars += _charsOfText(row.content);
+        });
+        Object.keys(pool.projectAi || {}).forEach((sid) => {
+            if (!pool.projectAi[sid]) return;
+            const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === String(sid));
             if (!row || row.enabled === false) return;
             _poolSumChars += _charsOfText(row.content);
         });
@@ -29686,11 +29741,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _renderAiBatchCandidatePool();
             };
         });
-        siEl.querySelectorAll('.ai-batch-pool-si').forEach((cb) => {
+        fileSiEl.querySelectorAll('.ai-batch-pool-file-si').forEach((cb) => {
             cb.onchange = () => {
                 const sid = cb.getAttribute('data-si-id');
-                if (sid == null) return;
-                pool.si[sid] = !!cb.checked;
+                if (sid == null || !pool.fileSi) return;
+                pool.fileSi[sid] = !!cb.checked;
+                _renderAiBatchCandidatePool();
+            };
+        });
+        projectAiEl.querySelectorAll('.ai-batch-pool-project-ai').forEach((cb) => {
+            cb.onchange = () => {
+                const sid = cb.getAttribute('data-si-id');
+                if (sid == null || !pool.projectAi) return;
+                pool.projectAi[sid] = !!cb.checked;
                 _renderAiBatchCandidatePool();
             };
         });
@@ -29705,19 +29768,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    /** 與專案 AI 指示列表對齊 pool.si 的鍵（新增列／刪除列後仍能正確進 prompt） */
-    function _syncAiBatchPoolSiKeys() {
-        if (!__aiBatchPool || typeof __aiBatchPool.si !== 'object') return;
-        const si = __aiBatchPool.si;
-        const rows = Array.isArray(__aiBatchProjectInstructions) ? __aiBatchProjectInstructions : [];
-        const rowIds = new Set(rows.map((r) => String(r.id)));
-        rows.forEach((r) => {
-            const id = String(r.id);
-            if (si[id] === undefined) si[id] = r.enabled !== false;
-        });
-        Object.keys(si).forEach((id) => {
-            if (!rowIds.has(id)) delete si[id];
-        });
+    /** 候選池勾選狀態與專案內兩類指示列 id 對齊（新增／刪除列後仍能正確進 prompt） */
+    function _syncAiBatchPoolInstructionKeys() {
+        if (!__aiBatchPool) return;
+        const sync = (map, rows) => {
+            if (!map || typeof map !== 'object') return;
+            const list = Array.isArray(rows) ? rows : [];
+            const rowIds = new Set(list.map((r) => String(r.id)));
+            list.forEach((r) => {
+                const id = String(r.id);
+                if (map[id] === undefined) map[id] = r.enabled !== false;
+            });
+            Object.keys(map).forEach((id) => {
+                if (!rowIds.has(id)) delete map[id];
+            });
+        };
+        sync(__aiBatchPool.fileSi, __aiBatchFileSpecialInstructions);
+        sync(__aiBatchPool.projectAi, __aiBatchProjectInstructions);
     }
 
     function _acquireAiFlowLock() {
@@ -29983,7 +30050,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectedGuidelineIds: Array.isArray(psettings?.selectedGuidelineIds) ? psettings.selectedGuidelineIds : [],
                 selectedStyleGuidelineIds: Array.isArray(psettings?.selectedStyleGuidelineIds) ? psettings.selectedStyleGuidelineIds : [],
                 projectGuidelines: Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [],
-                specialInstructions: __aiBatchProjectInstructions.map((row) => ({
+                specialInstructions: Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [],
+                projectAiInstructions: __aiBatchProjectInstructions.map((row) => ({
                     id: row.id,
                     content: String(row.content || '').trim(),
                     enabled: row.enabled !== false
@@ -30061,7 +30129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (idx < 0) return;
                 __aiBatchProjectInstructions[idx].enabled = !!cb.checked;
                 _queueSaveAiBatchProjectInstructions();
-                _syncAiBatchPoolSiKeys();
+                _syncAiBatchPoolInstructionKeys();
                 if (__aiBatchPool) _renderAiBatchCandidatePool();
             });
         });
@@ -30086,11 +30154,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _refreshAiBatchCandidatePoolAfterSiEdit();
             };
         });
-        _syncAiBatchPoolSiKeys();
+        _syncAiBatchPoolInstructionKeys();
     }
 
     function _refreshAiBatchCandidatePoolAfterSiEdit() {
-        _syncAiBatchPoolSiKeys();
+        _syncAiBatchPoolInstructionKeys();
         if (__aiBatchPool) _renderAiBatchCandidatePool();
     }
 
@@ -30101,7 +30169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         const psettings = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
-        const srcRows = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        const srcRows = Array.isArray(psettings?.projectAiInstructions) ? psettings.projectAiInstructions : [];
         __aiBatchProjectInstructions = srcRows.map((row, i) => ({
             id: row?.id != null ? row.id : (`tmp_${Date.now()}_${i}`),
             content: String(row?.content || ''),
@@ -31063,6 +31131,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         const selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         const allGuidelines = await DBService.getAiGuidelines().catch(() => []);
         const pool = candidatePool;
+        let poolNorm = pool;
+        if (poolNorm && poolNorm.si && !poolNorm.projectAi) {
+            const fRows = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+            const pRows = Array.isArray(psettings?.projectAiInstructions) ? psettings.projectAiInstructions : [];
+            const fileSi = {};
+            const projectAi = {};
+            const leg = { ...poolNorm.si };
+            const apSet = fileRec ? new Set(_normalizeApplicableSiIds(fileRec)) : new Set();
+            fRows.forEach((s) => {
+                if (!s) return;
+                const id = String(s.id);
+                const n = Number(s.id);
+                fileSi[id] = leg[id] !== false && apSet.has(n);
+            });
+            pRows.forEach((s) => {
+                if (!s) return;
+                projectAi[String(s.id)] = leg[String(s.id)] !== false;
+            });
+            poolNorm = { ...poolNorm, fileSi, projectAi };
+        }
         const _expandLibGuidelineBody = (g, st) => {
             let block = String(g.content || '').trim();
             const exs = _poolNormalizeExamples(g.examples).filter((ex) => st.ex[ex.id]);
@@ -31108,24 +31196,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             guidelines = allGuidelines.filter((g) => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id));
             styleGuidelines = allGuidelines.filter((g) => (g.scope || '') === 'style' && selectedStyleIds.has(g.id));
         }
-        const specialInstructions = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        const fileRowsForPrompt = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        const projectRowsForPrompt = Array.isArray(psettings?.projectAiInstructions) ? psettings.projectAiInstructions : [];
         let applicableContents;
-        if (pool && pool.si && Array.isArray(__aiBatchProjectInstructions)) {
-            applicableContents = __aiBatchProjectInstructions
+        if (poolNorm && poolNorm.fileSi && poolNorm.projectAi) {
+            const fileBodies = fileRowsForPrompt
                 .filter((row) => {
                     if (!row || row.enabled === false) return false;
-                    return pool.si[String(row.id)] !== false;
+                    return poolNorm.fileSi[String(row.id)] !== false;
                 })
                 .map((row) => String(row.content || '').trim())
                 .filter(Boolean);
+            const projectBodies = projectRowsForPrompt
+                .filter((row) => {
+                    if (!row || row.enabled === false) return false;
+                    return poolNorm.projectAi[String(row.id)] !== false;
+                })
+                .map((row) => String(row.content || '').trim())
+                .filter(Boolean);
+            applicableContents = [...fileBodies, ...projectBodies];
         } else {
-            applicableContents = specialInstructions
+            const apSet = fileRec ? new Set(_normalizeApplicableSiIds(fileRec)) : null;
+            const fileBodies = fileRowsForPrompt
                 .filter((s) => {
                     if (!s || s.enabled === false) return false;
+                    if (apSet && !apSet.has(Number(s.id))) return false;
                     return true;
                 })
                 .map((s) => String(s.content || '').trim())
                 .filter(Boolean);
+            const projectBodies = projectRowsForPrompt
+                .filter((s) => s && s.enabled !== false)
+                .map((s) => String(s.content || '').trim())
+                .filter(Boolean);
+            applicableContents = [...fileBodies, ...projectBodies];
         }
         const projectGuidelinesList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
         let pgBodies;

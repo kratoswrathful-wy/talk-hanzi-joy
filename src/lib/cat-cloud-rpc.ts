@@ -480,6 +480,7 @@ const mapAiProjectSettingsRow = (r: any) => ({
   selectedGuidelineIds: Array.isArray(r.selected_guideline_ids) ? r.selected_guideline_ids.map((x: unknown) => Number(x)).filter((n: number) => !Number.isNaN(n)) : [],
   selectedStyleGuidelineIds: Array.isArray(r.selected_style_guideline_ids) ? r.selected_style_guideline_ids.map((x: unknown) => Number(x)).filter((n: number) => !Number.isNaN(n)) : [],
   specialInstructions: Array.isArray(r.special_instructions) ? r.special_instructions : [],
+  projectAiInstructions: Array.isArray(r.project_ai_instructions) ? r.project_ai_instructions : [],
   projectGuidelines: Array.isArray(r.project_guidelines) ? r.project_guidelines : [],
   updatedAt: r.updated_at,
 });
@@ -1820,6 +1821,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         selectedGuidelineIds: [],
         selectedStyleGuidelineIds: [],
         specialInstructions: [],
+        projectAiInstructions: [],
         projectGuidelines: [],
       };
     }
@@ -1838,6 +1840,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         selected_guideline_ids: Array.isArray(patch.selectedGuidelineIds) ? patch.selectedGuidelineIds : (currentAny?.selected_guideline_ids ?? []),
         selected_style_guideline_ids: Array.isArray(patch.selectedStyleGuidelineIds) ? patch.selectedStyleGuidelineIds : (currentAny?.selected_style_guideline_ids ?? []),
         special_instructions: Array.isArray(patch.specialInstructions) ? patch.specialInstructions : (currentAny?.special_instructions ?? []),
+        project_ai_instructions: Array.isArray(patch.projectAiInstructions)
+          ? patch.projectAiInstructions
+          : (currentAny?.project_ai_instructions ?? []),
         project_guidelines: Array.isArray(patch.projectGuidelines) ? patch.projectGuidelines : (currentAny?.project_guidelines ?? []),
         updated_at: nowIso(),
         updated_by: userId,

@@ -294,7 +294,7 @@ db.version(16).stores({
     });
 });
 
-// v17：每檔可套用哪些特殊指示（id 對應 aiProjectSettings.specialInstructions[].id，單一真相）
+// v17：每檔可套用哪些特殊指示（v22 起 id 僅對應 aiProjectSettings.specialInstructions「檔案特殊指示」列）
 db.version(17).stores({
     projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
     files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
@@ -423,6 +423,48 @@ db.version(21).stores({
     fileAiReports: 'fileId, updatedAt',
     aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
     views: '++id, projectId, name, createdAt'
+});
+
+// v22：專案 AI 指示與檔案特殊指示分欄
+// - aiProjectSettings.specialInstructions 僅存「檔案特殊指示」（依檔案套用，id 對 files.applicableSpecialInstructionIds）
+// - aiProjectSettings.projectAiInstructions 存「專案 AI 指示」（僅 AI 批次設定編輯）
+// 升級：舊版 specialInstructions 整批移入 projectAiInstructions 並清空 specialInstructions；各檔 applicableSpecialInstructionIds 清空（舊 id 語意已變）
+db.version(22).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt'
+}).upgrade(async (tx) => {
+    await tx.aiProjectSettings.toCollection().modify((row) => {
+        const prevSi = Array.isArray(row.specialInstructions) ? row.specialInstructions : [];
+        const hasProj = Array.isArray(row.projectAiInstructions) && row.projectAiInstructions.length > 0;
+        if (!hasProj && prevSi.length > 0) {
+            row.projectAiInstructions = prevSi.map((x) => (x && typeof x === 'object' ? { ...x } : x));
+            row.specialInstructions = [];
+        } else {
+            if (!Array.isArray(row.projectAiInstructions)) row.projectAiInstructions = [];
+            if (!Array.isArray(row.specialInstructions)) row.specialInstructions = [];
+        }
+    });
+    await tx.files.toCollection().modify((f) => {
+        f.applicableSpecialInstructionIds = [];
+    });
 });
 
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
@@ -1402,9 +1444,11 @@ const DBService = {
             const r = rows[0];
             if (!Array.isArray(r.selectedStyleGuidelineIds)) r.selectedStyleGuidelineIds = [];
             if (!Array.isArray(r.projectGuidelines)) r.projectGuidelines = [];
+            if (!Array.isArray(r.specialInstructions)) r.specialInstructions = [];
+            if (!Array.isArray(r.projectAiInstructions)) r.projectAiInstructions = [];
             return r;
         }
-        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [], projectGuidelines: [] };
+        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [], projectAiInstructions: [], projectGuidelines: [] };
     },
     async saveAiProjectSettings(projectId, patch) {
         if (!projectId) return;
@@ -1416,16 +1460,19 @@ const DBService = {
                 selectedGuidelineIds: [],
                 selectedStyleGuidelineIds: [],
                 specialInstructions: [],
+                projectAiInstructions: [],
                 projectGuidelines: []
             };
         if (!Array.isArray(base.selectedGuidelineIds)) base.selectedGuidelineIds = [];
         if (!Array.isArray(base.selectedStyleGuidelineIds)) base.selectedStyleGuidelineIds = [];
         if (!Array.isArray(base.specialInstructions)) base.specialInstructions = [];
+        if (!Array.isArray(base.projectAiInstructions)) base.projectAiInstructions = [];
         if (!Array.isArray(base.projectGuidelines)) base.projectGuidelines = [];
         const merged = { ...base, ...patch, projectId };
         if (!Array.isArray(merged.selectedGuidelineIds)) merged.selectedGuidelineIds = [];
         if (!Array.isArray(merged.selectedStyleGuidelineIds)) merged.selectedStyleGuidelineIds = [];
         if (!Array.isArray(merged.specialInstructions)) merged.specialInstructions = [];
+        if (!Array.isArray(merged.projectAiInstructions)) merged.projectAiInstructions = [];
         if (!Array.isArray(merged.projectGuidelines)) merged.projectGuidelines = [];
         let result;
         if (rows.length > 0) {
