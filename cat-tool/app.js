@@ -1843,6 +1843,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /** 團隊模式：開檔／匯出可選是否下載 Storage 原始檔（開編輯器預設不下載，避免大檔逾時）。 */
+    async function catGetFile(fileId, opts) {
+        if (isTeamMode()) {
+            return DBService.getFile(fileId, opts || {});
+        }
+        return DBService.getFile(fileId);
+    }
+
+    /** 深連結還原編輯器前，等待 TMS 父頁送出身分（避免 RPC 無回應而卡住）。 */
+    function waitForTmsIdentityReady(timeoutMs) {
+        if (!isTeamMode() || window._tmsManagedIdentity) return Promise.resolve();
+        const limit = typeof timeoutMs === 'number' ? timeoutMs : 20000;
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                window.removeEventListener('message', onMsg);
+                reject(new Error('TMS identity timeout'));
+            }, limit);
+            function onMsg(event) {
+                if (event.source !== window.parent) return;
+                if (event.origin !== window.location.origin) return;
+                if (!event.data || event.data.type !== 'TMS_IDENTITY') return;
+                clearTimeout(timer);
+                window.removeEventListener('message', onMsg);
+                resolve();
+            }
+            window.addEventListener('message', onMsg);
+            if (window._tmsManagedIdentity) {
+                clearTimeout(timer);
+                window.removeEventListener('message', onMsg);
+                resolve();
+            }
+        });
+    }
+
     // In team mode, entity IDs are UUID strings; in offline mode they are Dexie auto-increment integers.
     function parseId(idAttr) {
         return isTeamMode() ? idAttr : parseInt(idAttr, 10);
@@ -6345,7 +6379,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (let i = 0; i < ids.length; i++) {
             let f = null;
             try {
-                f = await DBService.getFile(ids[i]);
+                f = await catGetFile(ids[i], { includeOriginal: true });
                 if (!f) throw new Error('找不到檔案紀錄');
                 const rawSegs = await DBService.getSegmentsByFile(ids[i]);
                 const format = _batchExportGetFileFormat(f);
@@ -13758,7 +13792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         emptySegAutoConsumedIds = new Set();
         pendingRemoteBySegId.clear();
         beginEditorViewLoadingShell();
-        const file = await DBService.getFile(fileId);
+        const file = await catGetFile(fileId, { includeOriginal: false });
         if (!file) {
             alert('檔案不存在');
             currentFileId = null;
@@ -14021,6 +14055,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         activeView = 'viewEditor';
         persistCatRoute();
         syncEditorWordCountToolbarBtn();
+        } catch (e) {
+            console.error('[CAT] openEditor failed', e);
+            currentFileId = null;
+            resetEditorTransientUi();
+            const msg = String((e && e.message) ? e.message : e || '');
+            const m = msg.toLowerCase();
+            let userMsg = '無法開啟檔案，請稍後再試或回到專案重新點選。';
+            if (m.includes('timeout') || m.includes('逾時')) {
+                userMsg = '載入檔案逾時，請稍後再試；若檔案很大，請聯絡專案經理協助。';
+            } else if (
+                m.includes('cat_object_not_found') ||
+                m.includes('object not found') ||
+                m.includes('file not found') ||
+                (m.includes('not found') && m.includes('cat')) ||
+                m.includes('cat_auth_not_ready')
+            ) {
+                userMsg = '找不到此檔案、尚未登入完成，或您沒有權限開啟。';
+            }
+            try { showCatToast(userMsg, 'error'); } catch (_) { /* ignore */ }
+            const pid = currentProjectId;
+            try {
+                if (pid != null && pid !== '') {
+                    await openProjectDetail(pid);
+                } else {
+                    switchView('viewDashboard');
+                    await loadDashboardData();
+                }
+            } catch (_) {
+                switchView('viewDashboard');
+                try { await loadDashboardData(); } catch (__) { /* ignore */ }
+            }
+            persistCatRoute();
         } finally {
             hideCatLoadingOverlay();
         }
@@ -23453,7 +23519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             exportBtn.disabled = true; exportBtn.textContent = '匯出中...';
             await flushTargetEditorsToDbForExport();
-            const f    = await DBService.getFile(currentFileId);
+            const f    = await catGetFile(currentFileId, { includeOriginal: true });
             const rawSegs = await DBService.getSegmentsByFile(currentFileId);
             const segs = segmentsWithEditorTargetsForExport(rawSegs);
 
@@ -24817,11 +24883,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     currentProjectId = data.projectId;
                 }
                 try {
+                    if (isTeamMode()) {
+                        await waitForTmsIdentityReady(20000);
+                    }
                     await openEditor(data.fileId);
                 } catch (e) {
                     const msg = String((e && e.message) ? e.message : e || '');
                     const m = msg.toLowerCase();
-                    const isNotFound = m.includes('cat_object_not_found') || m.includes('object not found') || m.includes('file not found') || (m.includes('not found') && m.includes('cat'));
+                    const isNotFound = m.includes('cat_object_not_found') || m.includes('object not found') || m.includes('file not found') || (m.includes('not found') && m.includes('cat')) || m.includes('cat_auth_not_ready') || m.includes('tms identity timeout');
                     if (isNotFound) {
                         try { sessionStorage.removeItem(getSessionRouteStorageKey()); } catch (_) { /* ignore */ }
                         try { showCatToast('上一個檔案已不存在或無權限，已回到首頁', 'error'); } catch (_) { /* ignore */ }

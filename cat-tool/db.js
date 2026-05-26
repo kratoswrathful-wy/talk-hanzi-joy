@@ -710,7 +710,7 @@ const DBService = {
         return files;
     },
 
-    async getFile(fileId) {
+    async getFile(fileId, _opts) {
         let result = await db.files.get(fileId);
         if (result == null && typeof fileId === 'string') {
             const n = parseInt(fileId, 10);
@@ -1671,7 +1671,10 @@ const DBService = {
         });
     DBService.getFiles = async (projectId) => (await rpc('db.getFiles', { projectId })).map(hydrateFile);
     DBService.getRecentFiles = async (limit = 10) => (await rpc('db.getRecentFiles', { limit })).map(hydrateFile);
-    DBService.getFile = async (fileId) => hydrateFile(await rpc('db.getFile', { fileId }));
+    DBService.getFile = async (fileId, opts) => {
+        const includeOriginal = !!(opts && opts.includeOriginal);
+        return hydrateFile(await rpc('db.getFile', { fileId, includeOriginal }));
+    };
     DBService.searchLmsCases = async (projectId, keyword, limit = 20) => rpc('db.searchLmsCases', { projectId, keyword, limit });
     DBService.updateFile = async (fileId, updates) => {
         const patch = { ...updates };

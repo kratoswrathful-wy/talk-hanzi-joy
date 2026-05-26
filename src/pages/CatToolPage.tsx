@@ -692,7 +692,17 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         });
       } else if (event.data?.type === "CAT_CLOUD_RPC") {
         const { requestId, action, payload } = event.data.payload ?? {};
-        if (!requestId || !action || !user?.id) return;
+        if (!requestId || !action) return;
+        if (!user?.id) {
+          iframeRef.current?.contentWindow?.postMessage(
+            {
+              type: "CAT_CLOUD_RPC_RESULT",
+              payload: { requestId, ok: false, error: "CAT_AUTH_NOT_READY" },
+            },
+            window.location.origin
+          );
+          return;
+        }
         try {
           const data = await handleCatCloudRpc(action, payload ?? {}, user.id);
           iframeRef.current?.contentWindow?.postMessage(

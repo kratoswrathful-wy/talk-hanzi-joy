@@ -684,7 +684,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.getFile": {
       const { data } = await supabase.from("cat_files").select("*").eq("id", payload.fileId).maybeSingle();
-      return data ? await mapFileRowWithOriginalHydrated(data) : null;
+      if (!data) return null;
+      // 開啟編輯器只需 metadata + 句段；略過 Storage 下載可避免大檔逾時與卡在「載入中」
+      if (payload.includeOriginal === true) {
+        return await mapFileRowWithOriginalHydrated(data);
+      }
+      return mapFileRow(data, { listMode: true });
     }
     case "db.searchLmsCases": {
       const keyword = String(payload.keyword || "").trim();
