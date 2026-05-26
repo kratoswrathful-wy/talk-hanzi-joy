@@ -91,6 +91,7 @@
             const segNum = getSegDisplayIndex(segId);
             const tip = ensureRealTipEl();
             tip.textContent = `游標位於第 ${segNum} 號句段（點此捲至該列）`;
+            tip.dataset.catRealTipSegId = String(segId ?? '');
             tip.classList.remove('hidden');
             const colTarget = document.querySelector('.col-target');
             const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
@@ -102,15 +103,15 @@
                 tip.style.cursor = 'pointer';
                 tip.addEventListener('click', (ev) => {
                     ev.preventDefault();
-                    let ed = document.activeElement;
-                    if (!ed || !ed.classList || !ed.classList.contains('grid-textarea')) {
-                        ed = document.querySelector('.grid-data-row.active-row .grid-textarea');
-                    }
+                    const storedSegId = tip.dataset.catRealTipSegId;
+                    const targetRow = storedSegId
+                        ? document.querySelector(`.grid-data-row[data-seg-id="${CSS.escape(storedSegId)}"]`)
+                        : document.querySelector('.grid-data-row.active-row');
+                    const ed = targetRow ? targetRow.querySelector('.grid-textarea') : null;
                     if (!ed || ed.contentEditable === 'false') return;
-                    const r = ed.closest ? ed.closest('.grid-data-row') : null;
-                    if (r && typeof r.scrollIntoView === 'function') {
+                    if (targetRow && typeof targetRow.scrollIntoView === 'function') {
                         try {
-                            r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         } catch (_) { /* ignore */ }
                     }
                     try {

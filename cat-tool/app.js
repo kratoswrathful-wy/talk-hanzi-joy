@@ -282,9 +282,14 @@ function openCatPromptModal(options = {}) {
             if (e.target === modal) onCancel();
         }
         function onKey(e) {
-            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            if (modal.classList.contains('hidden')) return;
+            if (e.key === 'Escape') {
                 e.preventDefault();
                 onCancel();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                onOk();
             }
         }
         btnOk.addEventListener('click', onOk);
@@ -10653,6 +10658,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         namingModalInput.focus();
     }
 
+    if (namingModalInput) {
+        namingModalInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && namingModal && !namingModal.classList.contains('hidden')) {
+                e.preventDefault();
+                btnNamingModalConfirm.click();
+            }
+        });
+    }
+
     btnNamingModalConfirm.addEventListener('click', async () => {
         const val = namingModalInput.value.trim();
         if(!val) return alert('請輸入名稱');
@@ -14703,6 +14717,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             editorUndoEditStart[seg.id] = seg.targetText;
         }
         applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags }).catch(console.error);
+        if (seg.status === 'confirmed') {
+            const allRows = gridBody ? Array.from(gridBody.querySelectorAll('.grid-data-row')) : [];
+            unconfirmSegmentVisualAfterReplace(seg, allRows.indexOf(row));
+        }
         refreshTagNextHighlight(row);
     }
 
@@ -14715,7 +14733,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         span.contentEditable = 'false';
         const { label, full } = tagChipLabelAndFull(tag);
         if (tag.type === 'close') {
-            span.innerHTML = `<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span><span class="tag-label">${escapeHtml(label)}</span><span class="tag-full">${escapeHtml(full)}</span><span class="tag-num">${tag.num}</span>`;
+            span.innerHTML = `<span class="tag-label">${escapeHtml(label)}</span><span class="tag-full">${escapeHtml(full)}</span><span class="tag-num">${tag.num}</span>`;
         } else {
             span.innerHTML = `<span class="tag-num">${tag.num}</span><span class="tag-label">${escapeHtml(label)}</span><span class="tag-full">${escapeHtml(full)}</span>`;
         }
@@ -16437,6 +16455,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editorUndoEditStart[seg.id] = seg.targetText;
             }
             applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags }).catch(console.error);
+            if (seg.status === 'confirmed') {
+                const allRows2 = gridBody ? Array.from(gridBody.querySelectorAll('.grid-data-row')) : [];
+                unconfirmSegmentVisualAfterReplace(seg, allRows2.indexOf(updatedRow));
+            }
             refreshTagNextHighlight(updatedRow);
             saveCatCaretFromSelection(targetEditor);
             targetEditor.focus();
@@ -17178,8 +17200,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sfSearchMatches.length === 0) return;
 
         let idx = findTargetSearchMatchUnderSelection();
+        if (idx == null && sfActiveMatchIdx >= 0 &&
+            sfSearchMatches[sfActiveMatchIdx] &&
+            sfSearchMatches[sfActiveMatchIdx].fieldKey === 'target') {
+            idx = sfActiveMatchIdx;
+        }
         if (idx == null) idx = findNextTargetMatchIndexFromAnchor(getSearchNavAnchorCollapsed('next'));
-        if (idx < 0) return;
+        if (idx == null || idx < 0) return;
 
         let match = sfSearchMatches[idx];
         if (match.fieldKey !== 'target') {
@@ -17217,17 +17244,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearTimeout(sfRunUiTimer);
         sfRunUiTimer = null;
 
-        const rowsAfter = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-        const ed = rowsAfter[match.segIdx] ? rowsAfter[match.segIdx].querySelector('.grid-textarea') : null;
-        if (ed && document.body.contains(ed)) {
-            try {
-                const ar = document.createRange();
-                ar.selectNodeContents(ed);
-                ar.collapse(false);
-                const nextT = findNextTargetMatchIndexFromAnchor(ar);
-                if (nextT >= 0) applySearchMatchNavigationFocus(nextT);
-            } catch (_) {}
-        }
+        const nextT = findNextTargetMatchIndex(idx);
+        if (nextT >= 0) applySearchMatchNavigationFocus(nextT);
     }
 
     function updateSfReplaceAllButtonLabel() {
@@ -18135,7 +18153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const { label, full } = tagChipLabelAndFull(tag);
                 html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr} contenteditable="false">`;
                 if (tag.type === 'close') {
-                    html += '<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span>';
                     html += `<span class="tag-label">${escapeHtml(label)}</span>`;
                     html += `<span class="tag-full">${escapeHtml(full)}</span>`;
                     html += `<span class="tag-num">${tag.num}</span>`;
@@ -18164,7 +18181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 html += `<span class="rt-tag rt-tag-s" contenteditable="false"><span class="tag-num">${escapeHtml(n)}</span><span class="tag-content" style="min-width:1rem;">${escapeHtml(part)}</span></span>`;
             } else if (/^\{\/\d+\}$/.test(part)) {
                 const n = part.slice(2, -1);
-                html += `<span class="rt-tag rt-tag-e" contenteditable="false"><span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span><span class="tag-content" style="min-width:1rem;">${escapeHtml(part)}</span><span class="tag-num">${escapeHtml(n)}</span></span>`;
+                html += `<span class="rt-tag rt-tag-e" contenteditable="false"><span class="tag-content" style="min-width:1rem;">${escapeHtml(part)}</span><span class="tag-num">${escapeHtml(n)}</span></span>`;
             } else {
                 html += escapeHtml(part).replace(/\n/g, '<br data-cat-nl="1">');
             }
@@ -20927,6 +20944,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (updatePayload) seg.matchValue = updatePayload.matchValue;
         applyUpdateSegmentTarget(seg, newTarget, updatePayload || {}).catch(console.error);
 
+        if (type !== 'TM' && seg.status === 'confirmed') {
+            unconfirmSegmentVisualAfterReplace(seg, rowIdx);
+        }
         if (type === 'TM' && score !== undefined && score !== 'undefined') {
             applyMatchCellVisual(targetRow, String(score));
         }
@@ -28239,12 +28259,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const pmBlock = (isPm)
                     ? `<div class="private-todo-check">
                         <input type="checkbox" class="ai-si-checkbox private-todo-cb" data-si-id="${_esc(idAttr)}" ${s.enabled !== false ? 'checked' : ''} aria-label="啟用指示">
-                    </div>` : '<div class="private-todo-check"></div>';
+                    </div>` : '';
                 const actBlock = (isPm)
                     ? `<div class="note-item-actions guideline-item-aside-actions si-acts" data-si-id="${_esc(idAttr)}">
                         <button type="button" class="pt-edit-btn si-edit-btn" data-si-id="${_esc(idAttr)}" title="編輯">✏️</button>
                         <button type="button" class="pt-del-btn danger si-del-btn" data-si-id="${_esc(idAttr)}" title="刪除">🗑</button>
                     </div>` : '';
+                const asideHtml = isPm
+                    ? `<div class="guideline-item-aside">
+                            <div class="guideline-item-aside-inner">${actBlock}</div>
+                        </div>`
+                    : '';
                 return `<div class="guideline-item" data-si-id="${_esc(idAttr)}">
                     <div class="guideline-item-row">
                         ${pmBlock}
@@ -28254,9 +28279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                             ${metaBlock}
                         </div>
-                        <div class="guideline-item-aside">
-                            <div class="guideline-item-aside-inner">${actBlock}</div>
-                        </div>
+                        ${asideHtml}
                     </div>
                 </div>`;
             }).join('');
@@ -29497,8 +29520,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const styleEl = document.getElementById('aiBatchCandidatePoolStyle');
         const pgEl = document.getElementById('aiBatchCandidatePoolPg');
         const fileSiEl = document.getElementById('aiBatchCandidatePoolFileSi');
-        const projectAiEl = document.getElementById('aiBatchCandidatePoolProjectAi');
-        if (!transEl || !styleEl || !pgEl || !fileSiEl || !projectAiEl) return;
+        if (!transEl || !styleEl || !pgEl || !fileSiEl) return;
         if (!currentProjectId) {
             __aiBatchPool = null;
             __aiBatchPoolGuidelines = [];
@@ -29508,7 +29530,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             styleEl.innerHTML = '';
             pgEl.innerHTML = '';
             fileSiEl.innerHTML = '';
-            projectAiEl.innerHTML = '';
             return;
         }
         const psettings = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
@@ -29541,8 +29562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const styleEl = document.getElementById('aiBatchCandidatePoolStyle');
         const pgEl = document.getElementById('aiBatchCandidatePoolPg');
         const fileSiEl = document.getElementById('aiBatchCandidatePoolFileSi');
-        const projectAiEl = document.getElementById('aiBatchCandidatePoolProjectAi');
-        if (!transEl || !styleEl || !pgEl || !fileSiEl || !projectAiEl || !__aiBatchPool) return;
+        if (!transEl || !styleEl || !pgEl || !fileSiEl || !__aiBatchPool) return;
         const pool = __aiBatchPool;
         const sectionHead = (title) => `<div style="font-size:0.78rem; font-weight:700; color:#166534; margin:0.35rem 0 0.25rem 0;">${title}</div>`;
         const renderGuidelineSection = (kind, labelEmpty) => {
@@ -29633,25 +29653,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>`;
             }).join('');
         }
-        const projIds = Object.keys(pool.projectAi || {}).sort((a, b) => String(a).localeCompare(String(b)));
-        if (!projIds.length) {
-            projectAiEl.innerHTML = sectionHead('專案 AI 指示') + '<span style="font-size:0.78rem;color:#94a3b8;">（無指示）</span>';
-        } else {
-            projectAiEl.innerHTML = sectionHead('專案 AI 指示') + projIds.map((sid) => {
-                const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === String(sid));
-                const txt = row ? String(row.content || '').trim() : '';
-                const prev = txt.slice(0, 120) + (txt.length > 120 ? '…' : '');
-                const on = !!(pool.projectAi && pool.projectAi[sid]);
-                const est = _poolTokLine(txt, []);
-                const dis = row && row.enabled === false ? 'disabled' : '';
-                return `<div class="ai-batch-pool-card" style="border:1px solid #dbeafe; background:#eff6ff; border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem;">
-                    <label style="display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.82rem; color:#1e3a8a;">
-                        <input type="checkbox" class="ai-batch-pool-project-ai" data-si-id="${_esc(sid)}" ${on ? 'checked' : ''} ${dis}>
-                        <span style="flex:1;">${_esc(prev || '（空白）')}<div style="font-size:0.72rem; color:#64748b;">${est}</div></span>
-                    </label>
-                </div>`;
-            }).join('');
-        }
         // ---- 準則與指示合計 ----
         let _poolSumChars = 0;
         (['trans', 'style']).forEach((kind) => {
@@ -29680,9 +29681,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!row || row.enabled === false) return;
             _poolSumChars += _charsOfText(row.content);
         });
-        Object.keys(pool.projectAi || {}).forEach((sid) => {
-            if (!pool.projectAi[sid]) return;
-            const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === String(sid));
+        (__aiBatchProjectInstructions || []).forEach((row) => {
             if (!row || row.enabled === false) return;
             _poolSumChars += _charsOfText(row.content);
         });
@@ -29749,14 +29748,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _renderAiBatchCandidatePool();
             };
         });
-        projectAiEl.querySelectorAll('.ai-batch-pool-project-ai').forEach((cb) => {
-            cb.onchange = () => {
-                const sid = cb.getAttribute('data-si-id');
-                if (sid == null || !pool.projectAi) return;
-                pool.projectAi[sid] = !!cb.checked;
-                _renderAiBatchCandidatePool();
-            };
-        });
     }
 
     function _snapshotAiBatchPool() {
@@ -29784,7 +29775,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         };
         sync(__aiBatchPool.fileSi, __aiBatchFileSpecialInstructions);
-        sync(__aiBatchPool.projectAi, __aiBatchProjectInstructions);
     }
 
     function _acquireAiFlowLock() {
@@ -30110,7 +30100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const rawIdAttr = String(row.id).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
                 const en = row.enabled !== false ? ' checked' : '';
                 return `<div class="ai-batch-pi-row">
-                    <label class="ai-batch-pi-enable-label" data-tip="啟用：停用後不會寫入提示語（與候選條目池勾選分開；停用列在池中會顯示為不可勾選）">
+                    <label class="ai-batch-pi-enable-label" data-tip="啟用：停用後不會寫入提示語（停用後該列內容不進入 AI 提示）">
                         <input type="checkbox" class="ai-batch-pi-enabled"${en} data-si-id="${rawIdAttr}">
                     </label>
                     <div class="ai-batch-pi-fields">
@@ -30404,11 +30394,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const introEl = document.getElementById('aiBatchIntroduction');
         if (introEl) {
-            try {
-                introEl.value = localStorage.getItem('catAiBatchIntroduction') || '';
-            } catch (_) {}
+            void (async () => {
+                let saved = '';
+                if (currentProjectId) {
+                    const ps = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
+                    saved = ps?.batchIntroduction ?? '';
+                }
+                if (!saved) {
+                    try {
+                        const legacy = localStorage.getItem('catAiBatchIntroduction') || '';
+                        if (legacy && currentProjectId) {
+                            saved = legacy;
+                            await DBService.saveAiProjectSettings(currentProjectId, { batchIntroduction: legacy }).catch(() => {});
+                            localStorage.removeItem('catAiBatchIntroduction');
+                        } else {
+                            saved = legacy;
+                        }
+                    } catch (_) {}
+                }
+                introEl.value = saved;
+            })();
+            let _introDebounceTmr = null;
             introEl.oninput = () => {
-                try { localStorage.setItem('catAiBatchIntroduction', introEl.value); } catch (_) {}
+                clearTimeout(_introDebounceTmr);
+                _introDebounceTmr = setTimeout(() => {
+                    if (currentProjectId) {
+                        DBService.saveAiProjectSettings(currentProjectId, { batchIntroduction: introEl.value }).catch(() => {});
+                    } else {
+                        try { localStorage.setItem('catAiBatchIntroduction', introEl.value); } catch (_) {}
+                    }
+                }, 400);
             };
         }
         if (pickExBtn) pickExBtn.onclick = async () => {
@@ -31199,7 +31214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fileRowsForPrompt = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
         const projectRowsForPrompt = Array.isArray(psettings?.projectAiInstructions) ? psettings.projectAiInstructions : [];
         let applicableContents;
-        if (poolNorm && poolNorm.fileSi && poolNorm.projectAi) {
+        if (poolNorm && poolNorm.fileSi) {
             const fileBodies = fileRowsForPrompt
                 .filter((row) => {
                     if (!row || row.enabled === false) return false;
@@ -31208,10 +31223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .map((row) => String(row.content || '').trim())
                 .filter(Boolean);
             const projectBodies = projectRowsForPrompt
-                .filter((row) => {
-                    if (!row || row.enabled === false) return false;
-                    return poolNorm.projectAi[String(row.id)] !== false;
-                })
+                .filter((row) => row && row.enabled !== false)
                 .map((row) => String(row.content || '').trim())
                 .filter(Boolean);
             applicableContents = [...fileBodies, ...projectBodies];
@@ -31270,7 +31282,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const elIntro = document.getElementById('aiBatchIntroduction');
             if (elIntro && document.body.contains(elIntro)) introText = String(elIntro.value || '').trim();
-            else introText = String(localStorage.getItem('catAiBatchIntroduction') || '').trim();
         } catch (_) {}
         const baseSys = (pr && pr.translateSystemPrefix) || '';
         const systemPrefix = [introText, baseSys].filter(Boolean).join('\n\n');

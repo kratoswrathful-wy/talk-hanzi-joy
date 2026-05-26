@@ -2028,7 +2028,6 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     position: relative;
     z-index: 0;
 }
-.rt-tag-e .tag-e-pad,
 .rt-tag-e .tag-content,
 .rt-tag-e .tag-label,
 .rt-tag-e .tag-full,
@@ -2042,7 +2041,6 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     justify-content: flex-end;
     gap: 0;
 }
-#editorGrid.tag-view-0 .rt-tag-e .tag-e-pad,
 #editorGrid.tag-view-0 .rt-tag-e .tag-label,
 #editorGrid.tag-view-0 .rt-tag-e .tag-full {
     display: none !important;
@@ -2059,13 +2057,6 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 #editorGrid.tag-view-2 .rt-tag-e {
     justify-content: flex-start;
     gap: 0.2em;
-}
-#editorGrid.tag-view-1 .rt-tag-e .tag-e-pad,
-#editorGrid.tag-view-2 .rt-tag-e .tag-e-pad {
-    display: inline-block;
-    min-width: 2ch;
-    width: 2ch;
-    flex-shrink: 0;
 }
 
 .rt-tag-s::before,
