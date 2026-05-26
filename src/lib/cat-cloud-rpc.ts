@@ -211,8 +211,7 @@ async function mapFileRowWithOriginalSignedUrl(r: any) {
     .from(CAT_ORIGINAL_FILES_BUCKET)
     .createSignedUrl(path, CAT_ORIGINAL_SIGNED_URL_TTL_SEC);
   if (!error && signed?.signedUrl) {
-    base.originalSignedUrl = signed.signedUrl;
-    return base;
+    return { ...base, originalSignedUrl: signed.signedUrl };
   }
   if (legacy) {
     base.originalFileBase64 = legacy;
