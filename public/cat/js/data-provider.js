@@ -33,6 +33,9 @@
         type: "CAT_CLOUD_RPC",
         payload: { requestId, action, payload: payload || {} },
       };
+      const needsLongTimeout =
+        action === "db.getFile" && payload && payload.includeOriginal === true;
+      const timeoutMs = needsLongTimeout ? 120000 : 30000;
 
       return await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -40,7 +43,7 @@
             pending.delete(requestId);
             reject(new Error(`CAT cloud RPC timeout: ${action}`));
           }
-        }, 30000);
+        }, timeoutMs);
 
         pending.set(requestId, {
           resolve: (v) => {

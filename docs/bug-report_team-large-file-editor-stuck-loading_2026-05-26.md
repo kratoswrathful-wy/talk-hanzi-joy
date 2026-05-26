@@ -136,13 +136,13 @@ sequenceDiagram
 
 ### 2.6 與「檔案太大」的關係
 
-| 因素 | 開檔（修正後） | 匯出（未改） |
-|------|----------------|--------------|
-| Storage 原始 xlsx 體積 | **不下載** | 仍下載，大檔可能較久 |
+| 因素 | 開檔（修正後） | 匯出（第二次修正後） |
+|------|----------------|----------------------|
+| Storage 原始 xlsx 體積 | **不下載** | iframe 以 **signed URL** 直接 fetch，不經 postMessage 塞 base64 |
 | 句段筆數 | 分頁查詢（每頁 1000），大專案可能十幾秒～約一分鐘 | — |
 | 字數／字數統計 | 與開檔卡住無直接因果 | — |
 
-**結論**：十多萬字是重要觸發條件，主因是**開檔誤拉整檔** + **錯誤未收尾**；修正後大檔應可開，僅剩「句段多 → 載入較久」的效能問題，非 0/0 假死。
+**結論**：十多萬字是重要觸發條件；開檔主因是**開檔誤拉整檔** + **錯誤未收尾**；匯出主因是**匯出仍走 base64 管道**導致逾時或 `CAT_OBJECT_NOT_FOUND`。
 
 ### 2.7 驗收步驟（白話）
 
@@ -151,12 +151,33 @@ sequenceDiagram
    - **預期**：標題為檔名、有句段、底部非 0/0。  
 3. 編輯器內 F5。  
    - **預期**：回到同一檔或明確錯誤；不應永遠「載入中」。  
-4. （選做）按匯出 — 大檔可能仍慢，但應能完成或顯示匯出錯誤，與開檔分開。
+4. 編輯器或專案頁匯出大檔 Excel — 應下載成功或顯示「無法取得雲端原始 Excel」白話，而非 `CAT_OBJECT_NOT_FOUND`。
 
-### 2.8 後續可選優化（未實作）
+### 2.9 匯出大檔 `CAT_OBJECT_NOT_FOUND`（第二次修正）
+
+**症狀**：開檔已正常，但按「匯出檔案」或專案頁「匯出所選」出現 `匯出發生錯誤: CAT_OBJECT_NOT_FOUND`。
+
+**根因**：`includeOriginal: true` 仍呼叫 `mapFileRowWithOriginalHydrated`（父頁下載整檔 → base64 → postMessage）。大 xlsx 逾時或 Storage 回「Object not found」被誤映射為 `CAT_OBJECT_NOT_FOUND`。
+
+**修法**（與 §2.4 開檔修正互補）：
+
+| 項目 | 作法 |
+|------|------|
+| `mapFileRowWithOriginalSignedUrl` | `createSignedUrl` 回傳 `originalSignedUrl`，不在 RPC 端下載整檔 |
+| `hydrateFile`（async） | iframe 內 `fetch(signedUrl)` → `originalFileBuffer` |
+| RPC timeout | `db.getFile` + `includeOriginal` → 120s |
+| 錯誤碼 | Storage 缺檔 → `CAT_STORAGE_ORIGINAL_NOT_FOUND` + 白話 alert |
+| 專案頁單檔匯出 | 只勾 1 檔 → 直接下載 xlsx，不包 ZIP |
+
+**驗收**：
+
+1. 編輯器匯出 `…132851.xlsx` → 下載 `Translated_*.xlsx`。  
+2. 專案頁只勾該檔 →「匯出所選」→ 直接下載單一檔（非 `.zip`）。  
+3. 勾選 2 檔以上 → 仍為 `批次匯出_*.zip`。
+
+### 2.10 後續可選優化（未實作）
 
 - 僅對 `db.getSegmentsByFile` 拉長 RPC timeout 或顯示「已載入 x/y 句段」進度。  
-- `getFile` + `includeOriginal: true` 改為背景預取，匯出前提示「正在準備原始檔」。  
 - 列表 `getFiles` 已為 listMode；確認無其他路徑在開檔前誤呼叫 hydrated getFile。
 
 ---
@@ -174,3 +195,4 @@ sequenceDiagram
 |------|--------|------|
 | 2026-05-26 | `4422dae` | 修正：開檔不拉原始檔、錯誤收尾、深連結等身分、RPC auth not ready |
 | 2026-05-26 | （文件） | 本 bug report 建立；產品驗收通過 |
+| 2026-05-26 | （待 push 短碼） | 匯出：signed URL、匯出錯誤白話、專案頁單檔直接下載 |

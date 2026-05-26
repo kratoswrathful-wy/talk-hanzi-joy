@@ -40,6 +40,7 @@
 | **全系統無延遲提示（`[data-tip]`）** | [`cat-tool/app.js`](../cat-tool/app.js)：`initGlobalTooltip`（舊名 `initWcProgressModeTooltip`）；DOM 元素 `#wcProgressModeTooltip.wc-progress-mode-tooltip`；使用說明與未覆蓋清單見 [CAT_TOOLTIP_SYSTEM.md](./CAT_TOOLTIP_SYSTEM.md) |
 | CAT 團隊模式原始檔（Storage、`original_file_path`） | [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)、[`supabase/migrations/20260503120000_cat_original_files_storage.sql`](../supabase/migrations/20260503120000_cat_original_files_storage.sql)、[`scripts/backfill-cat-original-files.mjs`](../scripts/backfill-cat-original-files.mjs)；說明見 [incident-report_2026-05-01_rls-and-db-load.md](./incident-report_2026-05-01_rls-and-db-load.md) |
 | 團隊版開檔／`getFile` 輕量與大檔卡載入 | `db.getFile` 之 `includeOriginal`（[`cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)）、[`cat-tool/app.js`](../cat-tool/app.js) `catGetFile`／`openEditor`／`waitForTmsIdentityReady`、[`CatToolPage.tsx`](../src/pages/CatToolPage.tsx) `CAT_AUTH_NOT_READY`；見 [bug-report_team-large-file-editor-stuck-loading_2026-05-26.md](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) |
+| 團隊版匯出原始檔（signed URL）／專案頁單檔直接下載 | `mapFileRowWithOriginalSignedUrl`、`hydrateFile` + `originalSignedUrl`（[`cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)、[`cat-tool/db.js`](../cat-tool/db.js)）；`formatCatExportErrorMessage`、`batchExportSelectedFiles`、`_triggerBrowserDownload`（[`cat-tool/app.js`](../cat-tool/app.js)）；同上 bug report §2.9 |
 
 ### CAT：防殘影、深連結載入、詳情頁 key
 

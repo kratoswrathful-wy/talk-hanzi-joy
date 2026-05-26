@@ -1626,8 +1626,19 @@ const DBService = {
         for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
         return bytes.buffer;
     }
-    function hydrateFile(file) {
+    async function hydrateFile(file) {
         if (!file) return file;
+        if (file.originalSignedUrl) {
+            const res = await fetch(file.originalSignedUrl);
+            if (!res.ok) {
+                throw new Error(
+                    '無法下載雲端原始檔案（HTTP ' + res.status + '）。請確認檔案已完整上傳至雲端，或稍後再試。'
+                );
+            }
+            file.originalFileBuffer = await res.arrayBuffer();
+            delete file.originalSignedUrl;
+            return file;
+        }
         if (file.originalFileBase64 && !file.originalFileBuffer) {
             file.originalFileBuffer = base64ToAb(file.originalFileBase64);
         }
@@ -1671,11 +1682,17 @@ const DBService = {
             originalSourceLang,
             originalTargetLang
         });
-    DBService.getFiles = async (projectId) => (await rpc('db.getFiles', { projectId })).map(hydrateFile);
-    DBService.getRecentFiles = async (limit = 10) => (await rpc('db.getRecentFiles', { limit })).map(hydrateFile);
+    DBService.getFiles = async (projectId) => {
+        const rows = await rpc('db.getFiles', { projectId });
+        return Promise.all(rows.map((f) => hydrateFile(f)));
+    };
+    DBService.getRecentFiles = async (limit = 10) => {
+        const rows = await rpc('db.getRecentFiles', { limit });
+        return Promise.all(rows.map((f) => hydrateFile(f)));
+    };
     DBService.getFile = async (fileId, opts) => {
         const includeOriginal = !!(opts && opts.includeOriginal);
-        return hydrateFile(await rpc('db.getFile', { fileId, includeOriginal }));
+        return await hydrateFile(await rpc('db.getFile', { fileId, includeOriginal }));
     };
     DBService.searchLmsCases = async (projectId, keyword, limit = 20) => rpc('db.searchLmsCases', { projectId, keyword, limit });
     DBService.updateFile = async (fileId, updates) => {

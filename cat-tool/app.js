@@ -6229,6 +6229,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         return prefix + exportedName;
     }
 
+    function _triggerBrowserDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    function formatCatExportErrorMessage(e) {
+        const msg = String((e && e.message) ? e.message : e || '');
+        const m = msg.toLowerCase();
+        if (m.includes('cat_storage_original_not_found') || (m.includes('object not found') && m.includes('original'))) {
+            return '無法取得雲端上的原始 Excel。請專案經理確認此檔案已完整上傳；若剛匯入不久，請稍後再試。';
+        }
+        if (m.includes('cat_object_not_found')) {
+            return '找不到此檔案紀錄或您沒有權限。';
+        }
+        if (m.includes('timeout') || m.includes('逾時')) {
+            return '匯出逾時，檔案可能較大，請稍後再試。';
+        }
+        if (m.includes('無法下載雲端原始檔案')) {
+            return msg;
+        }
+        return msg;
+    }
+
     /** 試算表純文字匯出：將 `{n}`／`{/n}` 依 targetTags[].xml 還原為原始 token */
     function excelExportPlainTargetCell(targetText, targetTags) {
         const StrTags = window.CatToolExcelImportStringTags;
@@ -6363,7 +6392,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const go = confirm('目前有檔案在編輯器中開啟，若有未儲存的譯文可能不會被納入此次匯出。\n確定繼續？');
             if (!go) return;
         }
-        if (typeof JSZip === 'undefined') {
+        const multiFile = ids.length > 1;
+        if (multiFile && typeof JSZip === 'undefined') {
             alert('ZIP 打包函式庫尚未載入，請確認網路連線後重新整理再試。');
             return;
         }
@@ -6371,10 +6401,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btn = btnProjectBatchExport;
         if (btn) { btn.disabled = true; btn.textContent = `匯出中… (0/${ids.length})`; }
 
-        const zip = new JSZip();
+        const zip = multiFile ? new JSZip() : null;
         const failures = [];
         const tagWarnings = [];
         let addedCount = 0;
+        let singleDownloadName = '';
 
         for (let i = 0; i < ids.length; i++) {
             let f = null;
@@ -6390,16 +6421,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 const { blob, filename } = await _batchExportBuildBlob(f, rawSegs, format);
-                const zipName = _batchExportZipFilename(f, filename);
-                zip.file(zipName, blob);
+                const downloadName = _batchExportZipFilename(f, filename);
+                if (multiFile) {
+                    zip.file(downloadName, blob);
+                } else {
+                    _triggerBrowserDownload(blob, downloadName);
+                    singleDownloadName = downloadName;
+                }
                 addedCount++;
             } catch (err) {
-                failures.push({ name: (f && f.name) || ids[i], msg: err.message || String(err) });
+                const errMsg = formatCatExportErrorMessage(err);
+                failures.push({ name: (f && f.name) || ids[i], msg: errMsg });
             }
             if (btn) btn.textContent = `匯出中… (${i + 1}/${ids.length})`;
         }
 
-        if (addedCount > 0) {
+        if (addedCount > 0 && multiFile && zip) {
             const projectName = (document.getElementById('detailProjectName') || {}).textContent || '專案';
             const now = new Date();
             const ts = now.toLocaleString('zh-TW', {
@@ -6408,18 +6445,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             }).replace(/[/: ]/g, '').replace(/,/g, '-');
             const zipFilename = `批次匯出_${projectName}_${ts}.zip`;
             const zipBlob = await zip.generateAsync({ type: 'blob' });
-            const url = URL.createObjectURL(zipBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = zipFilename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            _triggerBrowserDownload(zipBlob, zipFilename);
         }
 
         const lines = [];
-        lines.push(`完成：${addedCount} 個檔案已加入 ZIP。`);
+        if (addedCount > 0) {
+            if (multiFile) {
+                lines.push(`完成：${addedCount} 個檔案已加入 ZIP。`);
+            } else {
+                lines.push(`已完成匯出：${singleDownloadName || '檔案'}`);
+            }
+        }
         if (failures.length) {
             lines.push('');
             lines.push('以下檔案匯出失敗：');
@@ -23546,6 +23582,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentFileId) return;
         try {
             exportBtn.disabled = true; exportBtn.textContent = '匯出中...';
+            showCatLoadingOverlay('正在準備匯出…');
             await flushTargetEditorsToDbForExport();
             const f    = await catGetFile(currentFileId, { includeOriginal: true });
             const rawSegs = await DBService.getSegmentsByFile(currentFileId);
@@ -23631,8 +23668,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 XLSX.writeFile(wb, `Translated_${f.name}`, { bookType: 'xlsx' });
             }
         } catch (e) {
-            alert('匯出發生錯誤: ' + e.message);
+            alert('匯出發生錯誤: ' + formatCatExportErrorMessage(e));
         } finally {
+            hideCatLoadingOverlay();
             exportBtn.disabled = false;
             exportBtn.textContent = '匯出檔案';
         }

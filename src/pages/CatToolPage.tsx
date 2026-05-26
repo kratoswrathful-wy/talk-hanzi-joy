@@ -712,11 +712,22 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         } catch (error: any) {
           const rawMsg = error?.message || String(error);
           const m = String(rawMsg).toLowerCase();
-          const isNotFound = m.includes("object not found") || m.includes("file not found");
+          const isStorageOriginalMissing =
+            action === "db.getFile" &&
+            payload?.includeOriginal === true &&
+            m.includes("object not found");
+          const isNotFound =
+            !isStorageOriginalMissing &&
+            (m.includes("object not found") || m.includes("file not found"));
+          const errOut = isStorageOriginalMissing
+            ? "CAT_STORAGE_ORIGINAL_NOT_FOUND"
+            : isNotFound
+              ? "CAT_OBJECT_NOT_FOUND"
+              : rawMsg;
           iframeRef.current?.contentWindow?.postMessage(
             {
               type: "CAT_CLOUD_RPC_RESULT",
-              payload: { requestId, ok: false, error: isNotFound ? "CAT_OBJECT_NOT_FOUND" : rawMsg },
+              payload: { requestId, ok: false, error: errOut },
             },
             window.location.origin
           );

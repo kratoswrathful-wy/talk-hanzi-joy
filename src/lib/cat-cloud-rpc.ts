@@ -196,6 +196,32 @@ async function mapFileRowWithOriginalHydrated(r: any) {
   return base;
 }
 
+const CAT_ORIGINAL_SIGNED_URL_TTL_SEC = 3600;
+
+/** 匯出用：回傳 signed URL 供 iframe 直接 fetch，避免大檔 base64 塞進 postMessage */
+async function mapFileRowWithOriginalSignedUrl(r: any) {
+  const path = r.original_file_path != null && String(r.original_file_path).trim() !== "" ? String(r.original_file_path).trim() : "";
+  const base = mapFileRow(r, { listMode: false });
+  const legacy = r.original_file_base64 ?? "";
+  if (!path) {
+    if (legacy) base.originalFileBase64 = legacy;
+    return base;
+  }
+  const { data: signed, error } = await supabase.storage
+    .from(CAT_ORIGINAL_FILES_BUCKET)
+    .createSignedUrl(path, CAT_ORIGINAL_SIGNED_URL_TTL_SEC);
+  if (!error && signed?.signedUrl) {
+    base.originalSignedUrl = signed.signedUrl;
+    return base;
+  }
+  if (legacy) {
+    base.originalFileBase64 = legacy;
+    return base;
+  }
+  if (error) throw error;
+  return await mapFileRowWithOriginalHydrated(r);
+}
+
 const mapSegmentRow = (r: any) => {
   const isLockedUser = !!r.is_locked_user;
   const isLockedSystem = !!r.is_locked_system;
@@ -687,7 +713,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (!data) return null;
       // 開啟編輯器只需 metadata + 句段；略過 Storage 下載可避免大檔逾時與卡在「載入中」
       if (payload.includeOriginal === true) {
-        return await mapFileRowWithOriginalHydrated(data);
+        return await mapFileRowWithOriginalSignedUrl(data);
       }
       return mapFileRow(data, { listMode: true });
     }
