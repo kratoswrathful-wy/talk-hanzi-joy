@@ -1448,7 +1448,7 @@ const DBService = {
             if (!Array.isArray(r.projectAiInstructions)) r.projectAiInstructions = [];
             return r;
         }
-        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [], projectAiInstructions: [], projectGuidelines: [] };
+        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [], projectAiInstructions: [], projectGuidelines: [], batchRefOptions: {} };
     },
     async saveAiProjectSettings(projectId, patch) {
         if (!projectId) return;
@@ -1462,7 +1462,8 @@ const DBService = {
                 specialInstructions: [],
                 projectAiInstructions: [],
                 projectGuidelines: [],
-                batchIntroduction: ''
+                batchIntroduction: '',
+                batchRefOptions: {}
             };
         if (!Array.isArray(base.selectedGuidelineIds)) base.selectedGuidelineIds = [];
         if (!Array.isArray(base.selectedStyleGuidelineIds)) base.selectedStyleGuidelineIds = [];
@@ -1470,6 +1471,7 @@ const DBService = {
         if (!Array.isArray(base.projectAiInstructions)) base.projectAiInstructions = [];
         if (!Array.isArray(base.projectGuidelines)) base.projectGuidelines = [];
         if (typeof base.batchIntroduction !== 'string') base.batchIntroduction = '';
+        if (!base.batchRefOptions || typeof base.batchRefOptions !== 'object') base.batchRefOptions = {};
         const merged = { ...base, ...patch, projectId };
         if (!Array.isArray(merged.selectedGuidelineIds)) merged.selectedGuidelineIds = [];
         if (!Array.isArray(merged.selectedStyleGuidelineIds)) merged.selectedStyleGuidelineIds = [];

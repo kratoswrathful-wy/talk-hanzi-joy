@@ -93,6 +93,7 @@
             tip.textContent = `游標位於第 ${segNum} 號句段（點此捲至該列）`;
             tip.dataset.catRealTipSegId = String(segId ?? '');
             tip.classList.remove('hidden');
+            tip.style.pointerEvents = 'auto';
             const colTarget = document.querySelector('.col-target');
             const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
             tip.style.left = `${anchorLeft + 4}px`;
@@ -180,6 +181,7 @@
                     mark.classList.add('hidden');
                     tip.textContent = `暫存游標位於第 ${segNum} 號句段（點此或按 Ctrl+Alt+↓ 捲至該列）`;
                     tip.classList.remove('hidden');
+                    tip.style.pointerEvents = 'auto';
                     tip.style.cursor = 'pointer';
                     if (!tip.dataset.catFakeTipClickBound) {
                         tip.dataset.catFakeTipClickBound = '1';

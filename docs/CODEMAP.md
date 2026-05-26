@@ -39,6 +39,7 @@
 | **編輯器格線**：所屬檔案欄序（Key 後／原文前）、欄寬拖曳、Key／額外資訊全空白自動隱藏 | [`cat-tool/app.js`](../cat-tool/app.js)：`ensureSourceFileColAfterKeys`、`attachColResizer`、`applyAutoHiddenCols`、`applyColSettings`、`renderColSettings`；規格 [CAT_VIEW_SPEC.md](./CAT_VIEW_SPEC.md) §12.2／§12.4／§12.5 |
 | **全系統無延遲提示（`[data-tip]`）** | [`cat-tool/app.js`](../cat-tool/app.js)：`initGlobalTooltip`（舊名 `initWcProgressModeTooltip`）；DOM 元素 `#wcProgressModeTooltip.wc-progress-mode-tooltip`；使用說明與未覆蓋清單見 [CAT_TOOLTIP_SYSTEM.md](./CAT_TOOLTIP_SYSTEM.md) |
 | CAT 團隊模式原始檔（Storage、`original_file_path`） | [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)、[`supabase/migrations/20260503120000_cat_original_files_storage.sql`](../supabase/migrations/20260503120000_cat_original_files_storage.sql)、[`scripts/backfill-cat-original-files.mjs`](../scripts/backfill-cat-original-files.mjs)；說明見 [incident-report_2026-05-01_rls-and-db-load.md](./incident-report_2026-05-01_rls-and-db-load.md) |
+| 團隊版開檔／`getFile` 輕量與大檔卡載入 | `db.getFile` 之 `includeOriginal`（[`cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)）、[`cat-tool/app.js`](../cat-tool/app.js) `catGetFile`／`openEditor`／`waitForTmsIdentityReady`、[`CatToolPage.tsx`](../src/pages/CatToolPage.tsx) `CAT_AUTH_NOT_READY`；見 [bug-report_team-large-file-editor-stuck-loading_2026-05-26.md](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) |
 
 ### CAT：防殘影、深連結載入、詳情頁 key
 

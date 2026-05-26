@@ -32,7 +32,7 @@
 - 當時資料量約 **40～46 筆** 級別，合計約 **十餘 MB** 的大文字留在 Postgres 內
 - 列表類 RPC（例如 `getFiles`、`getRecentFiles`）若 `SELECT *` 帶出該欄，會造成 **網路傳輸與序列化負擔** 明顯放大
 - 團隊模式資料流：iframe 內 CAT 透過 `postMessage` 呼叫父頁 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)（`handleCatCloudRpc`），再以使用者的 Supabase 工作階段存取 PostgREST／Storage
-- 前端 [`cat-tool/db.js`](../cat-tool/db.js) 的 **`hydrateFile`** 仍依 **`originalFileBase64`** 還原 **`originalFileBuffer`**；**單檔開啟**時由 RPC 自 Storage 下載後填回 base64，列表則不再下載大 payload
+- 前端 [`cat-tool/db.js`](../cat-tool/db.js) 的 **`hydrateFile`** 仍依 **`originalFileBase64`** 還原 **`originalFileBuffer`**；**2026-05-26 起**編輯器**開檔**改為 `includeOriginal: false`（不下載 Storage），僅**匯出／更新作業檔**等路徑才 `includeOriginal: true`（見 [bug-report_team-large-file-editor-stuck-loading_2026-05-26.md](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md)）；列表則從不下載大 payload
 
 ```mermaid
 flowchart LR

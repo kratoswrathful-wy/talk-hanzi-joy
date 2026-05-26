@@ -3882,7 +3882,6 @@ select.cat-mutex-dd-native-hidden {
     font-size: 0.8rem;
     color: #1e40af;
     line-height: 1.35;
-    pointer-events: none;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .cat-fake-caret-scroll-tip.hidden {

@@ -14905,6 +14905,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (seg) {
                     const oldTarget = seg.targetText;
                     const oldMv = seg.matchValue;
+                    const oldSt = seg.status;
                     const stripped = seg.targetText.replace(/\{\/?\d+\}/g, '');
                     const npOff = document.getElementById('editorGrid')?.classList.contains('show-non-print')
                         ? getNpCaretOffset(activeEditor)
@@ -14915,7 +14916,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     updateTagColors(activeRow, stripped);
                     refreshTagNextHighlight(activeRow);
                     applyMatchCellVisual(activeRow, '');
-                    pushEditorUndo(seg.id, oldTarget, stripped, { oldMatchValue: oldMv, newMatchValue: undefined });
+                    const clearTagRowIdx = currentSegmentsList.findIndex(s => s.id === segId);
+                    if (oldSt === 'confirmed' && clearTagRowIdx >= 0) {
+                        unconfirmSegmentVisualAfterReplace(seg, clearTagRowIdx);
+                    }
+                    pushEditorUndo(seg.id, oldTarget, stripped, {
+                        oldMatchValue: oldMv,
+                        newMatchValue: undefined,
+                        oldStatus: oldSt,
+                        newStatus: seg.status
+                    });
                     editorUndoEditStart[seg.id] = stripped;
                     editorUndoMatchStart[seg.id] = undefined;
                     applyUpdateSegmentTarget(seg, stripped, { matchValue: '' }).catch(console.error);
@@ -16603,6 +16613,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (seg) seg.targetText = newTarget;
 
         if (seg && oldTarget !== newTarget) {
+            const insertSegIdx = currentSegmentsList.findIndex(s => s.id === seg.id);
+            if (seg.status === 'confirmed' && insertSegIdx >= 0) {
+                unconfirmSegmentVisualAfterReplace(seg, insertSegIdx);
+            }
             pushEditorUndo(seg.id, oldTarget, newTarget, {
                 oldMatchValue,
                 newMatchValue: seg.matchValue,
@@ -17304,8 +17318,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!ok) return;
             highMatchEditConfirmedIds.add(seg.id);
         }
-        pushEditorUndo(seg.id, text, newText, { oldMatchValue: seg.matchValue, newMatchValue: seg.matchValue });
+        const replaceOldStatus = seg.status;
+        pushEditorUndo(seg.id, text, newText, {
+            oldMatchValue: seg.matchValue,
+            newMatchValue: seg.matchValue,
+            oldStatus: replaceOldStatus,
+            newStatus: replaceOldStatus === 'confirmed' ? 'unconfirmed' : replaceOldStatus
+        });
         setSegmentFieldText(seg, match.segIdx, 'target', newText);
+        if (replaceOldStatus === 'confirmed') {
+            unconfirmSegmentVisualAfterReplace(seg, match.segIdx);
+        }
         runSearchAndFilter({ keepFilterSnapshot: true });
         clearTimeout(sfRunUiTimer);
         sfRunUiTimer = null;
@@ -19359,6 +19382,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                         const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
                         const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
+                        if (oldVal !== latest && seg.status === 'confirmed') {
+                            const typeSegIdx = currentSegmentsList.findIndex(s => s.id === seg.id);
+                            if (typeSegIdx >= 0) unconfirmSegmentVisualAfterReplace(seg, typeSegIdx);
+                        }
                         if (oldVal !== latest || statusDirty || matchDirty) {
                             pushEditorUndo(seg.id, oldVal, latest, {
                                 oldMatchValue: editorUndoMatchStart[seg.id],
@@ -20997,12 +21024,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         seg.targetText = newTarget;
         editorUndoEditStart[seg.id] = newTarget;
+        const applyOldStatus = seg.status;
         const newMatchValue = type === 'TM' && score !== undefined && score !== 'undefined' ? String(score) : seg.matchValue;
         pushEditorUndo(seg.id, oldTarget, newTarget, {
             oldMatchValue,
             newMatchValue,
-            oldStatus: seg.status,
-            newStatus: seg.status
+            oldStatus: applyOldStatus,
+            newStatus: applyOldStatus === 'confirmed' ? 'unconfirmed' : applyOldStatus
         });
         const updatePayload = type === 'TM' && score !== undefined && score !== 'undefined'
             ? { matchValue: String(score) }
@@ -21010,7 +21038,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (updatePayload) seg.matchValue = updatePayload.matchValue;
         applyUpdateSegmentTarget(seg, newTarget, updatePayload || {}).catch(console.error);
 
-        if (type !== 'TM' && seg.status === 'confirmed') {
+        if (applyOldStatus === 'confirmed') {
             unconfirmSegmentVisualAfterReplace(seg, rowIdx);
         }
         if (type === 'TM' && score !== undefined && score !== 'undefined') {
@@ -29530,6 +29558,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 檔案特殊指示（與共用資訊 specialInstructions 同步；僅供候選池顯示／token 估算） */
     let __aiBatchFileSpecialInstructions = [];
     let __aiBatchProjectSiSaveTimer = null;
+    let __aiBatchRefOptionsSaveTimer = null;
+    const AI_BATCH_REF_SPECS = [
+        ['aiBatchRefTm', 'tm'],
+        ['aiBatchRefTb', 'tb'],
+        ['aiBatchRefTbNote', 'tbNote'],
+        ['aiBatchRefKey', 'key'],
+        ['aiBatchRefExtra', 'extra'],
+        ['aiBatchRefExamples', 'examples'],
+        ['aiBatchRefConfirmed', 'confirmed']
+    ];
+    const AI_BATCH_REF_DEFAULTS = { tm: true, tb: true, tbNote: true, key: true, extra: true, examples: true, confirmed: true };
+
+    function _readAiBatchRefOptionsFromDom() {
+        const out = {};
+        AI_BATCH_REF_SPECS.forEach(([elId, key]) => {
+            const el = document.getElementById(elId);
+            out[key] = el && typeof el.checked === 'boolean' ? el.checked : !!AI_BATCH_REF_DEFAULTS[key];
+        });
+        return out;
+    }
+
+    function _applyAiBatchRefOptionsToDom(opts) {
+        const src = opts && typeof opts === 'object' ? opts : {};
+        AI_BATCH_REF_SPECS.forEach(([elId, key]) => {
+            const el = document.getElementById(elId);
+            if (el && typeof el.checked === 'boolean') {
+                el.checked = src[key] !== undefined ? !!src[key] : !!AI_BATCH_REF_DEFAULTS[key];
+            }
+        });
+    }
+
+    async function _saveAiBatchRefOptions() {
+        if (!currentProjectId) return;
+        await DBService.saveAiProjectSettings(currentProjectId, {
+            batchRefOptions: _readAiBatchRefOptionsFromDom()
+        }).catch(() => {});
+    }
+
+    function _queueSaveAiBatchRefOptions() {
+        if (__aiBatchRefOptionsSaveTimer) clearTimeout(__aiBatchRefOptionsSaveTimer);
+        __aiBatchRefOptionsSaveTimer = setTimeout(() => {
+            __aiBatchRefOptionsSaveTimer = null;
+            void _saveAiBatchRefOptions();
+        }, 180);
+    }
     let __aiBatchProjectSiSaving = false;
     /** @type {{ trans: Object, style: Object, pg: Object, fileSi: Object, projectAi: Object } | null} */
     let __aiBatchPool = null;
@@ -30402,19 +30475,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rowLimitEl) rowLimitEl.value = String((s && s.batchSize && s.batchSize >= 1) ? s.batchSize : 20);
             if (charLimitEl) charLimitEl.value = String((s && s.batchChars && s.batchChars >= 200) ? s.batchChars : 2500);
         }).catch(() => {});
-        const refDefaults = [
-            ['aiBatchRefTm', true],
-            ['aiBatchRefTb', true],
-            ['aiBatchRefTbNote', true],
-            ['aiBatchRefKey', true],
-            ['aiBatchRefExtra', true],
-            ['aiBatchRefExamples', true],
-            ['aiBatchRefConfirmed', true]
-        ];
-        refDefaults.forEach(([id, v]) => {
-            const el = document.getElementById(id);
-            if (el && typeof el.checked === 'boolean') el.checked = v;
-        });
+        _applyAiBatchRefOptionsToDom(null);
+        void (async () => {
+            if (currentProjectId) {
+                const ps = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
+                if (ps?.batchRefOptions) _applyAiBatchRefOptionsToDom(ps.batchRefOptions);
+            }
+            _updateBatchStats();
+        })();
         _updateBatchStats();
         modal.classList.remove('hidden');
 
@@ -30509,9 +30577,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             _queueSaveAiBatchProjectInstructions();
             _refreshAiBatchCandidatePoolAfterSiEdit();
         };
-        ['aiBatchRefTm','aiBatchRefTb','aiBatchRefTbNote','aiBatchRefKey','aiBatchRefExtra','aiBatchRefExamples','aiBatchRefConfirmed'].forEach((id) => {
+        AI_BATCH_REF_SPECS.forEach(([id]) => {
             const el = document.getElementById(id);
-            if (el) el.onchange = () => _updateBatchStats();
+            if (el) el.onchange = () => {
+                _updateBatchStats();
+                _queueSaveAiBatchRefOptions();
+            };
         });
         void (async () => {
             await _loadAiBatchProjectInstructions();

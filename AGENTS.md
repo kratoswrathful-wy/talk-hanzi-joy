@@ -30,6 +30,7 @@
 - [`docs/bug-report_f8-targettags-empty-fallback-regression.md`](docs/bug-report_f8-targettags-empty-fallback-regression.md) — F8／`effectiveTags`／空 `targetTags` 導致整列譯文 tag pill 變純文字（sdlxliff 等常見觸發）；修正方案待實作；與 [`docs/bug-report_mqxliff-partial-target-tags.md`](docs/bug-report_mqxliff-partial-target-tags.md) §2.8 對照
 - [`docs/bug-report_mqxliff-team-role-persistence.md`](docs/bug-report_mqxliff-team-role-persistence.md) — mqxliff 在 Team（Supabase）模式下 **T／R1／R2** 無法持久化（重開檔後狀態圖示與鎖定規則錯亂）；根因為 `cat_segments` 缺欄位與 `cat-cloud-rpc` 未映射；2026-05-10 已修（migration + RPC）
 - [`docs/bug-report_file-download-uuid-filename.md`](docs/bug-report_file-download-uuid-filename.md) — LMS 下載 `case-files` 附件時瀏覽器建議檔名為 UUID；調查紀錄與以 `downloadFile`（fetch→blob）修正之說明
+- [`docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md`](docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) — 團隊版大檔開編輯器卡在「載入中」／F5 後 0/0 句段；根因為開檔誤下載 Storage 原始檔 + 錯誤未收尾；**2026-05-26 已修**（`4422dae`）
 - [`docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md`](docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md) — 原文格 TB 上標／副行：**§9** 為 2026-05-09 第二波（跨節點錨點、TB 閱讀序、多上標、同範圍合併底線）開發與驗收紀錄；程式對照見 [`docs/CODEMAP.md`](docs/CODEMAP.md)
 - [`docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md`](docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md) — mqxliff **進階篩選「memoQ 確認身分」** 定案 UI、`evaluateSegment` 第四維、編輯器／TM 匯入／QA 摘要等**全部觸點**與驗收；靜態預覽見 [`docs/preview-mqxliff-filter-status-options/index.html`](docs/preview-mqxliff-filter-status-options/index.html)
 
