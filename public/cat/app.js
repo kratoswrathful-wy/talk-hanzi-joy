@@ -6258,6 +6258,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         return msg;
     }
 
+    /** 團隊模式「更新作業檔」失敗白話（Storage 先寫入，失敗則句段不變） */
+    function formatCatFileUpdateErrorMessage(e) {
+        const msg = String((e && e.message) ? e.message : e || '');
+        const m = msg.toLowerCase();
+        if (m.includes('cat_storage_original_upload_failed')) {
+            return '無法將新版 Excel 上傳至雲端，句段尚未變更。請檢查網路後重試。';
+        }
+        if (m.includes('timeout') || m.includes('逾時') || m.includes('cat cloud rpc timeout')) {
+            return '更新作業檔逾時（可能因檔案較大），句段尚未變更，請稍後再試。';
+        }
+        if (m.includes('storage') || m.includes('upload') || (m.includes('object not found') && m.includes('original'))) {
+            return '無法將新版 Excel 上傳至雲端，句段尚未變更。請檢查網路後重試；若問題持續請聯絡專案經理。';
+        }
+        return '更新作業檔失敗，句段尚未變更：' + msg;
+    }
+
     /** 試算表純文字匯出：將 `{n}`／`{/n}` 依 targetTags[].xml 還原為原始 token */
     function excelExportPlainTargetCell(targetText, targetTags) {
         const StrTags = window.CatToolExcelImportStringTags;
@@ -11357,7 +11373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
             await DBService.refreshFileSegments(targetFileId, ops, newFileBuffer);
         } catch (err) {
-            alert('更新失敗：' + (err && err.message ? err.message : String(err)));
+            alert('更新失敗：' + formatCatFileUpdateErrorMessage(err));
             if (wizardOverlay) wizardOverlay.classList.add('hidden');
             showWizardStep('wizardStep1');
             return;
@@ -12149,6 +12165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _refreshBatchExcelStep();
             return;
         }
+        let isExcelFileUpdate = false;
         try {
             const sCols = parseColumnString(configSourceCol.value);
             const tCols = parseColumnString(configTargetCol.value);
@@ -12186,7 +12203,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             btnWizFinish.disabled = true; btnWizFinish.textContent = '處理中...';
 
-            if (_updateTargetFileId != null) {
+            isExcelFileUpdate = _updateTargetFileId != null;
+
+            if (isExcelFileUpdate) {
                 // ── 更新模式：合併句段而非新建 ──────────────────────────────
                 const targetId = _updateTargetFileId;
                 _updateTargetFileId = null;
@@ -12292,7 +12311,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
                 await loadFilesList();
             }
-        } catch(e) { alert('匯入失敗: ' + e.message); } finally {
+        } catch (e) {
+            alert(isExcelFileUpdate ? ('更新失敗：' + formatCatFileUpdateErrorMessage(e)) : ('匯入失敗: ' + e.message));
+        } finally {
             _activeExcelStringTagRules = null;
             btnWizFinish.disabled = false;
             btnWizFinish.textContent = '匯入檔案';
@@ -18315,6 +18336,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
+     * br 前方（略過空白與 ↵ overlay）是否僅有 .rt-tag，且 br 後方無使用者文字 — Blink 在 tag 旁常插入占位 br。
+     */
+    function isGhostBrAfterRtTag(br, root) {
+        if (!br || !root) return false;
+        let prev = br.previousSibling;
+        while (prev) {
+            if (prev.nodeType === 3) {
+                if ((prev.nodeValue || '').trim()) return false;
+                prev = prev.previousSibling;
+                continue;
+            }
+            if (prev.nodeType === 1 && prev.classList && prev.classList.contains('non-print-marker') &&
+                !prev.classList.contains('np-inline-char')) {
+                prev = prev.previousSibling;
+                continue;
+            }
+            if (prev.nodeType === 1 && prev.classList && prev.classList.contains('rt-tag')) {
+                let next = br.nextSibling;
+                while (next) {
+                    if (next.nodeType === 3) {
+                        if ((next.nodeValue || '').trim()) return false;
+                        next = next.nextSibling;
+                        continue;
+                    }
+                    if (next.nodeType === 1 && next.classList && next.classList.contains('non-print-marker') &&
+                        !next.classList.contains('np-inline-char')) {
+                        next = next.nextSibling;
+                        continue;
+                    }
+                    if (next.nodeType === 1 && next.tagName === 'BR') {
+                        next = next.nextSibling;
+                        continue;
+                    }
+                    return false;
+                }
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    /**
      * 瀏覽器在 contenteditable 常插入「占位」裸 &lt;br&gt;（例如根節點僅一個 br），不應對應到儲存的換行字元。
      * 使用者以 Shift+Enter 插入的換行一律帶 data-cat-nl="1"。
      */
@@ -18325,7 +18389,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!p) return false;
         if (p === root && p.childNodes.length === 1 && p.firstChild === br) return true;
         if (p.tagName === 'DIV' && p.parentNode === root && p.childNodes.length === 1 && p.firstChild === br) return true;
+        if (isGhostBrAfterRtTag(br, root)) return true;
         return false;
+    }
+
+    /**
+     * show-non-print：以 plain 線性偏移刪除語意 \\n（含 data-cat-nl），避免只撕 ↵ overlay 而 br 仍留存。
+     * @returns {boolean} 是否已處理刪除
+     */
+    function tryDeleteSemanticNewlineAtCaret(editor, seg, row, key) {
+        if (!editor || editor.contentEditable === 'false') return false;
+        if (key !== 'Backspace' && key !== 'Delete') return false;
+        const off = getNpCaretOffset(editor);
+        if (off == null) return false;
+        const plain = extractTextFromEditor(editor);
+        let deleteAt = null;
+        if (key === 'Backspace' && off > 0 && plain.charAt(off - 1) === '\n') deleteAt = off - 1;
+        else if (key === 'Delete' && off < plain.length && plain.charAt(off) === '\n') deleteAt = off;
+        if (deleteAt == null) return false;
+        const newPlain = plain.slice(0, deleteAt) + plain.slice(deleteAt + 1);
+        setEditorHtml(editor, buildTaggedHtml(newPlain, effectiveTags(seg)));
+        if (row) updateTagColors(row, newPlain);
+        seg.targetText = newPlain;
+        refreshNonPrintMarkers(editor);
+        const caretPlain = Math.max(0, Math.min(deleteAt, newPlain.length));
+        setNpCaretOffset(editor, caretPlain);
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
     }
 
     function extractSubtree(node, root) {
@@ -19797,6 +19887,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const range = sel.getRangeAt(0);
                             const container = range.startContainer;
                             const offset = range.startOffset;
+                            if (tryDeleteSemanticNewlineAtCaret(targetInput, seg, row, e.key)) {
+                                e.preventDefault();
+                                return;
+                            }
                             // np-inline-char 內：刪除 wrapper 內字元
                             if (container.nodeType === 3 && container.parentElement && container.parentElement.classList.contains('np-inline-char')) {
                                 const wrap = container.parentElement;
