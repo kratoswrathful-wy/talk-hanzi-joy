@@ -93,4 +93,4 @@
 
 | 日期 | commit | 說明 |
 |------|--------|------|
-| 2026-05-27 | （待填） | Fix 1 + Fix 2；本文件建立 |
+| 2026-05-27 | `d8b5cfc` | Fix 1 `tryDeleteSemanticNewlineAtCaret` + Fix 2 `isGhostBrAfterRtTag`；本文件建立 |
