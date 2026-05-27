@@ -62,6 +62,86 @@
             }
         }
 
+        function findRowAndEditorForSegId(segId) {
+            if (segId == null || segId === '') return { row: null, editor: null };
+            const row = document.querySelector(`.grid-data-row[data-seg-id="${CSS.escape(String(segId))}"]`);
+            if (!row) return { row: null, editor: null };
+            const editor = row.querySelector('.grid-textarea');
+            if (!editor || editor.contentEditable === 'false') return { row: null, editor: null };
+            return { row, editor };
+        }
+
+        /** 真／假游標提示共用：捲至句段列、聚焦譯文格、還原暫存 Range（若有）。 */
+        function navigateToSegmentBySegId(segId) {
+            const { row, editor } = findRowAndEditorForSegId(segId);
+            if (!editor) return false;
+
+            const active = document.activeElement;
+            if (active === editor) {
+                saveFromSelection(editor);
+            }
+
+            if (saved && saved.editor === editor && String(saved.segId) === String(segId) && saved.range) {
+                const result = restore();
+                hideRealTip();
+                return result !== null;
+            }
+
+            if (row && typeof row.scrollIntoView === 'function') {
+                try {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } catch (_) { /* ignore */ }
+            }
+            try {
+                editor.focus();
+            } catch (_) {
+                hideRealTip();
+                return false;
+            }
+
+            if (saved && saved.editor === editor && saved.range) {
+                try {
+                    const range = saved.range.cloneRange();
+                    const sel = window.getSelection();
+                    if (sel) {
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+
+            hide();
+            hideRealTip();
+            return true;
+        }
+
+        function bindRealTipNavigation(tip) {
+            if (tip.dataset.catRealTipNavBound) return;
+            tip.dataset.catRealTipNavBound = '1';
+            tip.style.cursor = 'pointer';
+            tip.addEventListener('mousedown', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const storedSegId = tip.dataset.catRealTipSegId;
+                if (storedSegId) navigateToSegmentBySegId(storedSegId);
+            });
+        }
+
+        function bindFakeTipNavigation(tip) {
+            if (tip.dataset.catFakeTipNavBound) return;
+            tip.dataset.catFakeTipNavBound = '1';
+            tip.style.cursor = 'pointer';
+            tip.addEventListener('mousedown', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const sid = saved && saved.segId != null ? saved.segId : null;
+                if (sid != null && navigateToSegmentBySegId(sid)) return;
+                requestAnimationFrame(() => {
+                    if (!restore()) show();
+                });
+            });
+        }
+
         function showRealCaretTipIfNeeded() {
             const active = document.activeElement;
             if (!active || !active.classList.contains('grid-textarea')) {
@@ -90,7 +170,7 @@
             const segId = getEditorSegId(active);
             const segNum = getSegDisplayIndex(segId);
             const tip = ensureRealTipEl();
-            tip.textContent = `游標位於第 ${segNum} 號句段（點此捲至該列）`;
+            tip.textContent = `游標位於第 ${segNum} 號句段（點此或按 Ctrl+Alt+↓ 捲至該列）`;
             tip.dataset.catRealTipSegId = String(segId ?? '');
             tip.classList.remove('hidden');
             tip.style.pointerEvents = 'auto';
@@ -99,27 +179,7 @@
             tip.style.left = `${anchorLeft + 4}px`;
             tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
             tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
-            if (!tip.dataset.catRealTipClickBound) {
-                tip.dataset.catRealTipClickBound = '1';
-                tip.style.cursor = 'pointer';
-                tip.addEventListener('click', (ev) => {
-                    ev.preventDefault();
-                    const storedSegId = tip.dataset.catRealTipSegId;
-                    const targetRow = storedSegId
-                        ? document.querySelector(`.grid-data-row[data-seg-id="${CSS.escape(storedSegId)}"]`)
-                        : document.querySelector('.grid-data-row.active-row');
-                    const ed = targetRow ? targetRow.querySelector('.grid-textarea') : null;
-                    if (!ed || ed.contentEditable === 'false') return;
-                    if (targetRow && typeof targetRow.scrollIntoView === 'function') {
-                        try {
-                            targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        } catch (_) { /* ignore */ }
-                    }
-                    try {
-                        ed.focus();
-                    } catch (_) { /* ignore */ }
-                });
-            }
+            bindRealTipNavigation(tip);
         }
 
         function ensureFakeEl() {
@@ -182,14 +242,7 @@
                     tip.textContent = `暫存游標位於第 ${segNum} 號句段（點此或按 Ctrl+Alt+↓ 捲至該列）`;
                     tip.classList.remove('hidden');
                     tip.style.pointerEvents = 'auto';
-                    tip.style.cursor = 'pointer';
-                    if (!tip.dataset.catFakeTipClickBound) {
-                        tip.dataset.catFakeTipClickBound = '1';
-                        tip.addEventListener('click', (ev) => {
-                            ev.preventDefault();
-                            restoreOrShowFake();
-                        });
-                    }
+                    bindFakeTipNavigation(tip);
                     const colTarget = document.querySelector('.col-target');
                     const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
                     tip.style.left = `${anchorLeft + 4}px`;
@@ -270,6 +323,8 @@
 
         function restoreOrShowFake() {
             requestAnimationFrame(() => {
+                const sid = saved && saved.segId != null ? saved.segId : null;
+                if (sid != null && navigateToSegmentBySegId(sid)) return;
                 if (!restore()) show();
             });
         }

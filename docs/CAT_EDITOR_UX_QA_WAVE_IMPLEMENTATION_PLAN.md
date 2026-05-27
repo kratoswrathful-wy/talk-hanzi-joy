@@ -85,7 +85,7 @@
 
 - **`restore()`**（`cat-tool/js/cat-fake-caret.js`）：在 `editor.focus()` 與還原 `Range` **之前**，對 `editor.closest('.grid-data-row')` 若存在則 **`scrollIntoView({ behavior: 'smooth', block: 'center' })`**，使暫存游標提示點擊後能對齊使用者預期（與 `app.js` `_qaJumpToSegment` 順序一致）。若 `Range` 已失效，`catch` 路徑仍應盡量捲列＋focus。
 - **`fakeTipEl`**：既有 `click` → `restoreOrShowFake()`；確認上述捲列已涵蓋或由 `restore()` 統一處理。
-- **`realTipEl`**：`showRealCaretTipIfNeeded` 設定文案後，以 **`dataset` 防重複** 綁定 **`click`**：對當時作用中之 `.grid-textarea` 所屬列 **`scrollIntoView`** → **`focus()`**；文案可與假提示對齊（含快捷鍵提示）。
+- **`realTipEl`**：`showRealCaretTipIfNeeded` 設定文案後，以 **`dataset` 防重複** 綁定 **`mousedown`**（`preventDefault`）→ 共用 **`navigateToSegmentBySegId`**（與假提示同源，見 [`CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md`](./CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md)）。
 - **檔案**：`cat-tool/js/cat-fake-caret.js`；若需由 `app.js` 注入捲列輔助可再評估。
 
 ### 3.9 右欄共用橫條與快捷文案

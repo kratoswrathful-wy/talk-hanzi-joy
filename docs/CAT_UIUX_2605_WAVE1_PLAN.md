@@ -24,7 +24,13 @@
 **觸點**：
 - `cat-tool/js/cat-fake-caret.js` `showRealCaretTipIfNeeded` 函式（約第 90–120 行）
 
-**修法**：每次顯示 tip 時，把當前 `segId` 存入 `tip.dataset.catRealTipSegId`；click handler 改為從 `tip.dataset.catRealTipSegId` 讀取，透過 `.grid-data-row[data-seg-id="..."]` 找到目標列，不再依賴 `document.activeElement`。
+**修法（Wave 1，已推送）**：每次顯示 tip 時，把當前 `segId` 存入 `tip.dataset.catRealTipSegId`；click handler 從 dataset 找列；`style.css` 移除 `.cat-fake-caret-scroll-tip` 的 `pointer-events: none`。
+
+**補修（A+B，需點兩次 → 一鍵捲動）**：Wave 1 後仍可能因點標籤觸發譯文格 blur，真游標提示先被假游標提示取代，第一下像只換文案。改法見專項文件：
+
+- [`docs/CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md`](./CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md)
+- **A**：`realTipEl` 改 `mousedown` + `preventDefault()`
+- **B**：`navigateToSegmentBySegId` 共用；假游標提示／`restoreOrShowFake` 同源
 
 ---
 
