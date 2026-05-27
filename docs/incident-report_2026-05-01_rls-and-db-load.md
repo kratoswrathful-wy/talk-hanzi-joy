@@ -50,7 +50,7 @@ flowchart LR
     end
 ```
 
-**圖示說明**：**RLS** 與 **列表不帶 base64** 兩者皆已落地；**`getFile`** 路徑改為依 **`original_file_path`** 從 **bucket `cat-original-files`** 取檔後再餵給既有 hydrate 邏輯。
+**圖示說明**：**RLS** 與 **列表不帶 base64** 兩者皆已落地。列表／開檔（`includeOriginal: false`）不取 Storage。**匯出**（`includeOriginal: true`）自 **2026-05-26** 改為 RPC 回傳 **signed URL**，由 iframe `fetch` 組 `originalFileBuffer`，不在父頁 download→base64→postMessage（見 [bug-report_team-large-file-editor-stuck-loading_2026-05-26.md](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) §2.9）。
 
 ---
 

@@ -809,6 +809,35 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const { update = [], insert = [], remove = [], newFileBase64 } = ops ?? {};
       const BATCH = 500;
 
+      // 更換原始檔（Storage）：先 upsert canonical path，失敗則不寫句段（避免 orphan path）
+      if (newFileBase64) {
+        const { data: fileRow, error: fileErr } = await supabase
+          .from("cat_files")
+          .select("project_id, name, original_file_path")
+          .eq("id", fileId)
+          .maybeSingle();
+        if (fileErr) throw fileErr;
+        if (!fileRow) throw new Error("db.refreshFileSegments: file not found");
+        const projectId = String((fileRow as any).project_id);
+        const oldPath = fileRow.original_file_path ? String(fileRow.original_file_path).trim() : "";
+        const canonicalPath = buildCatOriginalStoragePath(projectId, fileId);
+        const displayName = String((fileRow as any).name ?? "");
+        await uploadCatOriginalFromBase64(canonicalPath, String(newFileBase64), displayName);
+        if (oldPath && oldPath !== canonicalPath) {
+          const { error: rmErr } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).remove([oldPath]);
+          if (rmErr) console.warn("[cat-cloud-rpc] refreshFileSegments storage remove legacy:", rmErr);
+        }
+        const { error: pathErr } = await supabase
+          .from("cat_files")
+          .update({
+            original_file_path: canonicalPath,
+            original_file_base64: "",
+            last_modified: nowIso(),
+          } as any)
+          .eq("id", fileId);
+        if (pathErr) throw pathErr;
+      }
+
       // 刪除
       if (Array.isArray(remove) && remove.length) {
         for (let i = 0; i < remove.length; i += BATCH) {
@@ -889,33 +918,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         }
       }
 
-      // 更換原始檔（Storage）
-      if (newFileBase64) {
-        const { data: fileRow } = await supabase.from("cat_files")
-          .select("name, original_file_path")
-          .eq("id", fileId)
-          .maybeSingle();
-        if (fileRow) {
-          const oldPath = fileRow.original_file_path ? String(fileRow.original_file_path).trim() : "";
-          if (oldPath) {
-            await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).remove([oldPath]);
-          }
-          const binaryStr = atob(newFileBase64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-          const mime = guessMimeFromCatFileName(fileRow.name ?? "");
-          const newPath = `${fileId}/${Date.now()}_${fileRow.name ?? "file"}`;
-          const { error: upErr } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET)
-            .upload(newPath, bytes, { contentType: mime, upsert: true });
-          if (!upErr) {
-            await supabase.from("cat_files")
-              .update({ original_file_path: newPath, last_modified: nowIso() } as any)
-              .eq("id", fileId);
-          } else {
-            console.warn("[cat-cloud-rpc] refreshFileSegments storage upload:", upErr);
-          }
-        }
-      } else {
+      if (!newFileBase64) {
         await supabase.from("cat_files").update({ last_modified: nowIso() } as any).eq("id", fileId);
       }
 

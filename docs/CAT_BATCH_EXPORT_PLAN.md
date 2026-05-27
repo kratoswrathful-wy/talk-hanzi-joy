@@ -127,6 +127,17 @@ function _batchExportZipFilename(f, exportedName) {
 
 ---
 
+## Amendment 2026-05-26（單檔直接下載）
+
+| 項目 | 原設計（§2） | 現行 |
+|------|-------------|------|
+| 交付方式 | 一律 ZIP | **勾選 1 檔**：直接下載該檔（不包 ZIP）；**2 檔以上**：仍為 `批次匯出_*.zip` |
+| UI | — | [`cat-tool/index.html`](../cat-tool/index.html) `#btnProjectBatchExport` `data-tip`：「勾選一個檔案：直接下載；多個檔案：打包成 ZIP 匯出」 |
+
+程式觸點：[`cat-tool/app.js`](../cat-tool/app.js) `batchExportSelectedFiles`、`_triggerBrowserDownload`；團隊模式匯出原始檔改 signed URL 見 [bug-report_team-large-file-editor-stuck-loading_2026-05-26.md](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) §2.9。
+
+---
+
 ## 7. 不在此次範圍
 
 - 進度列 UI（按鈕文字計數已足夠）

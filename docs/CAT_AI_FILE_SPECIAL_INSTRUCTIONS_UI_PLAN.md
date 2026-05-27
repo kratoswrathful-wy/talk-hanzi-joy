@@ -25,10 +25,11 @@
 | 項目 | 專案頁（標題「檔案特殊指示」） | 編輯器內（標題「本案特殊指示」） |
 |------|--------------------------------|----------------------------------|
 | 條目外框 | 綠卡（同上） | 綠卡（同上） |
-| 列首「啟用」勾選 | **無**（不在列表上逐條啟用；以編輯 Modal 統一管檔案） | **有**：卡片**開頭**勾選＝**本檔**是否套用該條（`applicableSpecialInstructionIds`／`_setFileHasInstructionId`，約 28290–28301 行） |
-| 適用檔案顯示 | **第二行**：`#1、#2…`（序號＝專案檔案清單順序，對齊 `rowApplicabilityLineFor`，約 28156–28170 行） | **不顯示** |
+| **譯者（非 PM）** | **唯讀**：只顯示適用於專案規則下可見的條目與 `#` 序號；**無**勾選框、**無**編輯／刪除 | **唯讀**：只顯示已套用於**目前檔**的條目與內文；**無**勾選框、**無**編輯／刪除 |
+| 列首「啟用」勾選（僅 PM） | **有**（列表上逐條啟用，與現行 `ai-si-checkbox` 一致） | **有**：**本檔套用**勾選（`si-applies-local`／`_setFileHasInstructionId`） |
+| 適用檔案顯示（PM／譯者） | **第二行**：`#1、#2…`（譯者唯讀；PM 在專案頁可逐檔勾選，見現行 `si-applies-file`） | **不顯示**（譯者與 PM 皆不在此列檔號；PM 用本檔勾選） |
 | `#` 與檔名 | 序號可 hover：**無延遲**工具提示顯示**完整檔名**（見第 5 節） | — |
-| 按「編輯」 | 開**專屬 Modal**：可改**內文**＋在**完整檔案清單**上勾選適用檔（Shift／Ctrl 邏輯見第 4 節） | **不開 Modal**：只在**卡片上**編輯內文（`textarea`／`input` 須用 **`form-input`**，見 [ui-conventions.mdc](../.cursor/rules/ui-conventions.mdc)） |
+| 按「編輯」（僅 PM） | 開**專屬 Modal**（規劃中）：內文＋完整檔案清單多選（Shift／Ctrl 見第 4 節）；**落地前**可沿用卡片內編輯 | **不開 Modal**：PM 在**卡片上**編輯內文（`textarea` 須 **`form-input`**） |
 | 內文共用 | 同一 `specialInstructions` 列 id 多檔共用：**任一處改內文，全專案同步** | 同上 |
 
 ---
@@ -51,11 +52,10 @@
 
 ---
 
-## 6. 權限：待產品拍板
+## 6. 權限（已定案）
 
-- [CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md](./CAT_AI_FILE_SPECIAL_VS_PROJECT_INSTRUCTIONS_PLAN.md) 第 1 節仍寫「譯者**不可**變更套用關係」。
-- 本 UI 規格寫「**編輯器內**勾選＝本檔套用」。兩者是否一致，取決於：**譯者是否允許**在編輯器勾／不勾本檔（僅影響目前檔，不等於專案頁整表編輯）。
-- **實作前**請產品定案；定案後應同步修訂資料計畫第 1 節與本檔表格，並在程式裡對 `si-applies-local` 等綁定加上 `disabled` 或隱藏規則。
+- **譯者**：僅**檢視**對自己可見的有效指示；**不**顯示任何勾選框（含「啟用」「本檔套用」）、**不**顯示編輯／刪除；**不可**改內文或套用關係。
+- **PM 以上**（`isCatSharedMutator()`／`isPm`）：專案頁與編輯器內維持列表編輯、檔案套用勾選、新增指示（`pm-only-ui` 按鈕）等既有能力；詳見第 3 節矩陣「僅 PM」列。
 
 ---
 
@@ -73,7 +73,7 @@
 1. 專案頁與編輯器條目皆為**綠卡**，編輯／刪除位置與翻譯準則區一致。
 2. 專案頁：第二行為 `#` 序號；滑鼠移上序號即時顯示**完整檔名**。
 3. 專案頁：編輯開 Modal，可改內文並多選檔案，Shift／Ctrl 行為正確。
-4. 編輯器：**不**顯示適用檔列；有**本檔**勾選；內文在卡片上編輯；非 PM 行為符合第 6 節定案。
+4. 編輯器：譯者**不**顯示勾選框與編輯／刪除，僅內文；PM 有本檔勾選與編輯／刪除（見第 3 節）。
 
 ---
 
@@ -81,18 +81,21 @@
 
 ```mermaid
 flowchart LR
-  subgraph editorCtx [Editor_sharedInfo]
-    ECard[GreenCard_si]
+  subgraph editorPm [Editor_PM]
+    ECardP[GreenCard_si]
     EChk[Checkbox_thisFile]
-    EInline[Inline_edit_content]
+    EInline[Inline_edit]
+  end
+  subgraph editorTr [Editor_translator]
+    ECardT[GreenCard_si_readonly]
   end
   subgraph projectCtx [ProjectPage_sharedInfo]
     PCard[GreenCard_si]
     PLine[SecondLine_hashIds]
     PModal[Edit_modal_files]
   end
-  ECard --> EChk
-  ECard --> EInline
+  ECardP --> EChk
+  ECardP --> EInline
   PCard --> PLine
   PCard --> PModal
 ```

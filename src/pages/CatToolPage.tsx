@@ -716,14 +716,22 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             action === "db.getFile" &&
             payload?.includeOriginal === true &&
             m.includes("object not found");
+          const refreshOps = (payload as { ops?: { newFileBase64?: string } } | undefined)?.ops;
+          const isRefreshOriginalUpload =
+            action === "db.refreshFileSegments" &&
+            !!refreshOps?.newFileBase64 &&
+            (m.includes("storage") || m.includes("upload") || m.includes("object not found"));
           const isNotFound =
             !isStorageOriginalMissing &&
+            !isRefreshOriginalUpload &&
             (m.includes("object not found") || m.includes("file not found"));
           const errOut = isStorageOriginalMissing
             ? "CAT_STORAGE_ORIGINAL_NOT_FOUND"
-            : isNotFound
-              ? "CAT_OBJECT_NOT_FOUND"
-              : rawMsg;
+            : isRefreshOriginalUpload
+              ? "CAT_STORAGE_ORIGINAL_UPLOAD_FAILED"
+              : isNotFound
+                ? "CAT_OBJECT_NOT_FOUND"
+                : rawMsg;
           iframeRef.current?.contentWindow?.postMessage(
             {
               type: "CAT_CLOUD_RPC_RESULT",

@@ -33,8 +33,10 @@
         type: "CAT_CLOUD_RPC",
         payload: { requestId, action, payload: payload || {} },
       };
+      const ops = payload && payload.ops;
       const needsLongTimeout =
-        action === "db.getFile" && payload && payload.includeOriginal === true;
+        (action === "db.getFile" && payload && payload.includeOriginal === true) ||
+        (action === "db.refreshFileSegments" && ops && ops.newFileBase64);
       const timeoutMs = needsLongTimeout ? 120000 : 30000;
 
       return await new Promise((resolve, reject) => {
