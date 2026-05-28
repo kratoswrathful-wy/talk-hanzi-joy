@@ -8286,6 +8286,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function updateTbInlineMissingStateForRow(row, seg) {
+        if (!row || !seg) return;
+        const srcCell = row.querySelector('.col-source');
+        if (!srcCell) return;
+        const tgtPlain = String(seg.targetText || '').trim();
+        srcCell.querySelectorAll('.tb-inline-term[data-tb-items]').forEach((el) => {
+            const raw = el.getAttribute('data-tb-items') || '[]';
+            let items = [];
+            try { items = JSON.parse(raw) || []; } catch (_) { items = []; }
+            const anyMissing = items.some((it) => {
+                const mf = it && it.mf ? it.mf : { caseInsensitive: true, wholeWord: false };
+                const tgt = it && typeof it.tgt === 'string' ? it.tgt : '';
+                if (!tgtPlain || !tgt) return false;
+                return !termMatches(tgtPlain, tgt, mf);
+            });
+            if (anyMissing) el.classList.add('is-missing');
+            else el.classList.remove('is-missing');
+        });
+        srcCell.querySelectorAll('.tb-inline-sup-anchor[data-tb-tgt][data-tb-mf]').forEach((el) => {
+            const tgt = el.getAttribute('data-tb-tgt') || '';
+            let mf = { caseInsensitive: true, wholeWord: false };
+            try { mf = JSON.parse(el.getAttribute('data-tb-mf') || '{}') || mf; } catch (_) { /* ignore */ }
+            const miss = tgtPlain && tgt ? (!termMatches(tgtPlain, tgt, mf)) : false;
+            if (miss) el.classList.add('is-missing');
+            else el.classList.remove('is-missing');
+        });
+    }
+
     function decorateTbInlineHintsForActiveRow() {
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
@@ -8300,9 +8328,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!srcCell || !rt) return;
 
         const pageSlice = getCatRightPanelPageSlice(9);
-        const tbList = pageSlice
-            .map((m, i) => ({ m, n: i + 1 }))
+        const visibleTbList = pageSlice
+            .map((m, i) => ({ m, n: i + 1, offpage: false }))
             .filter((x) => x.m && x.m.type === 'TB' && x.n >= 1 && x.n <= 9 && x.m.sourceText);
+        const visibleKeys = new Set(
+            visibleTbList.map((x) => {
+                const mf = (x.m && x.m.matchFlags) ? x.m.matchFlags : { caseInsensitive: true, wholeWord: false };
+                return `${x.m.sourceText || ''}||${x.m.targetText || ''}||${mf.caseInsensitive === false ? 0 : 1}||${mf.wholeWord ? 1 : 0}`;
+            })
+        );
+        const allTbList = (window.currentTmMatches || [])
+            .filter((m) => m && m.type === 'TB' && m.sourceText)
+            .map((m) => ({ m, n: null, offpage: true }))
+            .filter((x) => {
+                const mf = (x.m && x.m.matchFlags) ? x.m.matchFlags : { caseInsensitive: true, wholeWord: false };
+                const k = `${x.m.sourceText || ''}||${x.m.targetText || ''}||${mf.caseInsensitive === false ? 0 : 1}||${mf.wholeWord ? 1 : 0}`;
+                return !visibleKeys.has(k);
+            });
+        const tbList = [...visibleTbList, ...allTbList];
         if (!tbList.length) return;
 
         // Build a quick lookup for subline generation.
@@ -8355,25 +8398,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!node.parentNode) return;
             const text = node.nodeValue || '';
             const all = [];
-            tbList.forEach(({ m, n }) => {
+        tbList.forEach(({ m, n }) => {
                 const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
                 const ranges = findTermHitRangesInPlainText(text, m.sourceText || '', mf);
                 const missing = tgtPlain ? (!termMatches(tgtPlain, m.targetText || '', mf)) : false;
-                ranges.forEach((r) => all.push({ ...r, n, src: m.sourceText, tgt: m.targetText || '', missing }));
+            const offpage = !n;
+            const pr = offpage ? 1 : 0;
+            ranges.forEach((r) => all.push({ ...r, n, offpage, pr, src: m.sourceText, tgt: m.targetText || '', mf, missing }));
             });
             if (!all.length) return;
-            all.sort((a, b) => (a.start - b.start) || ((b.end - b.start) - (a.end - a.start)));
+        all.sort((a, b) => (a.start - b.start) || ((a.pr || 0) - (b.pr || 0)) || ((b.end - b.start) - (a.end - a.start)));
             // Same (start,end) from multiple TB rows → one underline; all row numbers as superscripts at word end.
             const byExactSpan = new Map();
             for (const r of all) {
                 const k = `${r.start},${r.end}`;
                 let g = byExactSpan.get(k);
                 if (!g) {
-                    g = { start: r.start, end: r.end, items: [] };
+                g = { start: r.start, end: r.end, items: [] };
                     byExactSpan.set(k, g);
                 }
-                const nv = { n: r.n, missing: !!r.missing };
-                if (!g.items.some((x) => x.n === nv.n)) g.items.push(nv);
+            const nv = { n: r.n, offpage: !!r.offpage, missing: !!r.missing, tgt: r.tgt || '', mf: r.mf || { caseInsensitive: true, wholeWord: false } };
+            const keyN = nv.n != null ? `n:${nv.n}` : `off:${nv.tgt}`;
+            if (!g.items.some((x) => ((x.n != null ? `n:${x.n}` : `off:${x.tgt || ''}`) === keyN))) g.items.push(nv);
             }
             const spans = Array.from(byExactSpan.values()).sort(
                 (a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start)
@@ -8389,7 +8435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const isWordChar = (ch) => !!ch && /\w/.test(ch);
             // Anchor positions are "word end" (exclusive index). Multiple TBs → multiple superscripts.
-            const anchorByPos = new Map(); // pos -> { n, missing }[]
+        const anchorByPos = new Map(); // pos -> { n, missing, tgt, mf }[]
             picked.forEach((span) => {
                 let wordEnd = span.end;
                 while (wordEnd < text.length && isWordChar(text[wordEnd])) wordEnd++;
@@ -8399,14 +8445,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     anchorByPos.set(wordEnd, arr);
                 }
                 span.items.forEach((item) => {
-                    const nv = { n: item.n, missing: !!item.missing };
-                    if (!arr.some((x) => x.n === nv.n)) arr.push(nv);
+                if (item.offpage) return; // offpage 不加上標
+                const nv = { n: item.n, missing: !!item.missing, tgt: item.tgt || '', mf: item.mf || { caseInsensitive: true, wholeWord: false } };
+                if (!arr.some((x) => x.n === nv.n)) arr.push(nv);
                 });
             });
             const anchors = [];
             for (const [pos, arr] of anchorByPos.entries()) {
                 arr.sort((a, b) => a.n - b.n);
-                arr.forEach((v) => anchors.push({ pos, n: v.n, missing: v.missing, suffixBefore: '' }));
+            arr.forEach((v) => anchors.push({ pos, n: v.n, missing: v.missing, tgt: v.tgt || '', mf: v.mf || { caseInsensitive: true, wholeWord: false }, suffixBefore: '' }));
             }
             anchors.sort((a, b) => a.pos - b.pos || a.n - b.n);
             if (anchors.some((a) => a.pos === text.length)) {
@@ -8429,6 +8476,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const anchorEl = document.createElement('span');
                     anchorEl.className = a.missing ? 'tb-inline-sup-anchor is-missing' : 'tb-inline-sup-anchor';
                     anchorEl.setAttribute('data-tb-n', String(a.n));
+                    anchorEl.setAttribute('data-tb-tgt', String(a.tgt || ''));
+                    try { anchorEl.setAttribute('data-tb-mf', JSON.stringify(a.mf || { caseInsensitive: true, wholeWord: false })); } catch (_) { /* ignore */ }
                     frag.appendChild(anchorEl);
                     from = ap;
                     anchorIdx++;
@@ -8440,8 +8489,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (span.start > last) appendTextWithAnchors(last, span.start);
 
                 const termSpan = document.createElement('span');
+                const hasVisible = span.items.some((it) => !it.offpage);
                 const anyMiss = span.items.some((it) => it.missing);
-                termSpan.className = anyMiss ? 'tb-inline-term is-missing' : 'tb-inline-term';
+                const cls = ['tb-inline-term'];
+                if (!hasVisible) cls.push('is-offpage');
+                if (anyMiss) cls.push('is-missing');
+                termSpan.className = cls.join(' ');
+                try {
+                    termSpan.setAttribute('data-tb-items', JSON.stringify(span.items.map((it) => ({
+                        tgt: String(it.tgt || ''),
+                        mf: it.mf || { caseInsensitive: true, wholeWord: false },
+                        offpage: !!it.offpage,
+                        n: it.n
+                    }))));
+                } catch (_) { /* ignore */ }
                 termSpan.textContent = text.slice(span.start, span.end);
                 frag.appendChild(termSpan);
 
@@ -8455,7 +8516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         // Subline: include only items that actually match the segment source text.
-        tbList.forEach(({ m, n }) => {
+        visibleTbList.forEach(({ m, n }) => {
             const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
             if (!termMatches(srcPlain, m.sourceText || '', mf)) return;
             const missing = tgtPlain ? (!termMatches(tgtPlain, m.targetText || '', mf)) : false;
@@ -19552,6 +19613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     refreshTagNextHighlight(row);
                 });
                 let _npRafId = null;
+                let _tbInlineMissingRafId = null;
                 let _isComposing = false;
                 /** 譯文 debounce：pushUndo + 寫庫（組字結束須再呼叫以補排程）。 */
                 function scheduleTargetDebouncedPersistAndUndo() {
@@ -19671,6 +19733,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Update source tag colours (blue=present, red=missing)
                     updateTagColors(row, newVal);
                     refreshTagNextHighlight(row);
+
+                    // TB inline missing：方案 B（僅切換 class，不重包文字）
+                    if (!_isComposing) {
+                        if (_tbInlineMissingRafId) cancelAnimationFrame(_tbInlineMissingRafId);
+                        _tbInlineMissingRafId = requestAnimationFrame(() => {
+                            _tbInlineMissingRafId = null;
+                            try { updateTbInlineMissingStateForRow(row, seg); } catch (_) { /* ignore */ }
+                        });
+                    }
                     
                     // Unconfirm immediately if edited and was confirmed
                     if (seg.status === 'confirmed') {
@@ -20873,6 +20944,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return 0;
             });
 
+            // TM Top5：只保留相符度最高的 5 筆在前，其餘 TM 移到整份清單最後（TB / Fragment 後）。
+            // 同分 tie-break：lastModified > createdAt（越新越前）。
+            try {
+                const tmList = matches.filter((m) => m && m.type === 'TM' && typeof m.score === 'number');
+                if (tmList.length > 5) {
+                    const tmTimeMs = (m) => {
+                        const t = m && (m.lastModified || m.createdAt);
+                        const ms = t ? new Date(t).getTime() : 0;
+                        return Number.isFinite(ms) ? ms : 0;
+                    };
+                    tmList.sort((a, b) => {
+                        const sa = a.score | 0;
+                        const sb = b.score | 0;
+                        if (sa !== sb) return sb - sa;
+                        return tmTimeMs(b) - tmTimeMs(a);
+                    });
+                    const top5 = tmList.slice(0, 5);
+                    const topSet = new Set(top5);
+                    const rest = tmList.slice(5);
+                    const restSet = new Set(rest);
+                    const others = matches.filter((m) => !(m && m.type === 'TM' && (topSet.has(m) || restSet.has(m))));
+                    matches = [...top5, ...others, ...rest];
+                }
+            } catch (_) { /* ignore */ }
+
             if (matches.length > 0) {
                 window.currentTmMatches = matches;
                 window.catMatchPageIndex = 0;
@@ -20932,7 +21028,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     footerDOM.innerHTML = footerHtml;
                 };
 
-                const headerHtml = `
+                const baseHeaderRowHtml = `
                     <div class="result-table-header">
                         <div class="result-header-cell">#</div>
                         <div class="result-header-cell">原文</div>
@@ -21011,21 +21107,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                     window.catPanelSelectedIndex = rel;
                     const pageSlice = marr.slice(pageStart, pageStart + CAT_MATCH_PAGE);
                     const rowsHtml = buildCatMatchRowsHtml(pageSlice);
-                    let pagerHtml = '';
-                    if (total > CAT_MATCH_PAGE) {
-                        const escPager = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const escPager = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const infoRowHtml = (() => {
+                        if (total <= CAT_MATCH_PAGE) {
+                            return `<div class="cat-match-info-row">
+                                <div class="cat-match-info-main">比對結果共 ${total} 筆</div>
+                            </div>`;
+                        }
                         const prevKey = escPager(_scFormat(getCustomShortcut('catResultPagePrev')));
                         const nextKey = escPager(_scFormat(getCustomShortcut('catResultPageNext')));
                         const prevDisabled = p <= 0 ? ' disabled' : '';
                         const nextDisabled = p >= totalPages - 1 ? ' disabled' : '';
-                        pagerHtml = `<div class="cat-tm-page-hint" style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; padding:0.45rem 0.5rem; font-size:0.78rem; color:#64748b; border-top:1px solid #e2e8f0; background:#f8fafc;">
-                            <button type="button" class="cat-match-page-btn cat-match-page-prev" title="上一頁 (${prevKey})" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:4px; padding:1px 7px; cursor:pointer;"${prevDisabled}>◀</button>
-                            <span>比對結果共 ${total} 筆，第 ${p + 1} / ${totalPages} 頁</span>
-                            <button type="button" class="cat-match-page-btn cat-match-page-next" title="下一頁 (${nextKey})" style="border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:4px; padding:1px 7px; cursor:pointer;"${nextDisabled}>▶</button>
-                            <span>快捷鍵：<kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">${prevKey}</kbd> / <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">${nextKey}</kbd></span>
+                        return `<div class="cat-match-info-row">
+                            <div class="cat-match-info-main">
+                                <button type="button" class="cat-match-page-btn cat-match-page-prev" title="上一頁 (${prevKey})"${prevDisabled} aria-disabled="${p <= 0 ? 'true' : 'false'}">◀</button>
+                                <span class="cat-match-info-page-text">比對結果共 ${total} 筆，第 ${p + 1} / ${totalPages} 頁</span>
+                                <button type="button" class="cat-match-page-btn cat-match-page-next" title="下一頁 (${nextKey})"${nextDisabled} aria-disabled="${p >= totalPages - 1 ? 'true' : 'false'}">▶</button>
+                            </div>
+                            <span class="cat-match-info-sep" aria-hidden="true"></span>
+                            <div class="cat-match-info-shortcuts">
+                                <span>快捷鍵：</span>
+                                <span class="cat-match-info-sc">
+                                    <span class="cat-match-info-sc-icon" aria-hidden="true">◀</span>
+                                    <kbd class="cat-match-info-kbd">${prevKey}</kbd>
+                                </span>
+                                <span class="cat-match-info-sc-sep">/</span>
+                                <span class="cat-match-info-sc">
+                                    <kbd class="cat-match-info-kbd">${nextKey}</kbd>
+                                    <span class="cat-match-info-sc-icon" aria-hidden="true">▶</span>
+                                </span>
+                            </div>
                         </div>`;
-                    }
-                    searchResultsDOM.innerHTML = headerHtml + rowsHtml + pagerHtml;
+                    })();
+                    const headerHtml = `<div class="cat-match-sticky-head">${baseHeaderRowHtml}${infoRowHtml}</div>`;
+                    searchResultsDOM.innerHTML = headerHtml + rowsHtml;
                     const prevBtn = searchResultsDOM.querySelector('.cat-match-page-prev');
                     const nextBtn = searchResultsDOM.querySelector('.cat-match-page-next');
                     if (prevBtn) prevBtn.addEventListener('click', () => setCatMatchPageByDelta(-1));

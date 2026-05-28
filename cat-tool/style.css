@@ -36,6 +36,10 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     padding: 0 0.05em;
     white-space: nowrap;
 }
+.col-source .tb-inline-term.is-offpage {
+    border-bottom-color: rgba(100, 116, 139, 0.70);
+    background: linear-gradient(to bottom, transparent 72%, rgba(100, 116, 139, 0.08) 72%);
+}
 .col-source .tb-inline-term.is-missing {
     border-bottom-color: var(--tb-inline-missing-border);
     background: linear-gradient(to bottom, transparent 72%, var(--tb-inline-missing-bg) 72%);
@@ -1671,6 +1675,78 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 /* CAT 比對建議列表（# | 原文 | 相符/類型 | 譯文） */
 .result-block {
     border-bottom: 1px solid #e2e8f0;
+}
+.cat-match-sticky-head {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg-color);
+}
+.cat-match-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.35rem 0.45rem;
+    font-size: 0.78rem;
+    color: #64748b;
+    border-bottom: 1px solid var(--border-color);
+    background: #f8fafc;
+    flex-wrap: nowrap;
+}
+.cat-match-info-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.cat-match-info-page-text {
+    white-space: nowrap;
+}
+.cat-match-info-sep {
+    width: 1px;
+    align-self: stretch;
+    background: #e2e8f0;
+    flex: 0 0 auto;
+}
+.cat-match-page-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 4px;
+    padding: 1px 7px;
+    cursor: pointer;
+    line-height: 1.2;
+}
+.cat-match-page-btn:disabled,
+.cat-match-page-btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.cat-match-info-shortcuts {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+.cat-match-info-kbd {
+    background: #e2e8f0;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+}
+.cat-match-info-sc {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+.cat-match-info-sc-sep {
+    opacity: 0.85;
+}
+.cat-match-info-sc-icon {
+    color: #64748b;
+    font-weight: 700;
 }
 .result-table-header,
 .result-item {
