@@ -1355,6 +1355,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.setAttribute('data-np-applied', '1');
         // 標記 <br>（換行）
         el.querySelectorAll('br:not(.np-br)').forEach(br => {
+            if (isGhostBr(br, el)) return;
             const mark = document.createElement('span');
             mark.className = 'non-print-marker';
             mark.textContent = '↵';
@@ -18393,6 +18394,60 @@ document.addEventListener('DOMContentLoaded', async () => {
         return false;
     }
 
+    /** 根層 div 若僅含空白、幽靈 br、non-print overlay，不應在 extract 前綴虛擬 \\n。 */
+    function isGhostOnlyDiv(div, root) {
+        if (!div || div.tagName !== 'DIV') return false;
+        for (const c of div.childNodes) {
+            if (c.nodeType === 3) {
+                if ((c.nodeValue || '').trim()) return false;
+                continue;
+            }
+            if (c.nodeType !== 1) continue;
+            if (c.classList && c.classList.contains('non-print-marker')) continue;
+            if (c.classList && c.classList.contains('rt-tag')) return false;
+            if (c.tagName === 'BR') {
+                if (!isGhostBr(c, root)) return false;
+                continue;
+            }
+            if (c.tagName === 'DIV') {
+                if (!isGhostOnlyDiv(c, root)) return false;
+                continue;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    function editorDomHasGhostNewlineArtifacts(editor) {
+        if (!editor) return false;
+        for (const br of editor.querySelectorAll('br')) {
+            if (isGhostBr(br, editor)) return true;
+        }
+        let idx = 0;
+        for (const node of editor.childNodes) {
+            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV' && isGhostOnlyDiv(node, editor)) return true;
+            idx++;
+        }
+        return false;
+    }
+
+    /** input 當下：plain 已正確但 DOM 含幽靈 br／占位 div 時 rebuild，避免 NP ↵ 閃現。 */
+    function canonicalizeTargetEditorFromExtractPlain(editor, seg, row, caretPlainOff) {
+        if (!editor || editor.contentEditable === 'false') return false;
+        if (!editorDomHasGhostNewlineArtifacts(editor)) return false;
+        const plain = extractTextFromEditor(editor);
+        setEditorHtml(editor, buildTaggedHtml(plain, effectiveTags(seg)));
+        if (row) updateTagColors(row, plain);
+        seg.targetText = plain;
+        const npMode = document.getElementById('editorGrid')?.classList.contains('show-non-print');
+        if (npMode && caretPlainOff != null) {
+            requestAnimationFrame(() => {
+                setNpCaretOffset(editor, Math.min(caretPlainOff, plain.length));
+            });
+        }
+        return true;
+    }
+
     /**
      * show-non-print：以 plain 線性偏移刪除語意 \\n（含 data-cat-nl），避免只撕 ↵ overlay 而 br 仍留存。
      * @returns {boolean} 是否已處理刪除
@@ -18471,7 +18526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let text = '';
         let idx = 0;
         for (const node of editorDiv.childNodes) {
-            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV') {
+            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV' && !isGhostOnlyDiv(node, editorDiv)) {
                 text += '\n';
             }
             text += extractSubtree(node, editorDiv);
@@ -18529,7 +18584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         let idx = 0;
         for (const node of editor.childNodes) {
-            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV') {
+            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV' && !isGhostOnlyDiv(node, editor)) {
                 segs.push({ type: 'nl', abs: [off, off + 1], synthetic: true });
                 off += 1;
             }
@@ -19598,14 +19653,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     // 非列印字元模式：即時更新標記（保存/還原游標偏移以防跳位）
                     // 組字期間不操作 DOM，避免 normalize() 干擾 IME 組字狀態
-                    if (!_isComposing && document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
-                        const _npOff = getNpCaretOffset(targetInput);
-                        if (_npRafId) cancelAnimationFrame(_npRafId);
-                        _npRafId = requestAnimationFrame(() => {
-                            _npRafId = null;
-                            refreshNonPrintMarkers(targetInput);
-                            if (_npOff !== null) setNpCaretOffset(targetInput, _npOff);
-                        });
+                    if (!_isComposing) {
+                        const npMode = document.getElementById('editorGrid')?.classList.contains('show-non-print');
+                        const _npOff = npMode ? getNpCaretOffset(targetInput) : null;
+                        if (canonicalizeTargetEditorFromExtractPlain(targetInput, seg, row, _npOff)) {
+                            /* rebuild 已透過 setEditorHtml 排程 NP 標記 */
+                        } else if (npMode) {
+                            if (_npRafId) cancelAnimationFrame(_npRafId);
+                            _npRafId = requestAnimationFrame(() => {
+                                _npRafId = null;
+                                refreshNonPrintMarkers(targetInput);
+                                if (_npOff !== null) setNpCaretOffset(targetInput, _npOff);
+                            });
+                        }
                     }
 
                     // Update source tag colours (blue=present, red=missing)
