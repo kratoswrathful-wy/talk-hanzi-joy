@@ -159,7 +159,7 @@ flowchart TD
 
 **2026-05-27 Wave 1**（`d8b5cfc`）：tag 旁刪字 extract 層、`tryDeleteSemanticNewlineAtCaret` — 見 [`CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md`](./CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md) Wave 1。
 
-**2026-05-27 Wave 2**（進行中）：NP 仍對幽靈 br 加 ↵、input 當下 canonicalize — 同文件 **Wave 2** 小節（Fix 3A／3B／3C）。
+**2026-05-27 Wave 2**（`21e14ee`）：NP 仍對幽靈 br 加 ↵、input 當下 canonicalize — 同文件 **Wave 2** 小節（Fix 3A／3B／3C）。
 
 1. **游標與線性化完全一致**  
    非列印模式仍用 `TreeWalker` 近似計算 offset；若仍存在「僅根層 sibling `div`、中間無真實 `BR`」等邊界，理論上可能與 `extractTextFromEditor` 的虛擬 `\n` 不完全一致。若收到回報，可改為與 extract **共用單一走訪器**計算 caret offset。

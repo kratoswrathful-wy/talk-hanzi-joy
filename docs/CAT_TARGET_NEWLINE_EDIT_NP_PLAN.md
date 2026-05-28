@@ -132,4 +132,4 @@ sequenceDiagram
 | 日期 | commit | 說明 |
 |------|--------|------|
 | 2026-05-27 | `d8b5cfc` | Wave 1：Fix 1 `tryDeleteSemanticNewlineAtCaret` + Fix 2 `isGhostBrAfterRtTag` |
-| 2026-05-27 | （待填） | Wave 2：Fix 3A / 3C / 3B |
+| 2026-05-27 | `21e14ee` | Wave 2：Fix 3A / 3C / 3B |
