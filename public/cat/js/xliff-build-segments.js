@@ -150,6 +150,9 @@
                 const lowerFileName = (fileName || '').toLowerCase();
                 const isMqxliffFile = lowerFileName.endsWith('.mqxliff') ||
                     !!xml.documentElement.lookupNamespaceURI('mq');
+                const mxNsUri = xml.documentElement.lookupNamespaceURI('m') || '';
+                const isMxliffFile = lowerFileName.endsWith('.mxliff') ||
+                    (!isMqxliffFile && mxNsUri.includes('memsource.com/mxlf'));
                 // sdlxliff：<g> 是文件結構包裝（SDL Studio 預設隱藏），使用 transparentG 模式
                 // 讓每行不顯示多餘的 <g>...</g> 標籤佔位符；匯出時由 _updateSdlxliffMrkContent 保留結構
                 const isSdlxliffFile = lowerFileName.endsWith('.sdlxliff');
@@ -428,6 +431,36 @@
                         }
                     }
 
+                    // Phrase mxliff literal-placeholder：行內格式以純文字 {N>...<N} 存入 XML（非 <ph>）。
+                    // DOM 解碼後為 {1>text<1}；合成 synthetic tags 供 pill 顯示與匯出 round-trip。
+                    if (isMxliffFile && sourceTags.length === 0 && /\{\d+>/.test(sourceText)) {
+                        for (const m of sourceText.matchAll(/\{(\d+)>/g)) {
+                            const n = parseInt(m[1], 10);
+                            sourceTags.push({
+                                ph: `{${n}>`, xml: `{${n}&gt;`,
+                                display: `{${n}>`, type: 'open',
+                                pairNum: n, num: n
+                            });
+                        }
+                        for (const m of sourceText.matchAll(/<(\d+)\}/g)) {
+                            const n = parseInt(m[1], 10);
+                            sourceTags.push({
+                                ph: `<${n}}`, xml: `&lt;${n}}`,
+                                display: `<${n}}`, type: 'close',
+                                pairNum: n, num: n
+                            });
+                        }
+                        if (targetTags.length === 0 && targetText) {
+                            const presentPhs = new Set([
+                                ...(targetText.match(/\{\d+>/g) || []),
+                                ...(targetText.match(/<\d+\}/g) || [])
+                            ]);
+                            for (const t of sourceTags) {
+                                if (presentPhs.has(t.ph)) targetTags.push({ ...t });
+                            }
+                        }
+                    }
+
                     augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags });
                     mergePartialTargetTagsFromSource({ targetText, sourceTags, targetTags });
 
@@ -549,7 +582,7 @@
                     else if (matchValue != null && matchValue > 100) importMatchKind = '101';
 
                     const mqLocked = tu.getAttribute('mq:locked');
-                    const isLockedSystem = !!(mqLocked && mqLocked.toLowerCase() === 'locked');
+                    let isLockedSystem = !!(mqLocked && mqLocked.toLowerCase() === 'locked');
 
                     if (isMqxliffFile) {
                         const commitInfos = Array.from(tu.getElementsByTagName('*')).filter(n => n.localName === 'commitinfo');
@@ -578,6 +611,16 @@
                         }
                     }
 
+                    if (isMxliffFile) {
+                        if (tu.getAttribute('m:confirmed') === '1') status = 'confirmed';
+                        if (tu.getAttribute('m:locked') === 'true') isLockedSystem = true;
+                        const mScore = parseFloat(tu.getAttribute('m:score') || '0');
+                        if (!isNaN(mScore) && mScore > 0) {
+                            matchValue = Math.round(mScore * 100);
+                            importMatchKind = 'tm';
+                        }
+                    }
+
                     segments.push({
                         sheetName: 'XLIFF',
                         rowIdx: segCounter++,
@@ -594,7 +637,7 @@
                         matchValue,
                         importMatchKind,
                         comments: structuredComments,
-                        sourceFormat: isMqxliffFile ? 'mqxliff' : 'xliff',
+                        sourceFormat: isMxliffFile ? 'mxliff' : (isMqxliffFile ? 'mqxliff' : 'xliff'),
                         confirmationRole,
                         originalRole,
                         sourceTags,

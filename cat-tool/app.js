@@ -6218,7 +6218,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lower = (file.name || '').toLowerCase();
         if (lower.endsWith('.mqxliff'))  return 'mqxliff';
         if (lower.endsWith('.sdlxliff')) return 'sdlxliff';
-        if (lower.endsWith('.xlf') || lower.endsWith('.xliff') || lower.endsWith('.mxliff')) return 'xliff';
+        if (lower.endsWith('.mxliff'))  return 'mxliff';
+        if (lower.endsWith('.xlf') || lower.endsWith('.xliff')) return 'xliff';
         if (lower.endsWith('.po') || lower.endsWith('.pot')) return 'po';
         return 'excel';
     }
@@ -13932,7 +13933,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (file.fileFormat === 'googlesheet') currentFileFormat = 'googlesheet';
         else if (lowerName.endsWith('.mqxliff')) currentFileFormat = 'mqxliff';
         else if (lowerName.endsWith('.sdlxliff')) currentFileFormat = 'sdlxliff';
-        else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff')) currentFileFormat = 'xliff';
+        else if (lowerName.endsWith('.mxliff')) currentFileFormat = 'mxliff';
+        else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff')) currentFileFormat = 'xliff';
         else if (lowerName.endsWith('.po') || lowerName.endsWith('.pot')) currentFileFormat = 'po';
         else currentFileFormat = 'excel';
 

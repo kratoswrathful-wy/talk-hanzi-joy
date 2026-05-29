@@ -255,7 +255,7 @@
             return xml;
         }
 
-        return text.replace(/\{\/?\d+\}/g, m => {
+        return text.replace(/\{\/?\d+\}|\{\d+>|<\d+\}/g, m => {
             const preferred = normalizeXml(map[m]);
             if (preferred !== undefined) return preferred;
             const fallback = normalizeXml(fallbackMap[m]);
@@ -671,6 +671,14 @@
                 updateMqxliffStatus(tu, seg, mqNsUri);
                 const stateVal = seg.status === 'confirmed' ? 'final' : 'needs-translation';
                 targetNode.setAttribute('state', stateVal);
+            } else if (format === 'mxliff') {
+                const mNsUri = xmlDoc.documentElement.lookupNamespaceURI('m') || 'http://www.memsource.com/mxlf/2.0';
+                const confVal = seg.status === 'confirmed' ? '1' : '0';
+                try { tu.setAttributeNS(mNsUri, 'm:confirmed', confVal); } catch (_) { tu.setAttribute('m:confirmed', confVal); }
+                if (seg.targetText && seg.targetText.trim()) {
+                    try { tu.setAttributeNS(mNsUri, 'm:level-edited', 'true'); } catch (_) { tu.setAttribute('m:level-edited', 'true'); }
+                }
+                targetNode.setAttribute('state', seg.status === 'confirmed' ? 'final' : 'needs-translation');
             } else if (format === 'sdlxliff') {
                 const sdlState = seg.status === 'confirmed' ? 'final' : 'needs-translation';
                 targetNode.setAttribute('state', sdlState);

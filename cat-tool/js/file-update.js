@@ -263,7 +263,7 @@
         if (!fileName) return null;
         const lower = String(fileName).toLowerCase();
         if (lower.endsWith('.xliff') || lower.endsWith('.xlf') ||
-            lower.endsWith('.mqxliff') || lower.endsWith('.sdlxliff')) return 'xliff';
+            lower.endsWith('.mxliff') || lower.endsWith('.mqxliff') || lower.endsWith('.sdlxliff')) return 'xliff';
         if (lower.endsWith('.po') || lower.endsWith('.pot')) return 'po';
         if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return 'excel';
         return null;
