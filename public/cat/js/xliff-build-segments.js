@@ -121,6 +121,83 @@
         return { segments, originalSourceLang, originalTargetLang };
     }
 
+    const RE_PHRASE_PLACEHOLDER_PH = /\{\d+>|<\d+\}|\{\/?\d+\}/g;
+
+    function readPhraseMarkContentById(tu) {
+        const map = {};
+        if (!tu) return map;
+        const metaEl = Array.from(tu.getElementsByTagName('*'))
+            .find(n => n.localName === 'tunit-metadata');
+        if (!metaEl) return map;
+        Array.from(metaEl.getElementsByTagName('*'))
+            .filter(n => n.localName === 'mark')
+            .forEach(mark => {
+                const id = parseInt(mark.getAttribute('id'), 10);
+                if (Number.isNaN(id)) return;
+                const contentEl = Array.from(mark.childNodes).find(
+                    n => n.nodeType === 1 && n.localName === 'content'
+                );
+                const raw = contentEl ? (contentEl.textContent || '').trim() : '';
+                if (raw) map[id] = raw;
+            });
+        return map;
+    }
+
+    function decodePhraseMarkForDisplay(raw) {
+        if (!raw) return '';
+        let s = String(raw);
+        for (let i = 0; i < 8 && s.includes('&amp;'); i++) {
+            s = s.replace(/&amp;/g, '&');
+        }
+        return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+    }
+
+    function normalizePhraseMarkXmlForRoundTrip(raw) {
+        if (!raw) return '';
+        let s = String(raw);
+        for (let i = 0; i < 8 && s.includes('&amp;'); i++) {
+            s = s.replace(/&amp;/g, '&');
+        }
+        return s;
+    }
+
+    function collectPhrasePlaceholderPhs(text) {
+        return new Set(String(text || '').match(RE_PHRASE_PLACEHOLDER_PH) || []);
+    }
+
+    function copyMxliffTargetTagsFromSource({ sourceTags, targetTags, targetText }) {
+        if (!sourceTags || !sourceTags.length || !targetText) return;
+        const presentPhs = collectPhrasePlaceholderPhs(targetText);
+        if (!presentPhs.size) return;
+        for (const t of sourceTags) {
+            if (t && presentPhs.has(t.ph)) targetTags.push({ ...t });
+        }
+    }
+
+    function synthesizeMxliffBraceTags(sourceText, markMap) {
+        const tags = [];
+        const seen = new Set();
+        for (const m of sourceText.matchAll(/\{(\d+)\}/g)) {
+            const n = parseInt(m[1], 10);
+            const ph = `{${n}}`;
+            if (seen.has(ph)) continue;
+            seen.add(ph);
+            const rawXml = markMap[n] || ph;
+            const xml = normalizePhraseMarkXmlForRoundTrip(rawXml) || ph;
+            const display = decodePhraseMarkForDisplay(rawXml) || ph;
+            const isOdd = n % 2 === 1;
+            tags.push({
+                ph,
+                xml,
+                display,
+                type: isOdd ? 'open' : 'close',
+                pairNum: isOdd ? (n + 1) / 2 : n / 2,
+                num: n
+            });
+        }
+        return tags;
+    }
+
     function buildSegmentsFromXliffXml(xml, fileName) {
         const Xliff = global.CatToolXliffTags;
         if (!Xliff || typeof Xliff.extractTaggedText !== 'function') {
@@ -185,7 +262,7 @@
                 function mergePartialTargetTagsFromSource({ targetText, sourceTags, targetTags }) {
                     if (!sourceTags || !sourceTags.length) return;
                     if (!targetText) return;
-                    const presentPhs = new Set((String(targetText).match(/\{\/?\d+\}/g) || []));
+                    const presentPhs = collectPhrasePlaceholderPhs(targetText);
                     if (!presentPhs.size) return;
                     const existingPhs = new Set((targetTags || []).map(t => t && t.ph).filter(Boolean));
                     for (const st of sourceTags) {
@@ -451,13 +528,17 @@
                             });
                         }
                         if (targetTags.length === 0 && targetText) {
-                            const presentPhs = new Set([
-                                ...(targetText.match(/\{\d+>/g) || []),
-                                ...(targetText.match(/<\d+\}/g) || [])
-                            ]);
-                            for (const t of sourceTags) {
-                                if (presentPhs.has(t.ph)) targetTags.push({ ...t });
-                            }
+                            copyMxliffTargetTagsFromSource({ sourceTags, targetTags, targetText });
+                        }
+                    }
+
+                    // Phrase mxliff（BILING_XLS 等）：{1}text{2} 奇開偶關 + m:tunit-metadata 內容
+                    if (isMxliffFile && sourceTags.length === 0 &&
+                        /\{\d+\}/.test(sourceText) && !/\{\d+>/.test(sourceText)) {
+                        const markMap = readPhraseMarkContentById(tu);
+                        sourceTags.push(...synthesizeMxliffBraceTags(sourceText, markMap));
+                        if (targetTags.length === 0 && targetText) {
+                            copyMxliffTargetTagsFromSource({ sourceTags, targetTags, targetText });
                         }
                     }
 

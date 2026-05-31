@@ -480,7 +480,7 @@
         if (!seg) return true;
         if (seg.targetTags && seg.targetTags.length) return false;
         if (!seg.sourceTags || !seg.sourceTags.length) return true;
-        return !/\{[\/]?\d+\}/.test(String(seg.targetText || ''));
+        return !/\{\d+>|<\d+\}|\{[\/]?\d+\}/.test(String(seg.targetText || ''));
     }
 
     function tagsForExportWrite(seg, tags) {
@@ -739,7 +739,7 @@
         segs.forEach(seg => {
             if (!seg.sourceTags || !seg.sourceTags.length) return;
             const sourcePhs = new Set(seg.sourceTags.map(t => t.ph));
-            const match = (seg.targetText || '').match(/\{\/?\d+\}/g);
+            const match = (seg.targetText || '').match(/\{\d+>|<\d+\}|\{\/?\d+\}/g);
             const targetPhs = new Set(match || []);
             const missing = [...sourcePhs].filter(ph => !targetPhs.has(ph));
             const extra = [...targetPhs].filter(ph => !sourcePhs.has(ph));

@@ -6347,7 +6347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _batchExportBuildBlob(f, segs, format) {
-        if (format === 'xliff' || format === 'mqxliff' || format === 'sdlxliff') {
+        if (format === 'xliff' || format === 'mqxliff' || format === 'sdlxliff' || format === 'mxliff') {
             if (!Xliff || typeof Xliff.exportXliffFamilyToBlob !== 'function') {
                 throw new Error('XLIFF 匯出模組未載入');
             }
@@ -12255,7 +12255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             extractedSegmentsBackup = [];
             selSheets.forEach(sheetName => {
-                const data = excelDataBySheet[sheetName];
+                const data = trimTrailingBlankRows(excelDataBySheet[sheetName]);
                 const rawSheet = excelWorkbook ? excelWorkbook.Sheets[sheetName] : null;
                 if (dir === 'top-down') {
                     for(let c=0; c<sCols.length; c++) for(let r=0; r<data.length; r++) { if(isTbRowInRanges(r+1, rowRanges)) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet); }
@@ -12383,6 +12383,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    /** 截掉 sheet_to_json 尾端連續全空列（Excel !ref 幽靈格），保留中間分隔空列。 */
+    function trimTrailingBlankRows(data) {
+        if (!data || !data.length) return data || [];
+        let end = data.length;
+        while (end > 0 && (data[end - 1] || []).every(v => String(v).trim() === '')) end--;
+        return end < data.length ? data.slice(0, end) : data;
+    }
+
     function extractSegmentIntoBackup(data, sheetName, r, sC, tC, idCols, extCols, extraDelimiter, rawSheet) {
         if(!data[r]) return;
         const srcText = data[r][sC] !== undefined ? String(data[r][sC]).trim() : '';
@@ -12493,7 +12501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const extraDelimiter = '\n';
             extractedSegmentsBackup = [];
             sheetsToUse.forEach(sheetName => {
-                const data = dataBySheet[sheetName];
+                const data = trimTrailingBlankRows(dataBySheet[sheetName]);
                 if (!data) return;
                 const rawSheet = workbook.Sheets[sheetName];
                 if (dir === 'top-down') {
@@ -18353,7 +18361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tagsRep.forEach(t => { tagMap[t.ph] = t; });
 
         let html = '';
-        const parts = text.split(/(\{\/?\d+\})/);
+        const parts = text.split(/(\{\d+>|<\d+\}|\{\/?\d+\})/);
         for (const part of parts) {
             const tag = tagMap[part];
             if (tag) {
@@ -18383,7 +18391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function htmlForTmPlainWithPlaceholders(raw) {
         if (raw == null || raw === '') return '';
         const t = String(raw);
-        const parts = t.split(/(\{\/?\d+\})/);
+        const parts = t.split(/(\{\d+>|<\d+\}|\{\/?\d+\})/);
         let html = '';
         for (const part of parts) {
             if (/^\{\d+\}$/.test(part)) {
@@ -18952,7 +18960,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (t.type === 'close') closeByPairNum.set(t.pairNum, t);
         });
 
-        const phSeq = String(text ?? '').match(/\{\/?\d+\}/g) || [];
+        const phSeq = String(text ?? '').match(/\{\d+>|<\d+\}|\{\/?\d+\}/g) || [];
         const phSet = new Set(phSeq);
 
         /** token: { kind: 'pair'|'standalone', sig, openPh?, closePh?, ph? } */
@@ -23867,7 +23875,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!proceed) return;
             }
 
-            if (currentFileFormat === 'xliff' || currentFileFormat === 'mqxliff' || currentFileFormat === 'sdlxliff') {
+            if (currentFileFormat === 'xliff' || currentFileFormat === 'mqxliff' || currentFileFormat === 'sdlxliff' || currentFileFormat === 'mxliff') {
                 if (!Xliff || typeof Xliff.exportXliffFamily !== 'function') {
                     throw new Error('XLIFF 匯出模組未載入（請確認已載入 js/xliff-tag-pipeline.js）');
                 }
