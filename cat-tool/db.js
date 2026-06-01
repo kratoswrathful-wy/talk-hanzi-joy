@@ -836,6 +836,11 @@ const DBService = {
             if (patch.isLockedSystem !== undefined) dbPatch.isLockedSystem = patch.isLockedSystem;
             if (patch.sourceChangeInfo !== undefined) dbPatch.sourceChangeInfo = patch.sourceChangeInfo;
             if (patch.globalId !== undefined) dbPatch.globalId = patch.globalId;
+            if (patch.rowIdx     !== undefined) dbPatch.rowIdx     = patch.rowIdx;
+            if (patch.colSrc     !== undefined) dbPatch.colSrc     = patch.colSrc;
+            if (patch.colTgt     !== undefined) dbPatch.colTgt     = patch.colTgt;
+            if (patch.sheetName  !== undefined) dbPatch.sheetName  = patch.sheetName;
+            if (patch.baseRprXml !== undefined) dbPatch.baseRprXml = patch.baseRprXml;
             if (Object.keys(dbPatch).length) await db.segments.update(sid, dbPatch);
         }
 

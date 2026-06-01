@@ -869,6 +869,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
                 ? null
                 : Number(patch.globalId);
           }
+          if (patch.rowIdx    !== undefined) dbPatch.row_idx    = patch.rowIdx    != null ? Number(patch.rowIdx)    : 0;
+          if (patch.colSrc    !== undefined) dbPatch.col_src    = patch.colSrc    != null ? String(patch.colSrc)    : null;
+          if (patch.colTgt    !== undefined) dbPatch.col_tgt    = patch.colTgt    != null ? String(patch.colTgt)    : null;
+          if (patch.sheetName !== undefined) dbPatch.sheet_name = patch.sheetName != null ? String(patch.sheetName) : "Sheet1";
           return { id: segId, patch: dbPatch };
         });
         for (let off = 0; off < batchUpdates.length; off += BATCH) {

@@ -191,6 +191,13 @@
                 patch.globalId = Number(incoming.globalId);
             }
 
+            // 位置欄位：更新作業檔後以新版檔案的位置為準（Excel 匯出依 rowIdx/colTgt）
+            if (incoming.rowIdx     !== undefined) patch.rowIdx     = incoming.rowIdx;
+            if (incoming.colSrc     !== undefined) patch.colSrc     = incoming.colSrc;
+            if (incoming.colTgt     !== undefined) patch.colTgt     = incoming.colTgt;
+            if (incoming.sheetName  !== undefined) patch.sheetName  = incoming.sheetName;
+            if (incoming.baseRprXml !== undefined) patch.baseRprXml = incoming.baseRprXml;
+
             update.push({ id: existing.id, patch });
         }
 
