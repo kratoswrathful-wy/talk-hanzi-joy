@@ -251,7 +251,11 @@ sourceTags.push({
 
 ## 5. Phrase mxliff（.mxliff）
 
-Phrase／Memsource 匯出的 `.mxliff` 使用 `xmlns:m="http://www.memsource.com/mxlf/2.0"`，句段內常見兩種**純文字**佔位（非 `<ph>`）：
+> **完整實作紀錄、commit 對照、驗收步驟**：[`CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md`](./CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md)
+
+Phrase／Memsource 匯出的 `.mxliff` 使用 `xmlns:m="http://www.memsource.com/mxlf/2.0"`。CAT 以 **`currentFileFormat === 'mxliff'`** 獨立分支（**不是**一般 `xliff` 或 `mqxliff`）。
+
+句段內常見兩種**純文字**佔位（非 `<ph>`）：
 
 | 類型 | 範例 | 說明 |
 |------|------|------|
@@ -260,21 +264,46 @@ Phrase／Memsource 匯出的 `.mxliff` 使用 `xmlns:m="http://www.memsource.com
 
 ### 5.1 匯入（`xliff-build-segments.js`）
 
-- 合成 synthetic tags 供編輯器 pill：`ph` 為字面佔位；`display`（與可選 `xml`）可來自 `m:mark` 的 `m:content`，讓 pill 顯示 `<#66c5ff>` 等。
-- **`xml` 存 mark 內容僅供 UI**；勿假設匯出會把 `xml` 寫進 `<target>`。
+| 函式 | 行為 |
+|------|------|
+| `readPhraseMarkContentById` | 讀 TU 內 `m:tunit-metadata` → `mark id` → `m:content` |
+| `synthesizeMxliffBraceTags` | 掃 `{N}`，建立 `ph`／`xml`／`display`／`open`／`close` |
+| `synthesizeMxliffRangeTags` | 掃 `{N>…<N}`（DOC） |
+| `copyMxliffTargetTagsFromSource` | 譯文有 `{N}` 但無 `targetTags` 時，從 `sourceTags` 補齊 |
+
+- **`ph`**：Phrase 字面佔位（匯出必須保留）。
+- **`display`**：pill 上看到的字（如 `<#66c5ff>`）。
+- **`xml`**：mark 原始內容（與 `display` 類似，供 tooltip）；**僅 UI**，匯出時**不得**用 `xml` 取代 `{N}`。
 
 ### 5.2 匯出（`xliff-tag-pipeline.js`，`format === 'mxliff'`）
 
-Phrase 要求 **`<target>` 內仍為字面量 `{1}…{2}`**（或 `{1>…<1}`），格式碼只留在 `m:tunit-metadata`，不可把 `&lt;#66c5ff&gt;` 等塞進譯文文字節點。
+Phrase 要求 **`<target>` 內仍為字面量 `{1}…{2}`**（或 `{1>…<1}`），格式碼只留在 `m:tunit-metadata`。
 
-已實作規則：
+**寫入規則（`e744f50`）**
 
-1. `replacePlaceholders` 前將匯出用 tag 的 `xml` 設為 `ph`（`{N}` 字面 round-trip）。
-2. **不**對 mxliff 呼叫 `prepareRestoredFragmentForXmlParse`／`setXmlTargetContent`。
-3. 以 `targetNode.textContent = restoredXml` 寫入純文字。
-4. 可更新 `m:confirmed`、`m:level-edited`、`state`；**不**改寫 `m:mark`。
+1. `repairMxliffTargetForExport(targetText, sourceText, origTargetFromXml, tags)` — 見 §5.3。
+2. `tagsForReplace`／`fallbackForReplace`：`xml := ph`。
+3. `replacePlaceholders` → 字面 `{N}` 不變。
+4. **略過** `prepareRestoredFragmentForXmlParse`、`setXmlTargetContent`。
+5. `while (targetNode.firstChild) removeChild` → `targetNode.textContent = restoredXml`。
+6. 可更新 `m:confirmed`、`m:level-edited`、`target@state`；**不**改 `m:mark`／`m:content`。
 
-若譯文曾遭錯誤匯出而把 `m:mark` 洩漏成 `&lt;/color&gt;` 等，匯出前會先 **還原洩漏為 `{N}`**，並在僅剩關標時 **補回開標**；仍缺佔位時則依原始檔 `<target>` 骨架與使用者譯文合併。若佔位已全刪且無法對齊，`validateExportTags` 可於匯出前提醒。
+### 5.3 匯出前修復（已損壞譯文）
+
+當 `targetText` 曾遭錯誤匯出、或譯文缺開標時：
+
+| 函式 | 用途 |
+|------|------|
+| `repairMxliffMarkLeaksInText` | `&lt;/color&gt;` 等 → `{2}`、`{4}`（同字面多 tag 時**逐次** replace） |
+| `rebuildMxliffTargetFromOriginalStructure` | 依原始檔 TU `<target>` 的 `{1}…{2}…` 骨架 + 錨點字切分使用者譯文 |
+| `repairMxliffTargetForExport` | 上述串接；僅在 `format === 'mxliff'` 單段匯出路徑呼叫 |
+
+若佔位已全刪且無法對齊，`validateExportTags` 仍可於匯出前提醒。
+
+### 5.4 編輯器（`app.js`）
+
+- `extractTextFromEditor`：`.rt-tag` → `data-ph`，儲存為 `{N}` 字面量。
+- `tagChipLabelAndFull`：tooltip 優先 `display`（當 `display !== ph`）。
 
 ---
 
@@ -343,6 +372,18 @@ seg.targetText ("…{1}…")
 1. 多段 TU（`isMultiSegFormat`）：逐 mrk 各自還原
 2. 單段 TU：`_updateSdlxliffMrkContent()` → 只更新 mrk，保留外層 `<g>` 結構
 3. 更新 `sdl:seg-defs` 的 `conf` 屬性（Draft / Translated）
+
+### mxliff 匯出特殊路徑（`format === 'mxliff'`）
+
+```
+seg.targetText
+  ├── normalizeLegacyEncodedTagText（僅 <ph> 內文舊資料）
+  ├── repairMxliffTargetForExport（mark 洩漏 + 原始 <target> 骨架）
+  ├── replacePlaceholders（xml := ph）
+  └── target.textContent = 純文字（不走 setXmlTargetContent）
+```
+
+與 mq／sdl **不可共用**「還原 XML 片段」路徑；詳見 [`CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md`](./CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md) §6。
 
 ---
 
@@ -439,19 +480,48 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 
 ---
 
+### [2026-06] Phrase mxliff 匯出 — Phrase 無法開啟匯出檔
+
+**症狀**：TMS 匯出 `.mxliff` 後，Phrase 顯示 *Unable to open MXLIFF file*；`<target>` 內為 `&amp;lt;/color&amp;gt;` 等，無 `{1}{2}`。
+
+**原因**：
+
+1. 匯出時 `replacePlaceholders` 以 `tag.xml`（`m:mark` 內容）取代 `{N}`，再經 `setXmlTargetContent` 解析 → 破壞 Phrase 字面佔位。
+2. 若 `targetText` 已無 `{N}`（曾錯誤匯出／僅剩 mark 洩漏），僅修正 (1) 仍會寫出壞資料。
+
+**修法**（`e744f50`）：
+
+- `format === 'mxliff'`：`xml := ph`、`target.textContent` 純文字寫入。
+- `repairMxliffTargetForExport`：洩漏還原 + 依原始 TU `<target>` 重組佔位。
+- 完整紀錄：[`CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md`](./CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md)。
+
+**驗收**：oneapp `BILING_XLS` 樣本匯出後 Phrase 可開；VIP 句段 `<target>` 含 `{1}…{4}`。
+
+---
+
+### [2026-06] Phrase mxliff 匯入 — `{1}{2}` pill 與格式偵測
+
+**摘要**：`ff23f8c`、`56bbfd0` — 接受 `.mxliff`、`synthesizeMxliffBraceTags`、`currentFileFormat = 'mxliff'`、匯出路徑納入 `mxliff`。見實作紀錄 §2 commit 表。
+
+---
+
 ## 9. 避免誤改清單
 
-1. **不要用 `textContent` 更新 `.grid-textarea`（contenteditable div）**
+1. **mxliff 匯出勿走 XML 片段還原**
+   — `format === 'mxliff'` 必須 `textContent` 寫入且 `replacePlaceholders` 用 `xml: ph`；勿呼叫 `setXmlTargetContent`。
+   — 勿刪 `repairMxliffTargetForExport` 或共用 leak 的「逐次 replace」邏輯。
+
+2. **不要用 `textContent` 更新 `.grid-textarea`（contenteditable div）**
    — 必須用 `innerHTML = buildTaggedHtml(...)`，否則 pill 會消失。
 
-2. **不要用 `||` fallback 空陣列 tags**
+3. **不要用 `||` fallback 空陣列 tags**
    — 永遠用 `effectiveTags(seg)` 取得目標欄 tags。
 
-3. **不要移除或簡化 `transparentG` 參數傳遞**
+4. **不要移除或簡化 `transparentG` 參數傳遞**
    — sdlxliff 的 mrk 擷取必須傳 `{ transparentG: false }`，
      整個 source/target 的匯入要用 `{ transparentG: true }`。
 
-4. **不要把 `bptMap` 改成全域或跨句段共用**
+5. **不要把 `bptMap` 改成全域或跨句段共用**
    — 每次呼叫 `extractTaggedText` 都要重新建立 `bptMap`，
      以免不同句段的 id 互相干擾。
 

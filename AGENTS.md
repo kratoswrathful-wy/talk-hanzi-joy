@@ -20,6 +20,7 @@
 - [`docs/CAT_VIEW_SPEC.md`](docs/CAT_VIEW_SPEC.md) — 介面用語與檢視行為
 - [`docs/CAT_CTRL_DIGIT_SHORTCUT_SPEC.md`](docs/CAT_CTRL_DIGIT_SHORTCUT_SPEC.md) — Ctrl+1～9 右欄套用細部規格（與 [`docs/CAT第四波主記錄.md`](docs/CAT第四波主記錄.md) §5-i 對照）
 - [`docs/XLIFF_TAG_PIPELINE.md`](docs/XLIFF_TAG_PIPELINE.md) — XLIFF／tag 管線（與 [`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc) 呼應）
+- [`docs/CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md`](docs/CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md) — **Phrase `.mxliff`** 匯入／編輯器 pill／匯出 Phrase 相容（`ff23f8c`～`e744f50`、驗收步驟與維護邊界）
 - [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) — 部署檢核
 - [`docs/SLACK_SETUP.md`](docs/SLACK_SETUP.md) — Slack 詢案與譯者通知設定；擴充決策與待落地項目見 [`docs/SLACK_NOTIFY_EXPANSION_2026-05.md`](docs/SLACK_NOTIFY_EXPANSION_2026-05.md)
 - [`docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md`](docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md) — **產品**內 CAT 團隊版「AI 準則」資料與 Supabase 流程；**不是**教編輯器如何改程式的通用規範
@@ -30,7 +31,7 @@
 - [`docs/bug-report_f8-targettags-empty-fallback-regression.md`](docs/bug-report_f8-targettags-empty-fallback-regression.md) — F8／`effectiveTags`／空 `targetTags` 導致整列譯文 tag pill 變純文字（sdlxliff 等常見觸發）；修正方案待實作；與 [`docs/bug-report_mqxliff-partial-target-tags.md`](docs/bug-report_mqxliff-partial-target-tags.md) §2.8 對照
 - [`docs/bug-report_mqxliff-team-role-persistence.md`](docs/bug-report_mqxliff-team-role-persistence.md) — mqxliff 在 Team（Supabase）模式下 **T／R1／R2** 無法持久化（重開檔後狀態圖示與鎖定規則錯亂）；根因為 `cat_segments` 缺欄位與 `cat-cloud-rpc` 未映射；2026-05-10 已修（migration + RPC）
 - [`docs/bug-report_file-download-uuid-filename.md`](docs/bug-report_file-download-uuid-filename.md) — LMS 下載 `case-files` 附件時瀏覽器建議檔名為 UUID；調查紀錄與以 `downloadFile`（fetch→blob）修正之說明
-- [`docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md`](docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) — 團隊版大檔：開檔卡「載入中」**已修**（`4422dae`）；匯出 signed URL／單檔直接下載 **已修**（`6acf7d9`）；**更新作業檔**導致「有 path、Storage 無檔」見 §2.11–§2.12（`refreshFileSegments`）
+- [`docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md`](docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) — 團隊版大檔：開檔卡「載入中」**已修**（`4422dae`）；匯出 signed URL／單檔直接下載 **已修**（`6acf7d9`）；**更新作業檔** orphan path 根因（`refreshFileSegments` 先刪後傳）**已修**（`e37cbf9`）；見 §2.11–§2.12
 - [`docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md`](docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md) — 原文格 TB 上標／副行：**§9** 為 2026-05-09 第二波（跨節點錨點、TB 閱讀序、多上標、同範圍合併底線）開發與驗收紀錄；程式對照見 [`docs/CODEMAP.md`](docs/CODEMAP.md)
 - [`docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md`](docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md) — mqxliff **進階篩選「memoQ 確認身分」** 定案 UI、`evaluateSegment` 第四維、編輯器／TM 匯入／QA 摘要等**全部觸點**與驗收；靜態預覽見 [`docs/preview-mqxliff-filter-status-options/index.html`](docs/preview-mqxliff-filter-status-options/index.html)
 

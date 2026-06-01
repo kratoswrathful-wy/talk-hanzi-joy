@@ -9,6 +9,7 @@
 - **句段匯入順序**：多工作表／多欄時清單以 **`globalId`（離線 Dexie）／`global_id`（團隊 Postgres）** 對齊匯入掃描順序；更新作業檔會同步新版序。說明、migration 與**曾嘗試行內字型後撤回**之調查紀錄見 [`docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md`](../docs/CAT_SEGMENT_IMPORT_ORDER_AND_INLINE_FMT_ROLLOUT.md)。
 - **字數／TM 加權**（Web Worker、專案列表／句段集／編輯器進度、「切換字數」、**字數與 TM 加權分析 Modal**；編輯器工具列「字數」`#btnEditorWordCount`、篩選模式統計範圍）：見 [`docs/CAT_WORD_COUNT_WORKER_AND_UI.md`](../docs/CAT_WORD_COUNT_WORKER_AND_UI.md)（**§9**、**§9.6**）。
 - **TM 確認寫入（離線）**：開檔快取就緒時寫入路徑以 `ActiveTmCache` 為主；Dexie `tmSegments` **v21** 複合索引 `[tmId+sourceText]`。索引與路徑對照見 [`docs/CODEMAP.md`](../docs/CODEMAP.md)（`f9f0b84`）。
+- **Phrase `.mxliff`**：匯入／pill 顯示／匯出須保留 `{N}` 字面量供 Phrase 開檔；完整紀錄見 [`docs/CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md`](../docs/CAT_PHRASE_MXLIFF_IMPLEMENTATION_2026-06.md)。
 - 開發／建置前執行：`npm run sync:cat`，會將本目錄複製到 `public/cat/`。
 - 使用者由 TMS 側欄進入路由 **`/cat`**，主畫面以 iframe 載入 **`/cat/index.html`**。
 - 整合決策與後續 API 方向見專案根目錄 [`docs/CAT 轉移.md`](../docs/CAT%20%E8%BD%89%E7%A7%BB.md)。
