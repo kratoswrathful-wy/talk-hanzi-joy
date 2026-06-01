@@ -326,6 +326,139 @@
         return [...set].filter(Boolean);
     }
 
+    const RE_PHRASE_PLACEHOLDER_PH = /\{\/?\d+\}|\{\d+>|<\d+\}/g;
+    const RE_PHRASE_PLACEHOLDER_TOKEN = /^(?:\{\/?\d+\}|\{\d+>|<\d+\})$/;
+
+    function isPhrasePlaceholderToken(s) {
+        return typeof s === 'string' && RE_PHRASE_PLACEHOLDER_TOKEN.test(s);
+    }
+
+    /** Phrase m:mark 洩漏進譯文時，匯出前還原為 {N} 字面量（含多重 &amp; 與 display 變體）。 */
+    function phraseMarkLeakVariants(tag) {
+        const set = new Set();
+        if (!tag) return [];
+        const ph = tag.ph != null ? String(tag.ph) : '';
+        [tag.xml, tag.display].filter(Boolean).forEach(raw => {
+            const s = String(raw);
+            if (!s || s === ph) return;
+            phInnerMatchVariants(s).forEach(v => { if (v && v !== ph) set.add(v); });
+            let decoded = s;
+            for (let i = 0; i < 8 && decoded.includes('&amp;'); i++) {
+                decoded = decoded.replace(/&amp;/g, '&');
+            }
+            decoded = decoded.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+            if (decoded && decoded !== ph) {
+                phInnerMatchVariants(decoded).forEach(v => { if (v && v !== ph) set.add(v); });
+            }
+        });
+        return [...set].filter(v => v && v !== ph);
+    }
+
+    function repairMxliffMarkLeaksInText(text, tags) {
+        if (!text || !tags || !tags.length) return text;
+        let normalized = collapseAmpEntitiesRepeated(text);
+        const sorted = [...tags].sort((a, b) => (a.num || 0) - (b.num || 0));
+        const byVariant = new Map();
+        sorted.forEach(tag => {
+            phraseMarkLeakVariants(tag).forEach(v => {
+                if (!byVariant.has(v)) byVariant.set(v, []);
+                const list = byVariant.get(v);
+                if (!list.some(x => x.ph === tag.ph)) list.push(tag);
+            });
+        });
+        [...byVariant.keys()].sort((a, b) => b.length - a.length).forEach(v => {
+            const tagList = byVariant.get(v).sort((a, b) => (a.num || 0) - (b.num || 0));
+            tagList.forEach(tag => {
+                const ph = tag.ph;
+                if (!ph || !normalized.includes(v)) return;
+                normalized = normalized.replace(v, ph);
+            });
+        });
+        return normalized;
+    }
+
+    function longestCommonPrefixLen(a, b) {
+        const x = String(a || '');
+        const y = String(b || '');
+        let i = 0;
+        while (i < x.length && i < y.length && x[i] === y[i]) i++;
+        return i;
+    }
+
+    /** 前綴字面尾端錨點（如「解鎖」「獎勵章節」），用於在譯文中切出開標前的內文區段。 */
+    function mxliffPrefixAnchorSuffix(prefixLiteral) {
+        const s = String(prefixLiteral || '').trimEnd();
+        if (!s) return '';
+        const tail = s.slice(-Math.min(8, s.length));
+        const m = tail.match(/[\u4e00-\u9fff]{2,8}$/);
+        return m ? m[0] : tail.slice(-4);
+    }
+
+    function splitByPhrasePlaceholder(text) {
+        return String(text || '').split(/(\{\/?\d+\}|\{\d+>|<\d+\})/g).filter(s => s !== '');
+    }
+
+    /**
+     * 依原始檔 <target> 的 {N} 骨架，從使用者譯文（可能缺開標、含 mark 洩漏）重組匯出用字串。
+     * 結構假設：…前綴{open}內文{close}…（Phrase BILING_XLS／DOC 常見）。
+     */
+    function rebuildMxliffTargetFromOriginalStructure(origTarget, userText) {
+        const orig = String(origTarget || '').trim();
+        if (!orig) return userText;
+        const parts = splitByPhrasePlaceholder(orig);
+        if (!parts.length) return userText;
+        let u = String(userText || '');
+        let out = '';
+        for (let i = 0; i < parts.length; i++) {
+            const p = parts[i];
+            if (isPhrasePlaceholderToken(p)) {
+                out += p;
+                if (u.startsWith(p)) u = u.slice(p.length);
+                continue;
+            }
+            const openPh = parts[i + 1];
+            const innerOrig = parts[i + 2];
+            const closePh = parts[i + 3];
+            const isPairBlock = openPh && isPhrasePlaceholderToken(openPh)
+                && innerOrig && !isPhrasePlaceholderToken(innerOrig)
+                && closePh && isPhrasePlaceholderToken(closePh);
+            if (isPairBlock) {
+                const closeIdx = u.indexOf(closePh);
+                if (closeIdx !== -1) {
+                    const userBeforeClose = u.slice(0, closeIdx);
+                    const anchor = mxliffPrefixAnchorSuffix(p);
+                    const anchorIdx = anchor ? userBeforeClose.lastIndexOf(anchor) : -1;
+                    const innerStart = anchorIdx !== -1
+                        ? anchorIdx + anchor.length
+                        : longestCommonPrefixLen(p, userBeforeClose);
+                    out += userBeforeClose.slice(0, innerStart) + openPh + userBeforeClose.slice(innerStart) + closePh;
+                    u = u.slice(closeIdx + closePh.length);
+                    i += 3;
+                    continue;
+                }
+            }
+            const lcp = longestCommonPrefixLen(p, u);
+            if (lcp > 0) {
+                out += u.slice(0, lcp);
+                u = u.slice(lcp);
+            } else if (!isPhrasePlaceholderToken(p)) {
+                out += p;
+            }
+        }
+        if (u) out += u;
+        return out;
+    }
+
+    function repairMxliffTargetForExport(userText, sourceText, origTarget, tags) {
+        let text = repairMxliffMarkLeaksInText(userText || '', tags);
+        const required = (sourceText || '').match(RE_PHRASE_PLACEHOLDER_PH) || [];
+        const orig = String(origTarget || '').trim();
+        if (required.length && orig && !required.every(ph => text.includes(ph))) {
+            text = rebuildMxliffTargetFromOriginalStructure(orig, text);
+        }
+        return text;
+    }
+
     function normalizeLegacyEncodedTagText(text, tags) {
         if (!text || !tags || !tags.length) return text;
         let normalized = collapseAmpEntitiesRepeated(text);
@@ -658,14 +791,31 @@
             }
 
             const tags = seg.targetTags && seg.targetTags.length ? seg.targetTags : (seg.sourceTags || []);
-            const repairedText = normalizeLegacyEncodedTagText(seg.targetText || '', seg.sourceTags || []);
-            let restoredXml = replacePlaceholders(repairedText, tags, seg.sourceTags || []);
-
-            if (/&lt;it\b/i.test(restoredXml)) {
-                restoredXml = replaceEncodedItWithSourceXml(restoredXml, orderedInlineSourceTags(seg.sourceTags || []));
+            let repairedText = normalizeLegacyEncodedTagText(seg.targetText || '', seg.sourceTags || []);
+            if (format === 'mxliff') {
+                const origTargetEl = tu.getElementsByTagName('target')[0];
+                const origTargetText = origTargetEl ? (origTargetEl.textContent || '') : '';
+                repairedText = repairMxliffTargetForExport(
+                    repairedText,
+                    seg.sourceText || '',
+                    origTargetText,
+                    tags
+                );
             }
+            const tagsForReplace = format === 'mxliff'
+                ? tags.map(t => ({ ...t, xml: t.ph }))
+                : tags;
+            const fallbackForReplace = format === 'mxliff'
+                ? (seg.sourceTags || []).map(t => ({ ...t, xml: t.ph }))
+                : (seg.sourceTags || []);
+            let restoredXml = replacePlaceholders(repairedText, tagsForReplace, fallbackForReplace);
 
-            restoredXml = prepareRestoredFragmentForXmlParse(restoredXml);
+            if (format !== 'mxliff') {
+                if (/&lt;it\b/i.test(restoredXml)) {
+                    restoredXml = replaceEncodedItWithSourceXml(restoredXml, orderedInlineSourceTags(seg.sourceTags || []));
+                }
+                restoredXml = prepareRestoredFragmentForXmlParse(restoredXml);
+            }
 
             if (format === 'mqxliff') {
                 updateMqxliffStatus(tu, seg, mqNsUri);
@@ -699,12 +849,15 @@
                 targetNode.setAttribute('state', stateVal);
             }
 
-            // sdlxliff：保留 <g>/<mrk> 結構，只更新 mrk 內容；其他格式直接替換整個 target 內容
+            // sdlxliff：保留 <g>/<mrk> 結構；mxliff：純文字 {N} 佔位；其他格式走 XML 片段還原
             if (format === 'sdlxliff') {
                 const handled = _updateSdlxliffMrkContent(xmlDoc, tu, targetNode, seg, tags);
                 if (!handled) {
                     setExportTargetPlainOrFragment(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
                 }
+            } else if (format === 'mxliff') {
+                while (targetNode.firstChild) targetNode.removeChild(targetNode.firstChild);
+                targetNode.textContent = restoredXml != null ? String(restoredXml) : '';
             } else {
                 setExportTargetPlainOrFragment(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
             }

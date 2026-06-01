@@ -18342,7 +18342,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function tagChipLabelAndFull(tag) {
         const label = tag && tag.display != null ? String(tag.display) : '';
         const xml = tag && tag.xml != null ? String(tag.xml) : '';
-        const full = xml !== '' ? xml : label;
+        const ph = tag && tag.ph != null ? String(tag.ph) : '';
+        const full = (label && label !== ph) ? label : (xml !== '' ? xml : label);
         return { label, full };
     }
 
