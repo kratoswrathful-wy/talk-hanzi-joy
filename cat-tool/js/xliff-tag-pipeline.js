@@ -398,11 +398,55 @@
         return String(text || '').split(/(\{\/?\d+\}|\{\d+>|<\d+\})/g).filter(s => s !== '');
     }
 
+    function findTagByPh(tags, ph) {
+        if (!tags || !ph) return null;
+        return tags.find(t => t && String(t.ph) === String(ph)) || null;
+    }
+
+    /** 僅當 open/close 為同一 pairNum 的色標對（非任意相鄰 {N}）。 */
+    function isMxliffOpenClosePair(openPh, closePh, tags) {
+        const openTag = findTagByPh(tags, openPh);
+        const closeTag = findTagByPh(tags, closePh);
+        if (!openTag || !closeTag) return false;
+        if (openTag.type !== 'open' || closeTag.type !== 'close') return false;
+        if (openTag.pairNum == null || closeTag.pairNum == null) return false;
+        return openTag.pairNum === closeTag.pairNum;
+    }
+
+    function collapseDuplicatePhrasePlaceholders(text) {
+        if (!text || typeof text !== 'string') return text;
+        let s = text;
+        for (let pass = 0; pass < 8; pass++) {
+            const next = s.replace(/(\{\/?\d+\}|\{\d+>|<\d+\})\1+/g, '$1');
+            if (next === s) break;
+            s = next;
+        }
+        return s;
+    }
+
+    /** 缺開標、譯文已有關標時，在關標前補開標（不重組整段 orig 骨架）。 */
+    function insertMissingMxliffOpenPlaceholders(text, tags) {
+        if (!text || !tags || !tags.length) return text;
+        let out = text;
+        const opens = tags.filter(t => t && t.type === 'open').sort((a, b) => (a.num || 0) - (b.num || 0));
+        for (const tag of opens) {
+            const ph = tag.ph != null ? String(tag.ph) : '';
+            if (!ph || out.includes(ph)) continue;
+            const closeTag = tags.find(t =>
+                t && t.type === 'close' && t.pairNum != null && t.pairNum === tag.pairNum
+            );
+            const closePh = closeTag && closeTag.ph ? String(closeTag.ph) : `{${(tag.num || 0) + 1}}`;
+            if (!closePh || !out.includes(closePh)) continue;
+            out = out.split(closePh).join(ph + closePh);
+        }
+        return out;
+    }
+
     /**
      * 依原始檔 <target> 的 {N} 骨架，從使用者譯文（可能缺開標、含 mark 洩漏）重組匯出用字串。
-     * 結構假設：…前綴{open}內文{close}…（Phrase BILING_XLS／DOC 常見）。
+     * 僅處理 sourceTags 驗證的 open/close 色標對；不把 {1} 與 {4} 等 standalone 佔位誤當一對。
      */
-    function rebuildMxliffTargetFromOriginalStructure(origTarget, userText) {
+    function rebuildMxliffTargetFromOriginalStructure(origTarget, userText, tags) {
         const orig = String(origTarget || '').trim();
         if (!orig) return userText;
         const parts = splitByPhrasePlaceholder(orig);
@@ -421,7 +465,8 @@
             const closePh = parts[i + 3];
             const isPairBlock = openPh && isPhrasePlaceholderToken(openPh)
                 && innerOrig && !isPhrasePlaceholderToken(innerOrig)
-                && closePh && isPhrasePlaceholderToken(closePh);
+                && closePh && isPhrasePlaceholderToken(closePh)
+                && isMxliffOpenClosePair(openPh, closePh, tags);
             if (isPairBlock) {
                 const closeIdx = u.indexOf(closePh);
                 if (closeIdx !== -1) {
@@ -431,7 +476,13 @@
                     const innerStart = anchorIdx !== -1
                         ? anchorIdx + anchor.length
                         : longestCommonPrefixLen(p, userBeforeClose);
-                    out += userBeforeClose.slice(0, innerStart) + openPh + userBeforeClose.slice(innerStart) + closePh;
+                    const inner = userBeforeClose.slice(innerStart);
+                    if (!inner.startsWith(openPh)) {
+                        out += userBeforeClose.slice(0, innerStart) + openPh + inner;
+                    } else {
+                        out += userBeforeClose.slice(0, innerStart) + inner;
+                    }
+                    out += closePh;
                     u = u.slice(closeIdx + closePh.length);
                     i += 3;
                     continue;
@@ -453,10 +504,14 @@
         let text = repairMxliffMarkLeaksInText(userText || '', tags);
         const required = (sourceText || '').match(RE_PHRASE_PLACEHOLDER_PH) || [];
         const orig = String(origTarget || '').trim();
+        const tagList = tags || [];
         if (required.length && orig && !required.every(ph => text.includes(ph))) {
-            text = rebuildMxliffTargetFromOriginalStructure(orig, text);
+            text = rebuildMxliffTargetFromOriginalStructure(orig, text, tagList);
         }
-        return text;
+        if (required.length && !required.every(ph => text.includes(ph))) {
+            text = insertMissingMxliffOpenPlaceholders(text, tagList);
+        }
+        return collapseDuplicatePhrasePlaceholders(text);
     }
 
     function normalizeLegacyEncodedTagText(text, tags) {
@@ -488,9 +543,35 @@
         return fragment.replace(/&lt;\/&gt;/g, '&amp;lt;/&amp;gt;');
     }
 
+    /**
+     * restoredXml 內純文字夾帶的遊戲標記（如 <AI>、</>）不是合法 XLIFF 元素，
+     * 會造成 DOMParser 解析失敗。此函式將所有非 XLIFF 的 <tag> / </tag> 轉成
+     * &lt;tag&gt;，讓 XML 解析器把它們當純文字處理。
+     *
+     * 視為「安全」保留（不 escape）的元素：
+     *   ph, bpt, ept, it, g, x, mrk, _wrap，
+     *   以及任何命名空間限定元素（如 mq:ch、sdl:seg）。
+     */
+    function escapeNonXliffAngleBrackets(fragment) {
+        if (!fragment || typeof fragment !== 'string') return fragment;
+        const SAFE_RE = /^\/?(ph|bpt|ept|it|g|x|mrk|_wrap)\b/i;
+        const NS_RE = /^\/?[\w-]+:[\w-]/;
+        return fragment.replace(/<([^>]*)>/g, (match, inner) => {
+            const t = inner.trim();
+            if (t.startsWith('!--')) return match;
+            if (t.startsWith('?')) return match;
+            if (NS_RE.test(t)) return match;
+            if (SAFE_RE.test(t)) return match;
+            return match.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        });
+    }
+
     function prepareRestoredFragmentForXmlParse(restoredXml) {
         if (!restoredXml || typeof restoredXml !== 'string') return restoredXml;
-        return escapeMemoqBareCloseForXmlParse(collapseAmpEntitiesRepeated(restoredXml));
+        let s = collapseAmpEntitiesRepeated(restoredXml);
+        s = escapeMemoqBareCloseForXmlParse(s);
+        s = escapeNonXliffAngleBrackets(s);
+        return s;
     }
 
     function tryHtmlEntityDecodeLoop(s, maxPass = 4) {
@@ -914,6 +995,7 @@
         phInnerMatchVariants,
         normalizeLegacyEncodedTagText,
         escapeMemoqBareCloseForXmlParse,
+        escapeNonXliffAngleBrackets,
         prepareRestoredFragmentForXmlParse,
         decodeLeadingEntityEncodedMarkup,
         orderedInlineSourceTags,

@@ -286,7 +286,9 @@ Phrase 要求 **`<target>` 內仍為字面量 `{1}…{2}`**（或 `{1>…<1}`）
 3. `replacePlaceholders` → 字面 `{N}` 不變。
 4. **略過** `prepareRestoredFragmentForXmlParse`、`setXmlTargetContent`。
 5. `while (targetNode.firstChild) removeChild` → `targetNode.textContent = restoredXml`。
-6. 可更新 `m:confirmed`、`m:level-edited`、`target@state`；**不**改 `m:mark`／`m:content`。
+6. 可更新 `m:confirmed`、`m:level-edited`、`target@state`（依 `seg.status`）；**不**改 `m:mark`／`m:content`。
+
+**匯出前狀態（`app.js`）**：對目前開啟檔，`prepareSegmentsForExport` 會 flush 譯文、await `confirmSideEffectChain`、flush `status` 到 DB，再以 `segmentsWithEditorTargetsForExport` 合併記憶體中的譯文與確認狀態（含批次匯出所選中的開啟檔）。
 
 ### 5.3 匯出前修復（已損壞譯文）
 
@@ -295,7 +297,10 @@ Phrase 要求 **`<target>` 內仍為字面量 `{1}…{2}`**（或 `{1>…<1}`）
 | 函式 | 用途 |
 |------|------|
 | `repairMxliffMarkLeaksInText` | `&lt;/color&gt;` 等 → `{2}`、`{4}`（同字面多 tag 時**逐次** replace） |
-| `rebuildMxliffTargetFromOriginalStructure` | 依原始檔 TU `<target>` 的 `{1}…{2}…` 骨架 + 錨點字切分使用者譯文 |
+| `isMxliffOpenClosePair` | 僅 `sourceTags` 中 `type` 為 open/close 且 `pairNum` 相同者視為色標對 |
+| `rebuildMxliffTargetFromOriginalStructure(orig, text, tags)` | 僅對真實 open/close 對重組；已有開標則不重複插入 |
+| `insertMissingMxliffOpenPlaceholders` | 仍缺開標時在關標前補開標（不用 orig 四段滑窗誤拼 `{1}+{4}`） |
+| `collapseDuplicatePhrasePlaceholders` | 收斂 `{2}{2}` 等連續重複字面 |
 | `repairMxliffTargetForExport` | 上述串接；僅在 `format === 'mxliff'` 單段匯出路徑呼叫 |
 
 若佔位已全刪且無法對齊，`validateExportTags` 仍可於匯出前提醒。
@@ -502,6 +507,22 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 ### [2026-06] Phrase mxliff 匯入 — `{1}{2}` pill 與格式偵測
 
 **摘要**：`ff23f8c`、`56bbfd0` — 接受 `.mxliff`、`synthesizeMxliffBraceTags`、`currentFileFormat = 'mxliff'`、匯出路徑納入 `mxliff`。見實作紀錄 §2 commit 表。
+
+---
+
+### [2026-06] mqxliff／xliff／sdlxliff 匯出 — 遊戲標記 `<AI>…</>` 導致 ph 雙重跳脫
+
+**症狀**：memoQ 匯出檔中，含 `<AI>// ANALYZING</>` 等遊戲引擎標記的句段，譯文 target 出現 `&amp;lt;mq:ch val="" /&amp;gt;` 字面量（換行 ph 變純文字）；memoQ QA 02011「Tag mq:ch is missing from the target」。Focus Entertainment Batch 2 約 183 句段。
+
+**原因**：
+
+1. `escapeMemoqBareCloseForXmlParse` 只處理已 entity 化的 `&lt;/&gt;`，未處理 targetText 內**原始** `</>`、`<AI>` 等遊戲標記。
+2. `replacePlaceholders` 還原 `<ph>` 後，片段含非法 XML → `setXmlTargetContent` 解析失敗。
+3. `fallbackPlainTextFromCorruptFragment` 剝除 `<ph>` wrapper 但留下 `&lt;mq:ch …/&gt;` 字串 → `textContent` 寫入後再序列化為 `&amp;lt;…&amp;gt;`。
+
+**修法**：新增 `escapeNonXliffAngleBrackets`，在 `prepareRestoredFragmentForXmlParse` 內於 `escapeMemoqBareCloseForXmlParse` 之後呼叫；將非 XLIFF 元素（`ph`/`bpt`/`ept`/`it`/`g`/`x`/`mrk`/`_wrap` 與命名空間元素除外）的尖括號轉為 `&lt;`/`&gt;`，使 DOMParser 可成功解析並保留 `<ph>` 結構。影響 **mqxliff、一般 xliff、sdlxliff**；**mxliff** 走 `textContent` 不受影響。
+
+**驗收**：重新開啟含 `<AI>…</>` 的 mqxliff、確認譯文含 `{N}` 佔位後匯出；target 應為 `<ph>…&lt;mq:ch…/&gt;</ph>` 而非 `&amp;lt;mq:ch…&amp;gt;` 字面量；memoQ 02011 應消失。已錯誤匯出的交付檔需**重新匯出**。
 
 ---
 
