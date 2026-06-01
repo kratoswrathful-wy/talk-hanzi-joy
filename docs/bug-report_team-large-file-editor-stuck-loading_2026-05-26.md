@@ -1,7 +1,7 @@
 # Bug Report：團隊版大檔開啟編輯器卡在「載入中」（0/0 句段）
 
 > **事件日期**：2026-05-26  
-> **狀態**：開檔／匯出傳輸已修正並驗收（`4422dae`、`6acf7d9`）；**更新作業檔 Storage orphan** 見 §2.11–§2.12  
+> **狀態**：開檔已修（`4422dae`）；匯出傳輸已修（`6acf7d9`）；更新作業檔 orphan path 根因**已修並部署**（`e37cbf9`）  
 > **模式**：CAT 團隊線上版（`/cat/team`，iframe + Supabase）  
 > **關聯**：2026-05 Storage 搬遷後 `db.getFile` 仍會下載原始檔（見 [incident-report_2026-05-01_rls-and-db-load.md](./incident-report_2026-05-01_rls-and-db-load.md)）；本次為**開檔路徑誤用**導致大檔逾時，非 Storage 設計本身錯誤。
 
@@ -197,22 +197,26 @@ orphan 範例：
 
 | 專案 | file_id | 句段數 | 備註 |
 |------|---------|--------|------|
-| NXX | `70c1b005-9140-4c21-88c4-91d9c0887f1d` | 5667 | 本機 xlsx 約 **500 KB**（非大檔）；**2026-05-26 已手動補傳** Storage |
-| 星穹鐵道 | `276c55c4-ee3e-49ad-beb5-0b2be0997ee9` | 1051 | 待維運補檔或重匯入 |
+| NXX | `70c1b005-9140-4c21-88c4-91d9c0887f1d` | 5667 | **2026-05-26** 手動補傳（`…132851.xlsx`，約 500 KB）→ 匯出恢復；**2026-05-27** 使用者以舊版程式碼執行更新作業檔，`remove(oldPath)` 刪除補傳物件後上傳失敗，再次 orphan → 再次手動補傳（`…194921.xlsx`，501,916 bytes） |
+| 星穹鐵道 | `276c55c4-ee3e-49ad-beb5-0b2be0997ee9` | 1051 | 仍為 orphan；`e37cbf9` 部署後可透過重匯入或手動補傳恢復匯出 |
 
 **與「檔案太大」的關係**：句段字數多會拖慢開檔／查詢；**不會**單獨造成「DB 有路徑、bucket 無檔」。全庫僅 2/318 為 orphan，排除普遍大小上限。
 
-**最可能程式根因（修正前）**：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) `db.refreshFileSegments`（Excel **更新作業檔**）：
+**最可能程式根因（`e37cbf9` 前）**：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) `db.refreshFileSegments`（Excel **更新作業檔**）：
 
 1. **先**完成句段 remove／update／insert；  
-2. **再** `remove(oldPath)`；  
+2. **再** `remove(oldPath)` — 刪除 Storage 物件；  
 3. 上傳失敗僅 `console.warn`，DB `original_file_path` **不變** → 舊物件已刪、路徑仍指向空櫃。
 
-另：`createFile` 使用 canonical path `{projectId}/{fileId}/original`；舊版成功更新時可能改寫為 `{fileId}/{timestamp}_{name}`，與匯出 signed URL 路徑不一致。
+2026-05-27 NXX 的第二次 orphan 正是此路徑觸發：程式碼修正寫好但**尚未 push**，使用者以舊版正式站執行更新作業檔，步驟 2 刪掉 2026-05-26 補傳的物件，步驟 3 上傳到非 canonical path 失敗，DB 未更新 → 再次 orphan。
+
+另：舊版成功更新時路徑寫為 `{fileId}/{timestamp}_{name}`，與 `createFile` 的 canonical path `{projectId}/{fileId}/original` 不一致。
 
 **與 backfill 差異**：[`scripts/backfill-cat-original-files.mjs`](../scripts/backfill-cat-original-files.mjs) 只處理「有 base64、無 path」；**無法**修 orphan。
 
 **維運補檔**：`supabase storage cp --experimental --linked` 上傳至 DB 既有 `original_file_path`；或重匯入／更新作業檔（§2.12 修正後較安全）。
+
+**後續（2026-06-02）**：即使底稿已替換，若 `mergeSegments` 將句段判為 `keep` 而未同步 `rowIdx/colTgt`，匯出仍會錯列。詳見 [`bug-report_excel-update-export-position_2026-06.md`](./bug-report_excel-update-export-position_2026-06.md)。
 
 ```mermaid
 sequenceDiagram
@@ -277,5 +281,7 @@ sequenceDiagram
 | 2026-05-26 | `6acf7d9` | 匯出：signed URL、匯出錯誤白話、專案頁單檔直接下載 |
 | 2026-05-26 | `d216a22` | 文件：版本表補 `6acf7d9` 短碼 |
 | 2026-05-26 | `2b50200` | `mapFileRowWithOriginalSignedUrl` TS spread 型別修正（Vercel build） |
-| 2026-05-26 | （維運） | NXX `70c1b005-…`：手動 `supabase storage cp` 補 canonical path（約 500 KB） |
-| 2026-05-26 | （文件+程式） | §2.11–§2.12：orphan path 調查紀錄、`refreshFileSegments` Storage 修正 |
+| 2026-05-26 | （維運） | NXX `70c1b005-…`：手動 `supabase storage cp` 補 canonical path（`…132851.xlsx`，約 500 KB） |
+| 2026-05-26 | （文件） | §2.11–§2.12 草稿：orphan path 調查紀錄、修正設計（程式已寫尚未 push） |
+| 2026-05-27 | （維運） | NXX 第二次 orphan：舊版程式執行更新作業檔刪除 Storage 物件，再次手動補傳（`…194921.xlsx`，501,916 bytes） |
+| 2026-05-27 | `e37cbf9` | fix: refreshFileSegments 先 upsert canonical path 再寫句段；失敗 throw；data-provider 120s；CatToolPage 錯誤碼；文件全更新 |

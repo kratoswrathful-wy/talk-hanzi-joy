@@ -6276,6 +6276,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return '更新作業檔失敗，句段尚未變更：' + msg;
     }
 
+    /** 更新作業檔確認／結果摘要：位置同步列（內容不變僅修正 rowIdx/colTgt 時） */
+    function fileUpdatePositionSyncLine(stats) {
+        const n = stats && stats.updatedPositionOnly;
+        return (n > 0) ? `　位置同步（內容不變）：${n} 句` : '';
+    }
+
     /** 試算表純文字匯出：將 `{n}`／`{/n}` 依 targetTags[].xml 還原為原始 token */
     function excelExportPlainTargetCell(targetText, targetTags) {
         const StrTags = window.CatToolExcelImportStringTags;
@@ -6430,15 +6436,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 f = await catGetFile(ids[i], { includeOriginal: true });
                 if (!f) throw new Error('找不到檔案紀錄');
-                const rawSegs = await DBService.getSegmentsByFile(ids[i]);
+                const segs = await prepareSegmentsForExport(ids[i]);
                 const format = _batchExportGetFileFormat(f);
 
                 if (Xliff && typeof Xliff.validateExportTags === 'function') {
-                    const issues = Xliff.validateExportTags(rawSegs);
+                    const issues = Xliff.validateExportTags(segs);
                     if (issues.length) tagWarnings.push({ name: f.name, issues });
                 }
 
-                const { blob, filename } = await _batchExportBuildBlob(f, rawSegs, format);
+                const { blob, filename } = await _batchExportBuildBlob(f, segs, format);
                 const downloadName = _batchExportZipFilename(f, filename);
                 if (multiFile) {
                     zip.file(downloadName, blob);
@@ -11404,9 +11410,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             `即將更新「${fileName}」：`,
             `　保留（無變動）：${stats.kept} 句`,
             `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變：${stats.updatedSourceChanged} 句）` : ''}`,
+            fileUpdatePositionSyncLine(stats),
             `　新增：${stats.inserted} 句`,
             `　刪除：${stats.removed} 句`,
-        ];
+        ].filter(Boolean);
         if (stats.removed > 0) {
             lines.push('');
             lines.push('注意：刪除的句段若含有譯文，刪除後無法復原。');
@@ -11482,9 +11489,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             `「${fileName}」更新完成。`,
             `　保留（無變動）：${stats.kept} 句`,
             `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變 ${stats.updatedSourceChanged} 句，已加入追蹤修訂提示）` : ''}`,
+            fileUpdatePositionSyncLine(stats),
             `　新增：${stats.inserted} 句`,
             `　刪除：${stats.removed} 句`,
-        ];
+        ].filter(Boolean);
         if (viewSummary.length) {
             resultLines.push('');
             resultLines.push('句段集同步：');
@@ -12293,9 +12301,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     `即將更新「${originalFileName}」：`,
                     `　保留（無變動）：${stats.kept} 句`,
                     `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變：${stats.updatedSourceChanged} 句）` : ''}`,
+                    fileUpdatePositionSyncLine(stats),
                     `　新增：${stats.inserted} 句`,
                     `　刪除：${stats.removed} 句`,
-                ];
+                ].filter(Boolean);
                 if (stats.removed > 0) { confLines.push(''); confLines.push('注意：刪除的句段若含有譯文，刪除後無法復原。'); }
                 confLines.push(''); confLines.push('確定要更新嗎？');
                 const confirmed = await openCatConfirmModal(confLines.join('\n'));
@@ -12342,9 +12351,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     `「${originalFileName}」更新完成。`,
                     `　保留（無變動）：${stats.kept} 句`,
                     `　更新：${stats.updated} 句${stats.updatedSourceChanged ? `（其中原文有變 ${stats.updatedSourceChanged} 句，已加入追蹤修訂提示）` : ''}`,
+                    fileUpdatePositionSyncLine(stats),
                     `　新增：${stats.inserted} 句`,
                     `　刪除：${stats.removed} 句`,
-                ];
+                ].filter(Boolean);
                 if (viewSummary.length) {
                     resultLines.push(''); resultLines.push('句段集同步：');
                     viewSummary.forEach(vs => resultLines.push(`　「${vs.viewName}」：+${vs.added} / -${vs.removed}`));
@@ -18200,8 +18210,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             indices.forEach((i) => applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: false }));
             const dbWaits = [];
-            indices.forEach((i) => {
-                const seg = currentSegmentsList[i];
+            touchAll.forEach((idx) => {
+                const seg = currentSegmentsList[idx];
                 const bs = beforeSnapshots[seg.id];
                 if (bs && bs.status !== 'confirmed' && seg.status === 'confirmed') {
                     const extra = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
@@ -21582,10 +21592,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             indices.forEach((ix) => applyOptimisticRepetitionAfterPrimaryConfirm(ix, { updateDom: false }));
             const maxIdx = indices.length ? Math.max(...indices) : -1;
             const dbWaits = [];
-            toUpdate.forEach((s) => {
+            touchAll.forEach((idx) => {
+                const s = currentSegmentsList[idx];
                 const bs = beforeSnapshots[s.id];
-                if (bs && bs.status !== 'confirmed') {
-                    dbWaits.push(DBService.updateSegmentStatus(s.id, 'confirmed', currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {}));
+                if (bs && bs.status !== 'confirmed' && s.status === 'confirmed') {
+                    dbWaits.push(DBService.updateSegmentStatus(s.id, s.status, currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {}));
                 }
             });
             const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
@@ -23782,7 +23793,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     targetText: s.targetText || '',
                     targetTags: Array.isArray(s.targetTags) ? s.targetTags : [],
                     sourceTags: s.sourceTags,
-                    baseRprXml: s.baseRprXml
+                    baseRprXml: s.baseRprXml,
+                    status: s.status,
+                    confirmationRole: s.confirmationRole
                 });
             }
         }
@@ -23796,14 +23809,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!targetInput || targetInput.getAttribute('contenteditable') === 'false') continue;
                 const domText = extractTextFromEditor(targetInput);
                 const merged = currentSegmentsList && currentSegmentsList.find((x) => String(x.id) === sid);
-                const base = map.get(sid) || { targetText: '', targetTags: [], sourceTags: undefined, baseRprXml: undefined };
+                const base = map.get(sid) || { targetText: '', targetTags: [], sourceTags: undefined, baseRprXml: undefined, status: undefined, confirmationRole: undefined };
                 map.set(sid, {
                     targetText: domText,
                     targetTags: (merged && merged.targetTags && merged.targetTags.length)
                         ? merged.targetTags
                         : (base.targetTags || []),
                     sourceTags: merged ? (merged.sourceTags || base.sourceTags) : base.sourceTags,
-                    baseRprXml: merged && merged.baseRprXml != null ? merged.baseRprXml : base.baseRprXml
+                    baseRprXml: merged && merged.baseRprXml != null ? merged.baseRprXml : base.baseRprXml,
+                    status: merged ? merged.status : base.status,
+                    confirmationRole: merged ? merged.confirmationRole : base.confirmationRole
                 });
             }
         }
@@ -23821,7 +23836,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     targetText: p.targetText,
                     targetTags: p.targetTags,
                     sourceTags: p.sourceTags != null ? p.sourceTags : seg.sourceTags,
-                    baseRprXml: p.baseRprXml != null ? p.baseRprXml : seg.baseRprXml
+                    baseRprXml: p.baseRprXml != null ? p.baseRprXml : seg.baseRprXml,
+                    status: p.status != null ? p.status : seg.status,
+                    confirmationRole: p.confirmationRole != null ? p.confirmationRole : seg.confirmationRole
                 };
             }
             return {
@@ -23832,6 +23849,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                 baseRprXml: seg.baseRprXml
             };
         });
+    }
+
+    /** 匯出前：將編輯器記憶體中的確認狀態寫入 DB（含重複傳播句段）。 */
+    async function flushSegmentStatusToDbForExport() {
+        if (!currentFileId || !Array.isArray(currentSegmentsList) || !currentSegmentsList.length) return;
+        const rawSegs = await DBService.getSegmentsByFile(currentFileId);
+        const dbById = new Map(rawSegs.map((s) => [String(s.id), s]));
+        const waits = [];
+        for (const seg of currentSegmentsList) {
+            const db = dbById.get(String(seg.id));
+            const memStatus = seg.status || 'unconfirmed';
+            const dbStatus = (db && db.status) || 'unconfirmed';
+            if (memStatus === dbStatus) continue;
+            const extra = currentFileFormat === 'mqxliff' && seg.confirmationRole
+                ? { confirmationRole: seg.confirmationRole }
+                : {};
+            waits.push(DBService.updateSegmentStatus(seg.id, memStatus, extra));
+        }
+        if (waits.length) await Promise.all(waits);
+    }
+
+    /**
+     * 匯出前 flush 譯文與確認、await 確認佇列，再自 DB 讀取並合併編輯器狀態。
+     * 僅當 fileId 為目前開啟檔時執行 flush／合併。
+     */
+    async function prepareSegmentsForExport(fileId) {
+        const isOpenFile = fileId && currentFileId && String(fileId) === String(currentFileId);
+        if (isOpenFile) {
+            await flushTargetEditorsToDbForExport();
+            await confirmSideEffectChain;
+            await flushSegmentStatusToDbForExport();
+        }
+        const rawSegs = await DBService.getSegmentsByFile(fileId);
+        return isOpenFile ? segmentsWithEditorTargetsForExport(rawSegs) : rawSegs;
     }
 
     /** 匯出前：將畫面上譯文欄內容寫入 DB，避免 debounce 未完成時匯出仍為舊 target_text */
@@ -23863,10 +23914,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             exportBtn.disabled = true; exportBtn.textContent = '匯出中...';
             showCatLoadingOverlay('正在準備匯出…');
-            await flushTargetEditorsToDbForExport();
-            const f    = await catGetFile(currentFileId, { includeOriginal: true });
-            const rawSegs = await DBService.getSegmentsByFile(currentFileId);
-            const segs = segmentsWithEditorTargetsForExport(rawSegs);
+            const f = await catGetFile(currentFileId, { includeOriginal: true });
+            const segs = await prepareSegmentsForExport(currentFileId);
 
             const tagIssues = (Xliff && typeof Xliff.validateExportTags === 'function')
                 ? Xliff.validateExportTags(segs)

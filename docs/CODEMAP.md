@@ -45,6 +45,8 @@
 | 團隊版開檔／`getFile` 輕量與大檔卡載入 | `db.getFile` 之 `includeOriginal`（[`cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)）、[`cat-tool/app.js`](../cat-tool/app.js) `catGetFile`／`openEditor`／`waitForTmsIdentityReady`、[`CatToolPage.tsx`](../src/pages/CatToolPage.tsx) `CAT_AUTH_NOT_READY`；見 [bug-report_team-large-file-editor-stuck-loading_2026-05-26.md](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) |
 | 團隊版匯出原始檔（signed URL）／專案頁單檔直接下載 | `mapFileRowWithOriginalSignedUrl`、`hydrateFile` + `originalSignedUrl`（[`cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)、[`cat-tool/db.js`](../cat-tool/db.js)）；`formatCatExportErrorMessage`、`batchExportSelectedFiles`、`_triggerBrowserDownload`（[`cat-tool/app.js`](../cat-tool/app.js)）；同上 bug report §2.9 |
 | 團隊版更新作業檔／Storage canonical path | `db.refreshFileSegments` 之 `newFileBase64`（先 upsert `{projectId}/{fileId}/original` 再寫句段）；[`cat-tool/app.js`](../cat-tool/app.js) Excel 更新 wizard；見 [bug-report_team-large-file-editor-stuck-loading_2026-05-26.md](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) §2.11–§2.12 |
+| **Excel 更新作業檔後匯出錯列（rowIdx keep 短路）** | [`cat-tool/js/file-update.js`](../cat-tool/js/file-update.js) `mergeSegments`（`segmentsContentEqual`、`segmentPositionEqual`、`buildPositionPatch`）；[`cat-tool/app.js`](../cat-tool/app.js) `excelApplyTranslatedSegmentsToWorkbook`；見 [bug-report_excel-update-export-position_2026-06.md](./bug-report_excel-update-export-position_2026-06.md) |
+| **Excel 匯出 colTgt 字串寫錯欄** | [`cat-tool/app.js`](../cat-tool/app.js) `Number(s.colTgt ?? 0)`；見 [CAT_EXCEL_EXPORT_COLTGT_STRING_BUG_2026-05.md](./CAT_EXCEL_EXPORT_COLTGT_STRING_BUG_2026-05.md) |
 
 ### CAT：防殘影、深連結載入、詳情頁 key
 

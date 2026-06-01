@@ -44,24 +44,38 @@
         return existingSeg.status === 'confirmed';
     }
 
-    // ── 句段相等比較（判斷是否完全無變動） ────────────────────────────────────
+    // ── 句段相等比較（更新作業檔：內容 vs 位置） ───────────────────────────────
 
-    function normGlobalId(seg) {
-        if (seg == null || seg.globalId == null || seg.globalId === '') return null;
-        const n = Number(seg.globalId);
-        return Number.isFinite(n) ? n : null;
+    /**
+     * 內容是否相同（更新作業檔語意）。
+     * 不比對 status（Excel 解析固定 unconfirmed）、globalId（incoming 不帶）。
+     */
+    function segmentsContentEqual(existing, effectiveIncoming) {
+        return (
+            (existing.sourceText || '') === (effectiveIncoming.sourceText || '') &&
+            (existing.targetText || '') === (effectiveIncoming.targetText || '') &&
+            (existing.idValue ?? null) === (effectiveIncoming.idValue ?? null) &&
+            (existing.extraValue ?? null) === (effectiveIncoming.extraValue ?? null) &&
+            !!(existing.isLocked) === !!(effectiveIncoming.isLocked)
+        );
     }
 
-    function segmentsFullyEqual(a, b) {
-        return (
-            (a.sourceText || '') === (b.sourceText || '') &&
-            (a.targetText || '') === (b.targetText || '') &&
-            (a.idValue ?? null) === (b.idValue ?? null) &&
-            (a.extraValue ?? null) === (b.extraValue ?? null) &&
-            (a.status || '') === (b.status || '') &&
-            !!(a.isLocked) === !!(b.isLocked) &&
-            normGlobalId(a) === normGlobalId(b)
-        );
+    function segmentPositionEqual(existing, incoming) {
+        return Number(existing.rowIdx ?? 0) === Number(incoming.rowIdx ?? 0)
+            && String(existing.colSrc ?? '') === String(incoming.colSrc ?? '')
+            && String(existing.colTgt ?? '') === String(incoming.colTgt ?? '')
+            && String(existing.sheetName || 'Sheet1') === String(incoming.sheetName || 'Sheet1');
+    }
+
+    /** 僅同步儲存格位置（不含 targetText，避免團隊 RPC 無謂 bump revision） */
+    function buildPositionPatch(incoming) {
+        const patch = {};
+        if (incoming.rowIdx !== undefined) patch.rowIdx = incoming.rowIdx;
+        if (incoming.colSrc !== undefined) patch.colSrc = incoming.colSrc;
+        if (incoming.colTgt !== undefined) patch.colTgt = incoming.colTgt;
+        if (incoming.sheetName !== undefined) patch.sheetName = incoming.sheetName;
+        if (incoming.baseRprXml !== undefined) patch.baseRprXml = incoming.baseRprXml;
+        return patch;
     }
 
     // ── 主函式 ────────────────────────────────────────────────────────────────
@@ -79,7 +93,7 @@
      *   insert: object[],   // 新增的句段（完整 segment 物件，不含 id）
      *   remove: (string|number)[],  // 要刪除的句段 id 陣列
      *   stats: {
-     *     kept, updated, updatedSourceChanged, inserted, removed
+     *     kept, updated, updatedSourceChanged, updatedPositionOnly, inserted, removed
      *   }
      * }}
      */
@@ -106,6 +120,7 @@
         const update = [];
         const insert = [];
         let updatedSourceChanged = 0;
+        let updatedPositionOnly = 0;
 
         for (const incoming of incomingSegs) {
             const key = segmentMatchKey(incoming, format);
@@ -141,14 +156,21 @@
                 }
             }
 
-            // 判斷是否完全無變動
             const effectiveIncoming = { ...incoming, targetText: finalTarget };
-            if (!sourceChanged && !targetActuallyChanged && segmentsFullyEqual(existing, effectiveIncoming)) {
-                keep.push(existing);
+            const contentEqual = !sourceChanged && !targetActuallyChanged
+                && segmentsContentEqual(existing, effectiveIncoming);
+
+            if (contentEqual) {
+                if (segmentPositionEqual(existing, incoming)) {
+                    keep.push(existing);
+                    continue;
+                }
+                update.push({ id: existing.id, patch: buildPositionPatch(incoming) });
+                updatedPositionOnly++;
                 continue;
             }
 
-            // 計算 patch
+            // 計算 patch（內容有變）
             const patch = {};
 
             // 原文
@@ -191,12 +213,7 @@
                 patch.globalId = Number(incoming.globalId);
             }
 
-            // 位置欄位：更新作業檔後以新版檔案的位置為準（Excel 匯出依 rowIdx/colTgt）
-            if (incoming.rowIdx     !== undefined) patch.rowIdx     = incoming.rowIdx;
-            if (incoming.colSrc     !== undefined) patch.colSrc     = incoming.colSrc;
-            if (incoming.colTgt     !== undefined) patch.colTgt     = incoming.colTgt;
-            if (incoming.sheetName  !== undefined) patch.sheetName  = incoming.sheetName;
-            if (incoming.baseRprXml !== undefined) patch.baseRprXml = incoming.baseRprXml;
+            Object.assign(patch, buildPositionPatch(incoming));
 
             update.push({ id: existing.id, patch });
         }
@@ -214,6 +231,7 @@
             kept:                keep.length,
             updated:             update.length,
             updatedSourceChanged,
+            updatedPositionOnly,
             inserted:            insert.length,
             removed:             remove.length,
         };
