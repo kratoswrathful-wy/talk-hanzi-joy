@@ -544,25 +544,18 @@
     }
 
     /**
-     * restoredXml 內純文字夾帶的遊戲標記（如 <AI>、</>）不是合法 XLIFF 元素，
-     * 會造成 DOMParser 解析失敗。此函式將所有非 XLIFF 的 <tag> / </tag> 轉成
-     * &lt;tag&gt;，讓 XML 解析器把它們當純文字處理。
-     *
-     * 視為「安全」保留（不 escape）的元素：
-     *   ph, bpt, ept, it, g, x, mrk, _wrap，
-     *   以及任何命名空間限定元素（如 mq:ch、sdl:seg）。
+     * restoredXml 內純文字夾帶的尖括號（遊戲標記如 <AI>、規格如 <50GB）不是合法 XLIFF 元素，
+     * 會造成 DOMParser 解析失敗。僅將「非 XLIFF／命名空間 tag 開頭」的 < 轉成 &lt;，
+     * 勿用 /<([^>]*)>/g 整段匹配（內文 < 緊鄰 <ept> 時會誤 escape 真實 tag）。
      */
     function escapeNonXliffAngleBrackets(fragment) {
         if (!fragment || typeof fragment !== 'string') return fragment;
-        const SAFE_RE = /^\/?(ph|bpt|ept|it|g|x|mrk|_wrap)\b/i;
-        const NS_RE = /^\/?[\w-]+:[\w-]/;
-        return fragment.replace(/<([^>]*)>/g, (match, inner) => {
-            const t = inner.trim();
-            if (t.startsWith('!--')) return match;
-            if (t.startsWith('?')) return match;
-            if (NS_RE.test(t)) return match;
-            if (SAFE_RE.test(t)) return match;
-            return match.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const xliffTagOpen = /^(?:\/?(?:ph|bpt|ept|it|g|x|mrk|_wrap)\b|[\w-]+:[\w-])/;
+        return fragment.replace(/</g, (ch, offset, whole) => {
+            const tail = whole.slice(offset + 1);
+            if (tail.startsWith('!--') || tail.startsWith('?')) return ch;
+            if (xliffTagOpen.test(tail)) return ch;
+            return '&lt;';
         });
     }
 

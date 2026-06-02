@@ -71,6 +71,11 @@ setXmlTargetContent(xmlDoc, targetNode, restoredXml, { tuId });
 `bptMap` 必須在每次 `extractTaggedText` 呼叫時重新建立（函式內部局部變數），
 不可改為全域或跨句段共用。
 
+### 6. 禁止在 `escapeNonXliffAngleBrackets` 使用 `/<([^>]*)>/g` 整段匹配
+
+內文 `<`（如 `<50GB`）緊鄰 `<ept>` / `<ph>` 時，整段正則會誤 escape 真實 XLIFF 元素。
+僅 escape「非 `ph|bpt|ept|…` 或命名空間 tag 開頭」的單個 `<`。詳見 `docs/XLIFF_TAG_PIPELINE.md` §8。
+
 ### extractTaggedText：`display`（pill 文字）解析順序
 
 僅影響 UI，**不影響** `xml` 與匯出。`ph` / `it` / `x` / `bpt` / `ept` 必須遵守：

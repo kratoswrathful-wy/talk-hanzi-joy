@@ -520,9 +520,23 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 2. `replacePlaceholders` 還原 `<ph>` 後，片段含非法 XML → `setXmlTargetContent` 解析失敗。
 3. `fallbackPlainTextFromCorruptFragment` 剝除 `<ph>` wrapper 但留下 `&lt;mq:ch …/&gt;` 字串 → `textContent` 寫入後再序列化為 `&amp;lt;…&amp;gt;`。
 
-**修法**：新增 `escapeNonXliffAngleBrackets`，在 `prepareRestoredFragmentForXmlParse` 內於 `escapeMemoqBareCloseForXmlParse` 之後呼叫；將非 XLIFF 元素（`ph`/`bpt`/`ept`/`it`/`g`/`x`/`mrk`/`_wrap` 與命名空間元素除外）的尖括號轉為 `&lt;`/`&gt;`，使 DOMParser 可成功解析並保留 `<ph>` 結構。影響 **mqxliff、一般 xliff、sdlxliff**；**mxliff** 走 `textContent` 不受影響。
+**修法**：新增 `escapeNonXliffAngleBrackets`，在 `prepareRestoredFragmentForXmlParse` 內於 `escapeMemoqBareCloseForXmlParse` 之後呼叫；**僅**將「非 XLIFF／命名空間 tag 開頭」的 `<` 轉成 `&lt;`（逐字元判斷，**勿**用 `/<([^>]*)>/g` 整段 `<…>` 匹配）。使 DOMParser 可成功解析並保留 `<ph>` 結構。影響 **mqxliff、一般 xliff、sdlxliff**；**mxliff** 走 `textContent` 不受影響。
+
+**註**：初版曾用整段 `<…>` 正則，造成內文 `<` 緊鄰 `<ept>` 時誤 escape（見下條 bpt/ept 回歸）。
 
 **驗收**：重新開啟含 `<AI>…</>` 的 mqxliff、確認譯文含 `{N}` 佔位後匯出；target 應為 `<ph>…&lt;mq:ch…/&gt;</ph>` 而非 `&amp;lt;mq:ch…&amp;gt;` 字面量；memoQ 02011 應消失。已錯誤匯出的交付檔需**重新匯出**。
+
+---
+
+### [2026-06] mqxliff 匯出 — 內文 `<` + bpt/ept 回歸（2XKO PRF）
+
+**症狀**：含粗體 bpt/ept 且內文有「小於」符號的句段（如 `1920x1080, <50GB`），匯出 target 變 `{}1920x1080, &amp;lt;50GB&amp;lt;ept xmlns=…&amp;gt;{}`，`<bpt>` 消失、`<ept>` 變字面量。2XKO `53609_01_PRF` mqxliff 約 2 句（id 174、176）；同檔無 `<` 的句段（如 `4MB`）正常。
+
+**原因**：`escapeNonXliffAngleBrackets` 使用 `/<([^>]*)>/g` 時，會把 `<50GB<ept id="1">` 誤當單一非 XLIFF「假 tag」整段 escape，破壞真實 `<ept>` → 解析失敗 → `fallbackPlainTextFromCorruptFragment` → 雙重跳脫。
+
+**修法**：改為逐個 `<` 判斷：若後接 `ph|bpt|ept|…` 或 `prefix:` 則保留，否則改 `&lt;`（例：`<50GB<ept>` → `&lt;50GB<ept>`）。
+
+**驗收**：重新匯出後 target 應為 `<bpt>{}</bpt>1920x1080, &lt;50GB<ept>{}</ept>`（與 memoQ 原文 entity 慣例一致），無 `&amp;lt;ept`。
 
 ---
 
@@ -564,3 +578,7 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
      `buildTaggedHtml` 就只能輸出純文字。
    — `segmentExtraCamelToSnake` 也必須映射 `targetTags`，
      否則 `updateSegmentTarget` 無法更新已翻譯句段的 target tags。
+
+9. **勿在 `escapeNonXliffAngleBrackets` 使用 `/<([^>]*)>/g` 整段匹配**
+   — 內文 `<`（如 `<50GB`）緊鄰 `<ept>` / `<ph>` 時會把真實 XLIFF 元素一併 escape；
+     僅 escape「非 tag 開頭」的單個 `<`。
