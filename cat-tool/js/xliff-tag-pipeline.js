@@ -729,13 +729,16 @@
         if (/&lt;it\b/i.test(restored)) {
             restored = replaceEncodedItWithSourceXml(restored, orderedInlineSourceTags(seg.sourceTags || []));
         }
-        restored = prepareRestoredFragmentForXmlParse(restored);
+        const tagsForWrite = tagsForExportWrite(seg, tags);
+        if (tagsForWrite.length > 0) {
+            restored = prepareRestoredFragmentForXmlParse(restored);
+        }
 
         if (mrkSegs.length === 1) {
             const mrk = mrkSegs[0];
             while (mrk.firstChild) mrk.removeChild(mrk.firstChild);
             if (restored.trim()) {
-                setExportTargetPlainOrFragment(xmlDoc, mrk, restored, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
+                setExportTargetPlainOrFragment(xmlDoc, mrk, restored, { tuId: tu.getAttribute('id') || '' }, tagsForWrite);
             }
             return true;
         }
@@ -743,7 +746,7 @@
         // 多個 mrk（一個 TU 包含多個句段）：全部清空，譯文放入第一個 mrk
         mrkSegs.forEach(mrk => { while (mrk.firstChild) mrk.removeChild(mrk.firstChild); });
         if (restored.trim()) {
-            setExportTargetPlainOrFragment(xmlDoc, mrkSegs[0], restored, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
+            setExportTargetPlainOrFragment(xmlDoc, mrkSegs[0], restored, { tuId: tu.getAttribute('id') || '' }, tagsForWrite);
         }
         return true;
     }
@@ -768,7 +771,14 @@
         const segByTuId = new Map();
         segs.forEach(s => {
             if (s.idValue && String(s.idValue).trim()) {
-                segByTuId.set(String(s.idValue).trim(), s);
+                const fullId = String(s.idValue).trim();
+                segByTuId.set(fullId, s);
+                // mqxliff：idValue 常為 x-mmq-context 多行（hash\npath\nSheet），
+                // 但 <trans-unit id> 僅第一行 hash；匯出查找須以第一行為 fallback key。
+                const firstLine = fullId.split('\n')[0].trim();
+                if (firstLine && firstLine !== fullId && !segByTuId.has(firstLine)) {
+                    segByTuId.set(firstLine, s);
+                }
             }
             segByTuId.set(String(s.globalId ?? s.rowIdx + 1), s);
         });
@@ -888,7 +898,11 @@
                 if (/&lt;it\b/i.test(restoredXml)) {
                     restoredXml = replaceEncodedItWithSourceXml(restoredXml, orderedInlineSourceTags(seg.sourceTags || []));
                 }
-                restoredXml = prepareRestoredFragmentForXmlParse(restoredXml);
+                // 只有走 XML 片段寫入（有 tag）才需要做 fragment escape/修補；
+                // 純文字路徑（textContent）若預先產生 &lt; 會在序列化時被再次跳脫成 &amp;lt;，導致 memoQ 顯示字面量。
+                if (!usePlainTextForExportTarget(seg)) {
+                    restoredXml = prepareRestoredFragmentForXmlParse(restoredXml);
+                }
             }
 
             if (format === 'mqxliff') {
