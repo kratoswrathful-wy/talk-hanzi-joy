@@ -247,6 +247,19 @@ sourceTags.push({
 
 解法：**刪除舊記錄並重新匯入**，現有的匯入流程會正確擷取所有 tag。
 
+### 4.5 匯出查找鍵：`xliffTuId` vs `idValue`
+
+memoQ 遊戲對話 mqxliff 常把 **對話路徑** 放在 `x-mmq-context`（→ `idValue`／Key），**hash** 放在其他 context（→ `extraValue`）。`<trans-unit id>` 才是匯出 XML 時的查找鍵。
+
+| 欄位 | 用途 |
+|------|------|
+| `idValue` | UI Key、更新作業檔 `segmentMatchKey` |
+| `xliffTuId` | 匯入時存 `trans-unit@id`；**匯出主鍵**（Team：`cat_segments.xliff_tu_id`） |
+
+匯出：`buildSegmentExportLookupMap` → `findSegmentForTransUnit`；查找失敗則整句不更新（譯文與 `mq:status` 皆保留舊 XML）。匯出前 `countXliffExportLookupMisses` 會警示。
+
+既有專案建議用目前作業 mqxliff **再更新作業檔** 以 backfill `xliffTuId`。詳見 [`bug-report_mqxliff-export-segment-lookup-fail_2026-06.md`](./bug-report_mqxliff-export-segment-lookup-fail_2026-06.md)。
+
 ---
 
 ## 5. Phrase mxliff（.mxliff）
@@ -539,6 +552,16 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 **驗收**：重新匯出後 target 應為 `<bpt>{}</bpt>1920x1080, &lt;50GB<ept>{}</ept>`（與 memoQ 原文 entity 慣例一致），無 `&amp;lt;ept`。
 
 ---
+
+### [2026-06] mqxliff／xliff／sdlxliff 匯出 — **無 tag** 句段 `<...>` 在 memoQ 顯示 `&lt;...&gt;` 字面量（SRT）
+
+**症狀**：來源/譯文為純文字（`sourceTags=[]`、`targetTags=[]`），譯文含尖括號（如 `<全新PvE模式：登峰之路>`）；匯出後 `<target>` 內容變成 `&amp;lt;全新PvE模式：登峰之路&gt;`，匯入 memoQ 後顯示字面量 `&lt;全新PvE模式：登峰之路&gt;`（而非 `<…>`）。
+
+**原因**：匯出主迴圈在「無 tag 也走 `textContent`」的情況下，仍提前呼叫 `prepareRestoredFragmentForXmlParse`（內含 `escapeNonXliffAngleBrackets`）把 `<` 轉成 `&lt;`；之後 `textContent` 寫入時序列化器會再次跳脫 `&` → `&amp;lt;`，造成雙重跳脫。
+
+**修法**：將 `prepareRestoredFragmentForXmlParse` 條件化：**僅**在會走 XML 片段寫入（有 tag、會呼叫 `setXmlTargetContent`）時執行；純文字路徑直接保留 `<` 交由 XML serializer 輸出為 `&lt;`。
+
+**驗收**：重新匯出 SRT mqxliff 後 `<target>` 應為 `&lt;全新PvE模式：登峰之路&gt;`（不應出現 `&amp;lt;`）；匯入 memoQ 應顯示 `<全新PvE模式：登峰之路>`。
 
 ## 9. 避免誤改清單
 

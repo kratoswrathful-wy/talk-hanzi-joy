@@ -195,6 +195,11 @@
             // idValue / extraValue（新版為準）
             patch.idValue    = incoming.idValue ?? existing.idValue;
             patch.extraValue = incoming.extraValue ?? existing.extraValue;
+            if (incoming.xliffTuId != null && String(incoming.xliffTuId).trim()) {
+                patch.xliffTuId = incoming.xliffTuId;
+            } else if (existing.xliffTuId) {
+                patch.xliffTuId = existing.xliffTuId;
+            }
 
             // 鎖定：原文有變就解除
             if (sourceChanged) {

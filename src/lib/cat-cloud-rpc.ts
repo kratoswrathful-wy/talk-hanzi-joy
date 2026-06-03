@@ -233,6 +233,10 @@ const mapSegmentRow = (r: any) => {
     colSrc: r.col_src,
     colTgt: r.col_tgt,
     idValue: r.id_value,
+    xliffTuId:
+      r.xliff_tu_id != null && String(r.xliff_tu_id).trim() !== ""
+        ? String(r.xliff_tu_id)
+        : null,
     extraValue: r.extra_value,
     sourceText: r.source_text ?? "",
     targetText: r.target_text ?? "",
@@ -856,6 +860,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           if (patch.targetText     !== undefined) dbPatch.target_text      = patch.targetText;
           if (patch.targetTags     !== undefined) dbPatch.target_tags      = patch.targetTags;
           if (patch.idValue        !== undefined) dbPatch.id_value         = patch.idValue;
+          if (patch.xliffTuId      !== undefined) dbPatch.xliff_tu_id      = patch.xliffTuId;
           if (patch.extraValue     !== undefined) dbPatch.extra_value      = patch.extraValue;
           if (patch.status         !== undefined) dbPatch.status           = patch.status;
           if (patch.editorNote     !== undefined) dbPatch.editor_note      = patch.editorNote;
@@ -897,6 +902,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
             col_src:            s.colSrc ?? null,
             col_tgt:            s.colTgt ?? null,
             id_value:           s.idValue ?? null,
+            xliff_tu_id:
+              s.xliffTuId != null && String(s.xliffTuId).trim() !== ""
+                ? String(s.xliffTuId)
+                : null,
             extra_value:        s.extraValue ?? null,
             source_text:        s.sourceText ?? "",
             target_text:        s.targetText ?? "",
@@ -950,6 +959,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           col_src: s.colSrc ?? null,
           col_tgt: s.colTgt ?? null,
           id_value: s.idValue ?? null,
+          xliff_tu_id:
+            s.xliffTuId != null && String(s.xliffTuId).trim() !== ""
+              ? String(s.xliffTuId)
+              : null,
           extra_value: s.extraValue ?? null,
           source_text: s.sourceText ?? "",
           target_text: s.targetText ?? "",

@@ -6444,6 +6444,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (issues.length) tagWarnings.push({ name: f.name, issues });
                 }
 
+                if (format === 'mqxliff' || format === 'xliff') {
+                    const lookupOk = await confirmXliffExportLookupMissesIfNeeded(f, segs, format);
+                    if (!lookupOk) continue;
+                }
+
                 const { blob, filename } = await _batchExportBuildBlob(f, segs, format);
                 const downloadName = _batchExportZipFilename(f, filename);
                 if (multiFile) {
@@ -23885,6 +23890,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         return isOpenFile ? segmentsWithEditorTargetsForExport(rawSegs) : rawSegs;
     }
 
+    /** mqxliff／xliff 匯出前：若有句段無法對應 XML trans-unit，白話警示（避免靜默匯出舊 target） */
+    async function confirmXliffExportLookupMissesIfNeeded(f, segs, format) {
+        if (!Xliff || typeof Xliff.countXliffExportLookupMisses !== 'function') return true;
+        if (format !== 'mqxliff' && format !== 'xliff') return true;
+        if (!f || !f.originalFileBuffer || !(f.originalFileBuffer.byteLength > 0)) return true;
+        try {
+            const xmlText = new TextDecoder('utf-8').decode(f.originalFileBuffer);
+            const xmlDoc = new DOMParser().parseFromString(xmlText, 'application/xml');
+            if (xmlDoc.getElementsByTagName('parsererror').length) return true;
+            const { miss, total } = Xliff.countXliffExportLookupMisses(xmlDoc, segs, format);
+            if (miss <= 0) return true;
+            return await openCatConfirmModal(
+                `有 ${miss} / ${total} 句在匯出檔中找不到對應的譯文。\n\n` +
+                '這些句會保留 XML 內原有內容（譯文與確認狀態都不會更新）。\n\n' +
+                '建議：用目前的作業 mqxliff 再執行一次「更新作業檔」後重試。\n\n仍要匯出嗎？'
+            );
+        } catch (_) {
+            return true;
+        }
+    }
+
     /** 匯出前：將畫面上譯文欄內容寫入 DB，避免 debounce 未完成時匯出仍為舊 target_text */
     async function flushTargetEditorsToDbForExport() {
         if (!currentFileId || !currentSegmentsList || !currentSegmentsList.length) return;
@@ -23929,6 +23955,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!Xliff || typeof Xliff.exportXliffFamily !== 'function') {
                     throw new Error('XLIFF 匯出模組未載入（請確認已載入 js/xliff-tag-pipeline.js）');
                 }
+                const lookupOk = await confirmXliffExportLookupMissesIfNeeded(f, segs, currentFileFormat);
+                if (!lookupOk) return;
                 await Xliff.exportXliffFamily(f, segs, currentFileFormat);
             } else if (currentFileFormat === 'po') {
                 if (!PoImport || typeof PoImport.exportPo !== 'function') {

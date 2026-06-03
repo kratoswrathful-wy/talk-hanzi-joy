@@ -751,6 +751,126 @@
         return true;
     }
 
+    function normalizeMqxliffLookupLines(idValue) {
+        if (idValue == null) return [];
+        const normalized = String(idValue).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        return normalized.split('\n').map(l => l.trim()).filter(Boolean);
+    }
+
+    function registerSegmentExportKeys(seg, map) {
+        if (!seg || !map) return;
+        const put = (key) => {
+            const k = key != null ? String(key).trim() : '';
+            if (!k || map.has(k)) return;
+            map.set(k, seg);
+        };
+        if (seg.xliffTuId) put(seg.xliffTuId);
+        if (seg.idValue) {
+            const fullId = String(seg.idValue).trim();
+            put(fullId);
+            normalizeMqxliffLookupLines(fullId).forEach(put);
+        }
+        if (seg.globalId != null && Number.isFinite(Number(seg.globalId))) {
+            put(String(seg.globalId));
+        }
+        if (seg.rowIdx != null) put(String(seg.rowIdx + 1));
+    }
+
+    function buildSegmentExportLookupMap(segs) {
+        const map = new Map();
+        (segs || []).forEach(s => registerSegmentExportKeys(s, map));
+        return map;
+    }
+
+    function resolveTransUnitLookupKeys(tu, xmlDoc) {
+        const keys = [];
+        const add = (v) => {
+            const s = v != null ? String(v).trim() : '';
+            if (s && !keys.includes(s)) keys.push(s);
+        };
+        if (!tu) return keys;
+        add(tu.getAttribute('id'));
+        add(tu.getAttribute('resname'));
+        add(tu.getAttribute('mq:unitId'));
+        const root = xmlDoc && xmlDoc.documentElement;
+        if (root) {
+            const mqNs = root.lookupNamespaceURI('mq');
+            if (mqNs) {
+                try { add(tu.getAttributeNS(mqNs, 'unitId')); } catch (_) { /* ignore */ }
+            }
+        }
+        return keys;
+    }
+
+    function lookupSegmentByTuKeys(tu, map, xmlDoc) {
+        const keys = resolveTransUnitLookupKeys(tu, xmlDoc);
+        for (let i = 0; i < keys.length; i++) {
+            const seg = map.get(keys[i]);
+            if (seg) return seg;
+        }
+        return null;
+    }
+
+    function findSegmentForTransUnit(tu, map, format, tuIndex, tuCount, segs, xmlDoc) {
+        const seg = lookupSegmentByTuKeys(tu, map, xmlDoc);
+        if (seg) return seg;
+        if ((format === 'mqxliff' || format === 'xliff' || format === 'mxliff') &&
+            Array.isArray(segs) && segs.length === tuCount && tuIndex >= 0) {
+            const gid = tuIndex + 1;
+            const byOrder = segs.find(s => s.globalId === gid);
+            if (byOrder) {
+                if (isXliffExportDebug()) {
+                    console.warn('[CatTool XLIFF] export lookup fallback globalId order', {
+                        tuIndex,
+                        gid,
+                        tuId: resolveTransUnitLookupKeys(tu, xmlDoc)[0]
+                    });
+                }
+                return byOrder;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 匯出前統計 trans-unit 無法對應到句段的數量（與 exportXliffFamilyToBlob 查找邏輯一致）。
+     */
+    function countXliffExportLookupMisses(xmlDoc, segs, format) {
+        if (!xmlDoc || !segs) return { miss: 0, total: 0 };
+        const transUnits = Array.from(xmlDoc.getElementsByTagName('trans-unit'));
+        const map = buildSegmentExportLookupMap(segs);
+        let miss = 0;
+        let total = 0;
+
+        transUnits.forEach((tu, tuIndex) => {
+            const tuId = tu.getAttribute('id');
+            if (format === 'sdlxliff' && tuId) {
+                const targetNode = tu.getElementsByTagName('target')[0];
+                const mrkSegs = targetNode
+                    ? Array.from(targetNode.getElementsByTagName('mrk'))
+                        .filter(m => m.getAttribute('mtype') === 'seg')
+                    : [];
+                const firstMid = mrkSegs.length > 0 ? mrkSegs[0].getAttribute('mid') : null;
+                const compositeKey = firstMid != null ? `${tuId}#${firstMid}` : null;
+                const isMultiSegFormat = compositeKey != null && map.has(compositeKey);
+
+                if (isMultiSegFormat && mrkSegs.length > 1) {
+                    mrkSegs.forEach(mrk => {
+                        total++;
+                        const mid = mrk.getAttribute('mid') || '';
+                        if (!map.get(`${tuId}#${mid}`)) miss++;
+                    });
+                    return;
+                }
+            }
+            total++;
+            if (!findSegmentForTransUnit(tu, map, format, tuIndex, transUnits.length, segs, xmlDoc)) {
+                miss++;
+            }
+        });
+        return { miss, total };
+    }
+
     async function exportXliffFamilyToBlob(f, segs, format) {
         const decoder = new TextDecoder('utf-8');
         const xmlText = decoder.decode(f.originalFileBuffer);
@@ -765,25 +885,10 @@
         const mqNsUri = xmlDoc.documentElement.lookupNamespaceURI('mq') || 'memoQ';
         const sdlNsUri = xmlDoc.documentElement.lookupNamespaceURI('sdl') || 'http://sdl.com/FileTypes/SdlXliff/1.0';
 
-        // 修正：以 idValue（原始 TU id 屬性，sdlxliff 為 UUID）為主鍵建立查找表，
-        // 並同時保留 globalId（整數）作為向下相容鍵。
-        // 原本只用 globalId 導致 sdlxliff UUID id 永遠無法對應句段，譯文全部遺失。
-        const segByTuId = new Map();
-        segs.forEach(s => {
-            if (s.idValue && String(s.idValue).trim()) {
-                const fullId = String(s.idValue).trim();
-                segByTuId.set(fullId, s);
-                // mqxliff：idValue 常為 x-mmq-context 多行（hash\npath\nSheet），
-                // 但 <trans-unit id> 僅第一行 hash；匯出查找須以第一行為 fallback key。
-                const firstLine = fullId.split('\n')[0].trim();
-                if (firstLine && firstLine !== fullId && !segByTuId.has(firstLine)) {
-                    segByTuId.set(firstLine, s);
-                }
-            }
-            segByTuId.set(String(s.globalId ?? s.rowIdx + 1), s);
-        });
+        // xliffTuId + idValue 多鍵 + globalId；與 countXliffExportLookupMisses 共用 buildSegmentExportLookupMap
+        const segByTuId = buildSegmentExportLookupMap(segs);
 
-        transUnits.forEach((tu) => {
+        transUnits.forEach((tu, tuIndex) => {
             const tuId = tu.getAttribute('id');
 
             // ── sdlxliff 多段 TU：以 {tuId}#{mid} 格式逐 mrk 查找並回寫 ──────
@@ -858,7 +963,7 @@
             }
 
             // ── 單段邏輯（向下相容：一般 XLIFF / mqxliff / 舊格式 sdlxliff）──
-            const seg = tuId ? segByTuId.get(tuId) : null;
+            const seg = findSegmentForTransUnit(tu, segByTuId, format, tuIndex, transUnits.length, segs, xmlDoc);
             if (!seg) return;
 
             let targetNode = tu.getElementsByTagName('target')[0];
@@ -1010,6 +1115,9 @@
         replaceEncodedItWithSourceXml,
         setXmlTargetContent,
         updateMqxliffStatus,
+        buildSegmentExportLookupMap,
+        findSegmentForTransUnit,
+        countXliffExportLookupMisses,
         exportXliffFamilyToBlob,
         exportXliffFamily,
         validateExportTags,
