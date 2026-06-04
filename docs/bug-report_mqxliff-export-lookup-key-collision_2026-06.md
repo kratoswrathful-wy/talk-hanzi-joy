@@ -1,6 +1,6 @@
 # Bug Report：mqxliff 匯出查找撞鍵（ID 與 Key 數字衝突 → 寫入別句譯文）
 
-> **狀態**：**已修復**（2026-06-03，程式修正；NED 樣本待產品端複驗）  
+> **狀態**：**已修復**（2026-06-03，`340636d`；NED 樣本待產品端複驗）  
 > **代表樣本**：`NED 20260601 - Batch 9 - Dialogue Lines (NED)_2.csv_…_zho-TW.mqxliff`（CSV／Excel 衍生 memoQ 雙語）  
 > **修正觸點**：[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)、[`cat-tool/js/file-update.js`](../cat-tool/js/file-update.js)、[`cat-tool/app.js`](../cat-tool/app.js)（匯出前警示）  
 > **相關（不同症狀）**：[`bug-report_mqxliff-export-segment-lookup-fail_2026-06.md`](./bug-report_mqxliff-export-segment-lookup-fail_2026-06.md)（`4fef922`：查找失敗 → **跳過**、保留舊 XML）

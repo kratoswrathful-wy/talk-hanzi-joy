@@ -1,6 +1,6 @@
 # Bug Report：mqxliff 譯文 targetTags 與原文 xml 不一致（F8／Ctrl+F8 無法改正）
 
-> **狀態**：**已修復**（2026-06-04，程式修正；NED 樣本 24／62／63 待產品端複驗）  
+> **狀態**：**已修復**（2026-06-04，`340636d`；NED 樣本 24／62／63 待產品端複驗）  
 > **代表樣本**：`NED 20260601 - Batch 9 - Dialogue Lines (NED)_2.csv_…_zho-TW.mqxliff`  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)、[`cat-tool/js/xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js)  
 > **相關（不同症狀）**：[`bug-report_mqxliff-export-lookup-key-collision_2026-06.md`](./bug-report_mqxliff-export-lookup-key-collision_2026-06.md)（整句寫錯格）、[`bug-report_mqxliff-partial-target-tags.md`](./bug-report_mqxliff-partial-target-tags.md)（Bug #5：缺 ph）
