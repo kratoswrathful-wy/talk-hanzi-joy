@@ -19,7 +19,8 @@
 | B   | TM 比對表 `ondblclick` 內嵌譯文含 `"` 時破壞 HTML                  | 建議列為 Bug #6 |
 | C   | memoQ `**mq:ch` pill display** 友善標示（換行／Tab／NBSP 等，見 §5） | 選做          |
 | D   | 匯出長句：字面 `<…>` 與多 `<ph>` 混用                              | 後續調查        |
-| E   | bpt/ept 內層 TM `<pt>` vs 原文 `<g>`（F8／匯出）                    | Bug #7（**已修**） |
+| E   | bpt/ept 內層 TM `<pt>` vs 原文 `<g>`（F8／匯出）                    | Bug #7（**已修並驗收** `d1ab161`） |
+| F   | 同 ph、`targetTags` xml 錯（`mq:rxt` displaytext；F8／Ctrl+F8）   | Bug #8（**已修**） |
 
 
 **說明**：不以客戶檔名推斷檔案是否「斷尾」；若需判斷資料是否截斷，應直接檢視該句 `<source>`／`<target>` XML。
@@ -70,11 +71,13 @@
 | E2 | `mergeTargetTagsFromSourceForPresentPlaceholders`、`insertNextMissingTag`、`effectiveTags` | [`cat-tool/app.js`](../cat-tool/app.js) |
 | E3 | `exportXliffFamilyToBlob` mqxliff：`replacePlaceholders` 前 reconcile | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) |
 
-**驗收**
+**驗收**（2026-06-04 產品端通過）
 
-1. 匯入含 id=41 之 mqxliff → 該句 `targetTags` 內層為 `g`（非 `pt`）。
-2. 匯出後 `<target>` bpt/ept 內為 `&lt;g id="i3"&gt;`；memoQ 無 pt 相關錯誤。
-3. 第 42、60 句等仍為 `g`（迴歸）。
+1. 匯入含 id=41 之 mqxliff → 該句 `targetTags` 內層為 `g`（非 `pt`）。**通過**
+2. 匯出後 `<target>` bpt/ept 內為 `&lt;g id="i3"&gt;`；memoQ 無 pt 相關錯誤。**通過**
+3. 第 42、60 句等仍為 `g`（迴歸）。**通過**
+
+調查與修改紀錄見專文 [`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md)（§2.1 時間軸、§2.5 修改過程、§2.6 驗收表）。
 
 ---
 
@@ -156,7 +159,20 @@ flowchart TD
 
 ---
 
-## 5. 階段 D — 匯出長句／混用字面與 ph（後續）
+## 5. 階段 F — Bug #8（`mq:rxt`／targetTags xml 錯配）
+
+| 步驟 | 動作 | 檔案 |
+| --- | --- | --- |
+| F1 | `upsertTargetTagFromSource`：同 `ph` 且 xml 不同 → 以 `sourceTags` 覆寫 | [`app.js`](../cat-tool/app.js) |
+| F2 | Ctrl+F8：`targetTags = []` 並寫庫 | 同上 |
+| F3 | `reconcileTargetTagsMarkupFromSource`：`innerEscapedTagSig` 皆空時比完整 xml | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) |
+| F4 | mqxliff／mxliff 匯入後呼叫 `reconcile` | [`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) |
+
+**驗收**：NED 樣本第 24／62／63 行；原文／譯文 pill `displaytext` 一致、藍色為主；Ctrl+F8→F8 後仍正確；匯出 memoQ tag 文字正確。專文：[`bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md`](bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md)。
+
+---
+
+## 6. 階段 D — 匯出長句／混用字面與 ph（後續）
 
 - 與 Bug #5 **分開**：多個 `<ph>` 與譯文內**字面**角括號並存時，`replacePlaceholders` → `prepareRestoredFragmentForXmlParse` → `setXmlTargetContent` 可能失敗或產生雙重實體。
 - 本階段僅列**調查入口**；待 A／B 完成後，以 **TUT 長句**（多 ph + 字面 `<img>`）做 mqxliff 匯出回歸。

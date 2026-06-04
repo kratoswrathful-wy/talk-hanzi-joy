@@ -116,7 +116,7 @@ function effectiveTags(seg) {
 
 ### 2.9 同 ph 已存在但 bpt/ept 內層標記不同（Bug #7）
 
-當譯文 `targetTags` **已有**與原文相同的 `{1}`、`{/1}`，但 bpt/ept 的 `xml` 內跳脫標記不同（例如 TM 殘留 `&lt;pt&gt;`、原文為 `&lt;g&gt;`），Bug #5 的「已存在不覆寫」**不會**修正內層標記；F8 亦因佔位已齊而略過。見專文 [`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](./bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md) 與實作計畫階段 E（`reconcileTargetTagsMarkupFromSource`）。
+當譯文 `targetTags` **已有**與原文相同的 `{1}`、`{/1}`，但 bpt/ept 的 `xml` 內跳脫標記不同（例如 TM 殘留 `&lt;pt&gt;`、原文為 `&lt;g&gt;`），Bug #5 的「已存在不覆寫」**不會**修正內層標記；F8 亦因佔位已齊而略過。**已透過 Bug #7**（`d1ab161`、`reconcileTargetTagsMarkupFromSource`）補上；Companion mqxliff 第 41 句已驗收。見專文 [`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](./bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md) 與實作計畫階段 E。
 
 ### 2.5 Enhancement：換行 `mq:ch` 的 display 文案（可選）
 
@@ -151,6 +151,12 @@ function effectiveTags(seg) {
 ### 2.8 關聯：空 `targetTags` + F8 單筆 push（sdlxliff 等常見）
 
 本檔 §2.2 主要描述 **mqxliff「部分」譯文**：`targetTags` **非空**但為 `sourceTags` 之**真子集**。另有一條觸發鏈：**匯入後 `targetTags` 為空陣列 `[]`** 時，`effectiveTags` 會退回 `sourceTags`，畫面仍正常；**首次按 F8** 僅 push 本次插入之一筆（或成對兩筆）至 `targetTags`，陣列變成**殘缺非空**，之後 `effectiveTags` 不再退回原文 → `buildTaggedHtml` 對其餘 `{N}` 無對應條目 → **整列 pill 變純文字**。sdlxliff 因 [`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) 部分合併邏輯僅對 mqxliff 執行，較易維持 `targetTags: []`。**完整敘事、修正方案與驗收（已落地）**見 [`bug-report_f8-targettags-empty-fallback-regression.md`](bug-report_f8-targettags-empty-fallback-regression.md)（`main`：`485d4f7`）。
+
+### 2.10 同 ph、不同 xml（`mq:rxt` displaytext，Bug #8）
+
+與本檔 Bug #5（**缺 ph**、真子集）不同：譯文 **已有** `{1}`，但 `targetTags.xml` 與 `sourceTags` 不同（例：原文 `[0-1…`、譯文 `[0-2…`）。Ctrl+F8 未清 `targetTags`、F8 不覆寫已存在 ph；`reconcile` 對 standalone `mq:rxt` 曾略過。
+
+**完整說明與修正**：[`bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md`](./bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md)。第 **24** 行可能**同時**有 Bug #5 與 Bug #8。
 
 ---
 

@@ -19,12 +19,15 @@
 | **副檔名 `.mxliff`** | 已實作（**僅副檔名 / 路徑**） | 與 `.xlf`／`.xliff` 一樣列為可選副檔名、設 `currentFileFormat === 'xliff'`，不彈 mq 身分。**內文仍須是匯入器能解析的 XLIFF**；若 memoQ 產出格式與解析器假設不合，匯入會失敗，此屬內文相容，非本列可單獨保證 | [`cat-tool/app.js`](../cat-tool/app.js) 開檔、精靈 |
 | **Bug #5 部分 targetTags** | 未修（見專文） | memoQ「部分編輯」句段：譯文 `<target>` 僅含部分 `<ph>`，匯入後 `targetTags` 為 `sourceTags` 真子集；`effectiveTags` 全採譯文側陣列 → `buildTaggedHtml` 無法為 `{3}`… 建 pill；F8 插入後若未同步 `seg.targetTags`／寫庫，重畫即退成純文字。與 **Bug #3A**（targetTags 全空）互補 | [`xliff-import.js`](../cat-tool/js/xliff-import.js)、[`app.js`](../cat-tool/app.js) `insertNextMissingTag`、`effectiveTags` |
 | **Bug #6 TM 比對表** | 未修（見實作計畫） | 側邊欄 TM 列以 `ondblclick` 內嵌譯文；`tgtEsc` 未跳脫 `"`，譯文含 `id="…"` 時 HTML 屬性斷裂，畫面出現 `", 100, 0)">` 類殘段（多為顯示問題）。建議改 `data-*`+索引或完整屬性跳脫 | [`app.js`](../cat-tool/app.js) `buildCatMatchRowsHtml`、`handleCatResultApply` |
-| **Bug #7 bpt 內層 pt/g 不一致** | **已修** | TM 填入譯文 bpt/ept 內為 `&lt;pt&gt;`、原文為 `&lt;g&gt;`；`targetTags` 已有同 `ph` 時舊邏輯不覆寫 → F8 略過、匯出寫回 pt。`reconcileTargetTagsMarkupFromSource`（匯入／F8／effectiveTags／匯出） | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)、[`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js)、[`app.js`](../cat-tool/app.js)；專文 [`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](./bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md) |
+| **Bug #7 bpt 內層 pt/g 不一致** | **已修並驗收**（`d1ab161`） | TM 填入譯文 bpt/ept 內為 `&lt;pt&gt;`、原文為 `&lt;g&gt;`；`targetTags` 已有同 `ph` 時舊邏輯不覆寫 → F8 略過、匯出寫回 pt。`reconcileTargetTagsMarkupFromSource`（匯入／F8／effectiveTags／匯出）；Companion `trans-unit id="41"` 產品驗收通過 | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)、[`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js)、[`app.js`](../cat-tool/app.js)；專文 [`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](./bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md) |
+| **Bug #8 同 ph、targetTags xml 錯（mq:rxt）** | **已修** | 少數句譯文 `mq:rxt` displaytext 與原文不同；Ctrl+F8 未清 `targetTags`、F8 不覆寫 → 紅橘對不上、匯出 memoQ tag 錯。`upsertTargetTagFromSource`、reconcile 全 xml、`targettags-xml-mismatch` 專文 | [`app.js`](../cat-tool/app.js)、[`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)；[`bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md`](./bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md) |
 | **QA Tag 檢查與佔位對齊** | 已實作 | 舊 QA 僅比 `sourceTags` vs `targetTags` 陣列；匯出／畫面在 `targetTags` 空時會用 `sourceTags` + `targetText` 佔位符。修正後自譯文純文字掃 `\{\/?(\d+)\}` 併入「已帶入」判斷，並自 `ph` 備援 id；多餘 tag 同檢陣列與譯文多出之編號。專文見下 | [`app.js`](../cat-tool/app.js) `runQaChecks`、`_qaPushSegmentRuleFindings`、`_qaTagIdForCompare`、`_qaPlainTargetTagNumSet`；說明 [`bug-report_cat-qa-tag-parity.md`](bug-report_cat-qa-tag-parity.md) |
 
 **Bug #5 完整調查、白話摘要、修正建議與 mq:ch 換行 display 增強**：[`bug-report_mqxliff-partial-target-tags.md`](bug-report_mqxliff-partial-target-tags.md)。
 
 **Bug #7 bpt/ept 內層 TM `<pt>` vs 原文 `<g>`**：[`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md)。
+
+**Bug #8 同 ph、mq:rxt xml 與原文不一致（F8／Ctrl+F8）**：[`bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md`](bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md)。
 
 **靜態部署**：變更 `cat-tool/` 後執行 `node scripts/sync-cat.mjs`，使 `public/cat/` 一致。
 
