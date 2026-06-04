@@ -22279,6 +22279,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 const pairMsgs = [];
+                // 僅原文含 {/N} 的編號才需開關配對；獨立 <ph> 僅 {N} 不進 stack（避免「尚有未關閉之標籤」誤報）
+                const srcPairedNums = new Set();
+                for (const m of srcTxt.matchAll(/\{\/(\d+)\}/g)) {
+                    if (srcNumSet.has(m[1])) srcPairedNums.add(m[1]);
+                }
                 const stack = [];
                 const rePh = /\{\/?(\d+)\}/g;
                 let pm;
@@ -22286,7 +22291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 while ((pm = rePh.exec(scan)) !== null) {
                     const full = pm[0];
                     const n = pm[1];
-                    if (!srcNumSet.has(n)) continue;
+                    if (!srcPairedNums.has(n)) continue;
                     if (/^\{\d+\}$/.test(full)) {
                         stack.push(n);
                     } else if (/^\{\/\d+\}$/.test(full)) {

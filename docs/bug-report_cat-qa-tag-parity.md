@@ -51,4 +51,5 @@
 
 - [`bug-report_mqxliff-tag-issues.md`](./bug-report_mqxliff-tag-issues.md) — 總表與 Bug #1–#6 對照  
 - [`bug-report_mqxliff-partial-target-tags.md`](./bug-report_mqxliff-partial-target-tags.md) — Bug #5 部分 `targetTags` 專文  
+- [`bug-report_qa-tag-unclosed-false-positive_2026-06.md`](./bug-report_qa-tag-unclosed-false-positive_2026-06.md) — 另一類 Tag QA 誤報：「**尚有未關閉之標籤**」（獨立 `<ph>` 被當成需 `{/N}` 配對；**已修**）  
 - [`CODEMAP.md`](./CODEMAP.md) — 快速路徑至 `runQaChecks`／本專文
