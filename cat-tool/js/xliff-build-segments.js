@@ -547,7 +547,8 @@
 
                     augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags });
                     mergePartialTargetTagsFromSource({ targetText, sourceTags, targetTags });
-                    if (isMqxliffFile && sourceTags.length && targetTags.length && Xliff.reconcileTargetTagsMarkupFromSource) {
+                    if ((isMqxliffFile || isMxliffFile) && sourceTags.length && targetTags.length
+                        && Xliff.reconcileTargetTagsMarkupFromSource) {
                         Xliff.reconcileTargetTagsMarkupFromSource(sourceTags, targetTags);
                     }
 

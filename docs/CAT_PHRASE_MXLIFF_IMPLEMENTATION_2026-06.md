@@ -111,6 +111,8 @@
 
 **觸發**：[`cat-tool/app.js`](../cat-tool/app.js) `#exportBtn`、`batchExportSelectedFiles` → `_batchExportGetFileFormat` 回傳 `mxliff`。
 
+**匯出前準備（目前開啟檔）**：`prepareSegmentsForExport` → `flushTargetEditorsToDbForExport` → `await confirmSideEffectChain` → `flushSegmentStatusToDbForExport` → `segmentsWithEditorTargetsForExport`（合併記憶體中的 `targetText`／`status`）。批次匯出若含目前開啟檔，走相同路徑。
+
 ### 6.1 正確行為（`e744f50` 起）
 
 ```
@@ -140,10 +142,14 @@
 | 步驟 | 函式 | 說明 |
 |------|------|------|
 | 1 | `repairMxliffMarkLeaksInText` | 將 `&lt;/color&gt;`、`</color>`、`&amp;lt;…&amp;gt;` 等變體**依 tag 順序**還原為 `{N}`；**同一字面（如 `</color>`）對應 {2}、{4} 時逐次 replace，避免都變成 {2}** |
-| 2 | `rebuildMxliffTargetFromOriginalStructure` | 若仍缺佔位：讀 TU 內**原始** `<target>` 的 `{1}…{2}…` 骨架，以錨點字（如「解鎖」「獎勵章節」）切出使用者譯文，重組為 `…解鎖{1}《譯文》{2}…` |
-| 3 | `tagsForReplace` + `textContent` | 見 §6.1 |
+| 2 | `rebuildMxliffTargetFromOriginalStructure(orig, text, tags)` | 若仍缺佔位：僅對 **sourceTags 驗證的 open/close 色標對**（`isMxliffOpenClosePair`）重組；插入開標前若譯文已有 `{N}` 則不重複 |
+| 3 | `insertMissingMxliffOpenPlaceholders` | 仍缺開標時，在對應關標前補開標（不把 `{1}` 與 `{4}` 誤當一對） |
+| 4 | `collapseDuplicatePhrasePlaceholders` | 收斂連續重複 `{2}{2}` 等（舊 DB 污染安全網） |
+| 5 | `tagsForReplace` + `textContent` | 見 §6.1 |
 
-**輔助**：`phraseMarkLeakVariants`、`mxliffPrefixAnchorSuffix`、`isPhrasePlaceholderToken`（避免全域 regex `.test` 在迴圈中誤判）。
+**輔助**：`phraseMarkLeakVariants`、`mxliffPrefixAnchorSuffix`、`isPhrasePlaceholderToken`、`findTagByPh`（避免全域 regex `.test` 在迴圈中誤判）。
+
+**已修（2026-06）**：編輯器全數已確認但匯出仍 `m:confirmed="0"`（匯出未合併／flush `status`）；`:34` 類句段 `{2}{2}`／雙 `{4}`（rebuild 誤把任意相鄰 `{N}` 當色標對）。
 
 ---
 
@@ -171,6 +177,17 @@
    - `<target>` 內應有 `{1}`、`{2}`、`{3}`、`{4}`。
    - 譯文內**不應**出現 `&amp;lt;/color&amp;gt;` 這類裸 mark 字串。
 6. 用 **Phrase** 開啟該匯出檔 → 應正常進入編輯，無 *Unable to open MXLIFF file*。
+
+**確認狀態（Final Fragment 或 oneapp 樣本）**
+
+7. 將可編輯句段全部確認（進度 100%），**立即**按匯出。
+8. 記事本搜尋原為 MT 未確認的 `trans-unit`：應為 `m:confirmed="1"`、`target@state="final"`。
+9. Phrase 開匯出檔：先前未確認的 MT 句應顯示已確認。
+
+**Tag 不重複（`Unlock the remaining {1} chapters…` 對應句，`:34`）**
+
+10. 編輯器譯文各 `{1}{2}{3}{4}` 僅一次。
+11. 匯出 `<target>`：**不得**出現 `{2}{2}` 或兩個 `{4}`。
 
 **不必**為測匯出邏輯而重匯入舊句段；**若 pill 異常**可刪檔重匯以重建 `sourceTags`。
 

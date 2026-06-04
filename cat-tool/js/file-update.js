@@ -78,6 +78,24 @@
         return patch;
     }
 
+    /** 內容不變時仍同步 xliffTuId／globalId（匯出查找與列表序） */
+    function buildIncomingMetadataPatch(existing, incoming) {
+        const patch = {};
+        if (incoming.xliffTuId != null && String(incoming.xliffTuId).trim()) {
+            const next = String(incoming.xliffTuId).trim();
+            const prev = existing.xliffTuId != null ? String(existing.xliffTuId).trim() : '';
+            if (next !== prev) patch.xliffTuId = next;
+        }
+        if (incoming.globalId != null && Number.isFinite(Number(incoming.globalId))) {
+            const gid = Number(incoming.globalId);
+            const prevGid = existing.globalId != null && Number.isFinite(Number(existing.globalId))
+                ? Number(existing.globalId)
+                : NaN;
+            if (gid !== prevGid) patch.globalId = gid;
+        }
+        return patch;
+    }
+
     // ── 主函式 ────────────────────────────────────────────────────────────────
 
     /**
@@ -161,11 +179,19 @@
                 && segmentsContentEqual(existing, effectiveIncoming);
 
             if (contentEqual) {
+                const metaPatch = buildIncomingMetadataPatch(existing, incoming);
                 if (segmentPositionEqual(existing, incoming)) {
-                    keep.push(existing);
+                    if (Object.keys(metaPatch).length) {
+                        update.push({ id: existing.id, patch: metaPatch });
+                    } else {
+                        keep.push(existing);
+                    }
                     continue;
                 }
-                update.push({ id: existing.id, patch: buildPositionPatch(incoming) });
+                update.push({
+                    id: existing.id,
+                    patch: Object.assign(buildPositionPatch(incoming), metaPatch)
+                });
                 updatedPositionOnly++;
                 continue;
             }

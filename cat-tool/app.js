@@ -14920,10 +14920,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 插入後同步 targetTags（確保 effectiveTags / 重畫仍為 pill，Bug #5）
         if (!seg.targetTags) seg.targetTags = [];
         if (shouldWrapSelection) {
-            if (!seg.targetTags.some(t => t.ph === openTag.ph)) seg.targetTags.push({ ...openTag });
-            if (!seg.targetTags.some(t => t.ph === closeTag.ph)) seg.targetTags.push({ ...closeTag });
+            upsertTargetTagFromSource(seg, openTag);
+            upsertTargetTagFromSource(seg, closeTag);
         } else {
-            if (!seg.targetTags.some(t => t.ph === firstMissing.ph)) seg.targetTags.push({ ...firstMissing });
+            upsertTargetTagFromSource(seg, firstMissing);
         }
         // 防呆：若 targetTags 原本為空（靠 sourceTags fallback 顯示），F8 單筆 push 會導致整列退化為純文字。
         // 依譯文現有 {N}/{/N} 從 sourceTags 補齊缺漏 ph（不覆寫既有條目）。
@@ -15066,8 +15066,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ? getNpCaretOffset(activeEditor)
                         : null;
                     seg.targetText = stripped;
+                    seg.targetTags = [];
                     seg.matchValue = undefined;
-                    setEditorHtml(activeEditor, buildTaggedHtml(stripped, effectiveTags(seg)));
+                    setEditorHtml(activeEditor, buildTaggedHtml(stripped, []));
                     updateTagColors(activeRow, stripped);
                     refreshTagNextHighlight(activeRow);
                     applyMatchCellVisual(activeRow, '');
@@ -15083,7 +15084,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                     editorUndoEditStart[seg.id] = stripped;
                     editorUndoMatchStart[seg.id] = undefined;
-                    applyUpdateSegmentTarget(seg, stripped, { matchValue: '' }).catch(console.error);
+                    applyUpdateSegmentTarget(seg, stripped, { matchValue: '', targetTags: [] }).catch(console.error);
                     if (npOff != null) {
                         requestAnimationFrame(() => {
                             requestAnimationFrame(() => {
@@ -16674,7 +16675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const oldMv = seg.matchValue;
             seg.targetText = extractTextFromEditor(targetEditor);
             if (!seg.targetTags) seg.targetTags = [];
-            if (!seg.targetTags.some(t => t && t.ph === tagObj.ph)) seg.targetTags.push({ ...tagObj });
+            upsertTargetTagFromSource(seg, tagObj);
             mergeTargetTagsFromSourceForPresentPlaceholders(seg, seg.targetText);
             const updatedRow = targetEditor.closest('.grid-data-row');
             updateTagColors(updatedRow, seg.targetText);
@@ -18322,6 +18323,29 @@ document.addEventListener('DOMContentLoaded', async () => {
      * 凡是要把 targetTags/sourceTags 傳給 buildTaggedHtml 的地方，
      * 一律呼叫此 helper。
      */
+    /**
+     * 將 source 的 tag 條目寫入 seg.targetTags：同 ph 且 xml 簽名不同則覆寫（Bug #8 mq:rxt 等）。
+     * @returns {boolean} 是否變更 targetTags
+     */
+    function upsertTargetTagFromSource(seg, tagFromSource) {
+        if (!seg || !tagFromSource || !tagFromSource.ph) return false;
+        if (!seg.targetTags) seg.targetTags = [];
+        const ph = tagFromSource.ph;
+        const idx = seg.targetTags.findIndex(t => t && t.ph === ph);
+        const Xliff = window.CatToolXliffTags;
+        if (idx >= 0) {
+            const existing = seg.targetTags[idx];
+            const needsReplace = Xliff && typeof Xliff.tagXmlNeedsReconcileFromSource === 'function'
+                ? Xliff.tagXmlNeedsReconcileFromSource(tagFromSource, existing)
+                : normalizeXmlForSig(tagFromSource.xml) !== normalizeXmlForSig(existing.xml);
+            if (!needsReplace) return false;
+            seg.targetTags[idx] = { ...tagFromSource };
+            return true;
+        }
+        seg.targetTags.push({ ...tagFromSource });
+        return true;
+    }
+
     function mergeTargetTagsFromSourceForPresentPlaceholders(seg, targetText) {
         if (!seg) return false;
         const sourceTags = seg.sourceTags || [];
@@ -18335,7 +18359,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const targetTags = seg.targetTags;
 
         const presentPhs = new Set(present);
-        const existingPhs = new Set((targetTags || []).map(t => t && t.ph).filter(Boolean));
 
         const sourceByPh = new Map();
         for (const st of sourceTags) {
@@ -18344,12 +18367,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let changed = false;
         for (const ph of presentPhs) {
-            if (existingPhs.has(ph)) continue;
             const st = sourceByPh.get(ph);
             if (!st) continue;
-            targetTags.push({ ...st });
-            existingPhs.add(ph);
-            changed = true;
+            if (upsertTargetTagFromSource(seg, st)) changed = true;
         }
         const Xliff = window.CatToolXliffTags;
         if (Xliff && typeof Xliff.reconcileTargetTagsMarkupFromSource === 'function') {

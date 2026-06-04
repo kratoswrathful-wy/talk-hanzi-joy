@@ -71,7 +71,16 @@ setXmlTargetContent(xmlDoc, targetNode, restoredXml, { tuId });
 `bptMap` 必須在每次 `extractTaggedText` 呼叫時重新建立（函式內部局部變數），
 不可改為全域或跨句段共用。
 
-### 6. 禁止在 `escapeNonXliffAngleBrackets` 使用 `/<([^>]*)>/g` 整段匹配
+### 6. 禁止在匯出查找 Map 註冊 `globalId` 或 `rowIdx`
+
+匯出對句以 **`xliffTuId`（= `trans-unit@id`）** 為準，使用 `byTuId`（可覆寫）與 `byAux`（僅無 `xliffTuId` 的舊句 `idValue`）。
+
+- **禁止**把 `globalId`、`rowIdx+1` 與 `idValue` 混在同一張「先登記者贏」的 Map（會造成 ID 與 Key 數字撞鍵、寫入別句譯文）。
+- **禁止**以 `globalId === tuIndex + 1` 作為匯出後備（句序漂移會錯寫）。
+
+詳見 `docs/bug-report_mqxliff-export-lookup-key-collision_2026-06.md`、`docs/XLIFF_TAG_PIPELINE.md` §4.6。
+
+### 7. 禁止在 `escapeNonXliffAngleBrackets` 使用 `/<([^>]*)>/g` 整段匹配
 
 內文 `<`（如 `<50GB`）緊鄰 `<ept>` / `<ph>` 時，整段正則會誤 escape 真實 XLIFF 元素。
 僅 escape「非 `ph|bpt|ept|…` 或命名空間 tag 開頭」的單個 `<`。詳見 `docs/XLIFF_TAG_PIPELINE.md` §8。

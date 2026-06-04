@@ -258,14 +258,37 @@ memoQ **遊戲對話** mqxliff 常把 **對話路徑** 放在 `x-mmq-context`（
 
 **匯出流程**（`xliff-tag-pipeline.js`）：
 
-1. `buildSegmentExportLookupMap(segs)` — 註冊 `xliffTuId`、`idValue`（含各行）、`globalId` 等。
-2. 對每個 `trans-unit`：`findSegmentForTransUnit` — 試 TU 的 `id`／`resname`／`mq:unitId`，必要時 mqxliff 以 `globalId` 序號對齊。
+1. `buildSegmentExportLookupMap(segs)` — `byTuId`（`xliffTuId`）+ `byAux`（僅無 `xliffTuId` 的 `idValue`）；**不**註冊 `globalId`（§4.6）。
+2. 對每個 `trans-unit`：`findSegmentForTransUnit` — 試 TU 的 `id`／`resname`／`mq:unitId`（先 `byTuId` 再 `byAux`）。
 3. 找不到句段 → **整句跳過**（`<target>` 與 `mq:status` 維持 `originalFileBuffer` 舊值）— 這是「編輯器正確、匯出卻是第一次匯入內容」的常見根因。
 4. `app.js`：`countXliffExportLookupMisses` → 有 miss 時 Modal 警示。
 
 **既有專案**：部署 `4fef922` 後，用目前作業 mqxliff **再更新作業檔** 以 backfill `xliffTuId`（或重匯）。
 
 完整現象、第一版 `b0e7f5e` 失效原因、驗收步驟：[`bug-report_mqxliff-export-segment-lookup-fail_2026-06.md`](./bug-report_mqxliff-export-segment-lookup-fail_2026-06.md)。
+
+### 4.6 匯出查找撞鍵：ID（globalId）與 Key（idValue）數字衝突（2026-06，已修）
+
+**症狀**（樣本 NED CSV／Excel 衍生 mqxliff）：編輯器 ID 223–233 譯文正確；匯出為**別句**譯文。規律：**錯誤列 ID = 被貼上那句的 Key**（例 ID 232 卻寫入 Key 232 的譯文，該列 Key 應為 68389）。
+
+**原因**：`registerSegmentExportKeys` 曾把 `xliffTuId`、`idValue`、`String(globalId)` 放入**同一** `Map` 且先登記者佔用；`tu@id` 命中錯鍵。另：`globalId === tuIndex+1` 序號 fallback 在句序漂移時亦會錯寫。
+
+**修法**：
+
+1. `buildSegmentExportLookupMap` → `byTuId`（`xliffTuId` 可覆寫）+ `byAux`（僅無 `xliffTuId` 舊句的 `idValue`）。
+2. **不**註冊 `globalId`／`rowIdx`；**移除**序號 fallback。
+3. `file-update.js`：內容不變仍 patch `xliffTuId`／`globalId`。
+4. 匯出前 `countXliffExportLookupMisses` 含 `ambiguous` 警示。
+
+詳見 [`bug-report_mqxliff-export-lookup-key-collision_2026-06.md`](./bug-report_mqxliff-export-lookup-key-collision_2026-06.md)。
+
+### 4.7 譯文 targetTags 與原文 xml 不一致（Bug #8，2026-06，已修）
+
+**症狀**（NED 第 24／62／63 行）：F8／Ctrl+F8 試多次仍錯；原文 tag **紅**、譯文 **橘**（`displaytext` 如 `[0-1` vs `[0-2`）；匯出 memoQ 譯文 tag 文字錯。
+
+**原因**：`targetTags` 已登記錯 xml 時 F8 不覆寫；Ctrl+F8 未清 `targetTags`；`reconcile` 對 standalone `mq:rxt` 曾略過。
+
+**修法**：`upsertTargetTagFromSource`、Ctrl+F8 清目錄、`tagXmlNeedsReconcileFromSource`／全段 xml 比對。詳見 [`bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md`](./bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md)。
 
 ---
 
@@ -551,6 +574,16 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 - `app.js` 匯出前 miss 警示。
 
 **驗收**（2026-06-03）：部署 + db push → 更新作業檔 backfill → 匯出；`<target>` 與確認狀態與編輯器一致。詳見 [`bug-report_mqxliff-export-segment-lookup-fail_2026-06.md`](./bug-report_mqxliff-export-segment-lookup-fail_2026-06.md)。
+
+---
+
+### [2026-06] mqxliff 匯出 — ID 與 Key 數字撞鍵（NED 等 CSV 衍生檔）
+
+**症狀**：編輯器正確；匯出 `<target>` 為**別句**譯文。錯誤列 **ID（globalId）= 貼錯內容的 Key（idValue）**。
+
+**原因**：`4fef922` 匯出 Map 混用 `globalId`／`idValue`／`xliffTuId` 且先登記者贏；`tu@id` 對到 Key 數字字串。
+
+**修法**：`byTuId`／`byAux`、移除 `globalId` 註冊與序號 fallback、`file-update` metadata patch、匯出 `ambiguous` 警示。詳見 [`bug-report_mqxliff-export-lookup-key-collision_2026-06.md`](./bug-report_mqxliff-export-lookup-key-collision_2026-06.md)。
 
 ---
 

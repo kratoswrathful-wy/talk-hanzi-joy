@@ -139,9 +139,9 @@ if (!seg) return;  // 整句跳過：target、mq:status、state 皆不更新
 
 | 函式 | 職責 |
 |------|------|
-| `registerSegmentExportKeys` | 註冊 `xliffTuId`、完整 `idValue`、各行、 `globalId`、`rowIdx+1` |
+| `registerSegmentExportKeys` | 註冊 `xliffTuId`、完整 `idValue`、各行、 `globalId`、`rowIdx+1`（**2026-06 撞鍵修正後**改為 `byTuId`／`byAux`，見 [`bug-report_mqxliff-export-lookup-key-collision_2026-06.md`](./bug-report_mqxliff-export-lookup-key-collision_2026-06.md)） |
 | `resolveTransUnitLookupKeys` | 從 TU 取 `id`、`resname`、`mq:unitId`（含 NS） |
-| `findSegmentForTransUnit` | 依序查找；mqxliff 且句數一致時可 `globalId` 序號 fallback |
+| `findSegmentForTransUnit` | 依序查找；mqxliff 且句數一致時可 `globalId` 序號 fallback（**已移除**序號 fallback） |
 | `countXliffExportLookupMisses` | 匯出前統計對不到的句數 |
 
 #### C. 匯出前警示（`app.js`）
@@ -184,6 +184,7 @@ if (!seg) return;  // 整句跳過：target、mq:status、state 皆不更新
 - 管線總覽：[`XLIFF_TAG_PIPELINE.md`](./XLIFF_TAG_PIPELINE.md) §4.5、§8（修復歷史）
 - Cursor 規則：`.cursor/rules/xliff-tag-export.mdc`
 - 與本問題無關但易混淆：[`bug-report_mqxliff-team-role-persistence.md`](./bug-report_mqxliff-team-role-persistence.md)（T/R1/R2 雲端持久化，另一議題）
+- **相關議題（不同症狀，另案已修）**：[`bug-report_mqxliff-export-lookup-key-collision_2026-06.md`](./bug-report_mqxliff-export-lookup-key-collision_2026-06.md) — `4fef922` 曾把 `globalId`／`idValue` 登記進**同一**匯出 Map，CSV 衍生檔可能 **ID 與 Key 數字撞鍵 → 寫入別句譯文**（非僅跳過）；修正為 `byTuId`／`byAux` 分離並移除序號 fallback
 
 ---
 

@@ -1147,8 +1147,27 @@
         return '';
     }
 
+    function normalizeTagXmlForReconcile(xml) {
+        return String(xml ?? '')
+            .replace(/^\uFEFF/, '')
+            .replace(/\s+rid\s*=\s*"[^"]*"/gi, '')
+            .replace(/\s+rid\s*=\s*'[^']*'/gi, '')
+            .replace(/\r\n?/g, '\n')
+            .replace(/[\s\u00A0\u200B\uFEFF]+/g, ' ')
+            .trim();
+    }
+
+    function tagXmlNeedsReconcileFromSource(st, tt) {
+        if (!st || st.xml == null || !tt) return false;
+        const srcInner = innerEscapedTagSig(st.xml);
+        const tgtInner = innerEscapedTagSig(tt.xml);
+        if (srcInner && tgtInner) return srcInner !== tgtInner;
+        return normalizeTagXmlForReconcile(st.xml) !== normalizeTagXmlForReconcile(tt.xml);
+    }
+
     /**
-     * mqxliff：同 ph 已存在但 targetTags.xml 內層與 sourceTags 不同時，以原文條目覆寫（Bug #7）。
+     * mqxliff：同 ph 已存在但 targetTags.xml 與 sourceTags 不同時，以原文條目覆寫。
+     * Bug #7：bpt/ept 內層 g/pt；Bug #8：standalone ph／mq:rxt 全段 xml（見 targettags-xml-mismatch bug report）。
      */
     function reconcileTargetTagsMarkupFromSource(sourceTags, targetTags) {
         if (!sourceTags || !sourceTags.length || !targetTags || !targetTags.length) return false;
@@ -1162,10 +1181,7 @@
             if (!tt || !tt.ph) continue;
             const st = sourceByPh.get(tt.ph);
             if (!st || st.xml == null) continue;
-            const srcSig = innerEscapedTagSig(st.xml);
-            if (!srcSig) continue;
-            const tgtSig = innerEscapedTagSig(tt.xml);
-            if (tgtSig === srcSig) continue;
+            if (!tagXmlNeedsReconcileFromSource(st, tt)) continue;
             targetTags[i] = { ...st };
             changed = true;
         }
@@ -1175,6 +1191,8 @@
     window.CatToolXliffTags = {
         extractTaggedText,
         innerEscapedTagSig,
+        normalizeTagXmlForReconcile,
+        tagXmlNeedsReconcileFromSource,
         reconcileTargetTagsMarkupFromSource,
         replacePlaceholders,
         collapseAmpEntitiesRepeated,

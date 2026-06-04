@@ -155,13 +155,20 @@ flowchart TD
 - **`countEditorChars`**：改為 **`extractTextFromEditor(editorEl).length`**。  
 - **`getNpCaretOffset`／`setNpCaretOffset`**：遇 `BR` 時若 **`isGhostBr`** 則不計入字元偏移。
 
-### 2.5 未來可進一步修改（非承諾）
+### 2.5 後續補修與可選改進
 
-**2026-05-27 Wave 1**（`d8b5cfc`）：tag 旁刪字 extract 層、`tryDeleteSemanticNewlineAtCaret` — 見 [`CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md`](./CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md) Wave 1。
+#### 已落地（2026-05-27，專項計畫）
 
-**2026-05-27 Wave 2**（`21e14ee`）：NP 仍對幽靈 br 加 ↵、input 當下 canonicalize — 同文件 **Wave 2** 小節（Fix 3A／3B／3C）。
+完整歷程、修改過程與驗收結果見 [`CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md`](./CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md)。
 
-1. **游標與線性化完全一致**  
+| 波次 | commit | 修正重點 | 驗收 |
+|------|--------|----------|------|
+| **Wave 1** | `d8b5cfc` | `isGhostBrAfterRtTag`（tag 後幽靈 br 不進 plain）；`tryDeleteSemanticNewlineAtCaret`（¶ 下可刪語意換行） | P2 通過；P1 資料層改善但 **刪字當下仍閃 ↵** |
+| **Wave 2** | `21e14ee` | Fix 3A：`applyNonPrintMarkers` 略過幽靈 br；Fix 3C：`canonicalizeTargetEditorFromExtractPlain`（input 當下 rebuild）；Fix 3B：`isGhostOnlyDiv`（根層 ghost div） | **P1／P2 全項通過**（¶ 恆開手動驗收） |
+
+與本文件 `c4f865d` 的關係：基礎政策（Shift+Enter、`data-cat-nl`、blur rebuild）不變；Wave 1／2 補 **tag 旁刪字** 與 **NP ↵ 編輯** 兩條殘留路徑。
+
+#### 仍可選的改進（非承諾）  
    非列印模式仍用 `TreeWalker` 近似計算 offset；若仍存在「僅根層 sibling `div`、中間無真實 `BR`」等邊界，理論上可能與 `extractTextFromEditor` 的虛擬 `\n` 不完全一致。若收到回報，可改為與 extract **共用單一走訪器**計算 caret offset。
 
 2. **擴充幽靈 BR 規則**  
@@ -174,7 +181,7 @@ flowchart TD
    若搜尋條件命中「僅落在 synthetic 換行位置」的字元，現況可能無法在 DOM 上套色；若產品需要，可再設計對應策略（例如鄰近文字節點範圍或特殊占位）。
 
 5. **打字中即時 canonicalize**  
-   目前刻意不在每次 debounce **強制**整段 `innerHTML` 重建；若未來要「邊打邊洗 DOM」，需重新評估 IME、效能與與協作／undo 的互動。
+   Wave 2 已在譯文 `input`（非組字中）對幽靈 br／ghost div 做 **有條件** rebuild；若需擴大到每次 debounce 強制整段重建，仍須評估 IME、效能與 undo／協作。
 
 6. **本文件內歷史 code 引用**  
    初稿中的行號與程式片段僅供理解問題年代；**維運時請以 repo 現況為準**。
