@@ -757,29 +757,51 @@
         return normalized.split('\n').map(l => l.trim()).filter(Boolean);
     }
 
-    function registerSegmentExportKeys(seg, map) {
-        if (!seg || !map) return;
-        const put = (key) => {
+    function createExportSegmentLookup() {
+        return { byTuId: new Map(), byAux: new Map() };
+    }
+
+    function exportLookupGet(lookup, key) {
+        const k = key != null ? String(key).trim() : '';
+        if (!k) return null;
+        if (lookup.byTuId.has(k)) return lookup.byTuId.get(k);
+        if (lookup.byAux.has(k)) return lookup.byAux.get(k);
+        return null;
+    }
+
+    function exportLookupHas(lookup, key) {
+        const k = key != null ? String(key).trim() : '';
+        return !!k && (lookup.byTuId.has(k) || lookup.byAux.has(k));
+    }
+
+    /**
+     * 匯出查找：xliffTuId 進 byTuId（可覆寫）；僅無 xliffTuId 的舊句段才用 idValue 進 byAux。
+     * 不註冊 globalId／rowIdx，避免與 Key 數字撞鍵（見 bug-report_mqxliff-export-lookup-key-collision_2026-06.md）。
+     */
+    function registerSegmentExportKeys(seg, lookup) {
+        if (!seg || !lookup) return;
+        const tuId = seg.xliffTuId != null ? String(seg.xliffTuId).trim() : '';
+        if (tuId) lookup.byTuId.set(tuId, seg);
+        if (tuId) return;
+
+        const putAux = (key) => {
             const k = key != null ? String(key).trim() : '';
-            if (!k || map.has(k)) return;
-            map.set(k, seg);
+            if (!k || lookup.byTuId.has(k) || lookup.byAux.has(k)) return;
+            lookup.byAux.set(k, seg);
         };
-        if (seg.xliffTuId) put(seg.xliffTuId);
         if (seg.idValue) {
             const fullId = String(seg.idValue).trim();
-            put(fullId);
-            normalizeMqxliffLookupLines(fullId).forEach(put);
+            putAux(fullId);
+            normalizeMqxliffLookupLines(fullId).forEach(putAux);
         }
-        if (seg.globalId != null && Number.isFinite(Number(seg.globalId))) {
-            put(String(seg.globalId));
-        }
-        if (seg.rowIdx != null) put(String(seg.rowIdx + 1));
     }
 
     function buildSegmentExportLookupMap(segs) {
-        const map = new Map();
-        (segs || []).forEach(s => registerSegmentExportKeys(s, map));
-        return map;
+        const lookup = createExportSegmentLookup();
+        (segs || []).forEach(s => registerSegmentExportKeys(s, lookup));
+        lookup.get = (key) => exportLookupGet(lookup, key);
+        lookup.has = (key) => exportLookupHas(lookup, key);
+        return lookup;
     }
 
     function resolveTransUnitLookupKeys(tu, xmlDoc) {
@@ -802,45 +824,52 @@
         return keys;
     }
 
-    function lookupSegmentByTuKeys(tu, map, xmlDoc) {
+    function lookupSegmentByTuKeys(tu, lookup, xmlDoc) {
         const keys = resolveTransUnitLookupKeys(tu, xmlDoc);
+        const primaryTuId = keys[0] || '';
         for (let i = 0; i < keys.length; i++) {
-            const seg = map.get(keys[i]);
-            if (seg) return seg;
+            const k = keys[i];
+            if (lookup.byTuId.has(k)) return lookup.byTuId.get(k);
+        }
+        for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            const seg = lookup.byAux.get(k);
+            if (!seg) continue;
+            const xid = seg.xliffTuId != null ? String(seg.xliffTuId).trim() : '';
+            if (xid && primaryTuId && xid !== primaryTuId) continue;
+            return seg;
         }
         return null;
     }
 
-    function findSegmentForTransUnit(tu, map, format, tuIndex, tuCount, segs, xmlDoc) {
-        const seg = lookupSegmentByTuKeys(tu, map, xmlDoc);
-        if (seg) return seg;
-        if ((format === 'mqxliff' || format === 'xliff' || format === 'mxliff') &&
-            Array.isArray(segs) && segs.length === tuCount && tuIndex >= 0) {
-            const gid = tuIndex + 1;
-            const byOrder = segs.find(s => s.globalId === gid);
-            if (byOrder) {
-                if (isXliffExportDebug()) {
-                    console.warn('[CatTool XLIFF] export lookup fallback globalId order', {
-                        tuIndex,
-                        gid,
-                        tuId: resolveTransUnitLookupKeys(tu, xmlDoc)[0]
-                    });
-                }
-                return byOrder;
-            }
+    function isAmbiguousExportLookup(tu, lookup, xmlDoc) {
+        const keys = resolveTransUnitLookupKeys(tu, xmlDoc);
+        const primaryTuId = keys[0] || '';
+        if (!primaryTuId) return false;
+        if (lookup.byTuId.has(primaryTuId)) return false;
+        for (let i = 0; i < keys.length; i++) {
+            const seg = lookup.byAux.get(keys[i]);
+            if (!seg) continue;
+            const xid = seg.xliffTuId != null ? String(seg.xliffTuId).trim() : '';
+            if (xid && xid !== primaryTuId) return true;
         }
-        return null;
+        return false;
+    }
+
+    function findSegmentForTransUnit(tu, lookup, format, tuIndex, tuCount, segs, xmlDoc) {
+        return lookupSegmentByTuKeys(tu, lookup, xmlDoc);
     }
 
     /**
      * 匯出前統計 trans-unit 無法對應到句段的數量（與 exportXliffFamilyToBlob 查找邏輯一致）。
      */
     function countXliffExportLookupMisses(xmlDoc, segs, format) {
-        if (!xmlDoc || !segs) return { miss: 0, total: 0 };
+        if (!xmlDoc || !segs) return { miss: 0, total: 0, ambiguous: 0 };
         const transUnits = Array.from(xmlDoc.getElementsByTagName('trans-unit'));
-        const map = buildSegmentExportLookupMap(segs);
+        const lookup = buildSegmentExportLookupMap(segs);
         let miss = 0;
         let total = 0;
+        let ambiguous = 0;
 
         transUnits.forEach((tu, tuIndex) => {
             const tuId = tu.getAttribute('id');
@@ -852,23 +881,24 @@
                     : [];
                 const firstMid = mrkSegs.length > 0 ? mrkSegs[0].getAttribute('mid') : null;
                 const compositeKey = firstMid != null ? `${tuId}#${firstMid}` : null;
-                const isMultiSegFormat = compositeKey != null && map.has(compositeKey);
+                const isMultiSegFormat = compositeKey != null && lookup.has(compositeKey);
 
                 if (isMultiSegFormat && mrkSegs.length > 1) {
                     mrkSegs.forEach(mrk => {
                         total++;
                         const mid = mrk.getAttribute('mid') || '';
-                        if (!map.get(`${tuId}#${mid}`)) miss++;
+                        if (!lookup.get(`${tuId}#${mid}`)) miss++;
                     });
                     return;
                 }
             }
             total++;
-            if (!findSegmentForTransUnit(tu, map, format, tuIndex, transUnits.length, segs, xmlDoc)) {
+            if (isAmbiguousExportLookup(tu, lookup, xmlDoc)) ambiguous++;
+            if (!findSegmentForTransUnit(tu, lookup, format, tuIndex, transUnits.length, segs, xmlDoc)) {
                 miss++;
             }
         });
-        return { miss, total };
+        return { miss, total, ambiguous };
     }
 
     async function exportXliffFamilyToBlob(f, segs, format) {
@@ -885,7 +915,7 @@
         const mqNsUri = xmlDoc.documentElement.lookupNamespaceURI('mq') || 'memoQ';
         const sdlNsUri = xmlDoc.documentElement.lookupNamespaceURI('sdl') || 'http://sdl.com/FileTypes/SdlXliff/1.0';
 
-        // xliffTuId + idValue 多鍵 + globalId；與 countXliffExportLookupMisses 共用 buildSegmentExportLookupMap
+        // xliffTuId（byTuId）+ 舊資料 idValue（byAux）；與 countXliffExportLookupMisses 共用
         const segByTuId = buildSegmentExportLookupMap(segs);
 
         transUnits.forEach((tu, tuIndex) => {
@@ -979,7 +1009,12 @@
                 }
             }
 
-            const tags = seg.targetTags && seg.targetTags.length ? seg.targetTags : (seg.sourceTags || []);
+            let tags = seg.targetTags && seg.targetTags.length
+                ? seg.targetTags.map(t => ({ ...t }))
+                : (seg.sourceTags || []).map(t => ({ ...t }));
+            if (format === 'mqxliff' && seg.sourceTags && seg.sourceTags.length && tags.length) {
+                reconcileTargetTagsMarkupFromSource(seg.sourceTags, tags);
+            }
             let repairedText = normalizeLegacyEncodedTagText(seg.targetText || '', seg.sourceTags || []);
             if (format === 'mxliff') {
                 const origTargetEl = tu.getElementsByTagName('target')[0];
@@ -1100,8 +1135,47 @@
         return issues;
     }
 
+    /**
+     * bpt/ept 序列化 xml 內跳脫內層標記簽名（如 open:g、close:pt），供 TM pt vs 原文 g 對齊。
+     */
+    function innerEscapedTagSig(xml) {
+        if (xml == null || typeof xml !== 'string') return '';
+        const closeM = xml.match(/&lt;\/([a-zA-Z][\w:-]*)/i);
+        if (closeM) return 'close:' + closeM[1].toLowerCase();
+        const openM = xml.match(/&lt;([a-zA-Z][\w:-]*)/i);
+        if (openM) return 'open:' + openM[1].toLowerCase();
+        return '';
+    }
+
+    /**
+     * mqxliff：同 ph 已存在但 targetTags.xml 內層與 sourceTags 不同時，以原文條目覆寫（Bug #7）。
+     */
+    function reconcileTargetTagsMarkupFromSource(sourceTags, targetTags) {
+        if (!sourceTags || !sourceTags.length || !targetTags || !targetTags.length) return false;
+        const sourceByPh = new Map();
+        for (const st of sourceTags) {
+            if (st && st.ph && !sourceByPh.has(st.ph)) sourceByPh.set(st.ph, st);
+        }
+        let changed = false;
+        for (let i = 0; i < targetTags.length; i++) {
+            const tt = targetTags[i];
+            if (!tt || !tt.ph) continue;
+            const st = sourceByPh.get(tt.ph);
+            if (!st || st.xml == null) continue;
+            const srcSig = innerEscapedTagSig(st.xml);
+            if (!srcSig) continue;
+            const tgtSig = innerEscapedTagSig(tt.xml);
+            if (tgtSig === srcSig) continue;
+            targetTags[i] = { ...st };
+            changed = true;
+        }
+        return changed;
+    }
+
     window.CatToolXliffTags = {
         extractTaggedText,
+        innerEscapedTagSig,
+        reconcileTargetTagsMarkupFromSource,
         replacePlaceholders,
         collapseAmpEntitiesRepeated,
         phInnerMatchVariants,

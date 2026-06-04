@@ -114,6 +114,10 @@ function effectiveTags(seg) {
 
 **實作排程、驗收順序與建置**：見 [`CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md`](CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md)（階段 A 對應上表 Bug A／B）。程式完成並推送後，可於本段或上表加註 commit 短碼與日期。
 
+### 2.9 同 ph 已存在但 bpt/ept 內層標記不同（Bug #7）
+
+當譯文 `targetTags` **已有**與原文相同的 `{1}`、`{/1}`，但 bpt/ept 的 `xml` 內跳脫標記不同（例如 TM 殘留 `&lt;pt&gt;`、原文為 `&lt;g&gt;`），Bug #5 的「已存在不覆寫」**不會**修正內層標記；F8 亦因佔位已齊而略過。見專文 [`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](./bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md) 與實作計畫階段 E（`reconcileTargetTagsMarkupFromSource`）。
+
 ### 2.5 Enhancement：換行 `mq:ch` 的 display 文案（可選）
 
 **詳見實作計畫** [`CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md`](CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md) **§4 階段 C**（觸發條件、窄正則、Tab／NBSP、驗收與流程圖）。

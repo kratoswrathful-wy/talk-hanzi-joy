@@ -17,8 +17,9 @@
 | --- | ------------------------------------------------------- | ----------- |
 | A   | 部分譯文 `targetTags` 缺漏、F8 未同步                             | Bug #5      |
 | B   | TM 比對表 `ondblclick` 內嵌譯文含 `"` 時破壞 HTML                  | 建議列為 Bug #6 |
-| C   | memoQ `**mq:ch` pill display** 友善標示（換行／Tab／NBSP 等，見 §4） | 選做          |
+| C   | memoQ `**mq:ch` pill display** 友善標示（換行／Tab／NBSP 等，見 §5） | 選做          |
 | D   | 匯出長句：字面 `<…>` 與多 `<ph>` 混用                              | 後續調查        |
+| E   | bpt/ept 內層 TM `<pt>` vs 原文 `<g>`（F8／匯出）                    | Bug #7（**已修**） |
 
 
 **說明**：不以客戶檔名推斷檔案是否「斷尾」；若需判斷資料是否截斷，應直接檢視該句 `<source>`／`<target>` XML。
@@ -58,7 +59,26 @@
 
 ---
 
-## 4. 階段 C — memoQ `mq:ch` pill 友善標示（選做）
+## 4. 階段 E — Bug #7（bpt/ept 內層標記以原文為準）
+
+**專文**：[`bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md`](bug-report_mqxliff-bpt-inner-markup-tm-mismatch_2026-06.md)（Companion mqxliff `trans-unit id="41"`：TM `<pt>` vs 原文 `<g>`）。
+
+| 步驟 | 動作 | 檔案 |
+| --- | --- | --- |
+| E0 | `innerEscapedTagSig`、`reconcileTargetTagsMarkupFromSource` | [`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) |
+| E1 | mqxliff 單段 TU：`mergePartialTargetTagsFromSource` 之後呼叫 reconcile | [`cat-tool/js/xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) |
+| E2 | `mergeTargetTagsFromSourceForPresentPlaceholders`、`insertNextMissingTag`、`effectiveTags` | [`cat-tool/app.js`](../cat-tool/app.js) |
+| E3 | `exportXliffFamilyToBlob` mqxliff：`replacePlaceholders` 前 reconcile | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) |
+
+**驗收**
+
+1. 匯入含 id=41 之 mqxliff → 該句 `targetTags` 內層為 `g`（非 `pt`）。
+2. 匯出後 `<target>` bpt/ept 內為 `&lt;g id="i3"&gt;`；memoQ 無 pt 相關錯誤。
+3. 第 42、60 句等仍為 `g`（迴歸）。
+
+---
+
+## 5. 階段 C — memoQ `mq:ch` pill 友善標示（選做）
 
 ### 4.1 與既有文件的關係
 

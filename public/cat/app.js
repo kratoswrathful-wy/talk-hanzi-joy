@@ -14843,7 +14843,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const presentPhs = new Set((currentText.match(/\{\/?\d+\}/g) || []));
 
         const missingTags = sourceTags.filter(t => !presentPhs.has(t.ph));
-        if (!missingTags.length) return;
+        if (!missingTags.length) {
+            if (!seg.targetTags) seg.targetTags = [];
+            const Xliff = window.CatToolXliffTags;
+            if (Xliff && typeof Xliff.reconcileTargetTagsMarkupFromSource === 'function'
+                && Xliff.reconcileTargetTagsMarkupFromSource(sourceTags, seg.targetTags)) {
+                const rowEarly = editorDiv.closest('.grid-data-row');
+                updateTagColors(rowEarly, seg.targetText);
+                applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags }).catch(console.error);
+                refreshTagNextHighlight(rowEarly);
+            }
+            return;
+        }
 
         const firstMissing = getFirstMissingTagInSourceOrder(seg.sourceText || '', sourceTags, presentPhs)
             || missingTags.reduce(
@@ -18325,7 +18336,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const presentPhs = new Set(present);
         const existingPhs = new Set((targetTags || []).map(t => t && t.ph).filter(Boolean));
-        if (existingPhs.size && existingPhs.size >= presentPhs.size) return false;
 
         const sourceByPh = new Map();
         for (const st of sourceTags) {
@@ -18341,12 +18351,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             existingPhs.add(ph);
             changed = true;
         }
+        const Xliff = window.CatToolXliffTags;
+        if (Xliff && typeof Xliff.reconcileTargetTagsMarkupFromSource === 'function') {
+            if (Xliff.reconcileTargetTagsMarkupFromSource(sourceTags, targetTags)) changed = true;
+        }
         return changed;
     }
 
     function effectiveTags(seg) {
         if (seg && seg.targetTags && seg.targetTags.length > 0) {
-            // 防呆：若譯文已有 {N}/{/N} 但 targetTags 缺 ph，從 sourceTags 補洞（不覆寫既有）。
+            // 防呆：若譯文已有 {N}/{/N} 但 targetTags 缺 ph，從 sourceTags 補洞；並對齊 bpt 內層 g/pt（Bug #7）。
             mergeTargetTagsFromSourceForPresentPlaceholders(seg, seg.targetText);
             return seg.targetTags;
         }
@@ -23904,13 +23918,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             const xmlText = new TextDecoder('utf-8').decode(f.originalFileBuffer);
             const xmlDoc = new DOMParser().parseFromString(xmlText, 'application/xml');
             if (xmlDoc.getElementsByTagName('parsererror').length) return true;
-            const { miss, total } = Xliff.countXliffExportLookupMisses(xmlDoc, segs, format);
-            if (miss <= 0) return true;
-            return await openCatConfirmModal(
-                `有 ${miss} / ${total} 句在匯出檔中找不到對應的譯文。\n\n` +
-                '這些句會保留 XML 內原有內容（譯文與確認狀態都不會更新）。\n\n' +
-                '建議：用目前的作業 mqxliff 再執行一次「更新作業檔」後重試。\n\n仍要匯出嗎？'
-            );
+            const stats = Xliff.countXliffExportLookupMisses(xmlDoc, segs, format);
+            const miss = stats.miss || 0;
+            const total = stats.total || 0;
+            const ambiguous = stats.ambiguous || 0;
+            if (miss <= 0 && ambiguous <= 0) return true;
+            let msg = '';
+            if (ambiguous > 0) {
+                msg += `有 ${ambiguous} 句可能因 ID 與 Key 數字撞鍵而對錯句（匯出將略過這些句，避免寫入別句譯文）。\n\n`;
+            }
+            if (miss > 0) {
+                msg += `有 ${miss} / ${total} 句在匯出檔中找不到對應的譯文。\n\n` +
+                    '這些句會保留 XML 內原有內容（譯文與確認狀態都不會更新）。\n\n';
+            }
+            msg += '建議：用目前的作業 mqxliff 再執行一次「更新作業檔」後重試。\n\n仍要匯出嗎？';
+            return await openCatConfirmModal(msg);
         } catch (_) {
             return true;
         }
