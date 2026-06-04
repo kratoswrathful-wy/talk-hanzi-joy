@@ -247,18 +247,25 @@ sourceTags.push({
 
 解法：**刪除舊記錄並重新匯入**，現有的匯入流程會正確擷取所有 tag。
 
-### 4.5 匯出查找鍵：`xliffTuId` vs `idValue`
+### 4.5 匯出查找鍵：`xliffTuId` vs `idValue`（2026-06，已驗收）
 
-memoQ 遊戲對話 mqxliff 常把 **對話路徑** 放在 `x-mmq-context`（→ `idValue`／Key），**hash** 放在其他 context（→ `extraValue`）。`<trans-unit id>` 才是匯出 XML 時的查找鍵。
+memoQ **遊戲對話** mqxliff 常把 **對話路徑** 放在 `x-mmq-context`（→ `idValue`／Key），**hash** 放在其他 context（→ `extraValue`）。**切勿**假設 `idValue` 第一行等於 `<trans-unit id>`。
 
 | 欄位 | 用途 |
 |------|------|
 | `idValue` | UI Key、更新作業檔 `segmentMatchKey` |
 | `xliffTuId` | 匯入時存 `trans-unit@id`；**匯出主鍵**（Team：`cat_segments.xliff_tu_id`） |
 
-匯出：`buildSegmentExportLookupMap` → `findSegmentForTransUnit`；查找失敗則整句不更新（譯文與 `mq:status` 皆保留舊 XML）。匯出前 `countXliffExportLookupMisses` 會警示。
+**匯出流程**（`xliff-tag-pipeline.js`）：
 
-既有專案建議用目前作業 mqxliff **再更新作業檔** 以 backfill `xliffTuId`。詳見 [`bug-report_mqxliff-export-segment-lookup-fail_2026-06.md`](./bug-report_mqxliff-export-segment-lookup-fail_2026-06.md)。
+1. `buildSegmentExportLookupMap(segs)` — 註冊 `xliffTuId`、`idValue`（含各行）、`globalId` 等。
+2. 對每個 `trans-unit`：`findSegmentForTransUnit` — 試 TU 的 `id`／`resname`／`mq:unitId`，必要時 mqxliff 以 `globalId` 序號對齊。
+3. 找不到句段 → **整句跳過**（`<target>` 與 `mq:status` 維持 `originalFileBuffer` 舊值）— 這是「編輯器正確、匯出卻是第一次匯入內容」的常見根因。
+4. `app.js`：`countXliffExportLookupMisses` → 有 miss 時 Modal 警示。
+
+**既有專案**：部署 `4fef922` 後，用目前作業 mqxliff **再更新作業檔** 以 backfill `xliffTuId`（或重匯）。
+
+完整現象、第一版 `b0e7f5e` 失效原因、驗收步驟：[`bug-report_mqxliff-export-segment-lookup-fail_2026-06.md`](./bug-report_mqxliff-export-segment-lookup-fail_2026-06.md)。
 
 ---
 
@@ -520,6 +527,30 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 ### [2026-06] Phrase mxliff 匯入 — `{1}{2}` pill 與格式偵測
 
 **摘要**：`ff23f8c`、`56bbfd0` — 接受 `.mxliff`、`synthesizeMxliffBraceTags`、`currentFileFormat = 'mxliff'`、匯出路徑納入 `mxliff`。見實作紀錄 §2 commit 表。
+
+---
+
+### [2026-06] mqxliff 匯出 — 編輯器譯文正確、匯出檔仍為第一次匯入內容（含確認狀態丟失）
+
+**症狀**（樣本 `【S1】支线-处理后_zh-TW.xliff_zho-TW.mqxliff`）：
+
+- AI 翻譯後編輯器譯文與確認狀態正確。
+- 匯出 `Translated_*.mqxliff` 的 `<target>` 仍為**第一次匯入**的原文照貼；`mq:status`／確認狀態亦回到舊 XML。
+- 曾用 `260603_zho-TW.mqxliff` 更新作業檔（專案檔名不變）。
+
+**原因**：
+
+1. 匯入時 `idValue = x-mmq-context`（對話路徑），`trans-unit@id`（hash）多在 `extraValue`，與 `idValue` 第一行**不同**。
+2. 匯出僅 `segByTuId.get(tu.getAttribute('id'))`，map 卻以 `idValue` 建索引 → 查找失敗 → `if (!seg) return` 整句不寫入。
+3. 第一版修復 `b0e7f5e`（`idValue` 第一行 fallback）對遊戲對話檔**多數無效**。
+
+**修法**（`4fef922`）：
+
+- 匯入／更新：`xliffTuId` = `fallbackId`；Team：`cat_segments.xliff_tu_id`。
+- 匯出：`buildSegmentExportLookupMap`、`findSegmentForTransUnit`、`countXliffExportLookupMisses`。
+- `app.js` 匯出前 miss 警示。
+
+**驗收**（2026-06-03）：部署 + db push → 更新作業檔 backfill → 匯出；`<target>` 與確認狀態與編輯器一致。詳見 [`bug-report_mqxliff-export-segment-lookup-fail_2026-06.md`](./bug-report_mqxliff-export-segment-lookup-fail_2026-06.md)。
 
 ---
 
