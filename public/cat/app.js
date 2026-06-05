@@ -16727,6 +16727,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (catFakeCaret) catFakeCaret.restoreOrShowFake();
     }
 
+    /** 蓋版 modal／wizard 開啟時隱藏假游標；全關閉後自動恢復（見 CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md） */
+    let catFakeCaretSuppressedByOverlay = false;
+    function countVisibleCatModalOverlays() {
+        return document.querySelectorAll('.wizard-overlay:not(.hidden), .modal-overlay:not(.hidden)').length;
+    }
+    function syncCatFakeCaretForModalOverlays() {
+        const n = countVisibleCatModalOverlays();
+        if (n > 0) {
+            if (!catFakeCaretSuppressedByOverlay) {
+                catFakeCaretSuppressedByOverlay = true;
+                hideCatFakeCaret();
+                hideCatRealCaretScrollTip();
+            }
+        } else if (catFakeCaretSuppressedByOverlay) {
+            catFakeCaretSuppressedByOverlay = false;
+            showCatFakeCaretFromSaved();
+            showRealCaretScrollTipIfNeeded();
+        }
+    }
+    function installCatFakeCaretModalOverlayObserver() {
+        if (installCatFakeCaretModalOverlayObserver._installed) return;
+        installCatFakeCaretModalOverlayObserver._installed = true;
+        const obs = new MutationObserver(() => syncCatFakeCaretForModalOverlays());
+        obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    }
+    if (catFakeCaret) installCatFakeCaretModalOverlayObserver();
+
     // 全域：Ctrl+↑／↓ 上一可見句／下一可見句譯文開頭（與分頁焦點無關）
     document.addEventListener('keydown', (e) => {
         if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
@@ -23791,6 +23818,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 listEl.appendChild(more);
             }
 
+            hideCatLoadingOverlay();
             modal.classList.remove('hidden');
 
             function cleanup(result) {
@@ -23986,7 +24014,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentFileId) return;
         try {
             exportBtn.disabled = true; exportBtn.textContent = '匯出中...';
-            showCatLoadingOverlay('正在準備匯出…');
             const f = await catGetFile(currentFileId, { includeOriginal: true });
             const segs = await prepareSegmentsForExport(currentFileId);
 

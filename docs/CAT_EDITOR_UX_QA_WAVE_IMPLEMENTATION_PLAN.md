@@ -115,6 +115,12 @@
 - **與其他節關係**：§3.2（假游標失焦）、§3.8（游標提示點擊）應與本節 **同一捲動原則** 對齊，避免各寫一套。
 - **檔案**：以 `cat-tool/app.js` 為主；`cat-tool/js/cat-fake-caret.js` 配合 §3.8。
 
+### 3.13 疊層與匯出互動（2026-06）
+
+- **問題**：單檔匯出時 `#catLoadingOverlay`（z-index 99998）擋住 `#exportTagWarningModal`；假游標／捲動提示（`position: fixed` on `body`）疊在 AI modal、筆記區上。
+- **決策**：單檔匯出僅按鈕「匯出中…」；假游標掛 `#editorGrid` 內 `#catEditorChromeLayer`；modal 開啟 suppress、關閉自動 `showCatFakeCaretFromSaved()`。
+- **規格與驗收**：[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)（**已實作**，待驗收）。
+
 ---
 
 ## 4. QA 結果表：選取與跳轉（已定案）

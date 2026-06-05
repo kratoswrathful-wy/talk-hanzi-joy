@@ -2016,7 +2016,7 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 }
 
 /* Basic Modals Overlay */
-.wizard-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+.wizard-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 10050; }
 /* mqxliff 身分視窗須高於 #catLoadingOverlay（inline z-index 很高），避免全螢幕載入遮罩擋住選擇 */
 #mqRoleModal.wizard-overlay { z-index: 100050; }
 
@@ -3931,15 +3931,23 @@ select.cat-mutex-dd-native-hidden {
     color: #b91c1c;
 }
 
+/* 譯文表 chrome 層：假游標／捲動提示（僅覆蓋 #editorGrid 可視區） */
+.cat-editor-chrome-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    pointer-events: none;
+    overflow: hidden;
+}
+
 /* 第四波 A：離開譯文欄後顯示最後插入位置（靜態假游標） */
 .cat-fake-caret {
-    position: fixed;
+    position: absolute;
     width: 2px;
     min-height: 14px;
     background: #2563eb;
     border-radius: 2px;
     pointer-events: none;
-    z-index: 9000;
     box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.14);
 }
 .cat-fake-caret.hidden {
@@ -3948,9 +3956,8 @@ select.cat-mutex-dd-native-hidden {
 
 /* 捲出編輯格可視區時：邊界提示暫存游標所在句段 */
 .cat-fake-caret-scroll-tip {
-    position: fixed;
-    z-index: 10050;
-    max-width: min(360px, calc(100vw - 16px));
+    position: absolute;
+    max-width: min(360px, calc(100% - 16px));
     background: #eff6ff;
     border: 2px solid #3b82f6;
     border-radius: 6px;

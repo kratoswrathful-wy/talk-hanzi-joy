@@ -3,6 +3,8 @@
 > 補修 Wave 1 **#6/18**：真游標捲動提示「游標位於第 N 號句段」須**點一下**即捲至該列，不得先變成假游標文案再點第二次。  
 > 程式觸點：[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)；完成後 `npm run sync:cat`。
 
+**維護邊界（2026-06）**：假游標／捲動提示 DOM 掛載於 `#editorGrid` 內 `#catEditorChromeLayer`（層內 `position: absolute` 座標），不再 append 至 `document.body`。捲動監聽、modal 互斥與匯出 overlay 行為以 [`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md) §2.4–§2.6 為準；本檔 §A+B 點擊／`navigateToSegmentBySegId` 邏輯不變。
+
 ---
 
 ## 問題現象

@@ -1,6 +1,6 @@
 /**
  * CAT 內嵌編輯器：暫存游標（假游標）記錄、捲動提示、還原焦點。
- * 由 app.js 以依賴注入建立實例；擴充請優先改本檔 API。
+ * 假游標／提示掛載於 #editorGrid 內 #catEditorChromeLayer（見 docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md）。
  */
 (function (global) {
     'use strict';
@@ -28,13 +28,68 @@
         let realTipEl = null;
         let listenersInstalled = false;
 
+        function getEditorGridEl() {
+            return document.getElementById('editorGrid');
+        }
+
+        function getEditorGridRect() {
+            const editorGrid = getEditorGridEl();
+            return editorGrid ? editorGrid.getBoundingClientRect() : null;
+        }
+
+        /** @returns {HTMLElement | null} */
+        function ensureEditorChromeLayer() {
+            const editorGrid = getEditorGridEl();
+            if (!editorGrid) return null;
+            let layer = document.getElementById('catEditorChromeLayer');
+            if (!layer) {
+                layer = document.createElement('div');
+                layer.id = 'catEditorChromeLayer';
+                layer.className = 'cat-editor-chrome-layer';
+                layer.setAttribute('aria-hidden', 'true');
+                const gridBody = document.getElementById('gridBody');
+                if (gridBody && gridBody.parentNode === editorGrid) {
+                    editorGrid.insertBefore(layer, gridBody);
+                } else {
+                    editorGrid.appendChild(layer);
+                }
+            }
+            return layer;
+        }
+
+        function appendToChromeLayer(el) {
+            const layer = ensureEditorChromeLayer();
+            if (!layer) {
+                document.body.appendChild(el);
+                return;
+            }
+            if (el.parentNode !== layer) {
+                layer.appendChild(el);
+            }
+        }
+
+        function positionScrollTipInLayer(tip, anchorLeftClient, gridRect, outAbove) {
+            if (!gridRect) return;
+            const left = anchorLeftClient - gridRect.left + 4;
+            const maxW = Math.max(120, gridRect.right - anchorLeftClient - 8);
+            tip.style.left = `${Math.max(0, left)}px`;
+            tip.style.maxWidth = `${maxW}px`;
+            if (outAbove) {
+                tip.style.top = '4px';
+                tip.style.bottom = '';
+            } else {
+                tip.style.top = '';
+                tip.style.bottom = '4px';
+            }
+        }
+
         function ensureFakeTipEl() {
             if (!fakeTipEl) {
                 fakeTipEl = document.createElement('div');
                 fakeTipEl.className = 'cat-fake-caret-scroll-tip hidden';
                 fakeTipEl.setAttribute('role', 'status');
-                document.body.appendChild(fakeTipEl);
             }
+            appendToChromeLayer(fakeTipEl);
             return fakeTipEl;
         }
 
@@ -50,8 +105,8 @@
                 realTipEl = document.createElement('div');
                 realTipEl.className = 'cat-fake-caret-scroll-tip hidden';
                 realTipEl.setAttribute('role', 'status');
-                document.body.appendChild(realTipEl);
             }
+            appendToChromeLayer(realTipEl);
             return realTipEl;
         }
 
@@ -148,8 +203,7 @@
                 hideRealTip();
                 return;
             }
-            const editorGrid = document.getElementById('editorGrid');
-            const gridRect = editorGrid ? editorGrid.getBoundingClientRect() : null;
+            const gridRect = getEditorGridRect();
             if (!gridRect) { hideRealTip(); return; }
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) { hideRealTip(); return; }
@@ -176,9 +230,7 @@
             tip.style.pointerEvents = 'auto';
             const colTarget = document.querySelector('.col-target');
             const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
-            tip.style.left = `${anchorLeft + 4}px`;
-            tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
-            tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
+            positionScrollTipInLayer(tip, anchorLeft, gridRect, outAbove);
             bindRealTipNavigation(tip);
         }
 
@@ -187,8 +239,8 @@
                 fakeEl = document.createElement('div');
                 fakeEl.className = 'cat-fake-caret hidden';
                 fakeEl.setAttribute('aria-hidden', 'true');
-                document.body.appendChild(fakeEl);
             }
+            appendToChromeLayer(fakeEl);
             return fakeEl;
         }
 
@@ -214,8 +266,7 @@
                 hide();
                 return;
             }
-            const editorGrid = document.getElementById('editorGrid');
-            const gridRect = editorGrid ? editorGrid.getBoundingClientRect() : null;
+            const gridRect = getEditorGridRect();
 
             let rect = null;
             try { rect = getRectForRange(saved.range); } catch (_) { rect = null; }
@@ -245,9 +296,7 @@
                     bindFakeTipNavigation(tip);
                     const colTarget = document.querySelector('.col-target');
                     const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
-                    tip.style.left = `${anchorLeft + 4}px`;
-                    tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
-                    tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
+                    positionScrollTipInLayer(tip, anchorLeft, gridRect, outAbove);
                     return;
                 }
             }
@@ -255,8 +304,12 @@
             let left = rect.left;
             let top = rect.top;
             if (gridRect) {
-                left = Math.min(Math.max(left, gridRect.left + 1), gridRect.right - 3);
-                top = Math.min(Math.max(top, gridRect.top + 1), gridRect.bottom - h - 1);
+                left = left - gridRect.left;
+                top = top - gridRect.top;
+                const gw = gridRect.width;
+                const gh = gridRect.height;
+                left = Math.min(Math.max(left, 1), gw - 3);
+                top = Math.min(Math.max(top, 1), gh - h - 1);
             }
             mark.style.left = `${left}px`;
             mark.style.top = `${top}px`;
@@ -356,6 +409,10 @@
             document.addEventListener('selectionchange', onSelectionChange);
             window.addEventListener('scroll', show, true);
             window.addEventListener('resize', show);
+            const editorGrid = getEditorGridEl();
+            if (editorGrid) {
+                editorGrid.addEventListener('scroll', show, { passive: true });
+            }
         }
 
         return {
