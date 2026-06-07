@@ -14552,6 +14552,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     let sfPhraseReplaceWhole = readPhraseReplaceWholeStored() === '1';
 
+    /**
+     * 整段取代模式下，從原始輸入值取出有效搜尋詞：
+     *  - 有引號包裹 → 剝掉引號，保留引號內內容（含空格）
+     *  - 無引號    → 直接使用原始值（保留使用者刻意打的頭尾空格）
+     */
+    function getPhraseWholeTerm(rawTerm) {
+        const trimmed = (rawTerm || '').trim();
+        if (trimmed.length >= 2 && trimmed[0] === '"' && trimmed[trimmed.length - 1] === '"') {
+            return trimmed.slice(1, -1);
+        }
+        return rawTerm || '';
+    }
+
     function getSfScopesFromDom() {
         return Array.from(document.querySelectorAll('.sf-scope-btn.on'))
             .map((b) => b.getAttribute('data-scope'))
@@ -15562,8 +15575,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             let regex = null;
             let sfPhrases = [];
             let sfTokens = [];
+            let phraseWhole = null;
             if (isRegex) {
                 try { regex = new RegExp(term.trim(), 'i'); } catch(e) { return false; }
+            } else if (sfPhraseReplaceWhole) {
+                phraseWhole = getPhraseWholeTerm(term);
             } else {
                 const parsed = parseTmConcordanceQuery(term.trim());
                 sfPhrases = parsed.phrases;
@@ -15573,6 +15589,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const checkMatch = (str) => {
                 if (!str) return false;
                 if (isRegex) return regex.test(str);
+                if (phraseWhole != null) {
+                    if (!phraseWhole.trim()) return false;
+                    return str.toLowerCase().includes(phraseWhole.toLowerCase());
+                }
                 const lower = str.toLowerCase();
                 for (const p of sfPhrases) { if (p && !lower.includes(p.toLowerCase())) return false; }
                 for (const t of sfTokens) { if (t && !lower.includes(t.toLowerCase())) return false; }
@@ -16132,7 +16152,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             regexObj.lastIndex = 0;
                         } else {
                             const parsed = parseTmConcordanceQuery(String(req.term || '').trim());
-                            const parts = [...parsed.phrases, ...parsed.tokens].filter(Boolean);
+                            const parts = sfPhraseReplaceWhole
+                                ? [getPhraseWholeTerm(String(req.term || ''))].filter((p) => p.trim())
+                                : [...parsed.phrases, ...parsed.tokens].filter(Boolean);
                             const escapedRaw = isTextarea ? rawText : rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                             const styleStr = req.bg ? ` style="background-color:${req.bg};"` : '';
                             for (const part of parts) {
@@ -17365,8 +17387,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch(e) { return text; }
         }
         if (sfPhraseReplaceWhole) {
-            const q = searchTerm.trim();
-            if (!q) return text;
+            const q = getPhraseWholeTerm(searchTerm);
+            if (!q.trim()) return text;
             const qLower = q.toLowerCase();
             let result = text;
             if (firstOnly) {
@@ -17493,7 +17515,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const occIdx = taPre ? occurrenceIndexOfMarkInEditor(taPre, match.markEl) : 0;
 
         const text = getSegmentFieldText(seg, match.segIdx, 'target');
-        const newText = replaceOccurrenceInPlain(text, term, replaceTerm, sfUseRegexChecked, occIdx);
+        const effectiveTerm = sfPhraseReplaceWhole ? getPhraseWholeTerm(term) : term;
+        const newText = replaceOccurrenceInPlain(text, effectiveTerm, replaceTerm, sfUseRegexChecked, occIdx);
         if (newText === text) return;
 
         if (segmentNeedsHighMatchGuard(seg)) {
@@ -18894,7 +18917,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const t = req.term;
                 if (!t) return;
                 const parsed = parseTmConcordanceQuery(String(t).trim());
-                const parts = [...parsed.phrases, ...parsed.tokens].filter(Boolean);
+                const parts = sfPhraseReplaceWhole
+                    ? [getPhraseWholeTerm(String(t))].filter((p) => p.trim())
+                    : [...parsed.phrases, ...parsed.tokens].filter(Boolean);
                 if (!parts.length) return;
                 const lFlat = flatText.toLowerCase();
                 for (const part of parts) {
