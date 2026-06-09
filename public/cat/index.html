@@ -724,8 +724,8 @@
                             <button type="button" id="btnTagViewArrow" class="icon-btn split-btn-arrow" data-tip="選擇標籤顯示方式" aria-haspopup="true" aria-expanded="false">▾</button>
                             <div class="split-dropdown tag-view-dropdown" id="tagViewDropdown" role="menu">
                                 <button type="button" class="tag-view-mode-item" data-tag-view-mode="0" role="menuitem">僅編號</button>
-                                <button type="button" class="tag-view-mode-item" data-tag-view-mode="1" role="menuitem">摘要（display）</button>
-                                <button type="button" class="tag-view-mode-item" data-tag-view-mode="2" role="menuitem">全文（xml 優先）</button>
+                                <button type="button" class="tag-view-mode-item" data-tag-view-mode="1" role="menuitem">簡短顯示</button>
+                                <button type="button" class="tag-view-mode-item" data-tag-view-mode="2" role="menuitem">延長顯示</button>
                             </div>
                         </div>
                         <button id="btnShowNonPrint" class="icon-btn" data-tip="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
@@ -1414,7 +1414,7 @@
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">標籤顯示方式（三態循環）</span><input type="text" value="Alt + S" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">依序切換：<strong>僅編號</strong> → <strong>摘要</strong>（display，可截短）→ <strong>全文</strong>（有 xml 時優先顯示 xml）。亦可點工具列 <code style="font-size:0.76rem;background:#f1f5f9;padding:0 4px;border-radius:3px;">{…}</code> 旁 ▾ 直接選擇。僅影響畫面，不刪除標籤。以鍵盤實體 S 鍵偵測，注音配置下仍可用。</p>
+                            <p class="cat-shortcuts-item-desc">依序切換：<strong>僅編號</strong>（開結 ›／‹）→ <strong>簡短顯示</strong>（截短 displaytext，移過可看全文）→ <strong>延長顯示</strong>（完整 displaytext，過長才裁切並可 hover 看全文）。亦可點工具列 <code style="font-size:0.76rem;background:#f1f5f9;padding:0 4px;border-radius:3px;">{…}</code> 旁 ▾ 直接選擇。僅影響畫面，不刪除標籤。以鍵盤實體 S 鍵偵測，注音配置下仍可用。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文中所有標籤占位</span><input type="text" value="Ctrl + F8" disabled class="sc-key-input"></div>

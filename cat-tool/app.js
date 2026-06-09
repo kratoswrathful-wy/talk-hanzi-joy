@@ -1228,8 +1228,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let tagViewMode = 0;
     const tagViewTips = [
         '標籤：僅編號（Alt+S 切下一層）',
-        '標籤：摘要（Alt+S 切下一層）',
-        '標籤：全文（Alt+S 切下一層）'
+        '標籤：摘要（Alt+S；移過標籤可看全文）',
+        '標籤：延長顯示（Alt+S 切下一層）'
     ];
     function syncTagViewModeToEditorGrid() {
         const editorGrid = document.getElementById('editorGrid');
@@ -1250,6 +1250,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         tagViewMode = Math.max(0, Math.min(2, m));
         syncTagViewModeToEditorGrid();
         updateTagViewToolbarUi();
+        const grid = document.getElementById('editorGrid');
+        if (grid) {
+            grid.querySelectorAll('.rt-editor').forEach((ed) => syncTagPillDisplayInEditor(ed));
+        }
     }
     function cycleTagViewMode() {
         setTagViewMode((tagViewMode + 1) % 3);
@@ -1311,6 +1315,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     syncTagViewModeToEditorGrid();
     updateTagViewToolbarUi();
+
+    let _tagPillResizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (tagViewMode !== 2) return;
+        clearTimeout(_tagPillResizeTimer);
+        _tagPillResizeTimer = setTimeout(() => {
+            const grid = document.getElementById('editorGrid');
+            if (grid) grid.querySelectorAll('.rt-editor').forEach((ed) => syncTagPillDisplayInEditor(ed));
+        }, 120);
+    });
 
     // 非列印字元顯示切換按鈕
     {
@@ -1739,6 +1753,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.removeAttribute('data-np-applied');
         if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
             requestAnimationFrame(() => applyNonPrintMarkers(el));
+        }
+        if (el.closest && el.closest('#editorGrid')) {
+            syncTagPillDisplayInEditor(el);
         }
         refreshSegCharCount(el);
     }
@@ -14943,6 +14960,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         mergeTargetTagsFromSourceForPresentPlaceholders(seg, seg.targetText);
         const row = editorDiv.closest('.grid-data-row');
         updateTagColors(row, seg.targetText);
+        syncTagPillDisplayInEditor(editorDiv);
         if (seg && oldTarget !== seg.targetText) {
             pushEditorUndo(seg.id, oldTarget, seg.targetText, {
                 oldMatchValue: oldMv,
@@ -14966,6 +14984,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tag.pairNum != null) span.setAttribute('data-pair', tag.pairNum);
         span.contentEditable = 'false';
         const { label, full } = tagChipLabelAndFull(tag);
+        if (full) span.setAttribute('data-tag-full', full);
         if (tag.type === 'close') {
             span.innerHTML = `<span class="tag-label">${escapeHtml(label)}</span><span class="tag-full">${escapeHtml(full)}</span><span class="tag-num">${tag.num}</span>`;
         } else {
@@ -16701,6 +16720,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             mergeTargetTagsFromSourceForPresentPlaceholders(seg, seg.targetText);
             const updatedRow = targetEditor.closest('.grid-data-row');
             updateTagColors(updatedRow, seg.targetText);
+            syncTagPillDisplayInEditor(targetEditor);
             if (oldTarget !== seg.targetText) {
                 pushEditorUndo(seg.id, oldTarget, seg.targetText, {
                     oldMatchValue: oldMv,
@@ -18437,13 +18457,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         return (seg && seg.sourceTags) ? seg.sourceTags : [];
     }
 
-    /** pill 內摘要（display）與全文（xml 優先，供 .tag-label / .tag-full） */
+    /** 譯者面向完整 displaytext（A）；優先 displayFull，舊句段可從 display／xml 重算。 */
+    function resolveTagDisplayFull(tag) {
+        if (!tag) return '';
+        if (tag.displayFull != null && String(tag.displayFull).trim() !== '') {
+            return String(tag.displayFull);
+        }
+        const Xliff = window.CatToolXliffTags;
+        const extract = Xliff && Xliff.extractMqRxtDisplayText;
+        const ph = tag.ph != null ? String(tag.ph) : '';
+        const label = tag.display != null ? String(tag.display) : '';
+        if (extract) {
+            const fromLabel = extract(label);
+            if (fromLabel) return fromLabel;
+            const xml = tag.xml != null ? String(tag.xml) : '';
+            if (xml) {
+                const inner = xml.replace(/^<[^>]+>/i, '').replace(/<\/[^>]+>$/i, '');
+                const ta = document.createElement('textarea');
+                ta.innerHTML = inner;
+                const fromInner = extract(ta.value);
+                if (fromInner) return fromInner;
+            }
+        }
+        if (label && label !== ph) return label;
+        return label || ph;
+    }
+
+    /** pill 內摘要（display）與延長顯示（displayFull／A） */
     function tagChipLabelAndFull(tag) {
         const label = tag && tag.display != null ? String(tag.display) : '';
-        const xml = tag && tag.xml != null ? String(tag.xml) : '';
-        const ph = tag && tag.ph != null ? String(tag.ph) : '';
-        const full = (label && label !== ph) ? label : (xml !== '' ? xml : label);
+        const full = resolveTagDisplayFull(tag);
         return { label, full };
+    }
+
+    /** 模式 1 摘要 tooltip、模式 2 溢出裁切；依 #editorGrid.tag-view-* 與 data-tag-full。 */
+    function syncTagPillDisplayInEditor(rootEl) {
+        if (!rootEl) return;
+        const grid = document.getElementById('editorGrid');
+        if (!grid || !grid.contains(rootEl)) return;
+        const pills = rootEl.querySelectorAll('.rt-tag[data-tag-full]');
+        pills.forEach((pill) => {
+            const full = pill.getAttribute('data-tag-full') || '';
+            const labelEl = pill.querySelector('.tag-label');
+            const fullEl = pill.querySelector('.tag-full');
+            pill.removeAttribute('data-tip');
+            if (fullEl) fullEl.classList.remove('tag-full-clamped');
+            if (tagViewMode === 1) {
+                const label = labelEl ? labelEl.textContent : '';
+                if (full && label !== full) pill.setAttribute('data-tip', full);
+            } else if (tagViewMode === 2 && fullEl && full) {
+                const lineH = parseFloat(getComputedStyle(fullEl).lineHeight) || 18;
+                const overflowsH = fullEl.scrollHeight > lineH + 1;
+                const overflowsW = fullEl.scrollWidth > fullEl.clientWidth + 1;
+                if (overflowsH || overflowsW) {
+                    fullEl.classList.add('tag-full-clamped');
+                    pill.setAttribute('data-tip', full);
+                }
+            }
+        });
     }
 
     /**
@@ -18469,7 +18540,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const cls = 'rt-tag' +
                     (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
                 const { label, full } = tagChipLabelAndFull(tag);
-                html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr} contenteditable="false">`;
+                const fullAttr = full ? ` data-tag-full="${escapeHtml(full)}"` : '';
+                html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr}${fullAttr} contenteditable="false">`;
                 if (tag.type === 'close') {
                     html += `<span class="tag-label">${escapeHtml(label)}</span>`;
                     html += `<span class="tag-full">${escapeHtml(full)}</span>`;
@@ -19614,6 +19686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Initialise tag colour state for this row
             updateTagColors(row, seg.targetText);
+            row.querySelectorAll('.rt-editor').forEach((ed) => syncTagPillDisplayInEditor(ed));
 
             colSettings.forEach((c, index) => {
                 const cell = row.querySelector(`.${c.id}`);

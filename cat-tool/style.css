@@ -2129,6 +2129,19 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 #editorGrid.tag-view-0 .rt-tag-e .tag-num {
     min-width: 0;
 }
+/* 僅編號：開頭 ›、結尾 ‹，加強成對辨識 */
+#editorGrid.tag-view-0 .rt-tag-s .tag-num::after {
+    content: '›';
+    margin-left: 0.05em;
+    font-weight: 700;
+    opacity: 0.85;
+}
+#editorGrid.tag-view-0 .rt-tag-e .tag-num::before {
+    content: '‹';
+    margin-right: 0.05em;
+    font-weight: 700;
+    opacity: 0.85;
+}
 #editorGrid.tag-view-1 .rt-tag-e,
 #editorGrid.tag-view-2 .rt-tag-e {
     justify-content: flex-start;
@@ -2193,8 +2206,25 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     overflow-wrap: anywhere;
     word-break: break-word;
 }
+#editorGrid.tag-view-2 .rt-tag {
+    white-space: normal;
+    max-width: min(42em, 92vw);
+}
 #editorGrid.tag-view-2 .tag-full {
     display: inline;
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+#editorGrid.tag-view-2 .tag-full.tag-full-clamped {
+    display: inline-block;
+    max-width: 100%;
+    max-height: 1.25em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
 }
 
 /* TM 比對列等非 editorGrid 內之 rt-tag：維持僅 .tag-content 可見 */

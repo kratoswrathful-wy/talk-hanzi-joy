@@ -23,7 +23,8 @@
 | **Bug #8 同 ph、targetTags xml 錯（mq:rxt）** | **已修** | 少數句譯文 `mq:rxt` displaytext 與原文不同；Ctrl+F8 未清 `targetTags`、F8 不覆寫 → 紅橘對不上、匯出 memoQ tag 錯。`upsertTargetTagFromSource`、reconcile 全 xml、`targettags-xml-mismatch` 專文 | [`app.js`](../cat-tool/app.js)、[`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)；[`bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md`](./bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md) |
 | **Bug #9 bpt/ept 內 mq:rxt href 匯出編碼** | **已修並驗收**（`584c707`） | `prepareRestoredFragmentForXmlParse` 全域 `collapseAmpEntitiesRepeated` 破壞 `&amp;lt;`／`&amp;quot;` → memoQ「Inline tag could not be parsed」。`shouldSkipAmpCollapseForMemoqInline`、`tagXmlNeedsReconcileFromSource` 編碼深度偵測；`npm run sync:cat` 同步 `public/cat/`。Consumer Insights 第 505／577 行 + NGR T1 第 1796 行 雙樣本 memoQ 匯入驗收通過（2026-06-09） | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)；[`bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](./bug-report_mqxliff-bpt-href-entity-export_2026-06.md) |
 | **Bug #10 bpt→ph 結構不匹配** | **已修** | 原文為 bpt/ept 對、譯文（TM 模糊匹配）為 ph standalone；`innerEscapedTagSig` 同回 `open:mq:rxt` 跳過 reconcile → 全橘、F8 無效。`fixMqxliffBptPhTypeMismatch` 於匯入時以 source bpt 覆寫 target ph、補 close ept | [`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js)；專文 [`bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](./bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md) |
-| **mq:rxt displaytext pill 顯示** | **已修** | bpt/ept/ph 內層 `mq:rxt` 的 `displaytext` 在外層元素無屬性、僅存於 textContent；pill 截斷整段 XML。`extractMqRxtDisplayText` 解析內層 `displaytext` 並解碼一層，僅改 `display`、不動 `xml` | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) `extractTaggedText` |
+| **mq:rxt displaytext pill 顯示** | **已修** | bpt/ept/ph 內層 `mq:rxt` 的 `displaytext` 在外層元素無屬性、僅存於 textContent；`extractMqRxtDisplayText`（含 close `</mq:rxt`）、`displayFull`；三模式顯示見專文 | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)、[`app.js`](../cat-tool/app.js)；[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md) |
+| **標籤顯示三模式改版** | **已修** | 僅編號加強開結（›／‹）；簡短 hover 無延遲全文；延長顯示完整 A、溢出才裁切 + tooltip | [`style.css`](../cat-tool/style.css)、[`app.js`](../cat-tool/app.js) `syncTagPillDisplayInEditor` |
 | **QA Tag 檢查與佔位對齊** | 已實作 | 舊 QA 僅比 `sourceTags` vs `targetTags` 陣列；匯出／畫面在 `targetTags` 空時會用 `sourceTags` + `targetText` 佔位符。修正後自譯文純文字掃 `\{\/?(\d+)\}` 併入「已帶入」判斷，並自 `ph` 備援 id；多餘 tag 同檢陣列與譯文多出之編號。專文見下 | [`app.js`](../cat-tool/app.js) `runQaChecks`、`_qaPushSegmentRuleFindings`、`_qaTagIdForCompare`、`_qaPlainTargetTagNumSet`；說明 [`bug-report_cat-qa-tag-parity.md`](bug-report_cat-qa-tag-parity.md) |
 
 **Bug #5 完整調查、白話摘要、修正建議與 mq:ch 換行 display 增強**：[`bug-report_mqxliff-partial-target-tags.md`](bug-report_mqxliff-partial-target-tags.md)。
@@ -35,6 +36,8 @@
 **Bug #9 bpt/ept 內 mq:rxt 超連結匯出編碼（memoQ 無法重新匯入）**：[`bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](bug-report_mqxliff-bpt-href-entity-export_2026-06.md)。
 
 **Bug #10 bpt→ph 結構型別不匹配（TM 模糊匹配、F8 無效）**：[`bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md)。
+
+**標籤顯示三模式（僅編號／簡短／延長）**：[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md)。
 
 **靜態部署**：變更 `cat-tool/` 後執行 `node scripts/sync-cat.mjs`，使 `public/cat/` 一致。
 

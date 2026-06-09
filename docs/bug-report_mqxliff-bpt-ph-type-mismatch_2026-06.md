@@ -51,14 +51,16 @@
 1. 遍歷 `targetTags`：若條目 `type === 'standalone'`，且同 `ph` 的 source 為 `type === 'open'`（bpt），且 `innerEscapedTagSig` 相同 → 以 `{...sourceOpen}` 覆寫（含正確 bpt xml）。
 2. 對已修正的 pairNum：若 source 有 close（`ph === '{/N}'`）而 target 無 → `push` source close 條目。
 
-### 3.2 displaytext：`extractMqRxtDisplayText`
+### 3.2 displaytext：`extractMqRxtDisplayText` + `displayFull`
 
 **檔案**：[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)
 
 在 `extractTaggedText` 的 ph／bpt／ept 分支，於無外層 `displaytext`／`equiv-text` 時：
 
-- 若 `meaningfulRaw` 以 `<mq:rxt`（或命名空間前綴 rxt）開頭，正則抽出 `displaytext="…"` 並 HTML 解碼一層
-- 僅覆寫進入 pill 的 `display` 鏈，**不修改** `xml`（匯出安全）
+- 正則抽出內層 `displaytext="…"` 並 HTML 解碼一層（**含 close ept** 的 `</mq:rxt displaytext=...`）
+- 寫入 `display`（25 字截短）與 `displayFull`（完整 A）；**不修改** `xml`（匯出安全）
+
+**標籤顯示三模式**（僅編號／簡短／延長、tooltip）：[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md)。
 
 ---
 

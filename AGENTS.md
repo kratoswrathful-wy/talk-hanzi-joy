@@ -43,6 +43,7 @@
 - [`docs/CAT_PHRASE_REPLACE_WHOLE_SPACES_FIX_2026-06.md`](docs/CAT_PHRASE_REPLACE_WHOLE_SPACES_FIX_2026-06.md) — **整段取代**頭尾空格與手動引號時搜尋標記／取代不一致（**已修並驗收** `6a99c2a`）；`getPhraseWholeTerm` 四觸點同步
 - [`docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md) — mqxliff **bpt/ept 內 mq:rxt 超連結**匯出編碼損壞（Bug #9）；`shouldSkipAmpCollapseForMemoqInline`、reconcile 編碼深度；Consumer Insights 樣本
 - [`docs/bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](docs/bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md) — mqxliff **bpt/ept vs ph 結構型別不匹配**（Bug #10；TM 模糊匹配、F8 無效）；`fixMqxliffBptPhTypeMismatch`；`extractMqRxtDisplayText` displaytext pill 顯示
+- [`docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md) — 編輯器**標籤顯示三模式**（僅編號／簡短／延長）、`displayFull`、無延遲 tooltip
 
 ## 回覆與推送慣例
 

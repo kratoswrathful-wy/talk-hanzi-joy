@@ -38,7 +38,8 @@
      */
     function extractMqRxtDisplayText(tc) {
         if (!tc || typeof tc !== 'string') return null;
-        if (!/^<(?:[\w-]+:)?rxt\b/i.test(tc.trim())) return null;
+        // open: <mq:rxt …>；close ept: </mq:rxt displaytext="…" …>
+        if (!/(?:<|>)?(?:[\w-]+:)?rxt\b/i.test(tc)) return null;
         const m = tc.match(/\bdisplaytext\s*=\s*"([^"]*)"/i);
         if (!m || !m[1]) return null;
         const ta = document.createElement('textarea');
@@ -76,6 +77,12 @@
             }
         }
         return meaningfulRaw;
+    }
+
+    function tagDisplayFields(meaningfulRaw, phFallback) {
+        const displayFull = meaningfulRaw != null && meaningfulRaw !== '' ? String(meaningfulRaw) : String(phFallback || '');
+        const display = displayFull.length > 25 ? displayFull.substring(0, 25) + '…' : displayFull;
+        return { display, displayFull };
     }
 
     function extractTaggedText(xmlNode, { transparentG = false } = {}) {
@@ -124,9 +131,9 @@
                         phElement: child
                     });
                     meaningfulRaw = maybeMqRxtDisplayOnly(meaningfulRaw, { hadDisplayText, hadEquivText });
-                    const display = meaningfulRaw.length > 25 ? meaningfulRaw.substring(0, 25) + '…' : meaningfulRaw || ph;
+                    const { display, displayFull } = tagDisplayFields(meaningfulRaw, ph);
                     const xml = new XMLSerializer().serializeToString(child);
-                    tags.push({ ph, xml, display, type: 'standalone', pairNum: counter, num: counter });
+                    tags.push({ ph, xml, display, displayFull, type: 'standalone', pairNum: counter, num: counter });
                     text += ph;
                 } else if (ln === 'bpt') {
                     counter++;
@@ -153,9 +160,9 @@
                         hadDisplayText: hadDisplayTextBpt,
                         hadEquivText: hadEquivTextBpt
                     });
-                    const display = meaningfulBpt.length > 25 ? meaningfulBpt.substring(0, 25) + '…' : meaningfulBpt || `<${counter}>`;
+                    const { display, displayFull } = tagDisplayFields(meaningfulBpt, `<${counter}>`);
                     const xml = new XMLSerializer().serializeToString(child);
-                    tags.push({ ph, xml, display, type: 'open', pairNum: counter, num: counter });
+                    tags.push({ ph, xml, display, displayFull, type: 'open', pairNum: counter, num: counter });
                     text += ph;
                 } else if (ln === 'ept') {
                     const id = child.getAttribute('id') || child.getAttribute('i') || '';
@@ -182,9 +189,9 @@
                         hadDisplayText: hadDisplayTextEpt,
                         hadEquivText: hadEquivTextEpt
                     });
-                    const display = meaningfulEpt.length > 25 ? meaningfulEpt.substring(0, 25) + '…' : meaningfulEpt || `</${num}>`;
+                    const { display, displayFull } = tagDisplayFields(meaningfulEpt, `</${num}>`);
                     const xml = new XMLSerializer().serializeToString(child);
-                    tags.push({ ph, xml, display, type: 'close', pairNum: num, num });
+                    tags.push({ ph, xml, display, displayFull, type: 'close', pairNum: num, num });
                     text += ph;
                 } else if (ln === 'g') {
                     if (transparentG) {
@@ -197,10 +204,12 @@
                         const phClose = `{/${num}}`;
                         const openXml = shallowOpenXml(child);
                         const closeXml = `</${child.tagName}>`;
-                        tags.push({ ph, xml: openXml, display: `<${child.tagName}>`, type: 'open', pairNum: num, num });
+                        const openDisp = `<${child.tagName}>`;
+                        const closeDisp = `</${child.tagName}>`;
+                        tags.push({ ph, xml: openXml, display: openDisp, displayFull: openDisp, type: 'open', pairNum: num, num });
                         text += ph;
                         text += processNode(child);
-                        tags.push({ ph: phClose, xml: closeXml, display: `</${child.tagName}>`, type: 'close', pairNum: num, num });
+                        tags.push({ ph: phClose, xml: closeXml, display: closeDisp, displayFull: closeDisp, type: 'close', pairNum: num, num });
                         text += phClose;
                     }
                 } else {
@@ -1248,6 +1257,7 @@
 
     window.CatToolXliffTags = {
         extractTaggedText,
+        extractMqRxtDisplayText,
         innerEscapedTagSig,
         normalizeTagXmlForReconcile,
         tagXmlNeedsReconcileFromSource,
