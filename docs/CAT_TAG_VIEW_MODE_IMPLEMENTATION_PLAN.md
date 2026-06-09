@@ -76,7 +76,7 @@
 
 ## 7. 成對 tag 箭頭外框（已實作）
 
-三模式與 `displayFull` 不變。成對開／閉 pill（`.rt-tag-s`／`.rt-tag-e`）保留箭頭形，以雙層 pseudo 描邊（外框色 + 內填 `--tag-fill`），外框與底色強度與獨立 `.rt-tag` 一致。
+三模式與 `displayFull` 不變。成對開／閉 pill（`.rt-tag-s`／`.rt-tag-e`）保留箭頭形，以 `drop-shadow` 沿輪廓描邊 + `--tag-fill` 底色，外框與獨立 `.rt-tag` 視覺一致。
 
 **已知陷阱**：`clip-path` + `border`（含 `::before`）會使**斜角尖端無外框**，僅矩形三邊有框；先前實作曾踩過，不可僅加強三邊即視為完成。
 

@@ -2086,13 +2086,16 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     white-space: nowrap;
 }
 
-/* 成對開/閉標籤：箭頭形狀；雙層 pseudo 描邊（斜角完整，勿改回 border+clip-path） */
+/* 成對開/閉標籤：箭頭形狀；drop-shadow 沿 clip-path 輪廓描邊（粗細較均，勿改回 border+clip-path） */
 .rt-tag-s, .rt-tag-e {
     border-radius: 0;
     border: none;
     position: relative;
     overflow: visible;
-    background: transparent;
+    background: var(--tag-fill);
+    filter:
+        drop-shadow(0 0 0.6px var(--tag-color, #94a3b8))
+        drop-shadow(0 0 0.6px var(--tag-color, #94a3b8));
 }
 .rt-tag-s {
     clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
@@ -2152,43 +2155,6 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 #editorGrid.tag-view-2 .rt-tag-e {
     justify-content: flex-start;
     gap: 0.2em;
-}
-
-/* 外框層：實心 --tag-color（含斜角尖端） */
-.rt-tag-s::before,
-.rt-tag-e::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--tag-color, #94a3b8);
-    border-radius: 0;
-    pointer-events: none;
-    z-index: 0;
-}
-
-.rt-tag-s::before {
-    clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
-}
-.rt-tag-e::before {
-    clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
-}
-
-/* 內填層：與獨立 .rt-tag 同款底色，inset 1px 露出外框 */
-.rt-tag-s::after,
-.rt-tag-e::after {
-    content: '';
-    position: absolute;
-    inset: 1px;
-    background: var(--tag-fill);
-    pointer-events: none;
-    z-index: 0;
-}
-
-.rt-tag-s::after {
-    clip-path: polygon(0 0, calc(88% - 0.5px) 0, calc(100% - 1px) 50%, calc(88% - 0.5px) 100%, 0 100%);
-}
-.rt-tag-e::after {
-    clip-path: polygon(calc(12% + 0.5px) 0, 100% 0, 100% 100%, calc(12% + 0.5px) 100%, 1px 50%);
 }
 
 /* 標籤序號（與周圍文字同大，加粗以利辨識） */
