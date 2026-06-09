@@ -275,6 +275,48 @@
                     }
                 }
 
+                /**
+                 * Bug #10：TM 模糊匹配常把原文 bpt/ept 對寫成譯文 ph standalone；
+                 * innerEscapedTagSig 相同時 reconcile 跳過。匯入時以 source open bpt 覆寫 target ph，並補 close ept。
+                 */
+                function fixMqxliffBptPhTypeMismatch({ isMqxliffFile, sourceTags, targetTags }) {
+                    if (!isMqxliffFile) return;
+                    if (!sourceTags || !sourceTags.length || !targetTags || !targetTags.length) return;
+                    const innerSig = Xliff.innerEscapedTagSig;
+                    if (!innerSig) return;
+
+                    const sourceByPh = new Map();
+                    for (const st of sourceTags) {
+                        if (st && st.ph && !sourceByPh.has(st.ph)) sourceByPh.set(st.ph, st);
+                    }
+
+                    const needClosePairNums = new Set();
+
+                    for (let i = 0; i < targetTags.length; i++) {
+                        const tt = targetTags[i];
+                        if (!tt || tt.type !== 'standalone' || !tt.ph) continue;
+                        const st = sourceByPh.get(tt.ph);
+                        if (!st || st.type !== 'open' || st.xml == null) continue;
+                        const srcInner = innerSig(st.xml);
+                        const tgtInner = innerSig(tt.xml);
+                        if (!srcInner || !tgtInner || srcInner !== tgtInner) continue;
+                        targetTags[i] = { ...st };
+                        if (st.pairNum != null) needClosePairNums.add(st.pairNum);
+                    }
+
+                    if (!needClosePairNums.size) return;
+
+                    const existingPhs = new Set(targetTags.map(t => t && t.ph).filter(Boolean));
+                    for (const pairNum of needClosePairNums) {
+                        const closePh = `{/${pairNum}}`;
+                        if (existingPhs.has(closePh)) continue;
+                        const sourceClose = sourceTags.find(t => t && t.ph === closePh && t.type === 'close');
+                        if (!sourceClose) continue;
+                        targetTags.push({ ...sourceClose });
+                        existingPhs.add(closePh);
+                    }
+                }
+
                 // sdlxliff 專用：以 localName 做遞迴搜尋，找出所有 <mrk mtype="seg"> 元素。
                 // 使用 localName 而非 getElementsByTagName 以避免 XML namespace 問題。
                 function collectSegMrks(node) {
@@ -547,6 +589,7 @@
 
                     augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags });
                     mergePartialTargetTagsFromSource({ targetText, sourceTags, targetTags });
+                    fixMqxliffBptPhTypeMismatch({ isMqxliffFile, sourceTags, targetTags });
                     if ((isMqxliffFile || isMxliffFile) && sourceTags.length && targetTags.length
                         && Xliff.reconcileTargetTagsMarkupFromSource) {
                         Xliff.reconcileTargetTagsMarkupFromSource(sourceTags, targetTags);

@@ -21,7 +21,9 @@
 | D   | 匯出長句：字面 `<…>` 與多 `<ph>` 混用                              | 後續調查        |
 | E   | bpt/ept 內層 TM `<pt>` vs 原文 `<g>`（F8／匯出）                    | Bug #7（**已修並驗收** `d1ab161`） |
 | F   | 同 ph、`targetTags` xml 錯（`mq:rxt` displaytext；F8／Ctrl+F8）   | Bug #8（**已修**） |
-| G   | bpt/ept 內 `mq:rxt` 超連結 href 匯出編碼損壞（memoQ 無法重新匯入） | Bug #9（**已修**，待 memoQ 匯入複驗） |
+| G   | bpt/ept 內 `mq:rxt` 超連結 href 匯出編碼損壞（memoQ 無法重新匯入） | Bug #9（**已修並驗收** `584c707`；Consumer Insights + NGR T1 雙樣本通過） |
+| H   | source bpt/ept 對、target ph standalone（TM 模糊匹配；F8 無效） | Bug #10（**已修**） |
+| I   | `mq:rxt` 內層 displaytext pill 顯示（對齊 memoQ 原生） | **已修**（`extractMqRxtDisplayText`） |
 
 
 **說明**：不以客戶檔名推斷檔案是否「斷尾」；若需判斷資料是否截斷，應直接檢視該句 `<source>`／`<target>` XML。
@@ -195,6 +197,30 @@ flowchart TD
 **驗收**：重新匯出後 `<target>` bpt/ept 內含 `&amp;quot;`；memoQ 匯入無「Inline tag could not be parsed」。回歸 SRT 無 tag、Focus `<AI>`、2XKO `<50GB`+bpt、NED Bug #8。
 
 **專文**：[`bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](bug-report_mqxliff-bpt-href-entity-export_2026-06.md)。
+
+---
+
+## 8. 階段 H — Bug #10（bpt→ph 型別不匹配）
+
+| 步驟 | 動作 | 檔案 |
+| --- | --- | --- |
+| H1 | 新增 `fixMqxliffBptPhTypeMismatch`：target `standalone` ph 對應 source `open` bpt（同 `ph` + `innerEscapedTagSig`）→ 以 source bpt 覆寫；source 有 close ept 而 target 無 `{/N}` → 附加 close | [`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) |
+| H2 | 於 `mergePartialTargetTagsFromSource` 之後、`reconcileTargetTagsMarkupFromSource` 之前呼叫 | 同上 |
+
+**樣本**：`53905_02_JSON_JadeChampsItemsBatch5B_v1_zh_TW.json_zho-TW.mqxliff` — `trans-unit id="1"`。
+
+**驗收**：匯入後 open `{1}` 藍色、close `{/1}` 缺漏為橙色；F8 可補 close；匯出 memoQ 可讀。專文：[`bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md)。
+
+---
+
+## 9. 階段 I — mq:rxt displaytext pill 顯示改善
+
+| 步驟 | 動作 | 檔案 |
+| --- | --- | --- |
+| I1 | 新增 `extractMqRxtDisplayText(tc)`：textContent 以 `<mq:rxt` 開頭時抽出 `displaytext` 並解碼一層 | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) |
+| I2 | ph／bpt／ept 分支：無外層 `displaytext`／`equiv-text` 時，以解析結果覆寫 `meaningfulRaw`（僅 `display`，不動 `xml`） | 同上 |
+
+**驗收**：JSON 樣本 pill 顯示 `<titleLeft>` 等，非截斷 XML；匯出行為不變。
 
 ---
 

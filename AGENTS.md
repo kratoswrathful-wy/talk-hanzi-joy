@@ -42,6 +42,7 @@
 - [`docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md) — 單檔匯出**標籤警告**不被全螢幕 loading 擋住；假游標／捲動提示掛 **`#editorGrid` chrome 層**、modal 開啟隱藏／關閉自動恢復（**已實作**，待驗收）
 - [`docs/CAT_PHRASE_REPLACE_WHOLE_SPACES_FIX_2026-06.md`](docs/CAT_PHRASE_REPLACE_WHOLE_SPACES_FIX_2026-06.md) — **整段取代**頭尾空格與手動引號時搜尋標記／取代不一致（**已修並驗收** `6a99c2a`）；`getPhraseWholeTerm` 四觸點同步
 - [`docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md) — mqxliff **bpt/ept 內 mq:rxt 超連結**匯出編碼損壞（Bug #9）；`shouldSkipAmpCollapseForMemoqInline`、reconcile 編碼深度；Consumer Insights 樣本
+- [`docs/bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](docs/bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md) — mqxliff **bpt/ept vs ph 結構型別不匹配**（Bug #10；TM 模糊匹配、F8 無效）；`fixMqxliffBptPhTypeMismatch`；`extractMqRxtDisplayText` displaytext pill 顯示
 
 ## 回覆與推送慣例
 

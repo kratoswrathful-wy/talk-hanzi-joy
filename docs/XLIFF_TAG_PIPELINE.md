@@ -640,7 +640,11 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 1. `shouldSkipAmpCollapseForMemoqInline`：fragment 含 `<bpt`／`<ept`／`<ph` 且含 `&amp;lt;`／`&amp;quot;` 時跳過 collapse。
 2. `tagXmlNeedsReconcileFromSource`：mq:rxt + href 時偵測 target 失去雙層實體或裸引號型態，匯出前以 `sourceTags.xml` 覆寫。
 
-**驗收**：重新匯出後第 505／577 行須含 `&amp;quot;`；`node scripts/test-mqxliff-bpt-href-export.mjs`；memoQ 匯入無 inline tag 錯誤。專文：[`bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](./bug-report_mqxliff-bpt-href-entity-export_2026-06.md)。
+**驗收**：`584c707` 已修並驗收（2026-06-09）。Consumer Insights 第 505／577 行 + NGR T1 第 1796 行 memoQ 匯入皆無 inline tag 錯誤；`node scripts/test-mqxliff-bpt-href-export.mjs` 7 項全 OK。
+
+> **注意**：`cat-tool/` 改完後必須執行 `npm run sync:cat` 並提交 `public/cat/`，否則修正不落地至 App 實際載入的版本（2026-06-09 NGR T1 案例教訓）。
+
+專文：[`bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](./bug-report_mqxliff-bpt-href-entity-export_2026-06.md)。
 
 ## 9. 避免誤改清單
 

@@ -1,8 +1,10 @@
 # Bug Report：mqxliff bpt/ept 內 mq:rxt 超連結匯出編碼損壞（memoQ 無法重新匯入）
 
 > **建立**：2026-06-08  
-> **狀態**：**已修**（條件化 `collapseAmpEntitiesRepeated` + `tagXmlNeedsReconcileFromSource` 編碼深度偵測；待產品端 memoQ 匯入複驗）  
-> **樣本**：`TD - Consumer Insights - Localisation Sheet.xlsx_zho-TW.mqxliff` — `trans-unit id="14"`（檔案第 505 行）、`id="18"`（第 577 行）  
+> **狀態**：**已修並驗收**（`584c707` — `shouldSkipAmpCollapseForMemoqInline` + `tagXmlNeedsReconcileFromSource`；`npm run sync:cat` 同步 `public/cat/`；Consumer Insights + NGR T1 雙樣本 memoQ 匯入確認無誤）  
+> **樣本**：  
+> - `TD - Consumer Insights - Localisation Sheet.xlsx_zho-TW.mqxliff` — `trans-unit id="14"`（第 505 行）、`id="18"`（第 577 行）  
+> - `Translated_NGR T1_zh-TW 1118.xliff_zho-TW.mqxliff` — 第 1796 行（position 51–210）  
 > **程式觸點**：[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) — `prepareRestoredFragmentForXmlParse`、`tagXmlNeedsReconcileFromSource`、`reconcileTargetTagsMarkupFromSource`、`exportXliffFamilyToBlob`  
 > **對照**：[`bug-report_mqxliff-tag-issues.md`](./bug-report_mqxliff-tag-issues.md) **Bug #9**；與 Bug #7（pt/g）、Bug #8（displaytext 內容）區分
 
@@ -35,14 +37,18 @@
 | Bug #8 mq:rxt displaytext 錯 | 原文 `[0-1`、譯文 `[0-2` | 本次是**編碼層級**（`&amp;quot;` 被解成裸 `"`），內容可能仍叫「隱私政策」 |
 | Bug #7 bpt 內 pt vs g | 元素型別不一致 | 本次是 **href 引號**轉義，不是 pt/g |
 
-### 1.4 暫時迴避（修正前）
+### 1.4 暫時迴避（修正前參考，目前已無需操作）
+
+> **目前狀態**：`584c707` 已修並驗收，正常匯出的 mqxliff 應可直接匯回 memoQ，無需手動修檔。
+
+若需在舊版或未同步版本下緊急處理：
 
 1. 用記事本開啟匯出的 mqxliff。
-2. 到錯誤行（本樣本第 **505**、**577** 行）的 `<target>`。
+2. 到錯誤行（Consumer Insights：第 **505**、**577** 行；NGR T1：第 **1796** 行）的 `<target>`。
 3. 把 `<bpt>`、`<ept>`、`<ph>` 內的 tag 段落改成**與同一句 `<source>` 完全相同**的轉義（`&amp;lt;`、`&amp;quot;`）；**中文譯文可保留**。
 4. 存檔後再匯入 memoQ。
 
-使用者已以此方式驗收通過。
+Consumer Insights 使用者曾以此方式手動驗收通過（2026-06-08）。
 
 ---
 
@@ -50,7 +56,9 @@
 
 ### 2.1 症狀與錯誤輸出對照
 
-**memoQ 錯誤**：`Inline tag could not be parsed. The error occurred somewhere between position 55 in line 505 and position 312 in line 505.`
+**memoQ 錯誤（Consumer Insights）**：`Inline tag could not be parsed. The error occurred somewhere between position 55 in line 505 and position 312 in line 505.`
+
+**memoQ 錯誤（NGR T1 — 觸發同問題的第二個驗收樣本）**：`Inline tag could not be parsed. The error occurred somewhere between position 51 in line 1796 and position 210 in line 1796.`
 
 **錯誤匯出（片段）**：
 
@@ -118,12 +126,31 @@ exportXliffFamilyToBlob
 node scripts/test-mqxliff-bpt-href-export.mjs
 ```
 
-### 2.6 變更時間線
+全部 7 項斷言 OK（`shouldSkipAmpCollapseForMemoqInline`、`prepareRestoredFragmentForXmlParse` 保留雙層實體、`tagXmlNeedsReconcileFromSource` 偵測正確）。
+
+### 2.5.1 驗收結果（`584c707`，2026-06-09）
+
+| 樣本 | 動作 | 結果 |
+|------|------|------|
+| Consumer Insights — 手動修第 505／577 行 | 記事本修正後 memoQ 匯入 | ✅ 通過（2026-06-08） |
+| Consumer Insights — 程式修正後重新匯出 | CAT 匯出 → memoQ 匯入 | ✅ 通過 |
+| NGR T1 `1118.xliff_zho-TW.mqxliff` 第 1796 行 | CAT 匯出 → memoQ 匯入 | ✅ 通過（2026-06-09） |
+| 靜態測試腳本 | `node scripts/test-mqxliff-bpt-href-export.mjs` | ✅ 7/7 OK |
+
+### 2.6 重要後記：「修正」與「落地」的差距
+
+2026-06-08 已在 `cat-tool/js/xliff-tag-pipeline.js` 實作修正，但**未執行 `npm run sync:cat`**，導致 `public/cat/js/xliff-tag-pipeline.js`（App 實際載入的版本）仍為舊版。2026-06-09 NGR T1 匯入 memoQ 再次失敗，才發現同步步驟遺漏。
+
+**教訓**：`cat-tool/` 改完後，**一定要執行 `npm run sync:cat` 並將 `public/cat/` 一併提交**，否則修正只存在於開發端原始碼，App 用戶不受益。
+
+### 2.7 變更時間線
 
 | 日期 | 事項 |
 |------|------|
 | 2026-06-08 | 使用者回報 Consumer Insights 匯出檔 memoQ 無法匯入；手動修第 505／577 行後驗收通過 |
-| 2026-06-08 | 撰寫本專文與修正計畫；實作方案 A+B、`npm run sync:cat` |
+| 2026-06-08 | 撰寫本專文與修正計畫；實作方案 A+B（`shouldSkipAmpCollapseForMemoqInline`、`tagXmlNeedsReconcileFromSource`）；**未執行 `sync:cat`，未 commit** |
+| 2026-06-09 | NGR T1 匯入 memoQ 再次失敗（同類問題）；確認 `public/cat/` 尚未同步 |
+| 2026-06-09 | 執行 `npm run sync:cat`；靜態測試全 OK；commit `584c707` 並推送；Consumer Insights + NGR T1 產品驗收通過 |
 
 ---
 

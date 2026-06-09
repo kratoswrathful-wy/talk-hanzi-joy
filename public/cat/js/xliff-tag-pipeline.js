@@ -32,6 +32,30 @@
         return null;
     }
 
+    /**
+     * 從 bpt/ept/ph textContent 內層 mq:rxt 抽出 displaytext 屬性值（解碼一層），供 pill 顯示。
+     * 僅用於 UI display；不修改 xml。
+     */
+    function extractMqRxtDisplayText(tc) {
+        if (!tc || typeof tc !== 'string') return null;
+        if (!/^<(?:[\w-]+:)?rxt\b/i.test(tc.trim())) return null;
+        const m = tc.match(/\bdisplaytext\s*=\s*"([^"]*)"/i);
+        if (!m || !m[1]) return null;
+        const ta = document.createElement('textarea');
+        ta.innerHTML = m[1];
+        const decoded = ta.value;
+        if (!decoded || decoded === '{}') return null;
+        return decoded;
+    }
+
+    function maybeMqRxtDisplayOnly(meaningfulRaw, opts) {
+        const hadDisplayText = !!(opts && opts.hadDisplayText);
+        const hadEquivText = !!(opts && opts.hadEquivText);
+        if (hadDisplayText || hadEquivText) return meaningfulRaw;
+        const fromRxt = extractMqRxtDisplayText(meaningfulRaw);
+        return fromRxt != null ? fromRxt : meaningfulRaw;
+    }
+
     function maybeMemoQChDisplayOnly(tc, meaningfulRaw, opts) {
         const hadDisplayText = !!(opts && opts.hadDisplayText);
         const hadEquivText = !!(opts && opts.hadEquivText);
@@ -99,6 +123,7 @@
                         hadEquivText,
                         phElement: child
                     });
+                    meaningfulRaw = maybeMqRxtDisplayOnly(meaningfulRaw, { hadDisplayText, hadEquivText });
                     const display = meaningfulRaw.length > 25 ? meaningfulRaw.substring(0, 25) + '…' : meaningfulRaw || ph;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'standalone', pairNum: counter, num: counter });
@@ -122,6 +147,12 @@
                         const tc = child.textContent || '';
                         meaningfulBpt = (tc && tc !== '{}' && tc !== '{0}') ? tc : ctypeBpt;
                     }
+                    const hadDisplayTextBpt = dtBpt != null && dtBpt !== '';
+                    const hadEquivTextBpt = !hadDisplayTextBpt && eqBpt != null && eqBpt !== '';
+                    meaningfulBpt = maybeMqRxtDisplayOnly(meaningfulBpt, {
+                        hadDisplayText: hadDisplayTextBpt,
+                        hadEquivText: hadEquivTextBpt
+                    });
                     const display = meaningfulBpt.length > 25 ? meaningfulBpt.substring(0, 25) + '…' : meaningfulBpt || `<${counter}>`;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'open', pairNum: counter, num: counter });
@@ -145,6 +176,12 @@
                         const tc = child.textContent || '';
                         meaningfulEpt = (tc && tc !== '{}' && tc !== '{0}') ? tc : ctypeEpt;
                     }
+                    const hadDisplayTextEpt = dtEpt != null && dtEpt !== '';
+                    const hadEquivTextEpt = !hadDisplayTextEpt && eqEpt != null && eqEpt !== '';
+                    meaningfulEpt = maybeMqRxtDisplayOnly(meaningfulEpt, {
+                        hadDisplayText: hadDisplayTextEpt,
+                        hadEquivText: hadEquivTextEpt
+                    });
                     const display = meaningfulEpt.length > 25 ? meaningfulEpt.substring(0, 25) + '…' : meaningfulEpt || `</${num}>`;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'close', pairNum: num, num });
