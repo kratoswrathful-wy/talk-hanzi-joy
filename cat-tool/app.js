@@ -9314,11 +9314,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return null;
             }
             if (!currentTbId) {
-                if (errEl) { errEl.textContent = '尚未選擇術語庫。'; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                if (errEl) { errEl.textContent = '尚未選擇術語庫。'; errEl.scrollIntoView({ behavior: 'auto', block: 'nearest' }); }
                 return null;
             }
             if (!tbExcelImportIsOnline && !tbExcelPendingFile) {
-                if (errEl) { errEl.textContent = '請先選擇 Excel 檔案。'; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                if (errEl) { errEl.textContent = '請先選擇 Excel 檔案。'; errEl.scrollIntoView({ behavior: 'auto', block: 'nearest' }); }
                 return null;
             }
             let selectedSheets = [];
@@ -9542,7 +9542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     const msgNoCols = '無法取得原文／譯文欄位，請關閉視窗後重新選擇檔案再試。';
                     if (!srcColEl || !tgtColEl) {
-                        if (errEl) { errEl.textContent = msgNoCols; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                        if (errEl) { errEl.textContent = msgNoCols; errEl.scrollIntoView({ behavior: 'auto', block: 'nearest' }); }
                         else alert(msgNoCols);
                         return;
                     }
@@ -16271,7 +16271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const txt = targetRow.querySelector('.grid-textarea');
                 if (txt && txt.contentEditable !== 'false') {
                     txt.focus();
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
                 }
             }
         }
@@ -16393,10 +16393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         match.markEl.classList.add('search-match-active');
         const host = getHostEditorForSearchMatch(match);
         const canEdit = host && host.isContentEditable;
-        const prevSegIdx = Number.isFinite(sfLastFocusedMatchSegIdx) ? sfLastFocusedMatchSegIdx : null;
-        const nextSegIdx = Number.isFinite(match.segIdx) ? match.segIdx : null;
-        let behavior = 'smooth';
-        if (prevSegIdx != null && nextSegIdx != null && Math.abs(nextSegIdx - prevSegIdx) > 80) behavior = 'auto';
+        const behavior = 'auto';
 
         if (canEdit) {
             try {
@@ -16590,7 +16587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!r || !isGridDataRowFilterVisible(r)) return;
         const ed = r.querySelector('.col-target .grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
-            r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            r.scrollIntoView({ behavior: 'auto', block: 'center' });
             setCaretAtEditorStart(ed);
         }
     }
@@ -17697,7 +17694,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return v === 'nearest' ? 'nearest' : 'center';
     }
 
-    function focusTargetEditorAtSegmentIndex(segIdx, scrollBehavior = 'smooth') {
+    function focusTargetEditorAtSegmentIndex(segIdx, scrollBehavior = 'auto') {
         if (segIdx == null || segIdx < 0) return;
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const row = rows[segIdx];
@@ -18111,9 +18108,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const txt = targetRow.querySelector('.grid-textarea');
                 if (txt && txt.contentEditable !== 'false') {
                     txt.focus();
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
                 } else {
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
                 }
             }
         });
@@ -20808,7 +20805,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const pi = _pendingFocusSegIdxAfterRender;
             _pendingFocusSegIdxAfterRender = null;
             queueMicrotask(() => {
-                focusTargetEditorAtSegmentIndex(pi, 'instant');
+                focusTargetEditorAtSegmentIndex(pi, 'auto');
                 maybeSwitchRightPanelToCatAfterConfirm();
             });
         }
@@ -22278,7 +22275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _qaJumpToSegment(segId) {
         const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
         if (!row) { alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。'); return; }
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.scrollIntoView({ behavior: 'auto', block: 'center' });
         const ta = row.querySelector('.grid-textarea');
         if (ta) ta.focus();
     }
@@ -24596,7 +24593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const listNotes = document.getElementById('privateNotesListNotes');
                     const wrap = listNotes?.querySelector(`[data-note-id="${id}"]`);
                     if (wrap) {
-                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        wrap.scrollIntoView({ behavior: 'auto', block: 'nearest' });
                         _startPrivateNoteEdit(
                             { id, content: '', itemType: 'note', updatedAt: new Date().toISOString() },
                             wrap
@@ -24629,7 +24626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const listTodos = document.getElementById('privateNotesListTodos');
                     const wrap = listTodos?.querySelector(`[data-todo-id="${id}"]`);
                     if (wrap) {
-                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        wrap.scrollIntoView({ behavior: 'auto', block: 'nearest' });
                         _startPrivateTodoEdit(
                             { id, content: '', itemType: 'todo', todoDone: false, updatedAt: new Date().toISOString() },
                             wrap
@@ -24684,7 +24681,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const list = document.getElementById('privateNotesListNotesProject');
                     const wrap = list?.querySelector(`[data-note-id="${id}"]`);
                     if (wrap) {
-                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        wrap.scrollIntoView({ behavior: 'auto', block: 'nearest' });
                         _startPrivateNoteEdit({ id, content: '', itemType: 'note', updatedAt: new Date().toISOString() }, wrap);
                     }
                 } catch (err) {
@@ -24714,7 +24711,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const list = document.getElementById('privateNotesListTodosProject');
                     const wrap = list?.querySelector(`[data-todo-id="${id}"]`);
                     if (wrap) {
-                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        wrap.scrollIntoView({ behavior: 'auto', block: 'nearest' });
                         _startPrivateTodoEdit({ id, content: '', itemType: 'todo', todoDone: false, updatedAt: new Date().toISOString() }, wrap);
                     }
                 } catch (err) {

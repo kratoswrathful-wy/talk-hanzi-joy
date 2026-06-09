@@ -144,7 +144,7 @@
 
             if (row && typeof row.scrollIntoView === 'function') {
                 try {
-                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.scrollIntoView({ behavior: 'auto', block: 'center' });
                 } catch (_) { /* ignore */ }
             }
             try {
@@ -338,7 +338,7 @@
             const row = editor.closest ? editor.closest('.grid-data-row') : null;
             if (row && typeof row.scrollIntoView === 'function') {
                 try {
-                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.scrollIntoView({ behavior: 'auto', block: 'center' });
                 } catch (_) { /* ignore */ }
             }
             editor.focus();
@@ -353,7 +353,7 @@
             } catch (_) {
                 try {
                     if (row && typeof row.scrollIntoView === 'function') {
-                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        row.scrollIntoView({ behavior: 'auto', block: 'center' });
                     }
                     editor.focus();
                 } catch (_) { /* ignore */ }
