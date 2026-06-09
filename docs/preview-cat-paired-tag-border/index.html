@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>預覽 — 成對標籤箭頭外框（方案 B）</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif;
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 2.5rem;
+      color: #334155;
+      line-height: 1.45;
+      background: #f1f5f9;
+    }
+    h1 { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.4rem 0; color: #0f172a; }
+    .intro {
+      font-size: 0.85rem;
+      color: #475569;
+      margin: 0 0 1rem 0;
+      padding: 0.65rem 0.75rem;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+    }
+    .intro code { font-size: 0.8rem; background: #fef3c7; padding: 0.08rem 0.25rem; border-radius: 4px; }
+    nav.toc {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.88rem;
+    }
+    nav.toc strong { display: block; margin-bottom: 0.35rem; color: #0f172a; }
+    nav.toc a { color: #2563eb; margin-right: 0.75rem; white-space: nowrap; }
+    .variant {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .variant h2 {
+      font-size: 0.95rem;
+      margin: 0 0 0.35rem 0;
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .variant .badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #0369a1;
+      background: #e0f2fe;
+      border-radius: 4px;
+      padding: 0.12rem 0.4rem;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+    .badge.warn { color: #b45309; background: #ffedd5; }
+    .badge.ok { color: #047857; background: #d1fae5; }
+    .note {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin: 0 0 0.75rem 0;
+    }
+    .mock-row {
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      background: #f8fafc;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    .mock-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.35rem;
+    }
+
+    /* ── 共用 tag 基礎（對齊 cat-tool/style.css）── */
+    .rt-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2em;
+      border: 1px solid var(--tag-color, #94a3b8);
+      color: var(--tag-color, #64748b);
+      border-radius: 4px;
+      padding: 0 0.35em;
+      line-height: 1.25;
+      font-size: inherit;
+      vertical-align: baseline;
+      user-select: none;
+      background: color-mix(in srgb, var(--tag-color, #94a3b8) 10%, white);
+      white-space: nowrap;
+    }
+    .tag-num { font-weight: 700; min-width: 1ch; text-align: center; }
+    .tag-present { --tag-color: #2563eb; background: color-mix(in srgb, #2563eb 12%, white); }
+    .tag-missing { --tag-color: #dc2626; background: color-mix(in srgb, #dc2626 12%, white); }
+    .tag-extra { --tag-color: #d97706; background: color-mix(in srgb, #d97706 12%, white); }
+
+    /* ── 現行缺陷：border + clip-path（與 style.css 2151–2167 同思路）── */
+    .tech-current .rt-tag-s,
+    .tech-current .rt-tag-e {
+      border: none;
+      border-radius: 0;
+      position: relative;
+      overflow: visible;
+      background: color-mix(in srgb, var(--tag-color, #94a3b8) 10%, white);
+    }
+    .tech-current .rt-tag-s {
+      clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
+    }
+    .tech-current .rt-tag-e {
+      clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
+    }
+    .tech-current .rt-tag-s::before,
+    .tech-current .rt-tag-e::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border: 1px solid var(--tag-color, #94a3b8);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .tech-current .rt-tag-s::before {
+      clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
+    }
+    .tech-current .rt-tag-e::before {
+      clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
+    }
+    .tech-current .tag-num { position: relative; z-index: 1; }
+
+    /* ── 候選 1：雙層 pseudo ── */
+    .tech-dual .rt-tag-s,
+    .tech-dual .rt-tag-e {
+      border: none;
+      border-radius: 0;
+      position: relative;
+      overflow: visible;
+      background: transparent;
+    }
+    .tech-dual .rt-tag-s {
+      clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
+    }
+    .tech-dual .rt-tag-e {
+      clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
+    }
+    .tech-dual .rt-tag-s::before,
+    .tech-dual .rt-tag-e::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--tag-color, #94a3b8);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .tech-dual .rt-tag-s::before {
+      clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
+    }
+    .tech-dual .rt-tag-e::before {
+      clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
+    }
+    .tech-dual .rt-tag-s::after,
+    .tech-dual .rt-tag-e::after {
+      content: '';
+      position: absolute;
+      inset: 1px;
+      background: color-mix(in srgb, var(--tag-color, #94a3b8) 12%, white);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .tech-dual .rt-tag-s::after {
+      clip-path: polygon(0 0, calc(88% - 0.5px) 0, calc(100% - 1px) 50%, calc(88% - 0.5px) 100%, 0 100%);
+    }
+    .tech-dual .rt-tag-e::after {
+      clip-path: polygon(calc(12% + 0.5px) 0, 100% 0, 100% 100%, calc(12% + 0.5px) 100%, 1px 50%);
+    }
+    .tech-dual .tag-num { position: relative; z-index: 1; }
+
+    /* ── 候選 2：drop-shadow 描邊 ── */
+    .tech-shadow .rt-tag-s,
+    .tech-shadow .rt-tag-e {
+      border: none;
+      border-radius: 0;
+      position: relative;
+      background: color-mix(in srgb, var(--tag-color, #94a3b8) 12%, white);
+      filter:
+        drop-shadow(1px 0 0 var(--tag-color, #94a3b8))
+        drop-shadow(-1px 0 0 var(--tag-color, #94a3b8))
+        drop-shadow(0 1px 0 var(--tag-color, #94a3b8))
+        drop-shadow(0 -1px 0 var(--tag-color, #94a3b8));
+    }
+    .tech-shadow .rt-tag-s {
+      clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
+    }
+    .tech-shadow .rt-tag-e {
+      clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
+    }
+
+    .zoom-hint {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-top: 0.5rem;
+    }
+    .color-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      margin-top: 0.5rem;
+    }
+    .color-grid .mock-row { flex: 1 1 14rem; }
+  </style>
+</head>
+<body>
+  <h1>預覽 — 成對標籤箭頭外框（方案 B）</h1>
+  <p class="intro">
+    規格：<code>docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md</code>。
+    請<strong>放大檢視箭頭尖端</strong>：現行 <code>border</code> + <code>clip-path</code> 在斜角常缺框；
+    候選 1（雙層 pseudo）與候選 2（<code>drop-shadow</code>）供產品定案後寫入 <code>cat-tool/style.css</code>。
+  </p>
+
+  <nav class="toc">
+    <strong>區塊</strong>
+    <a href="#baseline">獨立 tag 基準</a>
+    <a href="#current">現行缺陷</a>
+    <a href="#dual">候選 1 雙層</a>
+    <a href="#shadow">候選 2 shadow</a>
+    <a href="#colors">色票</a>
+  </nav>
+
+  <section class="variant" id="baseline">
+    <h2>獨立 tag 基準 <span class="badge ok">對照</span></h2>
+    <p class="note">standalone <code>.rt-tag</code>：四面 <code>border</code> + 圓角，為成對 tag 應達到的外框強度。</p>
+    <div class="mock-row">
+      文字前
+      <span class="rt-tag tag-present"><span class="tag-num">3</span></span>
+      文字後；另一顆
+      <span class="rt-tag tag-present"><span class="tag-num">3</span>&lt;br /&gt;</span>
+    </div>
+  </section>
+
+  <section class="variant" id="current">
+    <h2>現行缺陷 <span class="badge warn">勿回歸</span></h2>
+    <p class="note"><code>::before { border }</code> + 同 polygon <code>clip-path</code>（對應現行 style.css）。斜角尖端外框易斷。</p>
+    <div class="mock-row tech-current">
+      <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">2</span>&lt;strong&gt;</span>
+      被包住的文字
+      <span class="rt-tag rt-tag-e tag-present"><span class="tag-num">2</span>&lt;/strong&gt;</span>
+    </div>
+    <p class="zoom-hint">提示：用瀏覽器放大 200% 看 open 右尖、close 左尖是否有連續 1px 線。</p>
+  </section>
+
+  <section class="variant" id="dual">
+    <h2>候選 1：雙層 pseudo <span class="badge ok">建議優先</span></h2>
+    <p class="note">外層 <code>::before</code> 實心 <code>--tag-color</code>；內層 <code>::after</code> <code>color-mix</code> 底色 inset 1px。</p>
+    <div class="mock-row tech-dual">
+      <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">2</span>&lt;strong&gt;</span>
+      被包住的文字
+      <span class="rt-tag rt-tag-e tag-present"><span class="tag-num">2</span>&lt;/strong&gt;</span>
+    </div>
+  </section>
+
+  <section class="variant" id="shadow">
+    <h2>候選 2：drop-shadow 描邊</h2>
+    <p class="note">多方向 1px shadow 沿裁切輪廓；高 DPI 下可能略糊，需實機驗收。</p>
+    <div class="mock-row tech-shadow">
+      <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">2</span>&lt;strong&gt;</span>
+      被包住的文字
+      <span class="rt-tag rt-tag-e tag-present"><span class="tag-num">2</span>&lt;/strong&gt;</span>
+    </div>
+  </section>
+
+  <section class="variant" id="colors">
+    <h2>色票（候選 1 雙層）</h2>
+    <p class="note">present 藍、missing 紅、extra 橘 — <code>--tag-color</code> 須同時驅動斜邊。</p>
+    <div class="color-grid tech-dual">
+      <div>
+        <div class="mock-label">tag-present</div>
+        <div class="mock-row">
+          <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">1</span></span>…
+          <span class="rt-tag rt-tag-e tag-present"><span class="tag-num">1</span></span>
+        </div>
+      </div>
+      <div>
+        <div class="mock-label">tag-missing</div>
+        <div class="mock-row">
+          <span class="rt-tag rt-tag-s tag-missing"><span class="tag-num">1</span></span>…
+          <span class="rt-tag rt-tag-e tag-missing"><span class="tag-num">1</span></span>
+        </div>
+      </div>
+      <div>
+        <div class="mock-label">tag-extra</div>
+        <div class="mock-row">
+          <span class="rt-tag rt-tag-s tag-extra"><span class="tag-num">1</span></span>…
+          <span class="rt-tag rt-tag-e tag-extra"><span class="tag-num">1</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

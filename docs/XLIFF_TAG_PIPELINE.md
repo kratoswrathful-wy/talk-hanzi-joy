@@ -379,7 +379,7 @@ function buildTaggedHtml(text, tags, isSource)
 | `display` | 摘要（約 25 字 + `…`） |
 | `displayFull` | 譯者面向完整 displaytext（A）；模式 2 與 tooltip |
 
-編輯器 **三種顯示模式**（`#editorGrid.tag-view-0/1/2`）：僅編號、簡短（`display` + hover 全文）、延長（`displayFull`，溢出才裁切）。規格：[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md)。
+編輯器 **三種顯示模式**（`#editorGrid.tag-view-0/1/2`）：僅編號、簡短（`display` + hover 全文）、延長（`displayFull`，溢出才裁切）。規格：[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md)。成對 pill（`.rt-tag-s`／`.rt-tag-e`）箭頭外框與斜角描邊：[`CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md)。
 
 `buildTaggedHtml` 為每顆 pill 設 `data-tag-full`；`syncTagPillDisplayInEditor` 依模式套用 `data-tip`（沿用 `initGlobalTooltip`）。
 

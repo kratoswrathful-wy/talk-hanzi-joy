@@ -65,9 +65,19 @@
 ## 6. 驗收
 
 1. 重匯 `53905_02_JSON_JadeChampsItemsBatch5B_v1_zh_TW.json_zho-TW.mqxliff`：open `<titleLeft>`、close `</titleLeft>`。
-2. 僅編號：›1／‹1 或箭頭形可辨開結。
+2. 僅編號：›1／‹1 或箭頭形可辨開結；成對 tag **斜角外框須完整**（見 §7）。
 3. 簡短：長名截短；hover **立刻** 見完整 A。
 4. 延長：短 tag 全文；極長溢出才裁切 + tooltip。
 5. 匯出 memoQ 可讀；Bug #9／#10 迴歸。
 
 變更 `cat-tool/` 後執行 `npm run sync:cat`。
+
+---
+
+## 7. 成對 tag 箭頭外框（已實作）
+
+三模式與 `displayFull` 不變。成對開／閉 pill（`.rt-tag-s`／`.rt-tag-e`）保留箭頭形，以雙層 pseudo 描邊（外框色 + 內填 `--tag-fill`），外框與底色強度與獨立 `.rt-tag` 一致。
+
+**已知陷阱**：`clip-path` + `border`（含 `::before`）會使**斜角尖端無外框**，僅矩形三邊有框；先前實作曾踩過，不可僅加強三邊即視為完成。
+
+完整策略、技法優先順序、觸點與驗收：[`CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md)。靜態預覽：[`preview-cat-paired-tag-border/index.html`](preview-cat-paired-tag-border/index.html)。
