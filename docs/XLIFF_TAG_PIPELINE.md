@@ -627,6 +627,21 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 
 **驗收**：重新匯出 SRT mqxliff 後 `<target>` 應為 `&lt;全新PvE模式：登峰之路&gt;`（不應出現 `&amp;lt;`）；匯入 memoQ 應顯示 `<全新PvE模式：登峰之路>`。
 
+---
+
+### [2026-06] mqxliff 匯出 — bpt/ept 內 mq:rxt 超連結雙層轉義（Bug #9）
+
+**症狀**：含「隱私政策」等 **bpt/ept 包 mq:rxt 超連結** 的句段，CAT 匯出後 memoQ 重新匯入失敗：`Inline tag could not be parsed`（例：Consumer Insights 檔第 505 行）。`<target>` 內出現 `displaytext="&lt;a href="https://..."`（href 裸雙引號），而非 `&amp;lt;a href=&amp;quot;...`。
+
+**原因**：`prepareRestoredFragmentForXmlParse` 對整段 fragment 執行 `collapseAmpEntitiesRepeated`（`&amp;lt;`→`&lt;`、`&amp;quot;`→`&quot;`），再經 `setXmlTargetContent` DOM 解析／序列化多解碼一層 → 裸 `"` 破壞 XML。與 SRT 無 tag 尖括號（§8 上一條）、遊戲 `<AI>`（§8）**不同觸發條件**。
+
+**修法**：
+
+1. `shouldSkipAmpCollapseForMemoqInline`：fragment 含 `<bpt`／`<ept`／`<ph` 且含 `&amp;lt;`／`&amp;quot;` 時跳過 collapse。
+2. `tagXmlNeedsReconcileFromSource`：mq:rxt + href 時偵測 target 失去雙層實體或裸引號型態，匯出前以 `sourceTags.xml` 覆寫。
+
+**驗收**：重新匯出後第 505／577 行須含 `&amp;quot;`；`node scripts/test-mqxliff-bpt-href-export.mjs`；memoQ 匯入無 inline tag 錯誤。專文：[`bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](./bug-report_mqxliff-bpt-href-entity-export_2026-06.md)。
+
 ## 9. 避免誤改清單
 
 1. **mxliff 匯出勿走 XML 片段還原**
@@ -669,3 +684,7 @@ const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBp
 9. **勿在 `escapeNonXliffAngleBrackets` 使用 `/<([^>]*)>/g` 整段匹配**
    — 內文 `<`（如 `<50GB`）緊鄰 `<ept>` / `<ph>` 時會把真實 XLIFF 元素一併 escape；
      僅 escape「非 tag 開頭」的單個 `<`。
+
+10. **勿對 bpt/ept/ph 內 memoQ 雙層實體全域執行 `collapseAmpEntitiesRepeated`**
+   — `&amp;lt;`、`&amp;quot;` 為 memoQ 連結 tag 所需；展開後 `setXmlTargetContent` 會再解碼導致 href 裸引號（Bug #9）。
+   — 使用 `shouldSkipAmpCollapseForMemoqInline`；並維持 `tagXmlNeedsReconcileFromSource` 編碼深度偵測。

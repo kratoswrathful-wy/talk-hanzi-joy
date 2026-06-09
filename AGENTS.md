@@ -40,6 +40,8 @@
 - [`docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md`](docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md) — 原文格 TB 上標／副行：**§9** 為 2026-05-09 第二波（跨節點錨點、TB 閱讀序、多上標、同範圍合併底線）開發與驗收紀錄；程式對照見 [`docs/CODEMAP.md`](docs/CODEMAP.md)
 - [`docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md`](docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md) — mqxliff **進階篩選「memoQ 確認身分」** 定案 UI、`evaluateSegment` 第四維、編輯器／TM 匯入／QA 摘要等**全部觸點**與驗收；靜態預覽見 [`docs/preview-mqxliff-filter-status-options/index.html`](docs/preview-mqxliff-filter-status-options/index.html)
 - [`docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md) — 單檔匯出**標籤警告**不被全螢幕 loading 擋住；假游標／捲動提示掛 **`#editorGrid` chrome 層**、modal 開啟隱藏／關閉自動恢復（**已實作**，待驗收）
+- [`docs/CAT_PHRASE_REPLACE_WHOLE_SPACES_FIX_2026-06.md`](docs/CAT_PHRASE_REPLACE_WHOLE_SPACES_FIX_2026-06.md) — **整段取代**頭尾空格與手動引號時搜尋標記／取代不一致（**已修並驗收** `6a99c2a`）；`getPhraseWholeTerm` 四觸點同步
+- [`docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md) — mqxliff **bpt/ept 內 mq:rxt 超連結**匯出編碼損壞（Bug #9）；`shouldSkipAmpCollapseForMemoqInline`、reconcile 編碼深度；Consumer Insights 樣本
 
 ## 回覆與推送慣例
 

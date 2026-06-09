@@ -21,6 +21,7 @@
 | D   | 匯出長句：字面 `<…>` 與多 `<ph>` 混用                              | 後續調查        |
 | E   | bpt/ept 內層 TM `<pt>` vs 原文 `<g>`（F8／匯出）                    | Bug #7（**已修並驗收** `d1ab161`） |
 | F   | 同 ph、`targetTags` xml 錯（`mq:rxt` displaytext；F8／Ctrl+F8）   | Bug #8（**已修**） |
+| G   | bpt/ept 內 `mq:rxt` 超連結 href 匯出編碼損壞（memoQ 無法重新匯入） | Bug #9（**已修**，待 memoQ 匯入複驗） |
 
 
 **說明**：不以客戶檔名推斷檔案是否「斷尾」；若需判斷資料是否截斷，應直接檢視該句 `<source>`／`<target>` XML。
@@ -178,6 +179,22 @@ flowchart TD
 - 本階段僅列**調查入口**；待 A／B 完成後，以 **TUT 長句**（多 ph + 字面 `<img>`）做 mqxliff 匯出回歸。
 
 **相關符號**：`replacePlaceholders`、`setXmlTargetContent`、`setExportTargetPlainOrFragment`（`[xliff-tag-pipeline.js](../cat-tool/js/xliff-tag-pipeline.js)`）。
+
+---
+
+## 7. 階段 G — Bug #9（bpt/ept 內 mq:rxt href 匯出編碼）
+
+| 步驟 | 動作 | 檔案 |
+| --- | --- | --- |
+| G1 | `shouldSkipAmpCollapseForMemoqInline`；`prepareRestoredFragmentForXmlParse` 條件化 `collapseAmpEntitiesRepeated` | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) |
+| G2 | `tagXmlNeedsReconcileFromSource` 擴充：mq:rxt + href 雙層實體／裸引號偵測 | 同上 |
+| G3 | 靜態腳本 `scripts/test-mqxliff-bpt-href-export.mjs` | 專案根 `scripts/` |
+
+**樣本**：`TD - Consumer Insights - Localisation Sheet.xlsx_zho-TW.mqxliff` — `trans-unit id="14"`（第 505 行）、`id="18"`（第 577 行）。
+
+**驗收**：重新匯出後 `<target>` bpt/ept 內含 `&amp;quot;`；memoQ 匯入無「Inline tag could not be parsed」。回歸 SRT 無 tag、Focus `<AI>`、2XKO `<50GB`+bpt、NED Bug #8。
+
+**專文**：[`bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](bug-report_mqxliff-bpt-href-entity-export_2026-06.md)。
 
 ---
 

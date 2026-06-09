@@ -559,9 +559,22 @@
         });
     }
 
+    /**
+     * Bug #9：bpt/ept/ph 內 memoQ 雙層實體（&amp;lt;、&amp;quot;）不可經 collapseAmpEntitiesRepeated 展開，
+     * 否則 setXmlTargetContent 再解碼一層會產生 href 裸引號，memoQ 無法匯入。
+     */
+    function shouldSkipAmpCollapseForMemoqInline(fragment) {
+        if (!fragment || typeof fragment !== 'string') return false;
+        if (!/<(?:bpt|ept|ph)\b/i.test(fragment)) return false;
+        return /&amp;(?:lt|quot|gt);/i.test(fragment);
+    }
+
     function prepareRestoredFragmentForXmlParse(restoredXml) {
         if (!restoredXml || typeof restoredXml !== 'string') return restoredXml;
-        let s = collapseAmpEntitiesRepeated(restoredXml);
+        let s = restoredXml;
+        if (!shouldSkipAmpCollapseForMemoqInline(s)) {
+            s = collapseAmpEntitiesRepeated(s);
+        }
         s = escapeMemoqBareCloseForXmlParse(s);
         s = escapeNonXliffAngleBrackets(s);
         return s;
@@ -1159,6 +1172,14 @@
 
     function tagXmlNeedsReconcileFromSource(st, tt) {
         if (!st || st.xml == null || !tt) return false;
+        const srcXml = String(st.xml);
+        const tgtXml = String(tt.xml ?? '');
+        // Bug #9：bpt/ept/ph 內 mq:rxt 超連結須保留 memoQ 雙層實體（&amp;lt;、&amp;quot;）
+        if (/mq:rxt/i.test(srcXml) && /href/i.test(srcXml)) {
+            if (/&amp;quot;/.test(srcXml) && !/&amp;quot;/.test(tgtXml)) return true;
+            if (/&amp;lt;/.test(srcXml) && !/&amp;lt;/.test(tgtXml)) return true;
+            if (/displaytext="&lt;[^"]*href="/i.test(tgtXml)) return true;
+        }
         const srcInner = innerEscapedTagSig(st.xml);
         const tgtInner = innerEscapedTagSig(tt.xml);
         if (srcInner && tgtInner) return srcInner !== tgtInner;
@@ -1167,7 +1188,7 @@
 
     /**
      * mqxliff：同 ph 已存在但 targetTags.xml 與 sourceTags 不同時，以原文條目覆寫。
-     * Bug #7：bpt/ept 內層 g/pt；Bug #8：standalone ph／mq:rxt 全段 xml（見 targettags-xml-mismatch bug report）。
+     * Bug #7：bpt/ept 內層 g/pt；Bug #8：standalone ph／mq:rxt 全段 xml；Bug #9：bpt/ept 內 mq:rxt href 雙層實體（見 bpt-href-entity-export bug report）。
      */
     function reconcileTargetTagsMarkupFromSource(sourceTags, targetTags) {
         if (!sourceTags || !sourceTags.length || !targetTags || !targetTags.length) return false;
@@ -1194,6 +1215,7 @@
         normalizeTagXmlForReconcile,
         tagXmlNeedsReconcileFromSource,
         reconcileTargetTagsMarkupFromSource,
+        shouldSkipAmpCollapseForMemoqInline,
         replacePlaceholders,
         collapseAmpEntitiesRepeated,
         phInnerMatchVariants,
