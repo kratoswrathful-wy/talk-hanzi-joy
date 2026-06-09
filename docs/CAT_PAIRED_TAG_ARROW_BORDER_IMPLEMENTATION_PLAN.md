@@ -143,6 +143,6 @@
 |------|------|
 | 規格文件 | **本檔** |
 | 靜態預覽 | [`preview-cat-paired-tag-border/index.html`](preview-cat-paired-tag-border/index.html) |
-| `style.css` 實作 | **已實作**（候選 2：`drop-shadow` 沿 `clip-path` 輪廓描邊 + `--tag-fill` 底色；取代雙層 pseudo 以修正斜角／橫邊粗細不均） |
+| `style.css` 實作 | **已實作**（候選 2：四向 `drop-shadow(±1px 0／0 ±1px, 0 blur)` + `--tag-fill`；勿用 sub-pixel `0 0 0.6px` 會近乎無框） |
 
 落地後執行 `npm run sync:cat`；舊作業檔開檔即見，不需重匯。

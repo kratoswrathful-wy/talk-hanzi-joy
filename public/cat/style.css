@@ -2094,8 +2094,10 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     overflow: visible;
     background: var(--tag-fill);
     filter:
-        drop-shadow(0 0 0.6px var(--tag-color, #94a3b8))
-        drop-shadow(0 0 0.6px var(--tag-color, #94a3b8));
+        drop-shadow(1px 0 0 var(--tag-color, #94a3b8))
+        drop-shadow(-1px 0 0 var(--tag-color, #94a3b8))
+        drop-shadow(0 1px 0 var(--tag-color, #94a3b8))
+        drop-shadow(0 -1px 0 var(--tag-color, #94a3b8));
 }
 .rt-tag-s {
     clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
