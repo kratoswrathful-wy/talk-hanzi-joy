@@ -149,4 +149,5 @@ CAT 在外層頁面以 `<iframe src="/cat/index.html?...">` 方式載入；若 C
 | 2026-05-08 | 確認 Console 必須切到 `/cat/index.html?...` iframe 內，避免外層 DOM 觀察誤判。 |
 | 2026-05-08 | 實作防線：`focus({ preventScroll:true })` + 下一 frame 再 `scrollIntoView(center)`，避免 focus 觸發瀏覽器捲動覆蓋置中。 |
 | 2026-05-08 | 使用者驗收成功，更新本文件為完整開發紀錄。 |
+| 2026-06-09 | 後續：其餘仍使用 `behavior: 'smooth'` 的跳焦點路徑已於 commit `5b5aa3d` 統一改為 `'auto'`；見 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)。本檔所述「置中 vs nearest」邏輯不受影響。 |
 
