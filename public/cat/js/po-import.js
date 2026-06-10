@@ -193,7 +193,8 @@
             appendProjectChangeLog,
             loadFilesList,
             selectedSourceLang = '',
-            selectedTargetLang = ''
+            selectedTargetLang = '',
+            caseInfo = null
         } = ctx;
 
         const text = await file.text();
@@ -259,6 +260,12 @@
             '',
             ''
         );
+        if (caseInfo && caseInfo.caseId) {
+            await DBService.updateFile(fileId, {
+                relatedLmsCaseId: caseInfo.caseId,
+                relatedLmsCaseTitle: caseInfo.caseTitle || ''
+            });
+        }
 
         const logEntry = makeBaseLogEntry('create', 'project-file', {
             entityId: fileId,

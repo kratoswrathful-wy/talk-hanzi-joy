@@ -35,7 +35,8 @@
             appendProjectChangeLog,
             loadFilesList,
             selectedSourceLang = '',
-            selectedTargetLang = ''
+            selectedTargetLang = '',
+            caseInfo = null
         } = ctx;
 
         if (!Xliff || typeof Xliff.extractTaggedText !== 'function') {
@@ -74,6 +75,12 @@
         );
         if (defaultMqRole && (file.name || '').toLowerCase().endsWith('.mqxliff')) {
             await DBService.updateFile(fileId, { defaultMqRole });
+        }
+        if (caseInfo && caseInfo.caseId) {
+            await DBService.updateFile(fileId, {
+                relatedLmsCaseId: caseInfo.caseId,
+                relatedLmsCaseTitle: caseInfo.caseTitle || ''
+            });
         }
         const entry = makeBaseLogEntry('create', 'project-file', {
             entityId: fileId,

@@ -4163,7 +4163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             casePickerSelectedCase = null;
             if (casePickerKeywordInput) casePickerKeywordInput.value = '';
             if (casePickerResultList) casePickerResultList.innerHTML = '';
-            if (casePickerResultHint) casePickerResultHint.textContent = '請輸入關鍵字後按「搜尋」以選擇要綁定的案件。';
+            if (casePickerResultHint) casePickerResultHint.textContent = '請輸入關鍵字後按「搜尋」選擇案件（可直接按「取消」跳過）。';
             casePickerDialog.showModal();
             if (casePickerKeywordInput) casePickerKeywordInput.focus();
         });
@@ -11256,7 +11256,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    async function runBatchImport(files, langChoice, roleMap, excelConfigMap) {
+    async function runBatchImport(files, langChoice, roleMap, excelConfigMap, caseInfo = null) {
         const XliffImport = window.CatToolXliffImport;
         const PoImport = window.CatToolPoImport;
         const errors = [];
@@ -11276,19 +11276,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const cfg = excelConfigMap && excelConfigMap.get(file);
                     if (!cfg) throw new Error('缺少欄位設定');
                     await _ensureExcelFileInStore(file);
-                    await _importSingleExcelFile(file, cfg, langChoice);
+                    await _importSingleExcelFile(file, cfg, langChoice, caseInfo);
                 } else if (kind === 'xliff') {
                     const role = lower.endsWith('.mqxliff') ? (roleMap.get(file) || 'T_ALLOW_R1') : undefined;
                     if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
                         throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
                     }
-                    const result = await XliffImport.handleXliffLikeImport(xliffImportCtx({ suppressWizardHide: true }), file, role);
+                    const result = await XliffImport.handleXliffLikeImport(xliffImportCtx({ suppressWizardHide: true, caseInfo }), file, role);
                     _collectXliffLangMismatchIfAny(result, langChoice, name, langMismatchRows);
                 } else if (kind === 'po') {
                     if (!PoImport || typeof PoImport.handlePoImport !== 'function') {
                         throw new Error('PO 匯入模組未載入（js/po-import.js）');
                     }
-                    await PoImport.handlePoImport(xliffImportCtx({ suppressWizardHide: true }), file);
+                    await PoImport.handlePoImport(xliffImportCtx({ suppressWizardHide: true, caseInfo }), file);
                 }
                 okNames.push(name);
             } catch (err) {
@@ -11690,6 +11690,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
+        let batchImportCaseInfo = null;
+        if (isTeamMode()) {
+            if (wizardOverlay) wizardOverlay.classList.add('hidden');
+            const caseResult = await showCasePickerForImport();
+            if (caseResult && caseResult.caseId) {
+                batchImportCaseInfo = {
+                    caseId: caseResult.caseId,
+                    caseTitle: caseResult.caseTitle || ''
+                };
+            }
+        }
+
         if (wizardOverlay) wizardOverlay.classList.remove('hidden');
         showWizardStep('wizardStepBatchProgress');
         if (batchProgressMessage) batchProgressMessage.textContent = '';
@@ -11729,7 +11741,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 或為空 Map（XLIFF/PO）；直接走更新流程，不再建立新檔
             await runFileUpdate(targetId, singleFile, langChoice, _batchMqRoles, excelConfigMap || new Map());
         } else {
-            await runBatchImport(files, langChoice, _batchMqRoles, excelConfigMap || new Map());
+            await runBatchImport(files, langChoice, _batchMqRoles, excelConfigMap || new Map(), batchImportCaseInfo);
         }
 
         sourceFileInput.value = '';
@@ -11980,7 +11992,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             appendProjectChangeLog,
             loadFilesList: suppress ? () => {} : loadFilesList,
             selectedSourceLang: _importSelectedSrcLang,
-            selectedTargetLang: _importSelectedTgtLang
+            selectedTargetLang: _importSelectedTgtLang,
+            caseInfo: opts.caseInfo || null
         };
     }
 
@@ -12522,7 +12535,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function _importSingleExcelFile(file, config, langChoice) {
+    async function _importSingleExcelFile(file, config, langChoice, caseInfo = null) {
         const store = _batchExcelDataStore.get(file);
         if (!store) throw new Error('找不到 Excel 資料：請先完成「欄位設定」');
         const { workbook, rawBuffer, dataBySheet } = store;
@@ -12558,6 +12571,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentProjectId, file.name, rawBuffer,
                 langChoice.sourceLang, langChoice.targetLang
             );
+            if (caseInfo && caseInfo.caseId) {
+                await DBService.updateFile(fId, {
+                    relatedLmsCaseId: caseInfo.caseId,
+                    relatedLmsCaseTitle: caseInfo.caseTitle || ''
+                });
+            }
             const entry = makeBaseLogEntry('create', 'project-file', {
                 entityId: fId,
                 entityName: file.name
