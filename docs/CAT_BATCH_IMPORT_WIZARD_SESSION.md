@@ -39,6 +39,9 @@
 8. **未採納（對話收斂）**  
    **不在**「儲存欄位設定」時依「原文欄是否整欄空白」阻擋匯入或標註檔名／工作表（單檔與批次皆不實作）。若未來要加，應另開規格與驗收項。
 
+9. **匯入時選填連結 LMS 案件（2026-06-10）**  
+   團隊版一般匯入：在 mq 角色／Excel 欄位設定之後、進度畫面之前，呼叫 `showCasePickerForImport()`；取消＝跳過連結、繼續匯入；選定案件後本批新檔皆寫入 `relatedLmsCaseId`。詳見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md)（commit `49db7c2`）；TMS 整合大計畫見 [`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md)。
+
 ---
 
 ## 二、主要程式錨點（維運）
@@ -62,7 +65,8 @@
 | 批次 Excel | `_refreshBatchExcelStep`、`showBatchExcelConfigModal`、`onBatchExcelSameCfgToggle`、`_openBatchExcelColumnEditor` |
 | 批次 mqxliff | `showBatchMqRoleModal`（及相關 `_batchMqRoles` 等，依實際宣告為準） |
 | 狀態 | `_batchExcelGlobalCfg`、`_batchExcelConfigs`（`Map`）、`_batchExcelModalExcelFiles`、`_batchExcelDataStore`、`_batchExcelConfigMode`、`_batchExcelConfigTarget`、`_batchExcelGlobalSheetMode` |
-| 匯入 | `runBatchImport`、`_importSingleExcelFile`、`xliffImportCtx({ suppressWizardHide: true })` |
+| 匯入 | `runBatchImport`、`_importSingleExcelFile`、`xliffImportCtx({ suppressWizardHide: true, caseInfo })` |
+| 匯入連結案件 | `showCasePickerForImport`、`batchImportCaseInfo`（`sourceFileInput.change`；僅 `isTeamMode()`） |
 | 匯入後語言對不符 | `_collectXliffLangMismatchIfAny`（逐檔收集）、`openBatchImportLangMismatchDialog`（`runBatchImport` 收尾、`loadFilesList` 後顯示；無 DOM 時 fallback `openCatConfirmModal`） |
 
 ### 2.3 對照表（摘要）
@@ -216,6 +220,7 @@ flowchart TD
 - 交接摘要表：`HANDOFF.md`「其他近期落地」（含 `3348922`、`e11bbe0`、`1d82a97`、`9d739b4`、`a594f90` 等；驗收尾款見頂列「（文件）」；SHA 勘誤見 `b0b54af`）。  
 - 功能路徑：`CODEMAP.md`。  
 - **2026-05-02**：匯入後語言對不符 dialog、mqxliff **`default_mq_role`** 與專案清單 UX — [`CAT第四波主記錄.md`](./CAT第四波主記錄.md) **§九點五**。  
+- **2026-06-10**：一般匯入選填連結 LMS 案件 — [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md)；大計畫 [`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md)。  
 - 介面用語（避免簡中「匹配」等）：`CAT_VIEW_SPEC.md`（該文件內對 TM 否定表述之約定）。
 
 ---
@@ -236,6 +241,7 @@ flowchart TD
 | `0034eb4` | 程式 + DB | `cat_files.default_mq_role` migration；`cat-cloud-rpc` 列表／更新映射；專案清單 mqxliff 兩行預設身分；**一次性** UPDATE 全庫 `.mqxliff` → `T_ALLOW_R1` | 已推送；驗收見 §九點五 |
 | `7525ff7` | 程式 | 專案清單「預設身分」欄寬微調（同主題） | 已推送 |
 | `4afdefe` | 程式 | 語言對不符改**表格**（檔名／原語言對）；預設身分欄左對齊；非 mqxliff 顯示 `N/A` | 已推送；驗收見 §九點五 |
+| `49db7c2` | 程式 | 一般匯入選填連結 LMS 案件（`runBatchImport` `caseInfo`、Excel／XLIFF／PO） | 已驗收（2026-06-10）；見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
 
 驗收尾款之**僅文件**提交與 [`HANDOFF.md`](./HANDOFF.md)「其他近期落地」**頂列**為同一筆；請以 `git log -1 --oneline -- docs/CAT_BATCH_IMPORT_WIZARD_SESSION.md` 為準，勿在表內重複寫入會因 amend 而漂移的 SHA。
 
@@ -254,3 +260,4 @@ flowchart TD
 | 2026-05-01 | **驗收尾款**：第五節各小節與第六節手動測試表標註「已驗收」；第一節第 8 點改為「未採納」；第七節第 3 點條列化；新增第九節提交對照表；修訂紀錄改列第十節；HANDOFF「其他近期落地」頂列登記本批僅文件變更（主提交 `dd3a505`）。 |
 | 2026-05-01 | HANDOFF 頂列改「（文件）」標記並補 SESSION 首段說明，避免 amend 後 SHA 內文漂移（`3adad96`）。 |
 | 2026-05-02 | 第五節新增 **5.7**（匯入後語言對不符）；§2.1／§2.2 補 `batchImportLangMismatchDialog` 與 `_collectXliffLangMismatchIfAny`／`openBatchImportLangMismatchDialog`；§八 交叉引用 **CAT第四波主記錄 §九點五**；§九 commit 表追加 `eff9b79`、`0034eb4`、`7525ff7`、`4afdefe`。 |
+| 2026-06-10 | 第一節第 9 點、§2.2、§八、§九 補「匯入選填連結案件」與 `49db7c2`；交叉引用 `CAT_IMPORT_CASE_LINK_2026-06`、`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06`。 |

@@ -47,7 +47,10 @@
 - [`docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md) — 編輯器**標籤顯示三模式**（僅編號／簡短／延長）、`displayFull`、無延遲 tooltip
 - [`docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md) — 成對 tag **箭頭外框**（方案 B；§8 失敗紀錄、**待 SVG**）；預覽 [`docs/preview-cat-paired-tag-border/index.html`](docs/preview-cat-paired-tag-border/index.html)
 - [`docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md) — **Bug #11** TM 連續 ph 佔位錯位（`fixMqxliffTmPhSequentialPairs`）；與 Bug #10 區分
-- [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修**（讀 `m:level`、鎖定句段跳過覆寫）
+- [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
+- [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
+- [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 一般匯入選填連結 LMS 案件（`49db7c2`、已驗收）
+- [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（可行性、分階段路線圖；含已落地匯入連結案件）
 
 ## 回覆與推送慣例
 
