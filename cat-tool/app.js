@@ -1150,8 +1150,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (targetIds.size > 0) {
                 const items = [];
                 const pending = [];
+                const skippedSystemLocked = [];
                 for (const seg of currentSegmentsList) {
                     if (targetIds.has(seg.id)) {
+                        if (isDynamicForbidden(seg)) {
+                            const rowElSkip = gridBody ? gridBody.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`) : document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
+                            if (isGridDataRowFilterVisible(rowElSkip)) skippedSystemLocked.push(seg);
+                            continue;
+                        }
                         if (isTargetWriteProtected(seg)) continue;
                         const rowEl = gridBody ? gridBody.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`) : document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
                         if (!isGridDataRowFilterVisible(rowEl)) continue;
@@ -1187,6 +1193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         items.push({ id: seg.id, beforeSnap, afterSnap: snapshotSegForUndo(seg) });
                     }
                 }
+                notifySkippedSystemLockedSegs(skippedSystemLocked);
                 if (items.length) pushUndoEntry({ kind: 'segmentState', items });
                 updateProgress();
                 deferBatchClear = true;
@@ -17612,6 +17619,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 3000);
     }
 
+    /** 批次操作略過「禁止編輯」句段時，以原生 toast 列出列號。 */
+    function collectSystemLockedSkipsFromSelectedIds(idList) {
+        const allRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        return (idList || []).map((id) => currentSegmentsList.find((x) => x && x.id === id)).filter((s) => {
+            if (!s || !isDynamicForbidden(s)) return false;
+            const idx = currentSegmentsList.indexOf(s);
+            if (idx < 0) return false;
+            return isGridDataRowFilterVisible(allRows[idx]);
+        });
+    }
+
+    function notifySkippedSystemLockedSegs(skippedSegs) {
+        if (!skippedSegs || !skippedSegs.length) return;
+        const rowNums = skippedSegs.map((s) => {
+            const idx = currentSegmentsList.indexOf(s);
+            return idx >= 0 ? idx + 1 : null;
+        }).filter((n) => n != null);
+        if (!rowNums.length) return;
+        let detail;
+        if (rowNums.length <= 5) {
+            detail = rowNums.map((n) => `#${n}`).join('、');
+        } else {
+            detail = rowNums.slice(0, 3).map((n) => `#${n}`).join('、') + ' ... 等';
+        }
+        showCatToast(`已略過 ${rowNums.length} 個禁止編輯句段（列 ${detail}）`, 'info');
+    }
+
     /**
      * 確認句段寫庫失敗後樂觀還原並通知使用者。
      * @param {'revision'|'other'} failureKind — revision：樂觀鎖衝突；other：連線／伺服器等其他錯誤（Phase D）
@@ -17752,12 +17786,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const multiSelection = selectedRowIds && selectedRowIds.size > 1;
+        const skippedSystemLocked = [];
         const pending = [];
         currentSegmentsList.forEach((seg, segIdx) => {
-            if (isTargetWriteProtected(seg)) return;
             const row = rows[segIdx];
             if (!isGridDataRowFilterVisible(row)) return;
             if (multiSelection && !selectedRowIds.has(seg.id)) return;
+            if (isDynamicForbidden(seg)) {
+                skippedSystemLocked.push(seg);
+                return;
+            }
+            if (isTargetWriteProtected(seg)) return;
             const text = getSegmentFieldText(seg, segIdx, 'target');
             const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, false);
             if (newText !== text) pending.push({ seg, segIdx, text, newText });
@@ -17789,6 +17828,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             replacedCount++;
         });
+        notifySkippedSystemLockedSegs(skippedSystemLocked);
         if (bundle.length) pushUndoEntry({ kind: 'compound', entries: bundle });
         runSearchAndFilter({ keepFilterSnapshot: true });
         if (replacedCount > 0) {
@@ -20786,6 +20826,33 @@ document.addEventListener('DOMContentLoaded', async () => {
                     updateProgress();
                     }
                 });
+            } else {
+                const activateLockedRowInteraction = (e) => {
+                    if (blockSelectionIfEditedByOthers(seg, e)) return;
+                    document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
+                    row.classList.add('active-row');
+                    lastEditedRowIdx = seg.rowIdx;
+                    if (!isBatchOpInProgress && !(e.ctrlKey || e.metaKey || e.shiftKey)) {
+                        selectedRowIds.clear();
+                        selectedRowIds.add(seg.id);
+                        document.querySelectorAll('.grid-data-row').forEach(r => {
+                            const rId = parseId(r.dataset.segId);
+                            if (selectedRowIds.has(rId)) r.classList.add('selected-row');
+                            else r.classList.remove('selected-row');
+                        });
+                        updateSfReplaceAllButtonLabel();
+                        syncSelectedRowAbutmentTopClass();
+                    }
+                    const tabQaEl = document.getElementById('tabQA');
+                    if (!tabQaEl || !tabQaEl.classList.contains('active')) {
+                        renderLiveTmMatches(seg);
+                        try { decorateTbInlineHintsForActiveRow(); } catch (_) { /* ignore */ }
+                    }
+                    renderSegmentComments(seg);
+                };
+                const sourceInput = row.querySelector('.col-source .rt-editor');
+                if (targetInput) targetInput.addEventListener('mousedown', activateLockedRowInteraction);
+                if (sourceInput) sourceInput.addEventListener('mousedown', activateLockedRowInteraction);
             }
             fragment.appendChild(row);
         });
@@ -21731,7 +21798,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         document.getElementById('ctxBatchConfirm').addEventListener('click', () => {
-            const ids = filterBatchIdsToVisible(Array.from(selectedRowIds));
+            const rawIds = Array.from(selectedRowIds);
+            const skippedSystemLocked = collectSystemLockedSkipsFromSelectedIds(rawIds);
+            const ids = filterBatchIdsToVisible(rawIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const touchAll = new Set();
             toUpdate.forEach(s => {
@@ -21811,10 +21880,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     } catch (err) { console.error(err); }
             });
+            notifySkippedSystemLockedSegs(skippedSystemLocked);
         });
 
         document.getElementById('ctxBatchUnconfirm').addEventListener('click', () => {
-            const ids = filterBatchIdsToVisible(Array.from(selectedRowIds));
+            const rawIds = Array.from(selectedRowIds);
+            const skippedSystemLocked = collectSystemLockedSkipsFromSelectedIds(rawIds);
+            const ids = filterBatchIdsToVisible(rawIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const items = [];
             const dbWaits = [];
@@ -21829,6 +21901,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderEditorSegments();
             runSearchAndFilter();
             void Promise.all(dbWaits).catch((e) => console.error(e));
+            notifySkippedSystemLockedSegs(skippedSystemLocked);
         });
 
         document.getElementById('ctxLockSegments').addEventListener('click', () => {

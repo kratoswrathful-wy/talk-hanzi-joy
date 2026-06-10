@@ -45,7 +45,9 @@
 - [`docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md`](docs/bug-report_mqxliff-bpt-href-entity-export_2026-06.md) — mqxliff **bpt/ept 內 mq:rxt 超連結**匯出編碼損壞（Bug #9）；`shouldSkipAmpCollapseForMemoqInline`、reconcile 編碼深度；Consumer Insights 樣本
 - [`docs/bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](docs/bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md) — mqxliff **bpt/ept vs ph 結構型別不匹配**（Bug #10；TM 模糊匹配、F8 無效）；`fixMqxliffBptPhTypeMismatch`；`extractMqRxtDisplayText` displaytext pill 顯示
 - [`docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md) — 編輯器**標籤顯示三模式**（僅編號／簡短／延長）、`displayFull`、無延遲 tooltip
-- [`docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md) — 成對 tag **箭頭外框**（方案 B、斜角缺框根因與 CSS 策略）；預覽 [`docs/preview-cat-paired-tag-border/index.html`](docs/preview-cat-paired-tag-border/index.html)
+- [`docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md) — 成對 tag **箭頭外框**（方案 B；§8 失敗紀錄、**待 SVG**）；預覽 [`docs/preview-cat-paired-tag-border/index.html`](docs/preview-cat-paired-tag-border/index.html)
+- [`docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md) — **Bug #11** TM 連續 ph 佔位錯位（`fixMqxliffTmPhSequentialPairs`）；與 Bug #10 區分
+- [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修**（讀 `m:level`、鎖定句段跳過覆寫）
 
 ## 回覆與推送慣例
 

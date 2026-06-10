@@ -24,8 +24,8 @@
 | 右欄快捷列 | **Ctrl+Alt+←／→** 與 **Ctrl+0** 各**獨立一行**；字級與「雙擊套用譯文」列一致（與 `.cat-dblclick-insert-bar` 約 **0.8rem** 對齊，勿再用過小字級如 0.72rem 壓縮快捷列）。**移除**該區「Ctrl+G：跳至句段」文字（改由工具列圖示＋`data-tip` 說明）。**CAT／TM 搜尋／新增術語／QA** 四個右欄分頁皆須看見同一套雙擊選項＋快捷列。**建議結構**：置於 `.panel-tabs` 下方之**單一共用橫條**（避免四份重複 HTML 與 `id` 衝突）；須與現有 `document.querySelectorAll('.cat-dblclick-insert-cb')`（`cat-tool/app.js` `initCatDblclickInsert`）同步勾選邏輯對齊。 |
 | 跳至 | 編輯器工具列 **`#btnSortMenu` 與 `#btnCopySourceToTarget` 之間**新增**圖示按鈕**（與既有 `icon-btn` 風格一致）；`data-tip="跳到指定句段（Ctrl+G）"`（全形括號）。**Ctrl+G** 與該鈕共用 **`openJumpToSegmentPrompt`**（或重構後之入口）。**不得**使用 `window.prompt`；改用既有 **`openCatPromptModal`**（與專案其他對話一致）。表頭 `#` 欄內文字按鈕「跳至」（`populateGridHeaderTitleCell`）**移除或隱藏**，避免與工具列重複。 |
 | 工具提示（無延遲） | 截圖與編輯器高頻區之按鈕（含 **開始 QA**、**TM 搜尋**、**原文複製到譯文／清除譯文**、**預先翻譯／匯出檔案**、**跳至**圖示等）應以 **`data-tip`** 接上 `initGlobalTooltip`（`mouseover` + `#wcProgressModeTooltip`）。**僅 `title` 者**仍為瀏覽器慢速提示——應盤點改為 `data-tip`，或（較大改動）擴充 `tipTextFor` 讀取 `title` 並抑制原生顯示（須評估無障礙與觸發一致性）。`.cat-dblclick-insert-bar` 上 **`title`** 宜改為 **`data-tip`** 掛在可 hover 之元素。詳見本檔 **§3.11** 與 [`docs/CAT_TOOLTIP_SYSTEM.md`](./CAT_TOOLTIP_SYSTEM.md)。 |
-| 游標提示點擊 | **`restore()`**（或共用輔助函式）內：先對譯文列 **`scrollIntoView({ behavior: 'smooth', block: 'center' })`**，再 **`editor.focus()`** 與還原選區，避免畫面外失敗感。**`realTipEl`** 須補 **`click`**：捲列＋focus（與 `fakeTipEl` 行為對齊）；真游標提示文案可與暫存游標一致帶上「點此或按 … 前往」類說明（產品可微调用語）。 |
-| 句段列捲動（直接顯示） | **CAT 內嵌編輯器**內，凡會「**切換目前要看的句段列**」的操作（例：搜尋／取代導覽、Ctrl+↑／↓ 上下句、跳至句段、點 QA 結果 `#`、篩選變更後定位、確認／傳播後焦點、點選格線列等），目標列須 **直接出現在可視區**（以 **`scrollIntoView`** 或等價、且錨定該 **`.grid-data-row`**／譯文格為準）。**禁止**依賴「先把外層或 `#editorGrid` **捲回頂端**再讓使用者自己找」的體驗；亦避免只 `focus()` 而不捲動導致列仍在畫外。實作時應 **grep** `scrollTop\s*=\s*0`、`scrollTo\(\s*0`、`scroll\(0` 及相關導覽函式，逐路徑驗收。 |
+| 游標提示點擊 | **`restore()`**（或共用輔助函式）內：先對譯文列 **`scrollIntoView({ behavior: 'auto', block: 'center' })`**，再 **`editor.focus()`** 與還原選區，避免畫面外失敗感。**`realTipEl`** 須補 **`click`**：捲列＋focus（與 `fakeTipEl` 行為對齊）；真游標提示文案可與暫存游標一致帶上「點此或按 … 前往」類說明（產品可微调用語）。**已落地**（`5b5aa3d`）；見 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)。 |
+| 句段列捲動（直接顯示） | **CAT 內嵌編輯器**內，凡會「**切換目前要看的句段列**」的操作（例：搜尋／取代導覽、Ctrl+↑／↓ 上下句、跳至句段、點 QA 結果 `#`、篩選變更後定位、確認／傳播後焦點、點選格線列等），目標列須 **直接出現在可視區**（以 **`scrollIntoView`** 或等價、且錨定該 **`.grid-data-row`**／譯文格為準）。**禁止**依賴「先把外層或 `#editorGrid` **捲回頂端**再讓使用者自己找」的體驗；亦避免只 `focus()` 而不捲動導致列仍在畫外。系統主動跳焦點須 **`behavior: 'auto'`**（無平滑動畫）。實作時應 **grep** `scrollTop\s*=\s*0`、`scrollTo\(\s*0`、`scroll\(0` 及相關導覽函式，逐路徑驗收。 |
 
 ---
 
@@ -83,7 +83,7 @@
 
 ### 3.8 真游標／暫存游標提示（捲列、點擊）
 
-- **`restore()`**（`cat-tool/js/cat-fake-caret.js`）：在 `editor.focus()` 與還原 `Range` **之前**，對 `editor.closest('.grid-data-row')` 若存在則 **`scrollIntoView({ behavior: 'smooth', block: 'center' })`**，使暫存游標提示點擊後能對齊使用者預期（與 `app.js` `_qaJumpToSegment` 順序一致）。若 `Range` 已失效，`catch` 路徑仍應盡量捲列＋focus。
+- **`restore()`**（`cat-tool/js/cat-fake-caret.js`）：在 `editor.focus()` 與還原 `Range` **之前**，對 `editor.closest('.grid-data-row')` 若存在則 **`scrollIntoView({ behavior: 'auto', block: 'center' })`**，使暫存游標提示點擊後能對齊使用者預期（與 `app.js` `_qaJumpToSegment` 順序一致）。若 `Range` 已失效，`catch` 路徑仍應盡量捲列＋focus。**已落地**（`5b5aa3d`）。
 - **`fakeTipEl`**：既有 `click` → `restoreOrShowFake()`；確認上述捲列已涵蓋或由 `restore()` 統一處理。
 - **`realTipEl`**：`showRealCaretTipIfNeeded` 設定文案後，以 **`dataset` 防重複** 綁定 **`mousedown`**（`preventDefault`）→ 共用 **`navigateToSegmentBySegId`**（與假提示同源，見 [`CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md`](./CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md)）。
 - **檔案**：`cat-tool/js/cat-fake-caret.js`；若需由 `app.js` 注入捲列輔助可再評估。
@@ -111,7 +111,7 @@
 
 - **產品目標**：使用者心智是「我已切到那句／那一列」；畫面應 **立刻以該列為中心（或至少邊界內可見）**，**不要**出現先跳回清單頂端、再慢慢對位或仍停在頂端的斷裂感。
 - **範圍**：`cat-tool/app.js` 內所有會改變「目前句段／選取列／焦點譯文格」且預期使用者看該列之路徑（含搜尋 `goToSearchMatch*`、`moveVisibleTargetRowByCtrlArrow`、`openJumpToSegmentPrompt`／`_qaJumpToSegment`、篩選後捲動、`focusTargetEditor*`、確認鏈等）。若 React 主站另有內嵌／iframe 同一編輯器，**本波以 `cat-tool` 為準**；主站若有重複邏輯另開議題。
-- **實作要點**：優先 **`row.scrollIntoView({ behavior: 'smooth', block: 'center' })`**（或 `nearest` 若與固定表頭互斥時再評估）；避免在導覽前對 `#editorGrid` 或外層 **`scrollTop = 0`** 除非有明確產品理由並經驗收簽核。
+- **實作要點**：優先 **`row.scrollIntoView({ behavior: 'auto', block: 'center' })`**（或 `nearest` 若與固定表頭互斥時再評估；確認跳行之 `center`／`nearest` 由 `catToolAfterConfirmScrollBlock` 決定）；避免在導覽前對 `#editorGrid` 或外層 **`scrollTop = 0`** 除非有明確產品理由並經驗收簽核。**已落地並驗收**（`5b5aa3d`）；完整紀錄見 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)。
 - **與其他節關係**：§3.2（假游標失焦）、§3.8（游標提示點擊）應與本節 **同一捲動原則** 對齊，避免各寫一套。
 - **檔案**：以 `cat-tool/app.js` 為主；`cat-tool/js/cat-fake-caret.js` 配合 §3.8。
 

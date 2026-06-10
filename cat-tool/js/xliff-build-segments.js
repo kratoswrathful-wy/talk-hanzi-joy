@@ -199,6 +199,102 @@
         return tags;
     }
 
+    function mqTagAlignKey(tag, Xliff) {
+        if (!tag) return '';
+        const xml = String(tag.xml != null ? tag.xml : '');
+        const extractRxt = Xliff.extractMqRxtDisplayText;
+        if (extractRxt) {
+            const fromRxt = extractRxt(xml);
+            if (fromRxt) return ('rxt:' + fromRxt).toLowerCase();
+        }
+        const innerSig = Xliff.innerEscapedTagSig;
+        if (innerSig) {
+            const sig = innerSig(xml);
+            if (sig) return sig;
+        }
+        const disp = tag.displayFull != null ? tag.displayFull : tag.display;
+        if (disp != null && String(disp).trim()) {
+            return ('disp:' + String(disp).replace(/\s+/g, ' ').trim()).toLowerCase();
+        }
+        return xml.replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 120);
+    }
+
+    function tagsCompatibleForTmPhSequential(st, tt, Xliff) {
+        if (!st || !tt) return false;
+        const sk = mqTagAlignKey(st, Xliff);
+        const tk = mqTagAlignKey(tt, Xliff);
+        if (sk && tk && sk === tk) return true;
+        const innerSig = Xliff.innerEscapedTagSig;
+        if (innerSig) {
+            const ss = innerSig(st.xml);
+            const ts = innerSig(tt.xml);
+            if (ss && ts && ss === ts) return true;
+        }
+        return false;
+    }
+
+    function remapTargetTextPlaceholders(targetText, oldTags, phRemap) {
+        if (!targetText || !phRemap || !phRemap.size) return targetText;
+        let idx = 0;
+        return String(targetText).replace(/\{\/?\d+\}/g, (match) => {
+            const tt = oldTags[idx++];
+            if (tt && phRemap.has(tt.ph)) return phRemap.get(tt.ph);
+            return match;
+        });
+    }
+
+    /**
+     * Bug #11：TM 模糊匹配把 bpt/ept 拆成連續 standalone ph → {1}{2}{3}… 與 {1}{/1}… 錯位。
+     */
+    function fixMqxliffTmPhSequentialPairs({ isMqxliffFile, sourceTags, targetTags, targetText }) {
+        const Xliff = global.CatToolXliffTags;
+        if (!Xliff || !isMqxliffFile || !sourceTags || !sourceTags.length || !targetTags || !targetTags.length) {
+            return targetText;
+        }
+        const hasSourcePairs = sourceTags.some(t => t && t.type === 'open')
+            && sourceTags.some(t => t && t.type === 'close');
+        if (!hasSourcePairs) return targetText;
+        if (targetTags.some(t => t && (t.type === 'open' || t.type === 'close'))) return targetText;
+        if (targetTags.some(t => t && /<(?:bpt|ept)\b/i.test(String(t.xml || '')))) return targetText;
+        if (!targetTags.every(t => !t || t.type === 'standalone')) return targetText;
+
+        let si = 0;
+        const phRemap = new Map();
+        const oldTags = targetTags.slice();
+        const fixed = [];
+        let changed = false;
+
+        for (const tt of targetTags) {
+            if (!tt || !tt.ph) {
+                fixed.push(tt);
+                continue;
+            }
+            let matched = null;
+            while (si < sourceTags.length) {
+                const st = sourceTags[si++];
+                if (tagsCompatibleForTmPhSequential(st, tt, Xliff)) {
+                    matched = st;
+                    break;
+                }
+            }
+            if (matched) {
+                if (tt.ph !== matched.ph || tt.type !== matched.type) {
+                    phRemap.set(tt.ph, matched.ph);
+                    changed = true;
+                }
+                fixed.push({ ...matched });
+            } else {
+                fixed.push(tt);
+            }
+        }
+
+        if (!changed) return targetText;
+
+        targetTags.length = 0;
+        targetTags.push(...fixed);
+        return remapTargetTextPlaceholders(targetText, oldTags, phRemap);
+    }
+
     function buildSegmentsFromXliffXml(xml, fileName) {
         const Xliff = global.CatToolXliffTags;
         if (!Xliff || typeof Xliff.extractTaggedText !== 'function') {
@@ -589,6 +685,9 @@
 
                     augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags });
                     mergePartialTargetTagsFromSource({ targetText, sourceTags, targetTags });
+                    targetText = fixMqxliffTmPhSequentialPairs({
+                        isMqxliffFile, sourceTags, targetTags, targetText
+                    });
                     fixMqxliffBptPhTypeMismatch({ isMqxliffFile, sourceTags, targetTags });
                     if ((isMqxliffFile || isMxliffFile) && sourceTags.length && targetTags.length
                         && Xliff.reconcileTargetTagsMarkupFromSource) {
@@ -743,7 +842,8 @@
                     }
 
                     if (isMxliffFile) {
-                        if (tu.getAttribute('m:confirmed') === '1') status = 'confirmed';
+                        const mConf = parseInt(tu.getAttribute('m:confirmed') || '0', 10);
+                        if (!isNaN(mConf) && mConf > 0) status = 'confirmed';
                         if (tu.getAttribute('m:locked') === 'true') isLockedSystem = true;
                         const mScore = parseFloat(tu.getAttribute('m:score') || '0');
                         if (!isNaN(mScore) && mScore > 0) {
@@ -801,6 +901,8 @@
 
     global.CatToolXliffBuildSegments = {
         buildSegmentsFromXliffXml,
-        parseXliffFileToSegmentRows
+        parseXliffFileToSegmentRows,
+        /** @internal 供 scripts/test-mqxliff-tm-ph-sequential.mjs */
+        _testFixMqxliffTmPhSequentialPairs: fixMqxliffTmPhSequentialPairs
     };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1026,6 +1026,13 @@ button:disabled { cursor: not-allowed; }
     content: "⛔";
     position: absolute; right: 30px; bottom: 3px; font-size: 0.8rem; opacity: 0.8;
 }
+.grid-data-row.locked-system .grid-textarea,
+.grid-data-row.locked-system .col-source .rt-editor,
+.grid-data-row.locked-user .grid-textarea,
+.grid-data-row.locked-user .col-source .rt-editor {
+    user-select: text;
+    cursor: text;
+}
 .grid-data-row.active-row { outline: 2px solid var(--primary-color); outline-offset: -2px; z-index: 10; position: relative; background: #eff6ff; }
 /* 同時選取 + 編輯中：勿疊 outline 與選取偽元素邊框，避免交界線變粗 */
 .grid-data-row.active-row.selected-row { outline: none; }
@@ -2086,21 +2093,32 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     white-space: nowrap;
 }
 
-/* 成對開/閉標籤：箭頭形狀；drop-shadow 沿 clip-path 輪廓描邊（粗細較均，勿改回 border+clip-path） */
+/* 成對開/閉標籤：箭頭形狀；clip-path 填色 + SVG mask 描邊（勿改回 border+clip-path 或 drop-shadow） */
 .rt-tag-s, .rt-tag-e {
     border-radius: 0;
     border: none;
     position: relative;
     overflow: visible;
-    background: var(--tag-fill);
-    filter:
-        drop-shadow(1px 0 0 var(--tag-color, #94a3b8))
-        drop-shadow(-1px 0 0 var(--tag-color, #94a3b8))
-        drop-shadow(0 1px 0 var(--tag-color, #94a3b8))
-        drop-shadow(0 -1px 0 var(--tag-color, #94a3b8));
+    color: var(--tag-color, #64748b);
+    background-color: var(--tag-fill);
+    filter: none;
 }
 .rt-tag-s {
     clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
+}
+.rt-tag-s::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-color: var(--tag-color, #94a3b8);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpolygon points='0,0 88,0 100,12 88,24 0,24' fill='none' stroke='white' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpolygon points='0,0 88,0 100,12 88,24 0,24' fill='none' stroke='white' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
 }
 .rt-tag-e {
     clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
@@ -2110,6 +2128,20 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     gap: 0.2em;
     position: relative;
     z-index: 0;
+}
+.rt-tag-e::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-color: var(--tag-color, #94a3b8);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpolygon points='12,0 100,0 100,24 12,24 0,12' fill='none' stroke='white' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpolygon points='12,0 100,0 100,24 12,24 0,12' fill='none' stroke='white' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
 }
 .rt-tag-s .tag-content,
 .rt-tag-s .tag-label,

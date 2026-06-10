@@ -51,7 +51,7 @@ sequenceDiagram
 | 工具列下一個／上一個 | 綁定同一 `goToSearchMatchStep` |
 | `updateMatchHighlightFocus` | 呼叫 `applySearchMatchNavigationFocus` |
 | 「取代此筆」前算出現次序 | `occurrenceIndexOfMarkInEditor(taPre, match.markEl)`（約第 16578 行） |
-| 捲動至命中列 | `applySearchMatchNavigationFocus` 內 `match.rowEl.scrollIntoView` |
+| 捲動至命中列 | `applySearchMatchNavigationFocus` 內 `match.rowEl.scrollIntoView`（2026-06-10 起固定 `behavior: 'auto'`，見 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)） |
 
 ---
 
@@ -119,3 +119,4 @@ sequenceDiagram
 | 2026-05-07 | 使用者回報 F3 失效與 Console 錯誤；完成根因分析與修正計畫 |
 | 2026-05-07 | 實作、執行 `npm run sync:cat`、提交並推送 `4f25698` |
 | 2026-05-08 | 使用者驗收成功；補本開發紀錄文件 |
+| 2026-06-10 | 搜尋導覽捲動改為即時（`behavior: 'auto'`），與全編輯器跳焦點一致；見 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)（`5b5aa3d`，已驗收） |

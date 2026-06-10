@@ -1034,18 +1034,24 @@
                             if (!seg) return;
                             const sdlSeg = Array.from(segDefsEl.getElementsByTagName('*'))
                                 .find(n => n.localName === 'seg' && n.getAttribute('id') === mid);
-                            if (sdlSeg) {
+                            if (sdlSeg && !seg.isLockedSystem) {
                                 sdlSeg.setAttribute('conf', seg.status === 'confirmed' ? 'Translated' : 'Draft');
                             }
                         });
                     }
 
-                    // target state：有任意句段已確認則標 final
+                    // target state：有任意句段已確認則標 final（禁止編輯句段不覆寫原始 state）
                     const anyConfirmed = mrkSegs.some(mrk => {
                         const seg = segByTuId.get(`${tuId}#${mrk.getAttribute('mid') || ''}`);
                         return seg && seg.status === 'confirmed';
                     });
-                    targetNode.setAttribute('state', anyConfirmed ? 'final' : 'needs-translation');
+                    const anySystemLocked = mrkSegs.some(mrk => {
+                        const seg = segByTuId.get(`${tuId}#${mrk.getAttribute('mid') || ''}`);
+                        return seg && seg.isLockedSystem;
+                    });
+                    if (!anySystemLocked) {
+                        targetNode.setAttribute('state', anyConfirmed ? 'final' : 'needs-translation');
+                    }
 
                     return; // 跳過後面的單段邏輯
                 }
@@ -1110,26 +1116,35 @@
                 targetNode.setAttribute('state', stateVal);
             } else if (format === 'mxliff') {
                 const mNsUri = xmlDoc.documentElement.lookupNamespaceURI('m') || 'http://www.memsource.com/mxlf/2.0';
-                const confVal = seg.status === 'confirmed' ? '1' : '0';
-                try { tu.setAttributeNS(mNsUri, 'm:confirmed', confVal); } catch (_) { tu.setAttribute('m:confirmed', confVal); }
-                if (seg.targetText && seg.targetText.trim()) {
-                    try { tu.setAttributeNS(mNsUri, 'm:level-edited', 'true'); } catch (_) { tu.setAttribute('m:level-edited', 'true'); }
+                const isTuLocked = tu.getAttribute('m:locked') === 'true';
+                if (!isTuLocked) {
+                    const rawLevel = xmlDoc.documentElement.getAttributeNS(mNsUri, 'level')
+                        || xmlDoc.documentElement.getAttribute('m:level') || '1';
+                    const mLevel = Math.max(1, parseInt(rawLevel, 10) || 1);
+                    const confirmedLevel = String(mLevel);
+                    const confVal = seg.status === 'confirmed' ? confirmedLevel : '0';
+                    try { tu.setAttributeNS(mNsUri, 'm:confirmed', confVal); } catch (_) { tu.setAttribute('m:confirmed', confVal); }
+                    if (seg.targetText && seg.targetText.trim()) {
+                        try { tu.setAttributeNS(mNsUri, 'm:level-edited', 'true'); } catch (_) { tu.setAttribute('m:level-edited', 'true'); }
+                    }
+                    targetNode.setAttribute('state', seg.status === 'confirmed' ? 'final' : 'needs-translation');
                 }
-                targetNode.setAttribute('state', seg.status === 'confirmed' ? 'final' : 'needs-translation');
             } else if (format === 'sdlxliff') {
-                const sdlState = seg.status === 'confirmed' ? 'final' : 'needs-translation';
-                targetNode.setAttribute('state', sdlState);
-                const tuIdInner = tu.getAttribute('id');
-                if (tuIdInner) {
-                    const sdlSegDefs = Array.from(xmlDoc.getElementsByTagNameNS(sdlNsUri, 'seg-defs'));
-                    sdlSegDefs.forEach(sd => {
-                        if (sd.parentNode !== tu) return;
-                        const segsInner = Array.from(sd.getElementsByTagNameNS(sdlNsUri, 'seg'));
-                        segsInner.forEach(s => {
-                            const conf = seg.status === 'confirmed' ? 'Translated' : 'Draft';
-                            s.setAttributeNS(null, 'conf', conf);
+                if (!seg.isLockedSystem) {
+                    const sdlState = seg.status === 'confirmed' ? 'final' : 'needs-translation';
+                    targetNode.setAttribute('state', sdlState);
+                    const tuIdInner = tu.getAttribute('id');
+                    if (tuIdInner) {
+                        const sdlSegDefs = Array.from(xmlDoc.getElementsByTagNameNS(sdlNsUri, 'seg-defs'));
+                        sdlSegDefs.forEach(sd => {
+                            if (sd.parentNode !== tu) return;
+                            const segsInner = Array.from(sd.getElementsByTagNameNS(sdlNsUri, 'seg'));
+                            segsInner.forEach(s => {
+                                const conf = seg.status === 'confirmed' ? 'Translated' : 'Draft';
+                                s.setAttributeNS(null, 'conf', conf);
+                            });
                         });
-                    });
+                    }
                 }
             } else {
                 const stateVal = seg.status === 'confirmed' ? 'final' : 'needs-translation';
