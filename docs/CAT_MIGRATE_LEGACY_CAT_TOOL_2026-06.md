@@ -83,7 +83,33 @@ node scripts/migrate-case-tools-to-cat-links.mjs --prefetch scripts/.cache/migra
 
 掃描 **66** 案、**66** 筆自研工具。多數 `unresolved` 源於：檔名為說明文字／多檔換行、CAT 專案名與 LMS 填寫不一致（如 `WIZA - 00144063 - …` vs `WIZA`）、或尚未建立對應 `cat_files`。
 
-**尚未執行 `--apply`**；請審閱報告明細後再決定是否套用。
+## 2026-06-11 第一批 `--apply`（已執行）
+
+依 dry-run 報告 `2026-06-11T23-40-54-165Z` 套用（Supabase SQL 交易；等同腳本 `--apply` 邏輯）。
+
+| 結果 | 筆數／說明 |
+|------|------------|
+| **新寫入 `cat_files` 連結** | **4**（Austria 260424、WIZA 260528、Michael Page 260421、WIZA 260527） |
+| **移除「自研工具」列** | **24** 案（20 筆 `already_linked` + 4 筆成功 `would_link`） |
+| **略過連結（撞檔）** | **1** — Austria 260508 與 260424 指向同一檔案，檔案已連 260424 → 列為 `skip_conflict`，**仍保留**自研工具列待人工 |
+| **仍待處理** | **41** 案仍含自研工具（39 `unresolved` + 1 `ambiguous` + 1 `skip_conflict`） |
+
+事後 dry-run 報告：`scripts/.cache/migrate-case-tools-report-2026-06-11T23-55-31-874Z.*`
+
+### 套用方式（維運）
+
+```powershell
+# 1. dry-run
+npm run migrate:case-cat-links
+
+# 2. 產生 SQL（或設 service_role 後用 apply 腳本）
+node scripts/generate-migrate-apply-sql.mjs scripts/.cache/migrate-case-tools-report-<timestamp>.json
+
+# 3a. 有 SUPABASE_SERVICE_ROLE_KEY 時
+node scripts/apply-migrate-case-tools-report.mjs scripts/.cache/migrate-case-tools-report-<timestamp>.json
+
+# 3b. 或於 Supabase SQL Editor 執行 scripts/.cache/migrate-apply.sql
+```
 
 ## 驗收（套用前／後）
 

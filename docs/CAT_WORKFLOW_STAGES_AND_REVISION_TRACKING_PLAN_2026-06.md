@@ -80,7 +80,7 @@ flowchart LR
 | **A-1** 一般匯入選填連結案件 | 批次匯入末尾 `showCasePickerForImport()`；`runBatchImport` 傳 `caseInfo`；Excel／XLIFF／PO 建檔後 `updateFile` | **已落地** | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md)；`49db7c2` |
 | **A-2** Google Sheet 匯入改為選填 | `btnGsImportStart`：取消案件選擇器＝跳過連結、繼續匯入（與 A-1 同 UX） | **進行中** | 見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
 | **A-3 + A-4** 案件頁「1UP CAT」工具區子區塊 | 第二波 UX（`7ae0fc5`）+ 方案 B+D2（`a4acbc1`）+ UX 微調與加號（`3fc97f1`、`27d0585`）：`cat_tool_enabled`、D2 啟用才顯示、空白「待指定」、Plus 圖示「1UP CAT」與「新增工具」並列、專案名深連結、工具總數／移除解綁、兩行版面＋Modal、同分頁導覽 | **已落地並驗收** | 主紀錄 [`CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](./CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md)；`7ae0fc5`～`27d0585` |
-| **A-4b** 自研工具 → `cat_files` 遷移 | `migrate-case-tools-to-cat-links.mjs`（`3fc97f1`）：dry-run 66 筆（`would_link` 5／`already_linked` 20／`unresolved` 40／`ambiguous` 1），**尚未 `--apply`** | **腳本已落地、待審閱套用** | [`CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md`](./CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md)、devlog §6 |
+| **A-4b** 自研工具 → `cat_files` 遷移 | 第一批 **已套用**（2026-06-11）：24 案移除 legacy 列、4 案新連結；**41 案待人工**（`unresolved`／`ambiguous`／`skip_conflict`） | **進行中** | [`CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md`](./CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md) §套用紀錄、devlog §6.1 |
 | **A-5** 未受派譯者全檔唯讀 | 團隊版非 PM+ 且未在 `cat_file_assignments` 受派 → 每格 `locked-system` + `禁止編輯：未受指派，無法編輯檔案`（不用頂部橫幅）；PM+ 豁免 | **進行中** | `cat-tool/app.js`：`resolveFileUnassignedReadOnly` |
 
 ### 4.2 Phase B：Workflow 框架（規劃中）

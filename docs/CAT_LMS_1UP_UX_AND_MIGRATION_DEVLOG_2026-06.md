@@ -138,7 +138,20 @@ Phase A 目標是在 LMS 案件詳情頁，以 **`cases.cat_tool_enabled` + `cat
 | `would_link` | 5 |
 | `ambiguous` | 1 |
 
-掃描 **66** 案、**66** 筆自研工具。**尚未執行 `--apply`**。
+掃描 **66** 案、**66** 筆自研工具。
+
+### 6.1 第一批套用（2026-06-11）
+
+已依 dry-run 執行第一批遷移：
+
+| 項目 | 結果 |
+|------|------|
+| 新連結 CAT 檔案 | 4 案 |
+| 移除自研工具列 | 24 案 |
+| 撞檔略過 | Austria 260508（同檔已連 260424） |
+| 仍待人工 | 41 案（詳見 [`CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md`](./CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md)） |
+
+輔助腳本：`generate-migrate-apply-sql.mjs`、`apply-migrate-case-tools-report.mjs`。
 
 ---
 
@@ -183,7 +196,7 @@ Phase A 目標是在 LMS 案件詳情頁，以 **`cases.cat_tool_enabled` + `cat
 
 | 項目 | 狀態 |
 |------|------|
-| 遷移 `--apply` | 待審閱 dry-run 報告後另開 |
+| 遷移後續批次 | 41 案仍含自研工具；見 migrate 報告 `2026-06-11T23-55-31` |
 | A-2 Google Sheet 匯入選填連結 | Phase A 進行中 |
 | A-5 未受派譯者全檔唯讀 | Phase A 進行中 |
 | UX／LMS 變更 | 僅改 `src/`；**不涉及** `sync:cat`（除非動 CAT 內嵌 UI） |
