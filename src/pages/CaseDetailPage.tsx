@@ -2786,10 +2786,11 @@ export default function CaseDetailPage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8 text-muted-foreground"
+                className="gap-1 text-muted-foreground"
                 onClick={enableCatTool}
               >
-                +1UP CAT
+                <Plus className="h-4 w-4" />
+                1UP CAT
               </Button>
             )}
           </div>
