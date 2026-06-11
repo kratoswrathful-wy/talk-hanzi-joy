@@ -125,7 +125,7 @@ export function CaseCatToolsPanel({
       toast({ title: "無法載入檔案清單", description: error.message, variant: "destructive" });
       return [];
     }
-    return (data ?? []) as CatFileOption[];
+    return (data ?? []) as unknown as CatFileOption[];
   }, []);
 
   useEffect(() => {
@@ -189,7 +189,7 @@ export function CaseCatToolsPanel({
         related_lms_case_id: caseId,
         related_lms_case_title: caseTitle,
         last_modified: now,
-      } as Record<string, unknown>)
+      })
       .eq("id", fileId);
     if (error) throw error;
     if (unlinkOldId && unlinkOldId !== fileId) {
@@ -199,7 +199,7 @@ export function CaseCatToolsPanel({
           related_lms_case_id: null,
           related_lms_case_title: "",
           last_modified: now,
-        } as Record<string, unknown>)
+        })
         .eq("id", unlinkOldId);
     }
   };
@@ -212,7 +212,7 @@ export function CaseCatToolsPanel({
           related_lms_case_id: null,
           related_lms_case_title: "",
           last_modified: new Date().toISOString(),
-        } as Record<string, unknown>)
+        })
         .eq("id", fileId);
       if (error) throw error;
       toast({ title: "已移除連結" });

@@ -371,6 +371,9 @@ export type Database = {
         Row: {
           applicable_special_instruction_ids: Json
           created_at: string
+          default_mq_role: string
+          file_format: string
+          google_sheet_url: string
           id: string
           last_modified: string
           name: string
@@ -379,6 +382,8 @@ export type Database = {
           original_source_lang: string
           original_target_lang: string
           project_id: string
+          related_lms_case_id: string | null
+          related_lms_case_title: string
           source_lang: string
           target_lang: string
           workspace_note_draft: string
@@ -386,6 +391,9 @@ export type Database = {
         Insert: {
           applicable_special_instruction_ids?: Json
           created_at?: string
+          default_mq_role?: string
+          file_format?: string
+          google_sheet_url?: string
           id?: string
           last_modified?: string
           name: string
@@ -394,6 +402,8 @@ export type Database = {
           original_source_lang?: string
           original_target_lang?: string
           project_id: string
+          related_lms_case_id?: string | null
+          related_lms_case_title?: string
           source_lang?: string
           target_lang?: string
           workspace_note_draft?: string
@@ -401,6 +411,9 @@ export type Database = {
         Update: {
           applicable_special_instruction_ids?: Json
           created_at?: string
+          default_mq_role?: string
+          file_format?: string
+          google_sheet_url?: string
           id?: string
           last_modified?: string
           name?: string
@@ -409,6 +422,8 @@ export type Database = {
           original_source_lang?: string
           original_target_lang?: string
           project_id?: string
+          related_lms_case_id?: string | null
+          related_lms_case_title?: string
           source_lang?: string
           target_lang?: string
           workspace_note_draft?: string
