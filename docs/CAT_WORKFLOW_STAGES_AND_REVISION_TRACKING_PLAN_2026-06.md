@@ -55,7 +55,7 @@
 | 3-vi | 匯出 Excel／htm | 高 | 中～中高 | 規劃中 |
 | 4 | TMS／CAT 進一步整合 | 高 | 低～中 | **部分落地** |
 | 4-i | 匯入時詢問連結案件（可跳過） | 高 | 低 | **已落地** `49db7c2` |
-| 4-ii | LMS 案件頁「CAT 作業檔」專區與深連結 | 高 | 低～中 | 規劃中 |
+| 4-ii | LMS 案件頁「1UP CAT」工具區子區塊與深連結 | 高 | 低～中 | **進行中** |
 
 ---
 
@@ -78,9 +78,9 @@ flowchart LR
 | 子項 | 說明 | 狀態 | 文件／commit |
 |------|------|------|----------------|
 | **A-1** 一般匯入選填連結案件 | 批次匯入末尾 `showCasePickerForImport()`；`runBatchImport` 傳 `caseInfo`；Excel／XLIFF／PO 建檔後 `updateFile` | **已落地** | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md)；`49db7c2` |
-| **A-2** Google Sheet 匯入改為選填（可選） | 目前 GS 仍為必填；若產品要與一般匯入一致可另開 | 未決 | — |
-| **A-3** LMS 案件詳情頁「CAT 作業檔」專區 | 查 `cat_files WHERE related_lms_case_id = caseId`；每筆「在 CAT 中開啟」深連結 | 規劃中 | 建議**專用區塊**（類似「本案費用」），非套用通用「工具」欄位 |
-| **A-4** 案件頁快速連結 CAT 檔 | 按鈕開啟 CAT 並選檔綁定（反向） | 規劃中 | 需 RPC 或 RLS 允許 LMS 查 `cat_files` |
+| **A-2** Google Sheet 匯入改為選填 | `btnGsImportStart`：取消案件選擇器＝跳過連結、繼續匯入（與 A-1 同 UX） | **進行中** | 見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
+| **A-3 + A-4** 案件頁「1UP CAT」工具區子區塊 | 「工具」區頂部；查 `cat_files WHERE related_lms_case_id = caseId`（**全部**已連結檔）；PM「1UP CAT」按鈕可新增／變更／移除；譯者僅檔名深連結；與 CAT「連結案件」**雙向同步** | **進行中** | `src/components/case/CaseCatToolsPanel.tsx`、`CaseDetailPage.tsx` |
+| **A-5** 未受派譯者全檔唯讀 | 團隊版非 PM+ 且未在 `cat_file_assignments` 受派 → 每格 `locked-system` + `禁止編輯：未受指派，無法編輯檔案`（不用頂部橫幅）；PM+ 豁免 | **進行中** | `cat-tool/app.js`：`resolveFileUnassignedReadOnly` |
 
 ### 4.2 Phase B：Workflow 框架（規劃中）
 

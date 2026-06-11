@@ -77,6 +77,7 @@ import { filterEditLogsCase } from "@/lib/edit-log-permission-filter";
 import CollaborationTable from "@/components/CollaborationTable";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
+import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -997,6 +998,7 @@ export default function CaseDetailPage() {
   const [declineAvailableCount, setDeclineAvailableCount] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
+  const [catPanelOpen, setCatPanelOpen] = useState(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -2726,6 +2728,14 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">工具</h2>
+      {caseData && (
+        <CaseCatToolsPanel
+          caseId={caseData.id}
+          caseTitle={caseData.title || ""}
+          isPmOrAbove={isPmOrAbove}
+          visible={isPmOrAbove ? catPanelOpen : true}
+        />
+      )}
       <div className="space-y-3">
         {tools.map((entry, idx) => (
           <ToolInstance
@@ -2742,12 +2752,24 @@ export default function CaseDetailPage() {
             canUseTemplate={canUseToolTemplate}
           />
         ))}
-        {canAddTool && (
-          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
-            <Plus className="h-4 w-4" />
-            新增工具
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canAddTool && (
+            <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
+              <Plus className="h-4 w-4" />
+              新增工具
+            </Button>
+          )}
+          {isPmOrAbove && (
+            <Button
+              variant={catPanelOpen ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-1 text-muted-foreground"
+              onClick={() => setCatPanelOpen((v) => !v)}
+            >
+              1UP CAT
+            </Button>
+          )}
+        </div>
       </div>
 
       <Separator />

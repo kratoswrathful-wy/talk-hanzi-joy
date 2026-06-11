@@ -6,6 +6,7 @@
 
 - **本檔** — 對話語言、推送慣例、CAT 單一來源、工作評估與文件、對話與執行（含資料庫操作）與下列章節。
 - **[`.cursor/rules/`](.cursor/rules/)** — 依你正在編輯的檔案路徑自動套用（例如 [`cat-tool-source.mdc`](.cursor/rules/cat-tool-source.mdc)、[`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc)）；預設非全域常駐，觸及對應 glob 時才注入。
+- **[`.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)** — **全域常駐**：對話與文件僅台灣正體中文，禁止混用其他語言書寫說明正文。
 
 ### (B) 功能與路徑
 
@@ -49,13 +50,19 @@
 - [`docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md) — **Bug #11** TM 連續 ph 佔位錯位（`fixMqxliffTmPhSequentialPairs`）；與 Bug #10 區分
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
-- [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 一般匯入選填連結 LMS 案件（`49db7c2`、已驗收）
-- [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（可行性、分階段路線圖；含已落地匯入連結案件）
+- [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 匯入選填連結 LMS 案件（一般＋GS；`49db7c2` 起）
+- [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A：案件頁 1UP CAT、未受派唯讀）
 
 ## 回覆與推送慣例
 
-- 永遠使用標準台灣正體中文與使用者對話。
-- **介面用語**：使用者可見文案不得使用簡中慣用詞「**匹配**」；與 TM 相關之否定表述用「**無相符**」等（詳見 [`docs/CAT_VIEW_SPEC.md`](docs/CAT_VIEW_SPEC.md) §1.3）。不確定時請先與產品確認。
+### 語言與用字（強制，全域）
+
+- **僅使用台灣正體中文**與使用者對話、撰寫說明與 `docs/` 文件正文。
+- **禁止**以簡體中文、日文、韓文或**整段英文**當作對使用者的說明正文；程式識別符、檔名、欄位名等以反引號保留者除外。
+- **禁止**簡中慣用詞寫入產品語境或對使用者說明（例如：匹配、视频、软件、信息、默认）。
+- **介面用語**：與翻譯記憶相關之否定表述用「**無相符**」等，不用「匹配」（詳見 [`docs/CAT_VIEW_SPEC.md`](docs/CAT_VIEW_SPEC.md) §1.3）。不確定時請先與產品確認。
+- 技術術語可出現，但對專案擁有者須**首次白話解釋**；同一則對話不重複定義。
+- 細節與 Cursor 常駐規則：[`/.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)（`alwaysApply: true`）。
 - 除非使用者另有明確指示，否則每次完成可提交的變更後，預設流程為：**直接推送**，並依下方「變更完成並推送後的回報」結構回覆。
 
 ## 與專案擁有者溝通

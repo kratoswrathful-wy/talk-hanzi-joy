@@ -2824,6 +2824,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    /** 團隊版：非 PM+ 且未在 cat_file_assignments 受派 → 全檔唯讀 */
+    async function resolveFileUnassignedReadOnly(fileId) {
+        if (!isTeamMode() || _isCatPmOrExecutive()) return false;
+        const cached = (window._tmsAssignments || []).some(
+            (a) => a.status !== 'cancelled' && String(a.file_id || (a.file && a.file.id) || '') === String(fileId)
+        );
+        if (cached) return false;
+        const rows = await requestFileAssignments(fileId);
+        return !rows.some(
+            (r) => r.status !== 'cancelled' && String(r.assignee_user_id) === String(window._tmsCurrentUserId || '')
+        );
+    }
+
     async function requestProjectAssignments(projectId) {
         if (!isTeamMode() || !projectId) {
             window._fileAssigneesByFileId = {};
@@ -4718,6 +4731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _currentViewId = null;
     let _currentViewFilesMap = {};
     let _viewEditorReadOnly = false; // 未受指派唯讀保護（§3.1）
+    let _fileUnassignedReadOnly = false; // 團隊版：未受派檔案全檔唯讀（Phase A）
 
     async function openEditorFromView(viewId) {
         const view = await DBService.getView(viewId);
@@ -11809,9 +11823,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             wizardOverlay.classList.add('hidden');
 
             const caseResult = await showCasePickerForImport();
-            if (!caseResult) { wizardOverlay.classList.remove('hidden'); return; }
-            _gsImportCaseId = caseResult.caseId || '';
-            _gsImportCaseTitle = caseResult.caseTitle || '';
+            _gsImportCaseId = (caseResult && caseResult.caseId) ? caseResult.caseId : '';
+            _gsImportCaseTitle = (caseResult && caseResult.caseTitle) ? caseResult.caseTitle : '';
 
             const project = currentProjectId ? await DBService.getProject(currentProjectId) : null;
             const projectSrcLangs = (project && project.sourceLangs) ? project.sourceLangs : [];
@@ -12702,12 +12715,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 禁止編輯工具提示：區分「身分權限不足」與「匯入時即已鎖定」
     function getForbiddenTooltip(seg) {
+        if (_fileUnassignedReadOnly) return '禁止編輯：未受指派，無法編輯檔案';
         if (!seg.originalRole && seg.isLockedSystem) return '禁止編輯：匯入時即已鎖定';
         return '禁止編輯：目前身分權限不允許編輯';
     }
 
     // 判斷句段是否「禁止編輯」（依當前 session 身分動態判斷）
     function isDynamicForbidden(seg) {
+        if (_fileUnassignedReadOnly) return true;
         if (_viewEditorReadOnly) return true; // 未受指派句段集唯讀（§3.1）
         if (currentFileFormat !== 'mqxliff') return !!seg.isLockedSystem;
         return computeForbiddenForRole(seg, currentMqConfirmationRole);
@@ -13960,8 +13975,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
             leaveCollabForCurrentFile();
         }
-        // 切換到普通檔案時重置句段集唯讀狀態與橫幅
+        // 切換到普通檔案時重置句段集／未受派唯讀狀態與橫幅
         _viewEditorReadOnly = false;
+        _fileUnassignedReadOnly = false;
         const readOnlyBannerEl = document.getElementById('viewReadOnlyBanner');
         if (readOnlyBannerEl) readOnlyBannerEl.style.display = 'none';
         // 隱藏句段集專用 checkbox（§12.3）
@@ -13990,6 +14006,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const resolvedProjectId = file.projectId || currentProjectId;
         if (resolvedProjectId) currentProjectId = resolvedProjectId;
+
+        _fileUnassignedReadOnly = await resolveFileUnassignedReadOnly(fileId);
 
         editorFileName.textContent = file.name;
         editorFileName.title = file.name;
@@ -14297,6 +14315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         resetEditorTransientUi();
         // 離開編輯器時重置唯讀狀態與橫幅
         _viewEditorReadOnly = false;
+        _fileUnassignedReadOnly = false;
         const readOnlyBanner = document.getElementById('viewReadOnlyBanner');
         if (readOnlyBanner) readOnlyBanner.style.display = 'none';
         // 隱藏句段集專用 checkbox（§12.3）

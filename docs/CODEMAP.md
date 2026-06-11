@@ -110,6 +110,7 @@
 |------|------|
 | 案件列表 | `src/pages/CasesPage.tsx` |
 | 案件詳情 | `src/pages/CaseDetailPage.tsx` |
+| 案件詳情「1UP CAT」工具區子區塊（`related_lms_case_id` 雙向同步、PM 連結管理／譯者檔名深連結） | `src/components/case/CaseCatToolsPanel.tsx`、`CaseDetailPage.tsx`（工具區頂部） |
 | 重複標題邏輯 | `src/lib/case-title-duplicate.ts`、測試 `*.test.ts` |
 | 案件資料 store | `src/hooks/use-case-store.ts`、`src/stores/case-store.ts`（依實際 import） |
 
