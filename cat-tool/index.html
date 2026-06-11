@@ -115,10 +115,6 @@
             <section class="view-section hidden" id="viewProjects" style="padding: 2rem; overflow-y: auto;">
                 <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
                     <h1 class="page-title" style="margin:0; font-size:1.5rem; font-weight:700;">專案清單</h1>
-                    <div style="margin-top:0.25rem; margin-bottom:0.25rem;">
-                        <label for="projectSearchInput" style="font-size:0.9rem; color:#64748b;">搜尋專案名稱</label>
-                        <input type="text" id="projectSearchInput" placeholder="輸入名稱篩選…" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem; min-width:200px; box-sizing:border-box;">
-                    </div>
                     <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                         <button class="primary-btn btn-sm" id="btnCreateProjectModal">+ 新增專案</button>
                         <button class="danger-btn btn-sm" id="btnProjectsDeleteSelected">刪除所選</button>
@@ -132,6 +128,10 @@
                         </div>
                         <ul id="projectsChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
                     </div>
+                </div>
+                <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                    <label for="projectSearchInput" style="font-size:0.9rem; color:#64748b; margin-right:0.5rem;">搜尋專案名稱</label>
+                    <input type="text" id="projectSearchInput" placeholder="輸入名稱篩選…" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem; min-width:220px; box-sizing:border-box;">
                 </div>
                 <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px; margin-top:0.5rem;">
                     <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,16 +34,28 @@ function buildCatDeepLink(fileId: string, projectId: string) {
   return `/cat/team/files/${encodeURIComponent(fileId)}?p=${encodeURIComponent(projectId)}`;
 }
 
+function BlankStateRow() {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+      <span className="text-xs text-muted-foreground">待指定</span>
+    </div>
+  );
+}
+
 export interface CaseCatToolsPanelProps {
   caseId: string;
   caseTitle: string;
   isPmOrAbove: boolean;
+  canRemoveCatTool: boolean;
+  onRemoveCatTool: () => void | Promise<void>;
 }
 
 export function CaseCatToolsPanel({
   caseId,
   caseTitle,
   isPmOrAbove,
+  canRemoveCatTool,
+  onRemoveCatTool,
 }: CaseCatToolsPanelProps) {
   const [linkedFiles, setLinkedFiles] = useState<LinkedFileRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,6 +65,7 @@ export function CaseCatToolsPanel({
   const [editRowId, setEditRowId] = useState<string | null>(null);
   const [pickerInitialProjectId, setPickerInitialProjectId] = useState("");
   const [pickerInitialFileId, setPickerInitialFileId] = useState("");
+  const [removeCatOpen, setRemoveCatOpen] = useState(false);
   const [relinkConfirm, setRelinkConfirm] = useState<{
     fileId: string;
     fileName: string;
@@ -156,6 +169,30 @@ export function CaseCatToolsPanel({
     }
   };
 
+  const handleRemoveCatTool = async () => {
+    setRemoveCatOpen(false);
+    setBusy(true);
+    try {
+      const now = new Date().toISOString();
+      const { error: unlinkError } = await supabase
+        .from("cat_files")
+        .update({
+          related_lms_case_id: null,
+          related_lms_case_title: "",
+          last_modified: now,
+        })
+        .eq("related_lms_case_id", caseId);
+      if (unlinkError) throw unlinkError;
+      await onRemoveCatTool();
+      toast({ title: "已移除 1UP CAT" });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: "移除失敗", description: msg, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const tryLinkFile = async (
     file: CatFileOption,
     unlinkOldId?: string | null
@@ -224,20 +261,33 @@ export function CaseCatToolsPanel({
     void tryLinkFile(selection.file, unlinkOldId);
   };
 
-  if (!isPmOrAbove && (loading || linkedFiles.length === 0)) return null;
+  const hasLinks = linkedFiles.length > 0;
 
   return (
     <>
-      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3 mb-3">
-        <div className="flex items-center justify-between gap-2">
+      <div className="relative rounded-lg border border-border bg-muted/30 p-4 space-y-3 mb-3">
+        {isPmOrAbove && canRemoveCatTool && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
+            disabled={busy}
+            onClick={() => setRemoveCatOpen(true)}
+            aria-label="移除 1UP CAT"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <div className="flex items-center gap-2 pr-8">
           <h3 className="text-sm font-semibold">1UP CAT</h3>
           {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         </div>
 
         {isPmOrAbove ? (
           <>
-            {linkedFiles.length === 0 && !loading ? (
-              <p className="text-xs text-muted-foreground">尚未連結 CAT 作業檔。請按下方「新增連結」。</p>
+            {!hasLinks && !loading ? (
+              <BlankStateRow />
             ) : (
               <ul className="space-y-2">
                 {linkedFiles.map((row) => (
@@ -301,19 +351,31 @@ export function CaseCatToolsPanel({
             </div>
           </>
         ) : (
-          <ul className="space-y-2">
-            {linkedFiles.map((row) => (
-              <li key={row.id}>
-                <Link
-                  to={buildCatDeepLink(row.id, row.project_id)}
-                  className="block text-sm text-primary hover:underline truncate"
-                  title={row.name}
-                >
-                  {row.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <>
+            {!hasLinks && !loading ? (
+              <BlankStateRow />
+            ) : (
+              <ul className="space-y-2">
+                {linkedFiles.map((row) => (
+                  <li
+                    key={row.id}
+                    className="rounded-md border border-border bg-background px-3 py-2 text-sm space-y-1"
+                  >
+                    <span className="text-xs text-muted-foreground block">
+                      {row.project?.name ?? "—"} · {row.source_lang} → {row.target_lang}
+                    </span>
+                    <Link
+                      to={buildCatDeepLink(row.id, row.project_id)}
+                      className="block text-sm text-primary hover:underline truncate"
+                      title={row.name}
+                    >
+                      {row.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
 
@@ -328,6 +390,21 @@ export function CaseCatToolsPanel({
           onConfirm={handlePickerConfirm}
         />
       )}
+
+      <AlertDialog open={removeCatOpen} onOpenChange={setRemoveCatOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>移除 1UP CAT？</AlertDialogTitle>
+            <AlertDialogDescription>
+              將關閉本案的 1UP CAT 工具，並解除所有已連結的 CAT 作業檔。其他執行工具不受影響。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleRemoveCatTool()}>移除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!relinkConfirm} onOpenChange={(o) => !o && setRelinkConfirm(null)}>
         <AlertDialogContent>

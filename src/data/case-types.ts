@@ -79,6 +79,8 @@ export interface CaseRecord {
   
   executionTool: string;
   toolFieldValues: Record<string, string>;
+  /** 案件是否啟用 1UP CAT 子區塊（方案 B；與 cat_files 綁定分離） */
+  catToolEnabled: boolean;
   tools: ToolEntry[];
   questionTools: ToolEntry[];
   deliveryMethod: string;

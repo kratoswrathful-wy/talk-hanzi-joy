@@ -78,6 +78,7 @@ import CollaborationTable from "@/components/CollaborationTable";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
+import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -1404,8 +1405,33 @@ export default function CaseDetailPage() {
   };
 
   const removeTool = (idx: number) => {
-    patchTools((current) => current.filter((_, i) => i !== idx));
+    setCaseData((prev) => {
+      if (!prev) return prev;
+      const current = getEffectiveTools(prev);
+      const next = current.filter((_, i) => i !== idx);
+      const hypothetical = { ...prev, tools: next };
+      if (countCaseTools(hypothetical) < 1) {
+        toast({
+          title: "無法移除",
+          description: "至少需保留一種工具（含 1UP CAT）。",
+          variant: "destructive",
+        });
+        return prev;
+      }
+      save({ tools: next });
+      return { ...prev, tools: next };
+    });
   };
+
+  const enableCatTool = useCallback(() => {
+    save({ catToolEnabled: true });
+    setCaseData((prev) => (prev ? { ...prev, catToolEnabled: true } : prev));
+  }, [save]);
+
+  const disableCatTool = useCallback(() => {
+    save({ catToolEnabled: false });
+    setCaseData((prev) => (prev ? { ...prev, catToolEnabled: false } : prev));
+  }, [save]);
 
   const addTool = () => {
     patchTools((current) => [...current, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
@@ -2722,11 +2748,24 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">工具</h2>
-      {caseData && (
+      {caseData && isPmOrAbove && !caseData.catToolEnabled && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mb-2 h-8 text-muted-foreground"
+          onClick={enableCatTool}
+        >
+          1UP CAT
+        </Button>
+      )}
+      {caseData && caseData.catToolEnabled && (
         <CaseCatToolsPanel
           caseId={caseData.id}
           caseTitle={caseData.title || ""}
           isPmOrAbove={isPmOrAbove}
+          canRemoveCatTool={canRemoveCaseTool(caseData)}
+          onRemoveCatTool={disableCatTool}
         />
       )}
       <div className="space-y-3">
@@ -2737,7 +2776,7 @@ export default function CaseDetailPage() {
             index={idx}
             onUpdate={(u) => updateTool(idx, u)}
             onRemove={() => removeTool(idx)}
-            showRemove={true}
+            showRemove={caseData ? canRemoveCaseTool(caseData) : false}
             canEditTool={canEditToolSelect}
             canRemoveTool={canRemoveTool}
             canAddField={canAddToolField}

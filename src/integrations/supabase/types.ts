@@ -40,6 +40,7 @@ export type Database = {
           billing_unit: string
           body_content: Json | null
           case_reference_materials: Json | null
+          cat_tool_enabled: boolean
           category: string
           change_log_enabled_at: string | null
           client: string
@@ -108,6 +109,7 @@ export type Database = {
           billing_unit?: string
           body_content?: Json | null
           case_reference_materials?: Json | null
+          cat_tool_enabled?: boolean
           category?: string
           change_log_enabled_at?: string | null
           client?: string
@@ -176,6 +178,7 @@ export type Database = {
           billing_unit?: string
           body_content?: Json | null
           case_reference_materials?: Json | null
+          cat_tool_enabled?: boolean
           category?: string
           change_log_enabled_at?: string | null
           client?: string

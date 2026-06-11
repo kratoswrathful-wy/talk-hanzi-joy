@@ -123,6 +123,7 @@ function fromDb(row: any): CaseRecord {
     
     executionTool: row.execution_tool ?? "",
     toolFieldValues: (row.tool_field_values && typeof row.tool_field_values === "object" && !Array.isArray(row.tool_field_values)) ? row.tool_field_values as Record<string, string> : {},
+    catToolEnabled: row.cat_tool_enabled ?? false,
     tools: Array.isArray(row.tools) ? (row.tools as ToolEntry[]) : [],
     questionTools: Array.isArray(row.question_tools) ? (row.question_tools as ToolEntry[]) : [],
     deliveryMethod: row.delivery_method ?? "",
@@ -200,6 +201,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
   if (c.toolFieldValues !== undefined) map.tool_field_values = c.toolFieldValues;
+  if (c.catToolEnabled !== undefined) map.cat_tool_enabled = c.catToolEnabled;
   if (c.tools !== undefined) map.tools = c.tools;
   if (c.questionTools !== undefined) map.question_tools = c.questionTools;
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;

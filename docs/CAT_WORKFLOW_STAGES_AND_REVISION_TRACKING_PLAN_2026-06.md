@@ -79,7 +79,7 @@ flowchart LR
 |------|------|------|----------------|
 | **A-1** 一般匯入選填連結案件 | 批次匯入末尾 `showCasePickerForImport()`；`runBatchImport` 傳 `caseInfo`；Excel／XLIFF／PO 建檔後 `updateFile` | **已落地** | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md)；`49db7c2` |
 | **A-2** Google Sheet 匯入改為選填 | `btnGsImportStart`：取消案件選擇器＝跳過連結、繼續匯入（與 A-1 同 UX） | **進行中** | 見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
-| **A-3 + A-4** 案件頁「1UP CAT」工具區子區塊 | 「工具」區頂部；查 `cat_files WHERE related_lms_case_id = caseId`；PM **永遠顯示**子區塊（兩行版面：專案·語言對＋變更／移除，下行檔名同分頁深連結）；新增／變更用 `CatProjectFilePickerModal` 即時搜尋；譯者有連結才見、僅檔名；CAT→案件同分頁；與 CAT「連結案件」**雙向同步** | **已落地（第二波 UX）** | `CaseCatToolsPanel.tsx`、`CatProjectFilePickerModal.tsx`、`CaseDetailPage.tsx`、`CatToolPage.tsx`；[`LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md`](./LMS_CAT_SHELL_SIDEBAR_UX_2026-05.md) §3.2 `lms` 模式 |
+| **A-3 + A-4** 案件頁「1UP CAT」工具區子區塊 | `cases.cat_tool_enabled`（方案 B）+ D2：`true` 才顯示子區塊；空白態「待指定」、無檔名列；PM「1UP CAT」按鈕啟用；工具總數含 1UP、≥2 可移除並解綁全部 `cat_files`；複製本頁帶開關、無 cat 綁定；綁檔後兩行版面＋`CatProjectFilePickerModal`；CAT→案件同分頁；`cat_files` 連結時 trigger 自動啟用 | **已落地** | `CaseCatToolsPanel.tsx`、`case-tool-count.ts`、`CaseDetailPage.tsx`、`20260610200000_cases_cat_tool_enabled.sql` |
 | **A-5** 未受派譯者全檔唯讀 | 團隊版非 PM+ 且未在 `cat_file_assignments` 受派 → 每格 `locked-system` + `禁止編輯：未受指派，無法編輯檔案`（不用頂部橫幅）；PM+ 豁免 | **進行中** | `cat-tool/app.js`：`resolveFileUnassignedReadOnly` |
 
 ### 4.2 Phase B：Workflow 框架（規劃中）
