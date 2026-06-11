@@ -34,7 +34,8 @@
 
 - **`module`**：iframe 內 `#sidebar` **展開**（移除 `collapsed`）。
 - **`editor`**：路徑含 **`/files/`**（編輯器）時送出；iframe 內側欄 **收合**（`collapsed`）。**此行為維持不變**。
-- **競態補強**：父頁 `useEffect` 可能在 iframe `message` listener 註冊前執行，故在 **`iframe` `onLoad`** 內（team 模式）依目前 `pathname` **再送一次** `TMS_SIDEBAR_MODE`。
+- **`lms`**：使用者在 CAT 頁按 header **展開 LMS 最左欄**時，父頁 [`CatToolPage.tsx`](../src/pages/CatToolPage.tsx) 讀 `useSidebar().open`，送出 `mode: "lms"`；iframe 內側欄 **收合**（與 `editor` 相同）。關閉 LMS 側欄後，父頁依路由還原 **`editor`**（`/files/`）或 **`module`**（模組頁）。**team 與 offline** 皆套用。
+- **競態補強**：父頁 `useEffect` 可能在 iframe `message` listener 註冊前執行，故在 **`iframe` `onLoad`** 內依目前 `pathname` 與 **`lmsSidebarOpen`** **再送一次** `TMS_SIDEBAR_MODE`（`postMessage` target 為 `window.location.origin`）。
 
 ---
 
@@ -43,8 +44,9 @@
 1. [`src/components/AppSidebar.tsx`](../src/components/AppSidebar.tsx)：將 `/cat/team` 導覽 `title` 改回 **「CAT 團隊線上版」**。
 2. [`src/components/AppLayout.tsx`](../src/components/AppLayout.tsx)：`SidebarAutoController` 以 `path.startsWith("/cat/")` 判斷是否為 CAT；`lastAreaRef` 使用 `lms | catModule | catEditor | other`；`catModule` 與 `catEditor` 皆 `setOpen(false)`；**`catModule ↔ catEditor`** 仍強制重跑 effect。
 3. [`cat-tool/app.js`](../cat-tool/app.js)：team 時 `.sidebar-title` 一律 **「1UP CAT」**（初始化與 `enforceTeamRoleLayout`，不再僅在譯者模式改標題）。
-4. [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)：`iframe` **`onLoad`** 內 `mode === "team"` 時依 `location.pathname` 是否含 `/files/` 再 `postMessage({ type: 'TMS_SIDEBAR_MODE', mode })`。
-5. 變更 `cat-tool/app.js` 後執行 **`npm run sync:cat`**，並提交 **`public/cat/`** 對應檔案。
+4. [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)：`useSidebar()` 監聽 LMS 側欄開合；`resolveCatSidebarMode(pathname, lmsSidebarOpen)` 回傳 `lms`／`editor`／`module`；`onLoad` 與 `useEffect` 皆呼叫 `postCatSidebarMode`。
+5. [`cat-tool/app.js`](../cat-tool/app.js)：`TMS_SIDEBAR_MODE` 處理 `editor` **或** `lms` → `sidebar.classList.add('collapsed')`。
+6. 變更 `cat-tool/app.js` 後執行 **`npm run sync:cat`**，並提交 **`public/cat/`** 對應檔案。
 
 ---
 
@@ -55,6 +57,7 @@
 3. 進入 **個人離線版** `/cat/offline/...`（非編輯器）：LMS 最左欄收合。
 4. 進入任一 **編輯器**（URL 含 `/files/`）：LMS 最左欄仍收合；CAT 內側欄收合（與先前一致）。
 5. 從 CAT 切回 LMS 任意頁：LMS 最左欄展開。
+6. 在 CAT 頁按左上角 **展開 LMS 側欄**：CAT iframe 內側欄自動收合；關閉 LMS 側欄後，模組頁內側欄展開、編輯器內側欄維持收合。
 
 ---
 

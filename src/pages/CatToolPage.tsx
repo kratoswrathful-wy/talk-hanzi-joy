@@ -6,6 +6,7 @@ import { getEnvironment } from "@/lib/environment";
 import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useSidebar } from "@/components/ui/sidebar";
 
 function parseCatViewParams(pathname: string, search: string, mode: "offline" | "team"): string {
   const base = `/cat/${mode === "team" ? "team" : "offline"}`;
@@ -102,6 +103,21 @@ function buildCatPath(mode: "offline" | "team", payload: Record<string, any>): s
   return base;
 }
 
+function resolveCatSidebarMode(pathname: string, lmsSidebarOpen: boolean): "lms" | "editor" | "module" {
+  if (lmsSidebarOpen) return "lms";
+  return pathname.includes("/files/") ? "editor" : "module";
+}
+
+function postCatSidebarMode(
+  win: Window | null | undefined,
+  pathname: string,
+  lmsSidebarOpen: boolean
+) {
+  if (!win || !pathname.startsWith("/cat/")) return;
+  const mode = resolveCatSidebarMode(pathname, lmsSidebarOpen);
+  win.postMessage({ type: "TMS_SIDEBAR_MODE", mode }, window.location.origin);
+}
+
 /**
  * Embeds the vanilla CAT app from /cat/index.html (see cat-tool/ → public/cat via npm run sync:cat).
  *
@@ -128,19 +144,12 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
   const isTranslatorOnly = primaryRole === "member";
   const collabChannelRef = useRef<RealtimeChannel | null>(null);
+  const { open: lmsSidebarOpen } = useSidebar();
 
-  // Keep iframe sidebar in sync with current CAT route (team mode only).
+  // Keep iframe sidebar in sync with CAT route and LMS shell sidebar state.
   useEffect(() => {
-    if (mode !== "team") return;
-    const iframe = iframeRef.current;
-    const win = iframe?.contentWindow;
-    if (!win) return;
-    const path = location.pathname || "";
-    const isCatTeam = path.startsWith("/cat/team");
-    if (!isCatTeam) return;
-    const isEditor = path.includes("/files/");
-    win.postMessage({ type: "TMS_SIDEBAR_MODE", mode: isEditor ? "editor" : "module" }, "*");
-  }, [location.pathname, mode]);
+    postCatSidebarMode(iframeRef.current?.contentWindow, location.pathname || "", lmsSidebarOpen);
+  }, [location.pathname, lmsSidebarOpen]);
   const collabFileIdRef = useRef<string | null>(null);
   const collabSessionIdRef = useRef<string | null>(null);
   const collabFocusRef = useRef<Record<string, any>>({});
@@ -743,7 +752,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       } else if (event.data?.type === "CAT_OPEN_CASE_PAGE") {
         const caseId = String(event.data?.payload?.caseId || "");
         if (!caseId) return;
-        window.open(`/cases/${caseId}`, "_blank", "noopener,noreferrer");
+        navigate(`/cases/${caseId}`);
       } else if (event.data?.type === "CAT_OPEN_INTERNAL_NOTE") {
         const p = event.data?.payload ?? {};
         const requestId = String(p.requestId || "");
@@ -811,7 +820,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [isPmOrAbove, mode, user, profile]);
+  }, [isPmOrAbove, mode, user, profile, navigate]);
 
   useEffect(() => {
     return () => {
@@ -830,14 +839,11 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           sendIdentity();
           if (mode === "team") sendAssignments();
           if (mode === "team") sendAssignableUsers();
-          if (mode === "team") {
-            const win = iframeRef.current?.contentWindow;
-            const path = location.pathname || "";
-            if (win && path.startsWith("/cat/team")) {
-              const isEditor = path.includes("/files/");
-              win.postMessage({ type: "TMS_SIDEBAR_MODE", mode: isEditor ? "editor" : "module" }, "*");
-            }
-          }
+          postCatSidebarMode(
+            iframeRef.current?.contentWindow,
+            location.pathname || "",
+            lmsSidebarOpen
+          );
         }}
       />
     </div>

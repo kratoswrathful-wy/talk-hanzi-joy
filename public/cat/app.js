@@ -428,6 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const recentFilesList = document.getElementById('recentFilesList');
     // --- 專案清單與專案內頁 ---
     const projectsTableBody = document.getElementById('projectsTableBody');
+    const projectSearchInput = document.getElementById('projectSearchInput');
     const projectsSelectAll = document.getElementById('projectsSelectAll');
     const projectsSelectAllLabel = document.getElementById('projectsSelectAllLabel');
     const btnProjectsDeleteSelected = document.getElementById('btnProjectsDeleteSelected');
@@ -3028,7 +3029,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderInNoteListFromPayload(p);
         } else if (event.data.type === 'TMS_SIDEBAR_MODE') {
             const mode = String((event.data && event.data.mode) || '');
-            if (mode === 'editor') {
+            if (mode === 'editor' || mode === 'lms') {
                 sidebar.classList.add('collapsed');
             } else if (mode === 'module') {
                 sidebar.classList.remove('collapsed');
@@ -3982,23 +3983,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (projectsSelectAllLabel) projectsSelectAllLabel.textContent = projectsSelectAll.checked ? '取消全選' : '全選';
     }
 
-    async function loadProjectsList() {
+    function applyProjectListFilter() {
         if (!projectsTableBody) return;
-        let projects = await DBService.getProjects();
         const translatorColMode = isTeamMode() && !!window._tmsTranslatorOnly;
-        if (translatorColMode && Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
-            const allowed = new Set(window._tmsTranslatorVisibleProjectIds.map((id) => String(id)));
-            projects = projects.filter((p) => allowed.has(String(p.id)));
-        } else if (translatorColMode && !Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
-            projects = [];
-        }
-        lastProjectsList = projects;
+        const q = (projectSearchInput && projectSearchInput.value.trim()) || '';
+        const projects = q
+            ? lastProjectsList.filter((p) => (p.name || '').toLowerCase().includes(q.toLowerCase()))
+            : lastProjectsList;
         projectsTableBody.innerHTML = '';
         if (projects.length === 0) {
             const tr = document.createElement('tr');
             const emptyColspan = translatorColMode ? 4 : 6;
             let emptyMsg;
-            if (translatorColMode && !Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
+            if (q) {
+                emptyMsg = '沒有符合的專案。';
+            } else if (translatorColMode && !Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
                 emptyMsg = '載入專案清單中…';
             } else if (translatorColMode) {
                 emptyMsg = '目前沒有你可進入的專案。若有檔案或句段集指派，對應專案會出現在此清單。';
@@ -4063,6 +4062,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
+        _refreshTranslatorProjectsTableChrome();
+    }
+
+    async function loadProjectsList() {
+        if (!projectsTableBody) return;
+        let projects = await DBService.getProjects();
+        const translatorColMode = isTeamMode() && !!window._tmsTranslatorOnly;
+        if (translatorColMode && Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
+            const allowed = new Set(window._tmsTranslatorVisibleProjectIds.map((id) => String(id)));
+            projects = projects.filter((p) => allowed.has(String(p.id)));
+        } else if (translatorColMode && !Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
+            projects = [];
+        }
+        lastProjectsList = projects;
+        applyProjectListFilter();
+
         if (projectsChangeLog) {
             const logs = await DBService.getModuleLogs('projects', 0);
             const ordered = logs.sort((a, b) => new Date(b.at) - new Date(a.at));
@@ -4082,8 +4097,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
         }
+    }
 
-        _refreshTranslatorProjectsTableChrome();
+    if (projectSearchInput) {
+        projectSearchInput.addEventListener('input', () => applyProjectListFilter());
     }
 
     if (projectsTableBody) {

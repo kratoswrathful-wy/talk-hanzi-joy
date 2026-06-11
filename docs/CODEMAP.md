@@ -110,7 +110,10 @@
 |------|------|
 | 案件列表 | `src/pages/CasesPage.tsx` |
 | 案件詳情 | `src/pages/CaseDetailPage.tsx` |
-| 案件詳情「1UP CAT」工具區子區塊（`related_lms_case_id` 雙向同步、PM 連結管理／譯者檔名深連結） | `src/components/case/CaseCatToolsPanel.tsx`、`CaseDetailPage.tsx`（工具區頂部） |
+| 案件詳情「1UP CAT」工具區子區塊（`related_lms_case_id` 雙向同步、PM 永遠顯示兩行版面／譯者檔名同分頁深連結） | `src/components/case/CaseCatToolsPanel.tsx`、`CaseDetailPage.tsx`（工具區頂部） |
+| 案件頁選 CAT 專案／檔案 Modal（即時搜尋，取代 Select） | `src/components/case/CatProjectFilePickerModal.tsx` |
+| CAT 頁 LMS 側欄開合 ↔ iframe `TMS_SIDEBAR_MODE`（`lms`／`editor`／`module`） | `src/pages/CatToolPage.tsx`、`cat-tool/app.js` |
+| CAT 專案清單名稱篩選 | `cat-tool/index.html`（`#projectSearchInput`）、`cat-tool/app.js`（`applyProjectListFilter`） |
 | 重複標題邏輯 | `src/lib/case-title-duplicate.ts`、測試 `*.test.ts` |
 | 案件資料 store | `src/hooks/use-case-store.ts`、`src/stores/case-store.ts`（依實際 import） |
 

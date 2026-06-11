@@ -1,16 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +14,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
+import {
+  CatProjectFilePickerModal,
+  type CatFileOption,
+} from "@/components/case/CatProjectFilePickerModal";
 
 type LinkedFileRow = {
   id: string;
@@ -34,14 +30,6 @@ type LinkedFileRow = {
   project: { id: string; name: string } | null;
 };
 
-type CatProject = { id: string; name: string };
-type CatFileOption = {
-  id: string;
-  name: string;
-  related_lms_case_id: string | null;
-  related_lms_case_title: string | null;
-};
-
 function buildCatDeepLink(fileId: string, projectId: string) {
   return `/cat/team/files/${encodeURIComponent(fileId)}?p=${encodeURIComponent(projectId)}`;
 }
@@ -50,32 +38,26 @@ export interface CaseCatToolsPanelProps {
   caseId: string;
   caseTitle: string;
   isPmOrAbove: boolean;
-  /** PM：由父層「1UP CAT」按鈕控制；譯者傳 true，由元件依連結數決定是否顯示 */
-  visible: boolean;
 }
 
 export function CaseCatToolsPanel({
   caseId,
   caseTitle,
   isPmOrAbove,
-  visible,
 }: CaseCatToolsPanelProps) {
   const [linkedFiles, setLinkedFiles] = useState<LinkedFileRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [projects, setProjects] = useState<CatProject[]>([]);
-  const [projectFiles, setProjectFiles] = useState<CatFileOption[]>([]);
-  const [addProjectId, setAddProjectId] = useState("");
-  const [addFileId, setAddFileId] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [editingFileId, setEditingFileId] = useState<string | null>(null);
-  const [editProjectId, setEditProjectId] = useState("");
-  const [editFileId, setEditFileId] = useState("");
-  const [editFiles, setEditFiles] = useState<CatFileOption[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<"add" | "edit">("add");
+  const [editRowId, setEditRowId] = useState<string | null>(null);
+  const [pickerInitialProjectId, setPickerInitialProjectId] = useState("");
+  const [pickerInitialFileId, setPickerInitialFileId] = useState("");
   const [relinkConfirm, setRelinkConfirm] = useState<{
     fileId: string;
     fileName: string;
     otherCaseTitle: string;
-    mode: "add" | "edit";
+    unlinkOldId?: string | null;
   } | null>(null);
 
   const loadLinkedFiles = useCallback(async () => {
@@ -101,32 +83,6 @@ export function CaseCatToolsPanel({
       setLoading(false);
     }
   }, [caseId]);
-
-  const loadProjects = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("cat_projects")
-      .select("id, name")
-      .order("name");
-    if (error) {
-      toast({ title: "無法載入 CAT 專案", description: error.message, variant: "destructive" });
-      return;
-    }
-    setProjects((data ?? []) as CatProject[]);
-  }, []);
-
-  const loadFilesForProject = useCallback(async (projectId: string): Promise<CatFileOption[]> => {
-    if (!projectId) return [];
-    const { data, error } = await supabase
-      .from("cat_files")
-      .select("id, name, related_lms_case_id, related_lms_case_title")
-      .eq("project_id", projectId)
-      .order("name");
-    if (error) {
-      toast({ title: "無法載入檔案清單", description: error.message, variant: "destructive" });
-      return [];
-    }
-    return (data ?? []) as unknown as CatFileOption[];
-  }, []);
 
   useEffect(() => {
     if (!caseId) return;
@@ -157,29 +113,6 @@ export function CaseCatToolsPanel({
       window.removeEventListener("focus", onFocus);
     };
   }, [caseId, loadLinkedFiles]);
-
-  useEffect(() => {
-    if (!isPmOrAbove || !visible) return;
-    void loadProjects();
-  }, [isPmOrAbove, visible, loadProjects]);
-
-  useEffect(() => {
-    if (!addProjectId) {
-      setProjectFiles([]);
-      setAddFileId("");
-      return;
-    }
-    void loadFilesForProject(addProjectId).then(setProjectFiles);
-  }, [addProjectId, loadFilesForProject]);
-
-  useEffect(() => {
-    if (!editProjectId) {
-      setEditFiles([]);
-      setEditFileId("");
-      return;
-    }
-    void loadFilesForProject(editProjectId).then(setEditFiles);
-  }, [editProjectId, loadFilesForProject]);
 
   const applyLink = async (fileId: string, unlinkOldId?: string | null) => {
     const now = new Date().toISOString();
@@ -216,7 +149,6 @@ export function CaseCatToolsPanel({
         .eq("id", fileId);
       if (error) throw error;
       toast({ title: "已移除連結" });
-      if (editingFileId === fileId) setEditingFileId(null);
       await loadLinkedFiles();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -225,75 +157,78 @@ export function CaseCatToolsPanel({
   };
 
   const tryLinkFile = async (
-    fileId: string,
-    fileList: CatFileOption[],
-    mode: "add" | "edit",
+    file: CatFileOption,
     unlinkOldId?: string | null
   ) => {
-    const file = fileList.find((f) => f.id === fileId);
-    if (!file) return;
-    if (
-      file.related_lms_case_id &&
-      file.related_lms_case_id !== caseId
-    ) {
+    if (file.related_lms_case_id && file.related_lms_case_id !== caseId) {
       setRelinkConfirm({
-        fileId,
+        fileId: file.id,
         fileName: file.name,
         otherCaseTitle: file.related_lms_case_title || "其他案件",
-        mode,
+        unlinkOldId,
       });
       return;
     }
-    setAdding(true);
+    setBusy(true);
     try {
-      await applyLink(fileId, mode === "edit" ? unlinkOldId : undefined);
-      toast({ title: mode === "edit" ? "已變更連結" : "已新增連結" });
-      setAddProjectId("");
-      setAddFileId("");
-      setEditingFileId(null);
+      await applyLink(file.id, unlinkOldId);
+      toast({ title: unlinkOldId ? "已變更連結" : "已新增連結" });
       await loadLinkedFiles();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       toast({ title: "連結失敗", description: msg, variant: "destructive" });
     } finally {
-      setAdding(false);
+      setBusy(false);
     }
   };
 
   const confirmRelink = async () => {
     if (!relinkConfirm) return;
-    const { fileId, mode } = relinkConfirm;
-    const unlinkOldId = mode === "edit" ? editingFileId : undefined;
+    const { fileId, unlinkOldId } = relinkConfirm;
     setRelinkConfirm(null);
-    setAdding(true);
+    setBusy(true);
     try {
       await applyLink(fileId, unlinkOldId ?? undefined);
-      toast({ title: mode === "edit" ? "已變更連結" : "已新增連結" });
-      setAddProjectId("");
-      setAddFileId("");
-      setEditingFileId(null);
+      toast({ title: unlinkOldId ? "已變更連結" : "已新增連結" });
       await loadLinkedFiles();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       toast({ title: "連結失敗", description: msg, variant: "destructive" });
     } finally {
-      setAdding(false);
+      setBusy(false);
     }
   };
 
-  const startEdit = (row: LinkedFileRow) => {
-    setEditingFileId(row.id);
-    setEditProjectId(row.project_id);
-    setEditFileId(row.id);
-    void loadFilesForProject(row.project_id).then(setEditFiles);
+  const openAddPicker = () => {
+    setPickerMode("add");
+    setEditRowId(null);
+    setPickerInitialProjectId("");
+    setPickerInitialFileId("");
+    setPickerOpen(true);
   };
 
-  if (isPmOrAbove && !visible) return null;
+  const openEditPicker = (row: LinkedFileRow) => {
+    setPickerMode("edit");
+    setEditRowId(row.id);
+    setPickerInitialProjectId(row.project_id);
+    setPickerInitialFileId(row.id);
+    setPickerOpen(true);
+  };
+
+  const handlePickerConfirm = (selection: {
+    projectId: string;
+    fileId: string;
+    file: CatFileOption;
+  }) => {
+    const unlinkOldId = pickerMode === "edit" ? editRowId : undefined;
+    void tryLinkFile(selection.file, unlinkOldId);
+  };
+
   if (!isPmOrAbove && (loading || linkedFiles.length === 0)) return null;
 
   return (
     <>
-      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3 mb-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">1UP CAT</h3>
           {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -302,165 +237,78 @@ export function CaseCatToolsPanel({
         {isPmOrAbove ? (
           <>
             {linkedFiles.length === 0 && !loading ? (
-              <p className="text-xs text-muted-foreground">尚未連結 CAT 作業檔。請在下方選擇專案與檔案新增。</p>
+              <p className="text-xs text-muted-foreground">尚未連結 CAT 作業檔。請按下方「新增連結」。</p>
             ) : (
               <ul className="space-y-2">
                 {linkedFiles.map((row) => (
                   <li
                     key={row.id}
-                    className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    className="rounded-md border border-border bg-background px-3 py-2 text-sm space-y-1"
                   >
-                    {editingFileId === row.id ? (
-                      <div className="flex flex-wrap items-end gap-2 w-full">
-                        <div className="space-y-1 min-w-[140px] flex-1">
-                          <Label className="text-xs">專案</Label>
-                          <Select value={editProjectId} onValueChange={setEditProjectId}>
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="選擇專案" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {projects.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1 min-w-[140px] flex-1">
-                          <Label className="text-xs">檔案</Label>
-                          <Select value={editFileId} onValueChange={setEditFileId}>
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="選擇檔案" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {editFiles.map((f) => (
-                                <SelectItem key={f.id} value={f.id}>
-                                  {f.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground flex-1 min-w-0">
+                        {row.project?.name ?? "—"} · {row.source_lang} → {row.target_lang}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
                         <Button
                           type="button"
+                          variant="ghost"
                           size="sm"
-                          className="h-8"
-                          disabled={!editFileId || adding}
-                          onClick={() => void tryLinkFile(editFileId, editFiles, "edit", row.id)}
+                          className="h-7 text-xs gap-1"
+                          disabled={busy}
+                          onClick={() => openEditPicker(row)}
                         >
-                          確定
+                          <Pencil className="h-3 w-3" />
+                          變更
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-8"
-                          onClick={() => setEditingFileId(null)}
+                          className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+                          disabled={busy}
+                          onClick={() => void handleRemoveLink(row.id)}
                         >
-                          <X className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3 w-3" />
+                          移除
                         </Button>
                       </div>
-                    ) : (
-                      <>
-                        <span className="font-medium truncate max-w-[200px]" title={row.name}>
-                          {row.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {row.project?.name ?? "—"} · {row.source_lang} → {row.target_lang}
-                        </span>
-                        <div className="flex items-center gap-1 ml-auto">
-                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" asChild>
-                            <Link to={buildCatDeepLink(row.id, row.project_id)} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-3 w-3" />
-                              在 CAT 開啟
-                            </Link>
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs gap-1"
-                            onClick={() => startEdit(row)}
-                          >
-                            <Pencil className="h-3 w-3" />
-                            變更
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
-                            onClick={() => void handleRemoveLink(row.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            移除
-                          </Button>
-                        </div>
-                      </>
-                    )}
+                    </div>
+                    <Link
+                      to={buildCatDeepLink(row.id, row.project_id)}
+                      className="block text-sm text-primary hover:underline truncate"
+                      title={row.name}
+                    >
+                      {row.name}
+                    </Link>
                   </li>
                 ))}
               </ul>
             )}
 
-            <div className="pt-2 border-t border-border space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">新增連結</p>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="space-y-1 min-w-[140px] flex-1">
-                  <Label className="text-xs">CAT 專案</Label>
-                  <Select value={addProjectId} onValueChange={setAddProjectId}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="選擇專案" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1 min-w-[140px] flex-1">
-                  <Label className="text-xs">作業檔</Label>
-                  <Select value={addFileId} onValueChange={setAddFileId} disabled={!addProjectId}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder={addProjectId ? "選擇檔案" : "請先選專案"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projectFiles.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 gap-1"
-                  disabled={!addProjectId || !addFileId || adding}
-                  onClick={() => void tryLinkFile(addFileId, projectFiles, "add")}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  新增
-                </Button>
-              </div>
+            <div className="pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1"
+                disabled={busy}
+                onClick={openAddPicker}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                新增連結
+              </Button>
             </div>
           </>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {linkedFiles.map((row) => (
               <li key={row.id}>
                 <Link
                   to={buildCatDeepLink(row.id, row.project_id)}
-                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  className="block text-sm text-primary hover:underline truncate"
+                  title={row.name}
                 >
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                   {row.name}
                 </Link>
               </li>
@@ -468,6 +316,18 @@ export function CaseCatToolsPanel({
           </ul>
         )}
       </div>
+
+      {isPmOrAbove && (
+        <CatProjectFilePickerModal
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          title={pickerMode === "edit" ? "變更 CAT 連結" : "新增 CAT 連結"}
+          confirmLabel={pickerMode === "edit" ? "變更" : "新增"}
+          initialProjectId={pickerInitialProjectId}
+          initialFileId={pickerInitialFileId}
+          onConfirm={handlePickerConfirm}
+        />
+      )}
 
       <AlertDialog open={!!relinkConfirm} onOpenChange={(o) => !o && setRelinkConfirm(null)}>
         <AlertDialogContent>

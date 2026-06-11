@@ -998,7 +998,6 @@ export default function CaseDetailPage() {
   const [declineAvailableCount, setDeclineAvailableCount] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
-  const [catPanelOpen, setCatPanelOpen] = useState(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -1350,12 +1349,10 @@ export default function CaseDetailPage() {
   );
 
   /* ── Tool helpers ── */
-  const tools: ToolEntry[] = useMemo(() =>
-    caseData?.tools?.length
-      ? caseData.tools
-      : [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }],
-    [caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]
-  );
+  const tools: ToolEntry[] = useMemo(() => {
+    if (Array.isArray(caseData?.tools)) return caseData.tools;
+    return [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }];
+  }, [caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]);
 
   const questionTools: ToolEntry[] = useMemo(() =>
     caseData?.questionTools?.length
@@ -1365,7 +1362,7 @@ export default function CaseDetailPage() {
   );
 
   const getEffectiveTools = (record: CaseRecord): ToolEntry[] =>
-    record.tools?.length
+    Array.isArray(record.tools)
       ? record.tools
       : [{ id: "te-default", tool: record.executionTool || "", fieldValues: record.toolFieldValues || {} }];
 
@@ -1407,10 +1404,7 @@ export default function CaseDetailPage() {
   };
 
   const removeTool = (idx: number) => {
-    patchTools((current) => {
-      const next = current.filter((_, i) => i !== idx);
-      return next.length ? next : [{ id: `te-${Date.now()}`, tool: "", fieldValues: {} }];
-    });
+    patchTools((current) => current.filter((_, i) => i !== idx));
   };
 
   const addTool = () => {
@@ -2733,7 +2727,6 @@ export default function CaseDetailPage() {
           caseId={caseData.id}
           caseTitle={caseData.title || ""}
           isPmOrAbove={isPmOrAbove}
-          visible={isPmOrAbove ? catPanelOpen : true}
         />
       )}
       <div className="space-y-3">
@@ -2744,7 +2737,7 @@ export default function CaseDetailPage() {
             index={idx}
             onUpdate={(u) => updateTool(idx, u)}
             onRemove={() => removeTool(idx)}
-            showRemove={tools.length > 1}
+            showRemove={true}
             canEditTool={canEditToolSelect}
             canRemoveTool={canRemoveTool}
             canAddField={canAddToolField}
@@ -2752,24 +2745,12 @@ export default function CaseDetailPage() {
             canUseTemplate={canUseToolTemplate}
           />
         ))}
-        <div className="flex flex-wrap gap-2">
-          {canAddTool && (
-            <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
-              <Plus className="h-4 w-4" />
-              新增工具
-            </Button>
-          )}
-          {isPmOrAbove && (
-            <Button
-              variant={catPanelOpen ? "secondary" : "ghost"}
-              size="sm"
-              className="gap-1 text-muted-foreground"
-              onClick={() => setCatPanelOpen((v) => !v)}
-            >
-              1UP CAT
-            </Button>
-          )}
-        </div>
+        {canAddTool && (
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
+            <Plus className="h-4 w-4" />
+            新增工具
+          </Button>
+        )}
       </div>
 
       <Separator />
