@@ -79,7 +79,8 @@ flowchart LR
 |------|------|------|----------------|
 | **A-1** 一般匯入選填連結案件 | 批次匯入末尾 `showCasePickerForImport()`；`runBatchImport` 傳 `caseInfo`；Excel／XLIFF／PO 建檔後 `updateFile` | **已落地** | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md)；`49db7c2` |
 | **A-2** Google Sheet 匯入改為選填 | `btnGsImportStart`：取消案件選擇器＝跳過連結、繼續匯入（與 A-1 同 UX） | **進行中** | 見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
-| **A-3 + A-4** 案件頁「1UP CAT」工具區子區塊 | `cases.cat_tool_enabled`（方案 B）+ D2：`true` 才顯示子區塊；空白態「待指定」、無檔名列；PM「1UP CAT」按鈕啟用；工具總數含 1UP、≥2 可移除並解綁全部 `cat_files`；複製本頁帶開關、無 cat 綁定；綁檔後兩行版面＋`CatProjectFilePickerModal`；CAT→案件同分頁；`cat_files` 連結時 trigger 自動啟用 | **已落地** | `CaseCatToolsPanel.tsx`、`case-tool-count.ts`、`CaseDetailPage.tsx`、`20260610200000_cases_cat_tool_enabled.sql` |
+| **A-3 + A-4** 案件頁「1UP CAT」工具區子區塊 | `cases.cat_tool_enabled`（方案 B）+ D2：`true` 才顯示子區塊；空白態「待指定」、無檔名列；PM「+1UP CAT」與「+ 新增工具」並列啟用；專案名深連結至 `/cat/team/projects/:id`；工具總數含 1UP、≥2 可移除並解綁全部 `cat_files`；複製本頁帶開關、無 cat 綁定；綁檔後兩行版面＋`CatProjectFilePickerModal`；CAT→案件同分頁；`cat_files` 連結時 trigger 自動啟用 | **已落地** | `CaseCatToolsPanel.tsx`、`case-tool-count.ts`、`CaseDetailPage.tsx`、`20260610200000_cases_cat_tool_enabled.sql` |
+| **A-4b** 自研工具 → `cat_files` 遷移 | `migrate-case-tools-to-cat-links.mjs`：掃 `tools[]` 中「自研工具」、依 label 解析 URL 或專案名+檔名、衝突 skip；**dry-run 報告已產出**（66 筆；`would_link` 5／`already_linked` 20／`unresolved` 40／`ambiguous` 1），**尚未 `--apply`** | **腳本已落地、待審閱套用** | [`CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md`](./CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md)、`npm run migrate:case-cat-links` |
 | **A-5** 未受派譯者全檔唯讀 | 團隊版非 PM+ 且未在 `cat_file_assignments` 受派 → 每格 `locked-system` + `禁止編輯：未受指派，無法編輯檔案`（不用頂部橫幅）；PM+ 豁免 | **進行中** | `cat-tool/app.js`：`resolveFileUnassignedReadOnly` |
 
 ### 4.2 Phase B：Workflow 框架（規劃中）

@@ -34,6 +34,44 @@ function buildCatDeepLink(fileId: string, projectId: string) {
   return `/cat/team/files/${encodeURIComponent(fileId)}?p=${encodeURIComponent(projectId)}`;
 }
 
+function buildCatProjectLink(projectId: string) {
+  return `/cat/team/projects/${encodeURIComponent(projectId)}`;
+}
+
+function ProjectLangLine({ row }: { row: LinkedFileRow }) {
+  const projectName = row.project?.name ?? "—";
+  return (
+    <span className="text-xs text-muted-foreground flex-1 min-w-0">
+      <Link
+        to={buildCatProjectLink(row.project_id)}
+        className="text-primary hover:underline"
+        title={projectName}
+      >
+        {projectName}
+      </Link>
+      {" · "}
+      {row.source_lang} → {row.target_lang}
+    </span>
+  );
+}
+
+function ProjectLangLineTranslator({ row }: { row: LinkedFileRow }) {
+  const projectName = row.project?.name ?? "—";
+  return (
+    <span className="text-xs text-muted-foreground block">
+      <Link
+        to={buildCatProjectLink(row.project_id)}
+        className="text-primary hover:underline"
+        title={projectName}
+      >
+        {projectName}
+      </Link>
+      {" · "}
+      {row.source_lang} → {row.target_lang}
+    </span>
+  );
+}
+
 function BlankStateRow() {
   return (
     <div className="rounded-md border border-border bg-background px-3 py-2 text-sm">
@@ -296,9 +334,7 @@ export function CaseCatToolsPanel({
                     className="rounded-md border border-border bg-background px-3 py-2 text-sm space-y-1"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted-foreground flex-1 min-w-0">
-                        {row.project?.name ?? "—"} · {row.source_lang} → {row.target_lang}
-                      </span>
+                      <ProjectLangLine row={row} />
                       <div className="flex items-center gap-1 shrink-0">
                         <Button
                           type="button"
@@ -361,9 +397,7 @@ export function CaseCatToolsPanel({
                     key={row.id}
                     className="rounded-md border border-border bg-background px-3 py-2 text-sm space-y-1"
                   >
-                    <span className="text-xs text-muted-foreground block">
-                      {row.project?.name ?? "—"} · {row.source_lang} → {row.target_lang}
-                    </span>
+                    <ProjectLangLineTranslator row={row} />
                     <Link
                       to={buildCatDeepLink(row.id, row.project_id)}
                       className="block text-sm text-primary hover:underline truncate"

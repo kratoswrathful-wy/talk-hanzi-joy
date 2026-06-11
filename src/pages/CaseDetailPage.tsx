@@ -2748,17 +2748,6 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">工具</h2>
-      {caseData && isPmOrAbove && !caseData.catToolEnabled && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mb-2 h-8 text-muted-foreground"
-          onClick={enableCatTool}
-        >
-          1UP CAT
-        </Button>
-      )}
       {caseData && caseData.catToolEnabled && (
         <CaseCatToolsPanel
           caseId={caseData.id}
@@ -2784,11 +2773,26 @@ export default function CaseDetailPage() {
             canUseTemplate={canUseToolTemplate}
           />
         ))}
-        {canAddTool && (
-          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
-            <Plus className="h-4 w-4" />
-            新增工具
-          </Button>
+        {(canAddTool || (caseData && isPmOrAbove && !caseData.catToolEnabled)) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {canAddTool && (
+              <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
+                <Plus className="h-4 w-4" />
+                新增工具
+              </Button>
+            )}
+            {caseData && isPmOrAbove && !caseData.catToolEnabled && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-muted-foreground"
+                onClick={enableCatTool}
+              >
+                +1UP CAT
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

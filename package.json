@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "download-storage": "node scripts/download-storage.mjs",
     "backfill:cat-original-files": "node scripts/backfill-cat-original-files.mjs",
+    "migrate:case-cat-links": "node scripts/migrate-case-tools-to-cat-links.mjs",
     "verify:supabase-migrations": "supabase migration list"
   },
   "dependencies": {

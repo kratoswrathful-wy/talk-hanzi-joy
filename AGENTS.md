@@ -52,6 +52,7 @@
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
 - [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 匯入選填連結 LMS 案件（一般＋GS；`49db7c2` 起）
 - [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A：案件頁 1UP CAT、未受派唯讀）
+- [`docs/CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md`](docs/CAT_MIGRATE_LEGACY_CAT_TOOL_2026-06.md) — 自研工具 → `cat_files` 遷移腳本、dry-run／`--apply`、衝突規則與 2026-06-11 報告摘要
 
 ## 回覆與推送慣例
 
