@@ -4184,7 +4184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (casePickerDialog && casePickerDialog.open) casePickerDialog.close();
     }
 
-    function showCasePickerForImport() {
+    function showCasePickerForImport(opts = {}) {
         return new Promise((resolve) => {
             if (!casePickerDialog) { resolve(null); return; }
             _casePickerImportResolve = resolve;
@@ -4193,7 +4193,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             casePickerSelectedCase = null;
             if (casePickerKeywordInput) casePickerKeywordInput.value = '';
             if (casePickerResultList) casePickerResultList.innerHTML = '';
-            if (casePickerResultHint) casePickerResultHint.textContent = '請輸入關鍵字後按「搜尋」選擇案件（可直接按「取消」跳過）。';
+            if (casePickerResultHint) {
+                casePickerResultHint.textContent = opts.required
+                    ? '請輸入關鍵字後按「搜尋」選擇案件（必選）。'
+                    : '請輸入關鍵字後按「搜尋」選擇案件（可直接按「取消」跳過）。';
+            }
             casePickerDialog.showModal();
             if (casePickerKeywordInput) casePickerKeywordInput.focus();
         });
@@ -11837,11 +11841,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             const url = gsImportUrlInput ? gsImportUrlInput.value.trim() : '';
             if (!url) { alert('請先貼上 Google Sheet 連結。'); return; }
 
-            wizardOverlay.classList.add('hidden');
+            if (!isTeamMode()) {
+                alert('Google Sheet 匯入需在團隊版並連結 LMS 案件。');
+                return;
+            }
 
-            const caseResult = await showCasePickerForImport();
-            _gsImportCaseId = (caseResult && caseResult.caseId) ? caseResult.caseId : '';
-            _gsImportCaseTitle = (caseResult && caseResult.caseTitle) ? caseResult.caseTitle : '';
+            if (_gsUpdateMode && _gsUpdateTargetFileId) {
+                const existingFile = await DBService.getFile(_gsUpdateTargetFileId);
+                _gsImportCaseId = existingFile?.relatedLmsCaseId ? String(existingFile.relatedLmsCaseId) : '';
+                _gsImportCaseTitle = existingFile?.relatedLmsCaseTitle ? String(existingFile.relatedLmsCaseTitle) : '';
+            } else {
+                wizardOverlay.classList.add('hidden');
+                const caseResult = await showCasePickerForImport({ required: true });
+                if (!caseResult?.caseId) {
+                    wizardOverlay.classList.remove('hidden');
+                    return;
+                }
+                _gsImportCaseId = caseResult.caseId;
+                _gsImportCaseTitle = caseResult.caseTitle || '';
+            }
+
+            wizardOverlay.classList.add('hidden');
 
             const project = currentProjectId ? await DBService.getProject(currentProjectId) : null;
             const projectSrcLangs = (project && project.sourceLangs) ? project.sourceLangs : [];
@@ -14044,29 +14064,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             : null;
 
         if (currentFileFormat === 'mqxliff') {
-            showCatLoadingOverlay('準備開檔…');
             const rawDefault = file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1');
-            const importDefault = rawDefault;
-            hideCatLoadingOverlay();
-            const role = await showMqRoleModal({ defaultRole: importDefault });
-            if (role === null) {
-                currentFileId = null;
-                currentFileFormat = 'excel';
-                currentFileDefaultMqRole = null;
-                currentMqConfirmationRole = null;
-                resetEditorTransientUi();
-                if (currentProjectId) {
-                    await openProjectDetail(currentProjectId);
-                } else {
-                    switchView('viewDashboard');
-                    await loadDashboardData();
+            if (_fileUnassignedReadOnly) {
+                currentMqConfirmationRole = rawDefault;
+            } else {
+                showCatLoadingOverlay('準備開檔…');
+                hideCatLoadingOverlay();
+                const role = await showMqRoleModal({ defaultRole: rawDefault });
+                if (role === null) {
+                    currentFileId = null;
+                    currentFileFormat = 'excel';
+                    currentFileDefaultMqRole = null;
+                    currentMqConfirmationRole = null;
+                    resetEditorTransientUi();
+                    if (currentProjectId) {
+                        await openProjectDetail(currentProjectId);
+                    } else {
+                        switchView('viewDashboard');
+                        await loadDashboardData();
+                    }
+                    return;
                 }
-                return;
-            }
-            currentMqConfirmationRole = role;
-            if (!file.defaultMqRole) {
-                await DBService.updateFile(fileId, { defaultMqRole: role });
-                file.defaultMqRole = role;
+                currentMqConfirmationRole = role;
+                if (!file.defaultMqRole) {
+                    await DBService.updateFile(fileId, { defaultMqRole: role });
+                    file.defaultMqRole = role;
+                }
             }
         }
 
@@ -14077,7 +14100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mqRoleIcon = document.getElementById('mqRoleIcon');
         const sfCellModeRow2 = document.getElementById('sfCellModeRow2');
         if (mqRoleIcon) {
-            if (currentFileFormat === 'mqxliff') {
+            if (currentFileFormat === 'mqxliff' && !_fileUnassignedReadOnly) {
                 mqRoleIcon.style.display = '';
                 if (sfCellModeRow2) sfCellModeRow2.classList.remove('mq-role-hidden');
                 const role = currentMqConfirmationRole || 'T_ALLOW_R1';

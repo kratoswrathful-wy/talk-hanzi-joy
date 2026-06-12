@@ -78,9 +78,9 @@ flowchart LR
 | 子項 | 說明 | 狀態 | 文件／commit |
 |------|------|------|----------------|
 | **A-1** 一般匯入選填連結案件 | 批次匯入末尾 `showCasePickerForImport()`；`runBatchImport` 傳 `caseInfo`；Excel／XLIFF／PO 建檔後 `updateFile` | **已落地** | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md)；`49db7c2` |
-| **A-2** Google Sheet 匯入改為選填 | `btnGsImportStart`：取消案件選擇器＝跳過連結、繼續匯入（與 A-1 同 UX） | **進行中** | 見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
+| **A-2** Google Sheet 匯入連結案件 | 僅團隊版；**必選** LMS 案件（取消＝中止匯入）；更新作業檔沿用既有連結 | **已落地** | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) §A-2 |
 | **A-3 + A-4** 案件頁「1UP CAT」工具區子區塊 | 第二波 UX + B+D2 + UX 微調 + 加號（`7ae0fc5`～`27d0585`） | **已落地並驗收** | Cursor 大計畫 `1up_ux_與遷移`（UX）；摘要 [`CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](./CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md) |
-| **A-5** 未受派譯者全檔唯讀 | 團隊版非 PM+ 且未在 `cat_file_assignments` 受派 → 每格 `locked-system` + `禁止編輯：未受指派，無法編輯檔案`（不用頂部橫幅）；PM+ 豁免 | **進行中** | `cat-tool/app.js`：`resolveFileUnassignedReadOnly` |
+| **A-5** 未受派譯者全檔唯讀 | 團隊版非 PM+ 且未在 `cat_file_assignments` 受派 → 每格 `locked-system` + tooltip；mqxliff 不跳身分視窗；PM+ 豁免 | **已落地** | `cat-tool/app.js`：`resolveFileUnassignedReadOnly`、`openEditor` |
 
 ### 4.2 Phase B：Workflow 框架（規劃中）
 

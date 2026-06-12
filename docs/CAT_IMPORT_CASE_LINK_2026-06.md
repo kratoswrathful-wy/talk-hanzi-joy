@@ -6,7 +6,7 @@
 
 ## 背景與需求
 
-- **既有行為**：專案詳情頁可事後勾選檔案 → 工具列「連結案件」；Google Sheet 作業檔匯入時也會跳出案件選擇器（**2026-06 Phase A** 起改為選填，與一般匯入一致）。
+- **既有行為**：專案詳情頁可事後勾選檔案 → 工具列「連結案件」；Google Sheet 作業檔匯入時會跳出案件選擇器（**A-2**：團隊版**必選**案件，與 A-1 一般匯入選填不同）。
 - **缺口**：一般檔案匯入（`sourceFileInput` 多選：Excel、XLIFF／mqxliff、PO）在語言對、mq 角色、Excel 欄位設定完成後，**直接開始匯入**，無法在匯入當下綁定 LMS 案件。
 - **需求**：在一般匯入流程末尾插入與現有案件選擇器相同的對話，**可跳過**；選定後，本批新建立的作業檔皆寫入 `related_lms_case_id`／`related_lms_case_title`。
 
@@ -21,7 +21,7 @@
 | 跳過語意 | `showCasePickerForImport()` resolve `null`（按「取消」或關閉）→ **繼續匯入、不連結** |
 | 團隊／離線 | 僅 **`isTeamMode()`** 顯示（離線無 LMS 案件可搜尋） |
 | 綁定粒度 | 同一批匯入的所有新檔共用**同一個**選定案件 |
-| 與 GS 匯入差異 | **已統一**：GS 與一般匯入皆為選填（取消＝跳過連結、繼續匯入） |
+| 與 GS 匯入差異 | **A-1 一般匯入**：選填（取消＝跳過連結、繼續匯入）。**A-2 GS 匯入**：僅團隊版、**必選**案件（取消＝中止匯入）；離線版提示需團隊版 |
 
 ---
 
@@ -41,7 +41,8 @@
 
 | 符號 | 說明 |
 |------|------|
-| `showCasePickerForImport()` | Promise；`casePickerMode = 'import'` |
+| `showCasePickerForImport(opts?)` | Promise；`opts.required` 為 GS 必填；`casePickerMode = 'import'` |
+| `btnGsImportStart` | 團隊版 + `required: true`；`_gsUpdateMode` 沿用既有 `relatedLmsCase*` |
 | `batchImportCaseInfo` | `sourceFileInput.change` 內組裝 `{ caseId, caseTitle }` 或 `null` |
 | `runBatchImport(..., caseInfo)` | 第五參數；傳入 Excel／XLIFF／PO 各匯入路徑 |
 | `xliffImportCtx({ suppressWizardHide, caseInfo })` | 橋接至 `xliff-import.js`／`po-import.js` |
@@ -91,8 +92,35 @@ flowchart TD
 
 ---
 
+## A-2：Google Sheet 匯入（必選連結案件）
+
+### 流程（團隊版）
+
+```mermaid
+flowchart TD
+    gsUrl[貼上 Sheet 連結] --> team{isTeamMode?}
+    team -->|否| alert[提示需團隊版]
+    team -->|是| update{_gsUpdateMode?}
+    update -->|是| reuse[沿用既有 relatedLmsCase]
+    update -->|否| picker[案件選擇器_必選]
+    picker -->|取消| abort[中止回到 wizard]
+    picker -->|選定| lang[語言對]
+    reuse --> lang
+    lang --> fetch[讀取 CSV] --> cfg[欄位設定] --> create[createFile]
+```
+
+### 驗收
+
+1. 團隊版 GS 匯入：未選案件按取消 → 不讀取 Sheet、回到 wizard。
+2. 選定案件後匯入 → `related_lms_case_*` 有值、檔名為案件標題。
+3. 離線版點 GS「匯入」→ 提示需團隊版。
+4. 一般 Excel/XLIFF 匯入仍可取消跳過（A-1 回歸）。
+
+---
+
 ## 修訂紀錄
 
 | 日期 | 內容 |
 |------|------|
 | 2026-06-10 | 初稿：需求、決策、錨點、驗收、`49db7c2` |
+| 2026-06-12 | A-2：GS 必選連結、離線阻擋、更新模式沿用既有案件 |
