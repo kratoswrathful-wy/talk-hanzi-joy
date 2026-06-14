@@ -4907,17 +4907,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(seg && seg.wfReviewConfirmedAt);
     }
 
-    /** 舊檔 Workflow 步驟皆已完成、句段僅有 memoQ 確認時，進度顯示 fallback */
+    /**
+     * 進度與狀態欄：內部 wf_* 優先；舊檔僅 memoQ 已確認時依 Workflow 步驟 fallback。
+     * 翻譯步驟或審稿步驟進行中，memoQ 已確認視為翻譯已完成（與舊進度條一致）。
+     */
     function _isWfTransMarkedEffective(seg) {
         if (_isWfTransMarked(seg)) return true;
-        if (seg && seg.status === 'confirmed' && _workflowAllStagesCompleted(_workflowStagesForSegment(seg))) return true;
-        return false;
+        if (!seg || seg.status !== 'confirmed') return false;
+        const stages = _workflowStagesForSegment(seg);
+        if (_workflowAllStagesCompleted(stages)) return true;
+        const active = _workflowActiveStage(stages);
+        if (!active) return false;
+        return active.stageKind === 'translate' || active.stageKind === 'review';
     }
 
+    /**
+     * 審稿進度：wf_review 或 Workflow 全完成；審稿步驟進行中時 memoQ 已確認亦計入。
+     * 翻譯步驟進行中僅算 wf_review，避免舊確認句段誤顯示審稿已完成。
+     */
     function _isWfReviewMarkedEffective(seg) {
         if (_isWfReviewMarked(seg)) return true;
-        if (seg && seg.status === 'confirmed' && _workflowAllStagesCompleted(_workflowStagesForSegment(seg))) return true;
-        return false;
+        if (!seg || seg.status !== 'confirmed') return false;
+        const stages = _workflowStagesForSegment(seg);
+        if (_workflowAllStagesCompleted(stages)) return true;
+        const active = _workflowActiveStage(stages);
+        return !!(active && active.stageKind === 'review');
     }
 
     function _workflowConfirmKinds(seg) {
@@ -4988,11 +5002,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function _buildStatusCellTooltip(seg) {
         const lines = [];
-        lines.push(_isWfTransMarked(seg)
-            ? `內部翻譯：${seg.wfTransConfirmedAt ? new Date(seg.wfTransConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
+        const twf = _isWfTransMarkedEffective(seg);
+        const rwf = _isWfReviewMarkedEffective(seg);
+        lines.push(twf
+            ? `內部翻譯：${_isWfTransMarked(seg) && seg.wfTransConfirmedAt ? new Date(seg.wfTransConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
             : '內部翻譯：未標');
-        lines.push(_isWfReviewMarked(seg)
-            ? `內部審稿：${seg.wfReviewConfirmedAt ? new Date(seg.wfReviewConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
+        lines.push(rwf
+            ? `內部審稿：${_isWfReviewMarked(seg) && seg.wfReviewConfirmedAt ? new Date(seg.wfReviewConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
             : '內部審稿：未標');
         if (currentFileFormat === 'mqxliff') {
             if (seg.status === 'confirmed') {
@@ -5006,8 +5022,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function buildStatusCellHtml(seg) {
-        const twf = _isWfTransMarked(seg);
-        const rwf = _isWfReviewMarked(seg);
+        const twf = _isWfTransMarkedEffective(seg);
+        const rwf = _isWfReviewMarkedEffective(seg);
         const mq = seg && seg.status === 'confirmed';
         const classes = ['status-icon', 'status-icon-stack'];
         if (twf) classes.push('wf-trans');
@@ -22344,6 +22360,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 選取狀態只會在使用者主動切換選取目標時清除（ID 欄點擊或點入不在選取範圍中的編輯欄），
     // 點擊按鈕、快速鍵或其他操作不會清除選取狀態。
 
+    function _segWordsForProgress(seg, WCE) {
+        if (!seg) return 0;
+        return WCE ? WCE.weightedUnits(seg.sourceText || '') : countWords(seg.sourceText || '');
+    }
+
+    function _computeWfProgressFromSegments(sessionValid, wordBySegId) {
+        const totalSegs = sessionValid.length;
+        const transSegs = sessionValid.filter((s) => _isWfTransMarkedEffective(s)).length;
+        const reviewSegs = sessionValid.filter((s) => _isWfReviewMarkedEffective(s)).length;
+        let totalWords = 0;
+        let transWords = 0;
+        let reviewWords = 0;
+        sessionValid.forEach((s) => {
+            const w = wordBySegId && wordBySegId.has(String(s.id))
+                ? wordBySegId.get(String(s.id))
+                : 0;
+            totalWords += w;
+            if (_isWfTransMarkedEffective(s)) transWords += w;
+            if (_isWfReviewMarkedEffective(s)) reviewWords += w;
+        });
+        const transPct = totalSegs ? Math.round((transSegs / totalSegs) * 100) : 0;
+        const reviewPct = totalSegs ? Math.round((reviewSegs / totalSegs) * 100) : 0;
+        return { transPct, reviewPct, transSegs, reviewSegs, totalSegs, transWords, reviewWords, totalWords };
+    }
+
+    function _applyEditorProgressSummary(summary, opts) {
+        const o = opts || {};
+        const pctEl = document.getElementById('statusBarWfPct');
+        const segEl = document.getElementById('statusBarSegSummary');
+        const wordEl = document.getElementById('statusBarWordSummary');
+        if (pctEl) pctEl.textContent = `${summary.transPct}% / ${summary.reviewPct}%`;
+        if (segEl) segEl.textContent = `${summary.transSegs} / ${summary.reviewSegs} / ${summary.totalSegs}`;
+        if (wordEl) {
+            wordEl.textContent = o.loading
+                ? '載入中…'
+                : `${_fmtProgressNum(summary.transWords)} / ${_fmtProgressNum(summary.reviewWords)} / ${_fmtProgressNum(summary.totalWords)}`;
+        }
+        if (progressFill && !o.skipBar) {
+            progressFill.style.width = `${summary.transPct}%`;
+            progressFill.style.background = o.useWeightedBar ? '#ef4444' : 'var(--success-color)';
+        }
+    }
+
     async function updateProgress() {
         const token = ++_updateProgressToken;
         // 依 rowIdx 排序，取得「原始排序索引」（不受當前篩選或排序影響）
@@ -22357,26 +22416,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         const baseline = currentSegmentsList.filter(s => !isBaselineForbidden(s) && inProgressRange(s));
-        const total = baseline.length;
         const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser) && inProgressRange(s));
-        const translated = sessionValid.filter(s => s.status === 'confirmed').length;
-        const wfTransMarked = sessionValid.filter((s) => _isWfTransMarkedEffective(s)).length;
-        const wfReviewMarked = sessionValid.filter((s) => _isWfReviewMarkedEffective(s)).length;
-        const wfTotal = sessionValid.length;
-        const wfTransPct = wfTotal ? Math.round((wfTransMarked / wfTotal) * 100) : 0;
-        const wfReviewPct = wfTotal ? Math.round((wfReviewMarked / wfTotal) * 100) : 0;
-        const wfEl = document.getElementById('statusBarWfProgress');
-        if (wfEl) wfEl.textContent = `翻譯 ${wfTransPct}%｜審稿 ${wfReviewPct}%`;
-
-        const pctEl = document.getElementById('statusBarPercent');
-        const sbWords = document.getElementById('statusBarWords');
         const WCE = window.WordCountEngine;
 
         const edFileId = currentFileId;
         const edProjId = currentProjectId;
         if (_wcGetEditorModeForFile(edFileId) === 'weighted' && WCE) {
-            if (sbWords) sbWords.textContent = '載入中…';
-            if (pctEl) pctEl.textContent = '…';
+            _applyEditorProgressSummary({
+                transPct: 0, reviewPct: 0, transSegs: 0, reviewSegs: 0, totalSegs: sessionValid.length,
+                transWords: 0, reviewWords: 0, totalWords: 0,
+            }, { loading: true, useWeightedBar: true, skipBar: false });
             if (progressFill) {
                 progressFill.style.width = '0%';
                 progressFill.style.background = '#94a3b8';
@@ -22404,8 +22453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }, (done, tot) => {
                     if (token !== _updateProgressToken) return;
                     if (!_wcStillInEditor(edFileId, edProjId)) return;
-                    if (sbWords) sbWords.textContent = `載入中… 已處理 ${done} / ${tot} 個句段`;
-                    if (progressFill && tot > 0) {
+                    if (tot > 0 && progressFill) {
                         progressFill.style.width = `${Math.min(100, Math.round((done / tot) * 100))}%`;
                         progressFill.style.background = '#94a3b8';
                     }
@@ -22423,51 +22471,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (token !== _updateProgressToken) return;
             if (!_wcStillInEditor(edFileId, edProjId)) return;
             const per = result.perSegment || [];
-            const baselineIds = new Set(baseline.map((s) => String(s.id)));
             const sessionValidIds = new Set(sessionValid.map((s) => String(s.id)));
-            let totalWords = 0;
-            let confirmedWords = 0;
+            const wordBySegId = new Map();
             for (let i = 0; i < segsOrdered.length; i++) {
                 const s = segsOrdered[i];
                 const ps = per[i];
-                if (!ps || ps.skip) continue;
-                if (baselineIds.has(String(s.id))) totalWords += ps.weightedW;
-                if (s.status === 'confirmed' && sessionValidIds.has(String(s.id))) confirmedWords += ps.weightedW;
+                if (!ps || ps.skip || !sessionValidIds.has(String(s.id))) continue;
+                wordBySegId.set(String(s.id), ps.weightedW);
             }
-            const wordPct = totalWords === 0 ? 0 : (confirmedWords / totalWords) * 100;
-            document.getElementById('statusBarSegments').textContent = `${translated} / ${total}`;
-            if (sbWords) sbWords.textContent = `${_fmtProgressNum(confirmedWords)} / ${_fmtProgressNum(totalWords)}`;
-            if (pctEl) pctEl.textContent = `${wordPct.toFixed(0)}%`;
-            if (progressFill) {
-                progressFill.style.width = `${wordPct}%`;
-                progressFill.style.background = '#ef4444';
-            }
+            _applyEditorProgressSummary(
+                _computeWfProgressFromSegments(sessionValid, wordBySegId),
+                { useWeightedBar: true }
+            );
             _wcRefreshEditorToolbarTitle();
             return;
         }
 
-        let totalWords = 0;
-        let confirmedWords = 0;
-        if (WCE) {
-            baseline.forEach((s) => { totalWords += WCE.weightedUnits(s.sourceText || ''); });
-            sessionValid.forEach((s) => {
-                if (s.status === 'confirmed') confirmedWords += WCE.weightedUnits(s.sourceText || '');
-            });
-        } else {
-            baseline.forEach((s) => { totalWords += countWords(s.sourceText); });
-            sessionValid.forEach((s) => {
-                if (s.status === 'confirmed') confirmedWords += countWords(s.sourceText);
-            });
-        }
-
-        if (progressFill) progressFill.style.background = 'var(--success-color)';
-
-        document.getElementById('statusBarSegments').textContent = `${translated} / ${total}`;
-        document.getElementById('statusBarWords').textContent = `${_fmtProgressNum(confirmedWords)} / ${_fmtProgressNum(totalWords)}`;
-
-        const wordPct = totalWords === 0 ? 0 : (confirmedWords / totalWords) * 100;
-        if (progressFill) progressFill.style.width = `${wordPct}%`;
-        if (pctEl) pctEl.textContent = `${wordPct.toFixed(0)}%`;
+        const wordBySegIdRaw = new Map();
+        sessionValid.forEach((s) => {
+            wordBySegIdRaw.set(String(s.id), _segWordsForProgress(s, WCE));
+        });
+        _applyEditorProgressSummary(
+            _computeWfProgressFromSegments(sessionValid, wordBySegIdRaw),
+            { useWeightedBar: false }
+        );
         _wcRefreshEditorToolbarTitle();
     }
 
