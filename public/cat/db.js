@@ -467,6 +467,101 @@ db.version(22).stores({
     });
 });
 
+/** Phase B（B-1）：舊檔遷移例外檔名 — 與 migration cat_workflow_is_exception_file 一致 */
+const CAT_WORKFLOW_EXCEPTION_FILE_NAMES = new Set([
+    'UI 20260610 - Batch 12 - UI (Localized Strings).csv_pq5mp9ubom3yz_zhHK_2026-06-10_10-05-31.xlsx_zho-TW.mqxliff',
+    'CCT6012 ICF CD22CART Amd7_2025-1215.docx_zho-TW.mqxliff',
+]);
+
+function _isWorkflowExceptionFileName(name) {
+    return CAT_WORKFLOW_EXCEPTION_FILE_NAMES.has(String(name || ''));
+}
+
+const CAT_WORKFLOW_DEFAULT_STAGES = [
+    { stageOrder: 1, stageKind: 'translate', label: '翻譯' },
+    { stageOrder: 2, stageKind: 'review', label: '審稿' },
+];
+
+// v23：Phase B Workflow（範本、檔案步驟、段落指派；句段 wf_* 為 segments 欄位無需索引）
+db.version(23).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt',
+    workflowTemplates: '++id, projectId, isDefault',
+    workflowTemplateStages: '++id, templateId, stageOrder',
+    fileWorkflowStages: '++id, fileId, stageOrder',
+    stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
+}).upgrade(async (tx) => {
+    const now = new Date().toISOString();
+    const projects = await tx.projects.toArray();
+    for (const p of projects) {
+        let tpl = await tx.workflowTemplates.where('projectId').equals(p.id).filter((t) => t.isDefault).first();
+        if (!tpl) {
+            const tid = await tx.workflowTemplates.add({
+                projectId: p.id,
+                name: '預設',
+                isDefault: true,
+                createdAt: now,
+                lastModified: now,
+            });
+            tpl = { id: tid };
+        }
+        for (const st of CAT_WORKFLOW_DEFAULT_STAGES) {
+            const exists = await tx.workflowTemplateStages
+                .where('templateId').equals(tpl.id)
+                .filter((s) => s.stageOrder === st.stageOrder)
+                .count();
+            if (!exists) {
+                await tx.workflowTemplateStages.add({
+                    templateId: tpl.id,
+                    stageOrder: st.stageOrder,
+                    stageKind: st.stageKind,
+                    label: st.label,
+                    createdAt: now,
+                });
+            }
+        }
+    }
+    const files = await tx.files.toArray();
+    for (const f of files) {
+        const existing = await tx.fileWorkflowStages.where('fileId').equals(f.id).count();
+        if (existing > 0) continue;
+        const isEx = _isWorkflowExceptionFileName(f.name);
+        for (const st of CAT_WORKFLOW_DEFAULT_STAGES) {
+            const completed = !isEx || st.stageOrder === 1 ? !isEx : false;
+            const active = isEx && st.stageOrder === 1;
+            await tx.fileWorkflowStages.add({
+                fileId: f.id,
+                stageOrder: st.stageOrder,
+                stageKind: st.stageKind,
+                label: st.label,
+                status: completed ? 'completed' : (active ? 'active' : 'pending'),
+                startedAt: (completed || active) ? now : null,
+                completedAt: completed ? now : null,
+                createdAt: now,
+                updatedAt: now,
+            });
+        }
+    }
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -548,7 +643,7 @@ const DBService = {
 
     // ---- Projects ----
     async createProject(name, sourceLangs = [], targetLangs = []) {
-        return await db.projects.add({
+        const projectId = await db.projects.add({
             name: name || '未命名專案',
             sourceLangs: sourceLangs || [],
             targetLangs: targetLangs || [],
@@ -556,6 +651,8 @@ const DBService = {
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
         });
+        await DBService.ensureProjectWorkflowTemplate(projectId);
+        return projectId;
     },
 
     async updateProjectName(projectId, newName) {
@@ -590,6 +687,87 @@ const DBService = {
     async patchProject(projectId, updates) {
         const pid = toDexieLocalId(projectId);
         return await db.projects.update(pid, { ...updates, lastModified: new Date().toISOString() });
+    },
+
+    // ---- Workflow（Phase B B-1）----
+    async ensureProjectWorkflowTemplate(projectId) {
+        const pid = toDexieLocalId(projectId);
+        const now = new Date().toISOString();
+        let tpl = await db.workflowTemplates.where('projectId').equals(pid).filter((t) => t.isDefault).first();
+        if (!tpl) {
+            const tid = await db.workflowTemplates.add({
+                projectId: pid,
+                name: '預設',
+                isDefault: true,
+                createdAt: now,
+                lastModified: now,
+            });
+            tpl = { id: tid };
+        }
+        for (const st of CAT_WORKFLOW_DEFAULT_STAGES) {
+            const exists = await db.workflowTemplateStages
+                .where('templateId').equals(tpl.id)
+                .filter((s) => s.stageOrder === st.stageOrder)
+                .count();
+            if (!exists) {
+                await db.workflowTemplateStages.add({
+                    templateId: tpl.id,
+                    stageOrder: st.stageOrder,
+                    stageKind: st.stageKind,
+                    label: st.label,
+                    createdAt: now,
+                });
+            }
+        }
+        return tpl.id;
+    },
+
+    async ensureFileWorkflowStages(fileId) {
+        const fid = toDexieLocalId(fileId);
+        const existing = await db.fileWorkflowStages.where('fileId').equals(fid).sortBy('stageOrder');
+        if (existing.length > 0) return existing;
+        const file = await db.files.get(fid);
+        if (!file) return [];
+        await DBService.ensureProjectWorkflowTemplate(file.projectId);
+        const now = new Date().toISOString();
+        const isEx = _isWorkflowExceptionFileName(file.name);
+        const rows = [];
+        for (const st of CAT_WORKFLOW_DEFAULT_STAGES) {
+            const completed = !isEx || st.stageOrder === 1 ? !isEx : false;
+            const active = isEx && st.stageOrder === 1;
+            const id = await db.fileWorkflowStages.add({
+                fileId: fid,
+                stageOrder: st.stageOrder,
+                stageKind: st.stageKind,
+                label: st.label,
+                status: completed ? 'completed' : (active ? 'active' : 'pending'),
+                startedAt: (completed || active) ? now : null,
+                completedAt: completed ? now : null,
+                createdAt: now,
+                updatedAt: now,
+            });
+            rows.push({
+                id,
+                fileId: fid,
+                stageOrder: st.stageOrder,
+                stageKind: st.stageKind,
+                label: st.label,
+                status: completed ? 'completed' : (active ? 'active' : 'pending'),
+                startedAt: (completed || active) ? now : null,
+                completedAt: completed ? now : null,
+            });
+        }
+        return rows;
+    },
+
+    async getFileWorkflowStages(fileId) {
+        const fid = toDexieLocalId(fileId);
+        return db.fileWorkflowStages.where('fileId').equals(fid).sortBy('stageOrder');
+    },
+
+    async listStageAssignmentsForFile(fileId) {
+        const fid = toDexieLocalId(fileId);
+        return db.stageAssignments.where('fileId').equals(fid).toArray();
     },
 
     async getProjects() {
@@ -693,6 +871,7 @@ const DBService = {
         
         // Update Project timestamp
         await db.projects.update(projectId, { lastModified: new Date().toISOString() });
+        await DBService.ensureFileWorkflowStages(fileId);
         return fileId;
     },
 
@@ -1830,6 +2009,16 @@ const DBService = {
     DBService.addAiIssueGroup = async (payload) => rpc('db.addAiIssueGroup', payload);
     DBService.updateAiIssueGroup = async (id, patch) => rpc('db.updateAiIssueGroup', { id, ...patch });
     DBService.deleteAiIssueGroup = async (id) => rpc('db.deleteAiIssueGroup', { id });
+
+    // workflow（Phase B B-1）
+    DBService.ensureProjectWorkflowTemplate = async (projectId) =>
+        rpc('db.ensureProjectWorkflowTemplate', { projectId });
+    DBService.ensureFileWorkflowStages = async (fileId) =>
+        rpc('db.ensureFileWorkflowStages', { fileId });
+    DBService.getFileWorkflowStages = async (fileId) =>
+        rpc('db.getFileWorkflowStages', { fileId });
+    DBService.listStageAssignmentsForFile = async (fileId) =>
+        rpc('db.listStageAssignmentsForFile', { fileId });
 
     // views (句段集)
     DBService.listViews = async (projectId) => rpc('db.listViews', { projectId });

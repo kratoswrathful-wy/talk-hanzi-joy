@@ -14085,6 +14085,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         _fileUnassignedReadOnly = await resolveFileUnassignedReadOnly(fileId);
 
+        try {
+            window._currentFileWorkflowStages = await DBService.ensureFileWorkflowStages(fileId);
+        } catch (wfErr) {
+            console.warn('[workflow] ensureFileWorkflowStages', wfErr);
+            window._currentFileWorkflowStages = [];
+        }
+
         editorFileName.textContent = file.name;
         editorFileName.title = file.name;
 

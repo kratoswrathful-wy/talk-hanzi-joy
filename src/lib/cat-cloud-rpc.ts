@@ -60,6 +60,10 @@ function segmentExtraCamelToSnake(extra: Record<string, unknown> | null | undefi
     out.confirmation_role =
       typeof e.confirmationRole === "string" ? e.confirmationRole : null;
   }
+  if ("wfTransConfirmedAt" in e) out.wf_trans_confirmed_at = e.wfTransConfirmedAt ?? null;
+  if ("wfTransConfirmedBy" in e) out.wf_trans_confirmed_by = e.wfTransConfirmedBy ?? null;
+  if ("wfReviewConfirmedAt" in e) out.wf_review_confirmed_at = e.wfReviewConfirmedAt ?? null;
+  if ("wfReviewConfirmedBy" in e) out.wf_review_confirmed_by = e.wfReviewConfirmedBy ?? null;
   return out;
 }
 
@@ -264,8 +268,41 @@ const mapSegmentRow = (r: any) => {
       r.confirmation_role != null && String(r.confirmation_role).trim() !== ""
         ? String(r.confirmation_role)
         : null,
+    wfTransConfirmedAt: r.wf_trans_confirmed_at ?? null,
+    wfTransConfirmedBy: r.wf_trans_confirmed_by ?? null,
+    wfReviewConfirmedAt: r.wf_review_confirmed_at ?? null,
+    wfReviewConfirmedBy: r.wf_review_confirmed_by ?? null,
   };
 };
+
+const mapFileWorkflowStageRow = (r: any) => ({
+  id: r.id,
+  fileId: r.file_id,
+  stageOrder: r.stage_order,
+  stageKind: r.stage_kind,
+  label: r.label,
+  status: r.status,
+  startedAt: r.started_at ?? null,
+  completedAt: r.completed_at ?? null,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const mapStageAssignmentRow = (r: any) => ({
+  id: r.id,
+  fileId: r.file_id,
+  viewId: r.view_id ?? null,
+  fileWorkflowStageId: r.file_workflow_stage_id,
+  assigneeUserId: r.assignee_user_id,
+  lineStart: r.line_start ?? null,
+  lineEnd: r.line_end ?? null,
+  scopeLabel: r.scope_label ?? null,
+  workflowStatus: r.workflow_status,
+  collabRowId: r.collab_row_id ?? null,
+  assignedBy: r.assigned_by ?? null,
+  assignedAt: r.assigned_at,
+  updatedAt: r.updated_at,
+});
 
 /** 與 cat-tool/db.js 句段排序語意一致：有 globalId 者先依序，否則依列與欄位穩定排序 */
 function sortMappedCatSegmentsByImportOrder<
@@ -589,6 +626,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .select("id")
         .single();
       if (error) throw error;
+      await supabase.rpc("ensure_cat_project_default_workflow_template", {
+        p_project_id: data.id,
+      } as any);
       return data.id;
     }
     case "db.updateProjectName":
@@ -693,9 +733,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .single();
       if (error) throw error;
       await supabase.from("cat_projects").update({ last_modified: nowIso() } as any).eq("id", projectId);
+      await supabase.rpc("ensure_cat_file_workflow_stages", { p_file_id: fileId } as any);
       return data.id;
     }
-    case "db.getFiles": {
       const { data } = await supabase
         .from("cat_files")
         .select(CAT_FILE_LIST_COLUMNS)
@@ -2135,6 +2175,45 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .eq("assignee_user_id", userId);
       if (error) throw error;
       return true;
+    }
+
+    case "db.ensureProjectWorkflowTemplate": {
+      const { data, error } = await supabase.rpc("ensure_cat_project_default_workflow_template", {
+        p_project_id: payload.projectId,
+      } as any);
+      if (error) throw error;
+      return data;
+    }
+    case "db.ensureFileWorkflowStages": {
+      const { error: ensErr } = await supabase.rpc("ensure_cat_file_workflow_stages", {
+        p_file_id: payload.fileId,
+      } as any);
+      if (ensErr) throw ensErr;
+      const { data, error } = await supabase
+        .from("cat_file_workflow_stages")
+        .select("*")
+        .eq("file_id", payload.fileId)
+        .order("stage_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapFileWorkflowStageRow);
+    }
+    case "db.getFileWorkflowStages": {
+      const { data, error } = await supabase
+        .from("cat_file_workflow_stages")
+        .select("*")
+        .eq("file_id", payload.fileId)
+        .order("stage_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapFileWorkflowStageRow);
+    }
+    case "db.listStageAssignmentsForFile": {
+      const { data, error } = await supabase
+        .from("cat_stage_assignments")
+        .select("*")
+        .eq("file_id", payload.fileId)
+        .order("assigned_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapStageAssignmentRow);
     }
 
     default:
