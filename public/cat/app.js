@@ -2825,16 +2825,160 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    /** 團隊版：非 PM+ 且未在 cat_file_assignments 受派 → 全檔唯讀 */
+    /** Phase B（B-2）：母檔全清單列序快取（段落鎖定 line_start／line_end 用） */
+    let _fullListLineNoBySegId = {};
+
+    /** Phase B（B-2）：Workflow 步驟狀態顯示用語 */
+    const WF_STAGE_STATUS_LABEL = {
+        pending: '待開始',
+        active: '進行中',
+        completed: '已完成',
+    };
+
+    function _workflowAllStagesCompleted(stages) {
+        const arr = Array.isArray(stages) ? stages : [];
+        return arr.length > 0 && arr.every((s) => s.status === 'completed');
+    }
+
+    function _workflowActiveStage(stages) {
+        const arr = Array.isArray(stages) ? stages : [];
+        const active = arr.find((s) => s.status === 'active');
+        if (active) return active;
+        return arr.find((s) => s.status !== 'completed') || null;
+    }
+
+    function _resolveAssigneeDisplayName(userId) {
+        const uid = String(userId || '');
+        if (!uid) return '—';
+        const members = window._tmsAssignableUsers || [];
+        const hit = members.find((m) => String(m.id) === uid);
+        if (hit) return hit.displayName || hit.email || uid.slice(0, 8);
+        return uid.length > 10 ? uid.slice(0, 8) + '…' : uid;
+    }
+
+    function _formatWorkflowScopeSuffix(a) {
+        if (!a) return '';
+        const label = String(a.scopeLabel || '').trim();
+        if (label) return `（${label}）`;
+        const ls = a.lineStart;
+        const le = a.lineEnd;
+        if (ls != null && le != null) return `（${ls}–${le} 列）`;
+        if (ls != null) return `（${ls} 列起）`;
+        if (le != null) return `（至 ${le} 列）`;
+        return '';
+    }
+
+    function _formatWorkflowListCellHtml(stages, assignments, fileAssigneeNames) {
+        const esc = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const stageArr = Array.isArray(stages) ? stages.slice().sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0)) : [];
+        const assigns = Array.isArray(assignments) ? assignments : [];
+        const lines = [];
+        if (stageArr.length) {
+            stageArr.forEach((st) => {
+                const statusLabel = WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
+                const stageAssigns = assigns.filter((a) => String(a.fileWorkflowStageId) === String(st.id));
+                let names = '';
+                if (stageAssigns.length) {
+                    const uniq = [];
+                    const seen = new Set();
+                    stageAssigns.forEach((a) => {
+                        const n = _resolveAssigneeDisplayName(a.assigneeUserId) + _formatWorkflowScopeSuffix(a);
+                        if (!seen.has(n)) { seen.add(n); uniq.push(n); }
+                    });
+                    names = uniq.join('、');
+                } else if (Array.isArray(fileAssigneeNames) && fileAssigneeNames.length && st.stageKind === 'translate') {
+                    names = fileAssigneeNames.join('、') + '（整檔）';
+                }
+                lines.push(
+                    `<div style="line-height:1.35; font-size:0.8rem;">`
+                    + `<span style="color:#475569;">${esc(st.label || st.stageKind)}</span>`
+                    + `<span style="color:#94a3b8;"> · </span>`
+                    + `<span style="color:${st.status === 'completed' ? '#16a34a' : (st.status === 'active' ? '#d97706' : '#64748b')};">${esc(statusLabel)}</span>`
+                    + (names ? `<span style="color:#94a3b8;"> · </span><span style="color:#334155;">${esc(names)}</span>` : '')
+                    + `</div>`
+                );
+            });
+        } else {
+            lines.push('<span style="color:#94a3b8; font-size:0.8rem;">—</span>');
+        }
+        return lines.join('');
+    }
+
+    async function _loadProjectWorkflowMetaByFileId(fileIds) {
+        const ids = [...new Set((fileIds || []).map(String).filter(Boolean))];
+        const byFile = {};
+        await Promise.all(ids.map(async (fid) => {
+            try {
+                let stages = await DBService.getFileWorkflowStages(fid);
+                if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                const assignments = await DBService.listStageAssignmentsForFile(fid);
+                byFile[fid] = { stages: stages || [], assignments: assignments || [] };
+            } catch (e) {
+                console.warn('[workflow] meta', fid, e);
+                byFile[fid] = { stages: [], assignments: [] };
+            }
+        }));
+        return byFile;
+    }
+
+    async function _fillFilesWorkflowCellsAsync(files) {
+        if (!filesListBody || !Array.isArray(files) || !files.length) return;
+        const meta = await _loadProjectWorkflowMetaByFileId(files.map((f) => f.id));
+        files.forEach((f) => {
+            const cell = filesListBody.querySelector(`.file-workflow-cell[data-file-id="${f.id}"]`);
+            if (!cell) return;
+            const aid = String(f.id);
+            const assignees = (window._fileAssigneesByFileId && window._fileAssigneesByFileId[aid]) || [];
+            const pack = meta[aid] || { stages: [], assignments: [] };
+            cell.innerHTML = _formatWorkflowListCellHtml(pack.stages, pack.assignments, assignees);
+        });
+    }
+
+    async function _fillViewsWorkflowCellsAsync(views) {
+        const body = document.getElementById('viewsListBody');
+        if (!body || !Array.isArray(views) || !views.length) return;
+        const allFileIds = [];
+        views.forEach((v) => {
+            if (Array.isArray(v.fileIds)) allFileIds.push(...v.fileIds);
+        });
+        const meta = await _loadProjectWorkflowMetaByFileId(allFileIds);
+        views.forEach((v) => {
+            const cell = body.querySelector(`.view-workflow-cell[data-view-id="${v.id}"]`);
+            if (!cell) return;
+            const fids = Array.isArray(v.fileIds) ? v.fileIds.map(String) : [];
+            const stages = [];
+            const assignments = [];
+            const seenStage = new Set();
+            fids.forEach((fid) => {
+                const pack = meta[fid];
+                if (!pack) return;
+                (pack.stages || []).forEach((st) => {
+                    const key = `${fid}:${st.stageKind}`;
+                    if (!seenStage.has(key)) { seenStage.add(key); stages.push(st); }
+                });
+                (pack.assignments || []).forEach((a) => assignments.push(a));
+            });
+            cell.innerHTML = _formatWorkflowListCellHtml(stages, assignments, []);
+        });
+    }
+
+    /** 團隊版：非 PM+ 且未在 cat_file_assignments／段落指派受派 → 全檔唯讀 */
     async function resolveFileUnassignedReadOnly(fileId) {
         if (!isTeamMode() || _isCatPmOrExecutive()) return false;
+        const userId = String(window._tmsCurrentUserId || '');
+        try {
+            const stageAssigns = await DBService.listStageAssignmentsForFile(fileId);
+            if (stageAssigns.some((a) => String(a.assigneeUserId) === userId)) return false;
+        } catch (e) {
+            console.warn('[workflow] listStageAssignmentsForFile', e);
+        }
         const cached = (window._tmsAssignments || []).some(
             (a) => a.status !== 'cancelled' && String(a.file_id || (a.file && a.file.id) || '') === String(fileId)
         );
         if (cached) return false;
         const rows = await requestFileAssignments(fileId);
         return !rows.some(
-            (r) => r.status !== 'cancelled' && String(r.assignee_user_id) === String(window._tmsCurrentUserId || '')
+            (r) => r.status !== 'cancelled' && String(r.assignee_user_id) === userId
         );
     }
 
@@ -4401,6 +4545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
                         <button type="button" class="view-open-btn" data-view-id="${viewId}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;font-weight:600;">${nameEsc}</button>
                         <div class="view-progress-cell" data-view-id="${viewId}" style="margin-top:0.2rem; color:#94a3b8; font-size:0.78rem;">—</div>
+                        <div class="view-workflow-cell" data-view-id="${viewId}" style="margin-top:0.2rem; color:#64748b; font-size:0.76rem;">載入中…</div>
                         ${renameBtn}
                     </td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLines}</td>
@@ -4434,8 +4579,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             syncViewsSelectAll();
             _ensureViewsFilesToggleDelegation();
-            // 非同步載入整體進度（§4）
+            // 非同步載入整體進度（§4）與 Workflow 步驟
             _loadViewsProgressAsync(_currentViewsList).catch(() => {});
+            _fillViewsWorkflowCellsAsync(_currentViewsList).catch(() => {});
         } catch (err) {
             console.error('[views] loadViewsList error:', err);
             if (body) body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
@@ -4654,6 +4800,108 @@ document.addEventListener('DOMContentLoaded', async () => {
         return pickTip;
     }
 
+    async function _buildFullListLineNoCacheForFile(fileId) {
+        if (!fileId) return;
+        const segs = await DBService.getSegmentsByFile(fileId);
+        if (!Array.isArray(segs)) return;
+        const sorted = segs.slice().sort((a, b) => _cmpSegmentImportOrderWithinFile(a, b));
+        sorted.forEach((s, i) => {
+            if (s && s.id != null) _fullListLineNoBySegId[String(s.id)] = i + 1;
+        });
+    }
+
+    async function _loadFileWorkflowContext(fileId) {
+        _fullListLineNoBySegId = {};
+        window._currentFileWorkflowStagesByFileId = {};
+        let stages = [];
+        let assignments = [];
+        try {
+            stages = await DBService.ensureFileWorkflowStages(fileId);
+            assignments = await DBService.listStageAssignmentsForFile(fileId);
+            await _buildFullListLineNoCacheForFile(fileId);
+        } catch (wfErr) {
+            console.warn('[workflow] loadFileWorkflowContext', wfErr);
+        }
+        window._currentFileWorkflowStages = stages;
+        window._currentFileStageAssignments = assignments;
+        return { stages, assignments };
+    }
+
+    async function _loadViewWorkflowContext(fileIds) {
+        _fullListLineNoBySegId = {};
+        const ids = [...new Set((fileIds || []).map(String).filter(Boolean))];
+        const stagesByFile = {};
+        const allAssigns = [];
+        await Promise.all(ids.map(async (fid) => {
+            try {
+                let stages = await DBService.getFileWorkflowStages(fid);
+                if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                stagesByFile[fid] = stages || [];
+                const assigns = await DBService.listStageAssignmentsForFile(fid);
+                allAssigns.push(...(assigns || []));
+                await _buildFullListLineNoCacheForFile(fid);
+            } catch (e) {
+                console.warn('[workflow] loadViewWorkflowContext', fid, e);
+                stagesByFile[fid] = [];
+            }
+        }));
+        window._currentFileWorkflowStagesByFileId = stagesByFile;
+        window._currentFileStageAssignments = allAssigns;
+        window._currentFileWorkflowStages = [];
+    }
+
+    function _workflowStagesForSegment(seg) {
+        if (_currentViewId && seg && seg.fileId != null) {
+            const map = window._currentFileWorkflowStagesByFileId || {};
+            return map[String(seg.fileId)] || [];
+        }
+        return window._currentFileWorkflowStages || [];
+    }
+
+    function _segFullListLineNo(seg) {
+        if (!seg) return null;
+        const cached = _fullListLineNoBySegId[String(seg.id)];
+        if (cached != null && Number.isFinite(cached)) return cached;
+        if (seg.rowIdx != null && Number.isFinite(seg.rowIdx) && !_currentViewId) return seg.rowIdx + 1;
+        return null;
+    }
+
+    /** Phase B（B-2）：Workflow 層編輯禁止（與 memoQ 身分、系統鎖 AND） */
+    function computeSegmentEditForbidden(seg) {
+        if (!seg) return false;
+        if (_isCatPmOrExecutive()) return false;
+        const stages = _workflowStagesForSegment(seg);
+        if (_workflowAllStagesCompleted(stages)) return false;
+        if (!isTeamMode()) return false;
+
+        const activeStage = _workflowActiveStage(stages);
+        if (!activeStage) return false;
+
+        const stageAssigns = window._currentFileStageAssignments || [];
+        const relevant = stageAssigns.filter(
+            (a) => String(a.fileWorkflowStageId) === String(activeStage.id)
+                && (!_currentViewId || !a.viewId || String(a.viewId) === String(_currentViewId))
+        );
+        const userId = String(window._tmsCurrentUserId || '');
+
+        if (!relevant.length) return true;
+
+        const mine = relevant.filter((a) => String(a.assigneeUserId) === userId);
+        if (!mine.length) return true;
+
+        const lineNo = _segFullListLineNo(seg);
+        if (lineNo == null) return false;
+
+        return !mine.some((a) => {
+            const ls = a.lineStart;
+            const le = a.lineEnd;
+            if (ls == null && le == null) return true;
+            const start = ls != null ? Number(ls) : 1;
+            const end = le != null ? Number(le) : Number.MAX_SAFE_INTEGER;
+            return lineNo >= start && lineNo <= end;
+        });
+    }
+
     // ── 建立句段集精靈 ────────────────────────────────────────────────────────
     const createViewModal = document.getElementById('createViewModal');
     const createViewNameInput = document.getElementById('createViewNameInput');
@@ -4849,6 +5097,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 取得 fileRoles 以供 mqxliff 路徑
         window._currentViewFileRoles = view.fileRoles || {};
+
+        await _loadViewWorkflowContext(
+            fileIds.length ? fileIds : [...new Set((segments || []).map((s) => s.fileId).filter(Boolean))]
+        );
 
         // 進入編輯器
         const proj = await DBService.getProject(currentProjectId);
@@ -5986,14 +6238,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const aid = String(f.id);
             const assignees = (window._fileAssigneesByFileId && window._fileAssigneesByFileId[aid]) || [];
             const assignPlain = assignees.length ? assignees.join('、') : '';
-            const assignCell = assignees.length
-                ? assignees.map((n) => `<div style="line-height:1.4;">${String(n).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`).join('')
-                : '—';
             const assignTitle = assignPlain.replace(/"/g, '&quot;');
             const progressCellHtml = `
                 <div class="file-progress-cell" data-file-id="${f.id}" style="margin-top:0.35rem; width:100%;">
                     <span style="color:#94a3b8; font-size:0.76rem;">載入中…</span>
                 </div>
+            `;
+            const workflowCellHtml = `
+                <div class="file-workflow-cell" data-file-id="${f.id}" style="font-size:0.8rem; color:#64748b;">載入中…</div>
             `;
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
@@ -6001,7 +6253,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; min-width:5.25rem; width:5.5rem; vertical-align:middle; text-align:left;">${roleTdHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:120px; vertical-align:middle;" title="${assignTitle}">${assignCell}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:140px; vertical-align:middle;" title="${assignTitle}">${workflowCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${getFileCaseLinkHtml(f)}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
             `;
@@ -6040,6 +6292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadWorkspaceNotesList();
         // 非同步載入各檔案進度（不阻塞 UI）
         _loadFilesProgressAsync(files);
+        _fillFilesWorkflowCellsAsync(files).catch(() => {});
     }
 
     function _fmtProgressNum(x) {
@@ -12791,6 +13044,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 禁止編輯工具提示：區分「身分權限不足」與「匯入時即已鎖定」
     function getForbiddenTooltip(seg) {
+        if (computeSegmentEditForbidden(seg)) return '禁止編輯：不在您受派的列範圍內';
         if (_fileUnassignedReadOnly) return '禁止編輯：未受指派，無法編輯檔案';
         if (!seg.originalRole && seg.isLockedSystem) return '禁止編輯：匯入時即已鎖定';
         return '禁止編輯：目前身分權限不允許編輯';
@@ -12798,8 +13052,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 判斷句段是否「禁止編輯」（依當前 session 身分動態判斷）
     function isDynamicForbidden(seg) {
+        if (_viewEditorReadOnly) return true;
+        if (computeSegmentEditForbidden(seg)) return true;
         if (_fileUnassignedReadOnly) return true;
-        if (_viewEditorReadOnly) return true; // 未受指派句段集唯讀（§3.1）
         if (currentFileFormat !== 'mqxliff') return !!seg.isLockedSystem;
         return computeForbiddenForRole(seg, currentMqConfirmationRole);
     }
@@ -14054,6 +14309,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 切換到普通檔案時重置句段集／未受派唯讀狀態與橫幅
         _viewEditorReadOnly = false;
         _fileUnassignedReadOnly = false;
+        _currentViewId = null;
+        _currentViewFilesMap = {};
         const readOnlyBannerEl = document.getElementById('viewReadOnlyBanner');
         if (readOnlyBannerEl) readOnlyBannerEl.style.display = 'none';
         // 隱藏句段集專用 checkbox（§12.3）
@@ -14085,12 +14342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         _fileUnassignedReadOnly = await resolveFileUnassignedReadOnly(fileId);
 
-        try {
-            window._currentFileWorkflowStages = await DBService.ensureFileWorkflowStages(fileId);
-        } catch (wfErr) {
-            console.warn('[workflow] ensureFileWorkflowStages', wfErr);
-            window._currentFileWorkflowStages = [];
-        }
+        await _loadFileWorkflowContext(fileId);
 
         editorFileName.textContent = file.name;
         editorFileName.title = file.name;
