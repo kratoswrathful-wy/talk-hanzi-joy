@@ -1,6 +1,6 @@
 # CAT 檔案／句段集排序與左欄顯示序 — 規格（2026-06）
 
-> **狀態**：規劃中（產品定案；程式未落地）。  
+> **狀態**：**B-0 已落地**（`cat-tool/app.js`）；更新作業檔×句段集 UI 仍待 B-4。  
 > **交付切片**：Phase B **B-0**（Workflow 段落鎖定與 LMS 行數對齊之前須完成）。  
 > **上層**：[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md)、[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2。
 
@@ -116,3 +116,4 @@
 | 日期 | 內容 |
 |------|------|
 | 2026-06-12 | 初稿：B-0 檔序、句段集排序、左欄顯示序、篩選 A、更新檔×句段集、Workflow 列號對齊 |
+| 2026-06-12 | B-0 程式落地：`openEditorFromView`、建立句段集排序、左欄 `rowIdx+1`、移除句段集 Fix A |

@@ -3624,10 +3624,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const colId = sortColSelect.value;
         const orderValue = sortOrderSelect.value; // 'asc', 'desc', 'len-asc', 'len-desc', 'text-asc', 'text-desc'
         
+        currentSegmentsList.forEach((seg, i) => { seg.rowIdx = i; });
         currentSegmentsList.sort((a, b) => {
             let valA, valB;
             if (colId === 'col-id') {
-                valA = a.globalId || a.rowIdx; valB = b.globalId || b.rowIdx;
+                valA = a.rowIdx ?? 0; valB = b.rowIdx ?? 0;
             } else if (colId.startsWith('col-key-')) {
                 const kIdx = parseInt(colId.replace('col-key-', ''), 10);
                 valA = a.keys && a.keys[kIdx] ? a.keys[kIdx].toString() : '';
@@ -4601,6 +4602,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         return String(a.id ?? '').localeCompare(String(b.id ?? ''));
     }
 
+    /** 專案檔案清單排序鍵：團隊 created_at／離線本機 id 升冪（B-0） */
+    function _fileListSortKey(f) {
+        if (!f) return 0;
+        const ca = f.createdAt || f.created_at;
+        if (ca) {
+            const t = new Date(ca).getTime();
+            if (Number.isFinite(t)) return t;
+        }
+        const id = f.id;
+        if (typeof id === 'number' && Number.isFinite(id)) return id;
+        const n = parseInt(String(id), 10);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    /** 依匯入先後建專案檔案 # 序號對照（loadFilesList 同序） */
+    function _buildProjectFilesMap(files) {
+        const orderedFiles = [...(files || [])].sort((a, b) => _fileListSortKey(a) - _fileListSortKey(b));
+        const filesMap = {};
+        orderedFiles.forEach((f, idx) => {
+            filesMap[String(f.id)] = { ...f, seqNo: idx + 1 };
+        });
+        return { filesMap, orderedFiles };
+    }
+
+    /** 句段集成員：view.file_ids 內檔依 created_at／id → 檔內 globalId（B-0 §2） */
+    function _sortSegmentsForView(segments, viewFileIds, orderedFiles) {
+        const viewSet = new Set((viewFileIds || []).map(String));
+        const viewFiles = (orderedFiles || []).filter((f) => viewSet.has(String(f.id)));
+        const rank = {};
+        viewFiles.forEach((f, idx) => { rank[String(f.id)] = idx; });
+        return [...(segments || [])].sort((a, b) => {
+            const ai = rank[String(a.fileId)] ?? 9999;
+            const bi = rank[String(b.fileId)] ?? 9999;
+            if (ai !== bi) return ai - bi;
+            return _cmpSegmentImportOrderWithinFile(a, b);
+        });
+    }
+
+    /** 左欄 ID＝全清單顯示列序（1-based） */
+    function _segDisplayId(seg, listIdx) {
+        if (listIdx != null && Number.isFinite(listIdx)) return listIdx + 1;
+        if (seg && seg.rowIdx != null && Number.isFinite(seg.rowIdx)) return seg.rowIdx + 1;
+        return 1;
+    }
+
+    function _colIdCellTitle(seg, displayId) {
+        const pickTip = '點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)';
+        const ga = seg.globalId != null && Number.isFinite(Number(seg.globalId)) ? Number(seg.globalId) : null;
+        if (ga != null && ga !== displayId) return `母檔匯入序 #${ga}；${pickTip}`;
+        return pickTip;
+    }
+
     // ── 建立句段集精靈 ────────────────────────────────────────────────────────
     const createViewModal = document.getElementById('createViewModal');
     const createViewNameInput = document.getElementById('createViewNameInput');
@@ -4666,22 +4719,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             btnCreateViewModalConfirm.disabled = true;
             btnCreateViewModalConfirm.textContent = '建立中…';
-            const lastFiles = window._lastFilesListForProject || [];
-            // 快速結合用預選檔案；自訂篩選用全部檔案
-            const fileIds = mode === 'quick' && _pendingCreateViewFileIds.length
-                ? _pendingCreateViewFileIds
-                : lastFiles.map(f => String(f.id));
+            let lastFiles = window._lastFilesListForProject || [];
+            if (!lastFiles.length) lastFiles = await DBService.getFiles(currentProjectId);
+            const { orderedFiles } = _buildProjectFilesMap(lastFiles);
+            // 快速結合用預選檔案；自訂篩選用全部檔案（成員順序依 created_at／id，非勾選先後）
+            const selectedFileIds = mode === 'quick' && _pendingCreateViewFileIds.length
+                ? _pendingCreateViewFileIds.map(String)
+                : orderedFiles.map((f) => String(f.id));
+            const selectedSet = new Set(selectedFileIds);
+            const fileIds = orderedFiles.filter((f) => selectedSet.has(String(f.id))).map((f) => String(f.id));
             let segmentIds = [];
             if (fileIds.length) {
                 const allSegs = await DBService.getSegmentsByFileForPreview(fileIds);
-                const fileOrder = fileIds.map((id) => String(id));
-                allSegs.sort((a, b) => {
-                    const ai = fileOrder.indexOf(String(a.fileId));
-                    const bi = fileOrder.indexOf(String(b.fileId));
-                    if (ai !== bi) return ai - bi;
-                    return _cmpSegmentImportOrderWithinFile(a, b);
-                });
-                segmentIds = allSegs.map((s) => String(s.id));
+                const sortedSegs = _sortSegmentsForView(allSegs, fileIds, orderedFiles);
+                segmentIds = sortedSegs.map((s) => String(s.id));
             }
             const filterSummary = { type: mode };
             await DBService.createView(currentProjectId, name, fileIds, segmentIds, filterSummary, {});
@@ -4772,11 +4823,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             _viewEditorReadOnly = false;
         }
 
-        const lastFiles = window._lastFilesListForProject || [];
-        const filesMap = {};
-        lastFiles.forEach((f, idx) => {
-            filesMap[String(f.id)] = { ...f, seqNo: idx + 1 };
-        });
+        let projectFiles = window._lastFilesListForProject || [];
+        if (!projectFiles.length && projectId) {
+            projectFiles = await DBService.getFiles(projectId);
+        }
+        const { filesMap, orderedFiles } = _buildProjectFilesMap(projectFiles);
         _currentViewFilesMap = filesMap;
 
         // 顯示每次進入說明 modal（§6.1）
@@ -4793,15 +4844,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let segments = [];
         if (segmentIds.length) {
             segments = await DBService.getSegmentsByIds(segmentIds);
-            // 依專案檔案清單順序（seqNo）+ 匯入序（globalId）排列，確保跨檔案的閱讀順序正確
-            segments.sort((a, b) => {
-                const fa = filesMap[String(a.fileId)];
-                const fb = filesMap[String(b.fileId)];
-                const ai = fa ? fa.seqNo : 9999;
-                const bi = fb ? fb.seqNo : 9999;
-                if (ai !== bi) return ai - bi;
-                return _cmpSegmentImportOrderWithinFile(a, b);
-            });
+            segments = _sortSegmentsForView(segments, fileIds, orderedFiles);
         }
 
         // 取得 fileRoles 以供 mqxliff 路徑
@@ -4995,10 +5038,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         opt.textContent = c.name;
                         sortColSelect.appendChild(opt);
                     }
-                });
-                // 確保 globalId 依已排序位置賦值，使 applySorting 以 col-id 排序時保持正確跨檔順序
-                currentSegmentsList.forEach((seg, i) => {
-                    if (!seg.globalId) seg.globalId = i + 1;
                 });
                 sortColSelect.value = 'col-id';
                 sortColSelect.dispatchEvent(new Event('change'));
@@ -16709,7 +16748,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function getSegDisplayIndexForTip(segId) {
         const seg = currentSegmentsList && currentSegmentsList.find(s => String(s.id) === String(segId));
         if (!seg) return '—';
-        if (seg.globalId != null) return String(seg.globalId);
         if (seg.rowIdx != null) return String(seg.rowIdx + 1);
         return '—';
     }
@@ -17736,7 +17774,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
         updateProgress();
-        const label = seg.globalId || (seg.rowIdx != null ? seg.rowIdx + 1 : '?');
+        const label = seg.rowIdx != null ? seg.rowIdx + 1 : '?';
         const msg = failureKind === 'other'
             ? `第 ${label} 句確認失敗：連線或伺服器異常，請稍後再試`
             : `第 ${label} 句確認失敗：伺服器版本較新，請重新確認`;
@@ -19701,7 +19739,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isConfirmed && !effectiveLocked) syncRowConfirmedStateClass(row, seg);
 
             let rowInnerContent = '';
-            rowInnerContent += `<div class="col-id" title="點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)" data-idx="${i}" data-id="${seg.id}">${seg.globalId || (seg.rowIdx + 1)}</div>`;
+            const displayId = _segDisplayId(seg, i);
+            rowInnerContent += `<div class="col-id" title="${_colIdCellTitle(seg, displayId).replace(/"/g, '&quot;')}" data-idx="${i}" data-id="${seg.id}">${displayId}</div>`;
             const maxKeys = colSettings.filter(c => c.id.startsWith('col-key-')).length;
             for(let k=0; k<maxKeys; k++) {
                 const keyText = seg.keys && seg.keys[k] ? seg.keys[k] : '';
@@ -22446,7 +22485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let idx = -1;
         currentSegmentsList.forEach((s, i) => {
             if (idx >= 0) return;
-            const disp = String(s.globalId != null ? s.globalId : (i + 1));
+            const disp = String(_segDisplayId(s, i));
             if (disp === t) idx = i;
         });
         if (idx < 0) {
@@ -22707,7 +22746,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!s) continue;
             if (!includeLocked && (isDynamicForbidden(s) || s.isLockedUser)) continue;
             if (!s.targetText || !String(s.targetText).trim()) continue;
-            const gid = s.globalId || (s.rowIdx + 1);
+            const gid = _segDisplayId(s, currentSegmentsList.indexOf(s));
             _qaPushSegmentRuleFindings(newChunks, s, gid, { checkTerms, checkTags, checkNumbers });
         }
         if (newChunks.length) _qaResults.push(...newChunks);
@@ -22730,7 +22769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const variants = new Set(groupSegs.map((s) => (s.targetText || '').trim()));
                 if (variants.size > 1) {
                     for (const s of groupSegs) {
-                        const gid = s.globalId || (s.rowIdx + 1);
+                        const gid = _segDisplayId(s, currentSegmentsList.indexOf(s));
                         _qaResults.push({
                             segId: s.id,
                             gid,
@@ -22751,7 +22790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 checkTerms = true, checkTags = true, checkConsistency = true, checkNumbers = true } = options || {};
         const results = [];
 
-        // 依原始排序（globalId or rowIdx+1）決定範圍索引
+        // 依全清單顯示列序（rowIdx）決定範圍索引
         const originalOrdered = [...segs].sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
 
         // 先建立範圍內有譯文的句段清單（供一致性檢查用）
@@ -22768,7 +22807,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (allowedSegIds && !allowedSegIds.has(s.id)) continue;
             if (!includeLocked && (isDynamicForbidden(s) || s.isLockedUser)) continue;
             if (!s.targetText || !s.targetText.trim()) continue;
-            filteredSegs.push({ s, gid: s.globalId || (s.rowIdx + 1) });
+            filteredSegs.push({ s, gid: _segDisplayId(s, oi) });
         }
 
         // 譯文一致性：建立 sourceText → Set<targetText>
