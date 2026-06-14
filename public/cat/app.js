@@ -5184,20 +5184,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function _dedupeTranslateAssignmentsByCollabRow(assigns) {
+        const byKey = new Map();
+        for (const a of assigns || []) {
+            const key = a.collabRowId ? String(a.collabRowId) : String(a.id);
+            const prev = byKey.get(key);
+            if (!prev) {
+                byKey.set(key, a);
+                continue;
+            }
+            const prevTs = Date.parse(prev.updatedAt || prev.assignedAt || 0) || 0;
+            const nextTs = Date.parse(a.updatedAt || a.assignedAt || 0) || 0;
+            if (nextTs >= prevTs) byKey.set(key, a);
+        }
+        return [...byKey.values()];
+    }
+
     function _openWfAdjustStatusModal() {
         const modal = document.getElementById('wfAdjustStatusModal');
         const list = document.getElementById('wfAdjustStatusList');
         if (!modal || !list) return;
-        const assigns = _wfTranslateAssignmentsInContext({ includeAll: true });
+        const assigns = _dedupeTranslateAssignmentsByCollabRow(
+            _wfTranslateAssignmentsInContext({ includeAll: true })
+        );
         const esc = (s) => String(s ?? '').replace(/</g, '&lt;');
         list.innerHTML = assigns.map((a) => {
             const label = esc(_formatWfTaskAssignmentLabel(a));
-            const done = a.workflowStatus === 'completed';
-            return `<label style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;">`
-                + `<input type="checkbox" class="wf-adjust-pick" data-assignment-id="${esc(a.id)}" checked>`
-                + `<span style="font-size:0.84rem;flex:1;">${label}</span>`
-                + `<span style="font-size:0.75rem;color:#64748b;">${done ? '已完成' : '執行中'}</span>`
-                + `</label>`;
+            const wfStatus = a.workflowStatus === 'completed' ? 'completed' : 'assigned';
+            return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;">`
+                + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}</span>`
+                + `<select class="form-input wf-adjust-row-status" data-assignment-id="${esc(a.id)}" style="width:auto;min-width:120px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
+                + `<option value="assigned"${wfStatus === 'assigned' ? ' selected' : ''}>翻譯執行中</option>`
+                + `<option value="completed"${wfStatus === 'completed' ? ' selected' : ''}>翻譯完成</option>`
+                + `</select>`
+                + `</div>`;
         }).join('');
         modal.classList.remove('hidden');
     }
@@ -5208,23 +5228,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _pmApplySplitAdjustStatus() {
-        const target = document.getElementById('wfAdjustStatusTarget');
-        const wfStatus = target && target.value === 'completed' ? 'completed' : 'assigned';
-        const picks = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-pick:checked')];
-        const ids = picks.map((el) => el.getAttribute('data-assignment-id')).filter(Boolean);
-        if (!ids.length) {
-            showCatToast('請至少勾選一個段落', 'info');
+        const selects = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-row-status')];
+        if (!selects.length) {
+            showCatToast('目前沒有可調整的段落', 'info');
             return;
         }
         const arr = window._currentFileStageAssignments || [];
-        const hits = arr.filter((a) => ids.includes(String(a.id)));
+        const hits = [];
         try {
-            for (const id of ids) {
+            for (const sel of selects) {
+                const id = sel.getAttribute('data-assignment-id');
+                if (!id) continue;
+                const wfStatus = sel.value === 'completed' ? 'completed' : 'assigned';
+                const hit = arr.find((a) => String(a.id) === String(id));
+                if (!hit || hit.workflowStatus === wfStatus) continue;
                 await _updateAssignmentWorkflowStatusLocal(id, wfStatus);
+                hits.push({ ...hit, workflowStatus: wfStatus });
             }
-            await _syncLmsForAssignments(hits, wfStatus === 'completed');
+            if (!hits.length) {
+                showCatToast('狀態未變更', 'info');
+                _closeWfAdjustStatusModal();
+                return;
+            }
+            const byCase = new Map();
+            for (const h of hits) {
+                if (!h || !h.collabRowId) continue;
+                const meta = await _getFileMetaForAssignment(h);
+                const caseId = meta && meta.relatedLmsCaseId ? String(meta.relatedLmsCaseId) : '';
+                if (!caseId) continue;
+                if (!byCase.has(caseId)) byCase.set(caseId, []);
+                byCase.get(caseId).push({
+                    collabRowId: String(h.collabRowId),
+                    taskCompleted: h.workflowStatus === 'completed',
+                });
+            }
+            for (const [caseId, updates] of byCase.entries()) {
+                await _emitWfCollabRowsBulkToLms(caseId, updates);
+            }
             _closeWfAdjustStatusModal();
-            showCatToast('已更新勾選段落狀態', 'info');
+            showCatToast('已更新段落狀態', 'info');
             refreshWfTaskCompleteToolbar();
         } catch (e) {
             console.error('[workflow] PM split adjust', e);
@@ -5331,23 +5373,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isPm = _isCatPmOrExecutive();
         const mineIncomplete = _wfIncompleteTaskAssignments({ includeAll: false });
         const mineCompleted = _wfMyCompletedTranslateAssignments();
-        const hasTranslateAssign = _wfTranslateAssignmentsInContext({ includeAll: false }).some((a) => _isAssignmentOnActiveStage(a));
+        const mineTranslate = _wfTranslateAssignmentsInContext({ includeAll: false });
         const hasPmTarget = _wfTranslateAssignmentsInContext({ includeAll: true }).length > 0;
+        const hasMineTranslate = mineTranslate.length > 0;
 
         if (isPm) {
-            if (!hasPmTarget) {
-                group.style.display = 'none';
-                closeWfTaskCompleteDropdown();
-                return;
-            }
             group.style.display = '';
             if (main) main.style.display = 'none';
-            if (adjust) adjust.style.display = '';
+            if (adjust) {
+                adjust.style.display = '';
+                adjust.disabled = !hasPmTarget;
+                adjust.classList.toggle('disabled', !hasPmTarget);
+            }
             if (arrow) arrow.style.display = 'none';
             return;
         }
 
-        if (!hasTranslateAssign && mineCompleted.length === 0) {
+        if (!hasMineTranslate && mineCompleted.length === 0) {
             group.style.display = 'none';
             closeWfTaskCompleteDropdown();
             return;
@@ -5355,7 +5397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         group.style.display = '';
         if (main) {
             main.style.display = '';
-            const allDone = hasTranslateAssign && mineIncomplete.length === 0;
+            const allDone = hasMineTranslate && mineIncomplete.length === 0;
             main.disabled = !!allDone;
             main.classList.toggle('disabled', !!allDone);
         }
@@ -5521,8 +5563,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function _buildStatusCellTooltip(seg) {
         const lines = [];
-        const twf = _isWfTransMarkedEffective(seg);
         const rwf = _isWfReviewMarkedEffective(seg);
+        const twf = _isWfTransMarkedEffective(seg) || rwf;
         lines.push(twf
             ? `內部翻譯：${_isWfTransMarked(seg) && seg.wfTransConfirmedAt ? new Date(seg.wfTransConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
             : '內部翻譯：未標');
@@ -5541,8 +5583,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function buildStatusCellHtml(seg) {
-        const twf = _isWfTransMarkedEffective(seg);
         const rwf = _isWfReviewMarkedEffective(seg);
+        const twf = _isWfTransMarkedEffective(seg) || rwf;
         const mq = seg && seg.status === 'confirmed';
         const classes = ['status-icon', 'status-icon-stack'];
         if (twf) classes.push('wf-trans');

@@ -18,6 +18,7 @@ import {
   syncCatWorkflowAssignmentsForCase,
   broadcastCatWorkflowAssignmentsSynced,
 } from "@/lib/cat-workflow-dispatch";
+import { buildCatDeepLink, buildCatProjectLink } from "@/lib/cat-deep-link";
 import {
   CatProjectFilePickerModal,
   type CatFileOption,
@@ -33,14 +34,6 @@ type LinkedFileRow = {
   related_lms_case_title: string | null;
   project: { id: string; name: string } | null;
 };
-
-function buildCatDeepLink(fileId: string, projectId: string) {
-  return `/cat/team/files/${encodeURIComponent(fileId)}?p=${encodeURIComponent(projectId)}`;
-}
-
-function buildCatProjectLink(projectId: string) {
-  return `/cat/team/projects/${encodeURIComponent(projectId)}`;
-}
 
 function ProjectLangLine({ row }: { row: LinkedFileRow }) {
   const projectName = row.project?.name ?? "—";

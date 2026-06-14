@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { MultilineInput } from "@/components/ui/multiline-input";
 import { Button } from "@/components/ui/button";
 import ColorSelect from "@/components/ColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
@@ -22,10 +22,11 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink } from "lucide-react";
 import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { buildCatDeepLink } from "@/lib/cat-deep-link";
 
 interface Props {
   rows: CollabRow[];
@@ -34,7 +35,13 @@ interface Props {
   caseId?: string;
 }
 
-type CatBindOption = { kind: "file" | "view"; id: string; label: string };
+type CatBindOption = {
+  kind: "file" | "view";
+  id: string;
+  label: string;
+  projectId?: string;
+  linkFileId?: string;
+};
 
 function encodeCatBind(row: CollabRow): string {
   if (row.linkedCatViewId) return `view:${row.linkedCatViewId}`;
@@ -50,7 +57,11 @@ function decodeCatBind(value: string): Pick<CollabRow, "linkedCatFileId" | "link
   return { linkedCatFileId: null, linkedCatViewId: null };
 }
 
-function CopySegmentButton({ value }: { value: string }) {
+function isCatBound(row: CollabRow): boolean {
+  return !!(row.linkedCatFileId || row.linkedCatViewId);
+}
+
+function CopyTextButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -94,15 +105,24 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
       const options: CatBindOption[] = fileRows.map((f) => ({
         kind: "file",
         id: f.id,
-        label: `檔案：${f.name}`,
+        label: f.name,
+        projectId: f.project_id ?? undefined,
+        linkFileId: f.id,
       }));
       if (projectIds.length) {
         const { data: views } = await (supabase as any)
           .from("cat_views")
-          .select("id, name, project_id")
+          .select("id, name, project_id, file_ids")
           .in("project_id", projectIds);
-        ((views ?? []) as { id: string; name: string }[]).forEach((v) => {
-          options.push({ kind: "view", id: v.id, label: `句段集：${v.name}` });
+        ((views ?? []) as { id: string; name: string; project_id: string; file_ids?: string[] }[]).forEach((v) => {
+          const firstFileId = Array.isArray(v.file_ids) && v.file_ids.length ? v.file_ids[0] : undefined;
+          options.push({
+            kind: "view",
+            id: v.id,
+            label: v.name,
+            projectId: v.project_id,
+            linkFileId: firstFileId,
+          });
         });
       }
       if (!cancelled) setCatBindOptions(options);
@@ -112,22 +132,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
     };
   }, [caseId]);
 
-  const canEditCatBind = isPmOrAbove || caseStatus === "draft" || caseStatus === "inquiry";
+  const canEditBindFields = isPmOrAbove;
 
-  // removed: isDispatched, isTaskCompleted no longer needed
-
-  // Segment overlay state
-  const [segmentOverlay, setSegmentOverlay] = useState<{ idx: number; value: string } | null>(null);
-
-  // Bulk deadline state
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
-
-  // Bulk person state
   const [bulkPersonField, setBulkPersonField] = useState<"translator" | "reviewer" | null>(null);
   const [bulkPersonValue, setBulkPersonValue] = useState<string>("");
-
-  // Last-accept confirmation state
   const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
 
   const updateRow = useCallback(
@@ -138,12 +148,11 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
     [rows, onChange]
   );
 
-  // 確認承接 only in draft/inquiry; 任務完成 replaces it in the same position for all other statuses
   const showAccepted = caseStatus === "draft" || caseStatus === "inquiry";
   const showTaskCompleted = !showAccepted;
 
   const columns = [
-    { key: "segment", label: "檔案或分段", width: "240px" },
+    { key: "segment", label: "檔案或分段", width: "260px" },
     { key: "translator", label: "譯者", width: "140px", bulkPerson: true },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
@@ -176,10 +185,25 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
     setBulkPersonValue("");
   };
 
+  const resolveCatLink = (row: CollabRow): string | null => {
+    if (row.linkedCatFileId) {
+      const opt = catBindOptions.find((o) => o.kind === "file" && o.id === row.linkedCatFileId);
+      if (opt?.projectId && opt.linkFileId) {
+        return buildCatDeepLink(opt.linkFileId, opt.projectId);
+      }
+    }
+    if (row.linkedCatViewId) {
+      const opt = catBindOptions.find((o) => o.kind === "view" && o.id === row.linkedCatViewId);
+      if (opt?.projectId && opt.linkFileId) {
+        return buildCatDeepLink(opt.linkFileId, opt.projectId);
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-0">
       <div ref={scrollRef} className="border border-border rounded-lg overflow-x-auto">
-        {/* Header */}
         <div
           className="grid items-center gap-0 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground min-w-max"
           style={{ gridTemplateColumns: gridTemplate }}
@@ -187,7 +211,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
           {columns.map((col) => (
             <div key={col.key} className="px-2 py-2 text-center whitespace-nowrap flex items-center justify-center gap-1">
               {col.label}
-              {(col as any).bulk && (
+              {(col as { bulk?: boolean }).bulk && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -205,7 +229,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {(col as any).bulkPerson && (
+              {(col as { bulkPerson?: boolean }).bulkPerson && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -227,13 +251,11 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
           ))}
         </div>
 
-        {/* Rows */}
         {rows.map((row, idx) => {
-          // Accepted: anyone can check; only translator-in-row or PM+ can uncheck
           const acceptedDisabled = showAccepted
             ? (row.accepted
-                ? !(isPmOrAbove || row.translator === displayName) // only these can uncheck
-                : false) // anyone can check
+                ? !(isPmOrAbove || row.translator === displayName)
+                : false)
             : false;
 
           const canCheckTaskCompleted =
@@ -244,51 +266,31 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
           const deliveredLocked = caseStatus === "delivered" || caseStatus === "feedback" || caseStatus === "feedback_completed";
           const canCheckDelivered = isPmOrAbove && !row.delivered && !deliveredLocked;
 
+          const catBound = isCatBound(row);
+          const catLink = catBound ? resolveCatLink(row) : null;
+
           return (
             <div
               key={row.id}
               className="grid items-center gap-0 border-b border-border last:border-b-0 text-sm min-w-max"
               style={{ gridTemplateColumns: gridTemplate }}
             >
-              {/* Segment + CAT 綁定 */}
               <div className="px-1.5 py-1 flex flex-col gap-1">
-                <div className="flex items-center gap-1">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex-1 text-left h-7 text-xs px-2 py-1 rounded-md border border-border bg-background truncate hover:bg-muted/50 min-w-0"
-                          onClick={() => setSegmentOverlay({ idx, value: row.segment })}
-                        >
-                          {row.segment || <span className="text-muted-foreground">分段名稱</span>}
-                        </button>
-                      </TooltipTrigger>
-                      {row.segment && row.segment.length > 12 && (
-                        <TooltipContent side="top" className="max-w-xs break-all">{row.segment}</TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                  <CopySegmentButton value={row.segment} />
-                </div>
                 {caseId && catBindOptions.length > 0 && (
-                  <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1">
                     <Select
                       value={encodeCatBind(row) || "__none__"}
                       onValueChange={(v) => {
                         const bind = decodeCatBind(v === "__none__" ? "" : v);
-                        updateRow(idx, {
-                          ...bind,
-                          scopeLabel: row.segment || row.scopeLabel || null,
-                        });
+                        updateRow(idx, bind);
                       }}
-                      disabled={!canEditCatBind}
+                      disabled={!canEditBindFields}
                     >
-                      <SelectTrigger className="h-6 text-[10px] px-1.5">
-                        <SelectValue placeholder="CAT 派工對象" />
+                      <SelectTrigger className="h-7 text-[10px] px-1.5 flex-1 min-w-0">
+                        <SelectValue placeholder="派工方式" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">未綁定 CAT</SelectItem>
+                        <SelectItem value="__none__">不使用 1UP CAT</SelectItem>
                         {catBindOptions.map((o) => (
                           <SelectItem key={`${o.kind}:${o.id}`} value={`${o.kind}:${o.id}`}>
                             {o.label}
@@ -296,18 +298,54 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                         ))}
                       </SelectContent>
                     </Select>
+                    {catLink && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 w-7 p-0 shrink-0" asChild>
+                              <Link to={catLink} title="開啟 CAT">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Link>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>開啟 CAT（同分頁）</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                )}
+
+                {catBound ? (
+                  <Input
+                    value={row.lineRange || ""}
+                    onChange={(e) => updateRow(idx, { lineRange: e.target.value || null })}
+                    placeholder="列範圍（例 10-50、344-；留白＝整檔）"
+                    className="h-6 text-[10px] px-1.5"
+                    disabled={!canEditBindFields}
+                  />
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={row.segment}
+                        onChange={(e) => updateRow(idx, { segment: e.target.value })}
+                        placeholder="分段說明"
+                        className="h-6 text-[10px] px-1.5 flex-1 min-w-0"
+                        disabled={!canEditBindFields}
+                      />
+                      <CopyTextButton value={row.segment} />
+                    </div>
                     <Input
                       value={row.lineRange || ""}
                       onChange={(e) => updateRow(idx, { lineRange: e.target.value || null })}
-                      placeholder="列範圍（例 10-50）"
+                      placeholder="列範圍（例 10-50、344-；留白＝整檔）"
                       className="h-6 text-[10px] px-1.5"
-                      disabled={!canEditCatBind}
+                      disabled={!canEditBindFields}
                     />
-                  </div>
+                  </>
                 )}
               </div>
 
-              {/* Translator – locked when accepted (except PM+) */}
               <div className="px-1.5 py-1">
                 <ColorSelect
                   fieldKey="assignee"
@@ -318,7 +356,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              {/* Unit count */}
               <div className="px-1.5 py-1">
                 <Input
                   type="number"
@@ -328,7 +365,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              {/* Translation deadline */}
               <div className="px-1.5 py-1">
                 <DateTimePicker
                   value={row.translationDeadline}
@@ -337,7 +373,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              {/* Accepted or TaskCompleted (same position) */}
               <div className="flex items-center justify-center px-1.5 py-1">
                 {showAccepted ? (
                   <Checkbox
@@ -345,10 +380,8 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                     disabled={acceptedDisabled}
                     onCheckedChange={(v) => {
                       if (!!v) {
-                        // Check if this is the last unchecked row
                         const uncheckedCount = rows.filter((r, ri) => !r.accepted && ri !== idx).length;
                         if (uncheckedCount === 0) {
-                          // This is the last one – show confirmation
                           setLastAcceptConfirm({ idx });
                           return;
                         }
@@ -372,7 +405,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 )}
               </div>
 
-              {/* Reviewer */}
               <div className="px-1.5 py-1">
                 <ColorSelect
                   fieldKey="assignee"
@@ -383,7 +415,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              {/* Review deadline */}
               <div className="px-1.5 py-1">
                 <DateTimePicker
                   value={row.reviewDeadline}
@@ -392,7 +423,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              {/* Delivered */}
               <div className="flex items-center justify-center px-1.5 py-1">
                 <Checkbox
                   checked={row.delivered}
@@ -405,7 +435,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
         })}
       </div>
 
-      {/* Scroll arrows + action slot */}
       <div className="flex items-center gap-1 justify-end mt-1">
         <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => scrollToEnd("left")}>
           <ChevronLeft className="h-4 w-4" />
@@ -415,54 +444,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
         </Button>
       </div>
 
-      <AlertDialog open={!!segmentOverlay} onOpenChange={(open) => { if (!open) setSegmentOverlay(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>編輯分段名稱</AlertDialogTitle>
-          </AlertDialogHeader>
-          <div>
-            <MultilineInput
-              value={segmentOverlay?.value ?? ""}
-              onChange={(e) => setSegmentOverlay((prev) => prev ? { ...prev, value: e.target.value } : null)}
-              placeholder="分段名稱"
-              minRows={3}
-              maxRows={10}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (segmentOverlay) {
-                    updateRow(segmentOverlay.idx, {
-                      segment: segmentOverlay.value,
-                      scopeLabel: segmentOverlay.value || null,
-                    });
-                  }
-                  setSegmentOverlay(null);
-                }
-              }}
-            />
-            <AlertDialogFooter className="mt-4">
-              <AlertDialogCancel type="button">取消</AlertDialogCancel>
-              <Button
-                onClick={() => {
-                  if (segmentOverlay) {
-                    updateRow(segmentOverlay.idx, {
-                      segment: segmentOverlay.value,
-                      scopeLabel: segmentOverlay.value || null,
-                    });
-                  }
-                  setSegmentOverlay(null);
-                }}
-              >
-                確定
-              </Button>
-            </AlertDialogFooter>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk deadline dialog */}
       <AlertDialog open={!!bulkDeadlineField} onOpenChange={(open) => { if (!open) { setBulkDeadlineField(null); setBulkDeadlineValue(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -482,7 +463,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Bulk person dialog */}
       <AlertDialog open={!!bulkPersonField} onOpenChange={(open) => { if (!open) { setBulkPersonField(null); setBulkPersonValue(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>

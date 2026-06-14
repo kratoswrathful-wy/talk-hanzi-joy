@@ -377,9 +377,16 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     prev.status !== "dispatched" &&
     partial.status === "dispatched";
   const nextStatus = partial.status ?? prev?.status;
+  const revertWorkflowStatuses = ["draft", "inquiry", "dispatched"] as const;
+  const shouldSyncCatWorkflowOnStatusRevert =
+    !!prev &&
+    partial.status !== undefined &&
+    partial.status !== prev.status &&
+    (revertWorkflowStatuses as readonly string[]).includes(partial.status);
   const shouldSyncCatWorkflowAssignments =
     !!prev &&
-    ((prev.status !== "dispatched" && partial.status === "dispatched") ||
+    (shouldSyncCatWorkflowOnStatusRevert ||
+      (prev.status !== "dispatched" && partial.status === "dispatched") ||
       ((nextStatus === "dispatched" || nextStatus === "task_completed") &&
         (partial.collabRows !== undefined || partial.reviewer !== undefined)));
   let merged: Partial<CaseRecord> = partial;
