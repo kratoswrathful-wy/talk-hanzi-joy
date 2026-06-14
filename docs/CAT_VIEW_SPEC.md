@@ -22,8 +22,8 @@
 
 **靜態名單 + 動態內容**
 
-- 建立時寫入 `segment_ids[]`（與建立當下的 `file_ids[]` 順序），之後不隨篩選條件重跑而變動。
-- 開啟時以 `segment_ids` 向資料庫查詢最新句段列，排序依儲存的 `file_ids` 與各句段 `rowIdx`。
+- 建立時寫入 `segment_ids[]`（成員名單）與 `file_ids[]`（涉及檔清單），之後不隨篩選條件重跑而變動。
+- 開啟時以 `segment_ids` 向資料庫查詢最新句段列，**預設排序**依檔案 `created_at`（離線：`id`）→ 檔內 `globalId`；**左欄 ID** 為全清單顯示列序 1、2、3…（見 [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)）。
 - **跨裝置同步**：團隊模式資料存 Supabase；離線模式存 IndexedDB（本機）。
 
 ### 1.3 介面用語（繁體正體）
@@ -44,8 +44,8 @@
 | `project_id` | `uuid` FK | `cat_projects(id)`，`ON DELETE CASCADE` |
 | `owner_user_id` | `uuid` FK | `profiles(id)`，建立者 |
 | `name` | `text` | 句段集顯示名稱 |
-| `file_ids` | `uuid[]` | 建立時選取之檔案**順序**（對應專案檔案清單當時的 1、2、3… 順序；不可僅依 `created_at` 推斷，見下） |
-| `segment_ids` | `uuid[]` | 凍結的句段成員（`cat_segments.id`） |
+| `file_ids` | `uuid[]` | 建立時選取之**涉及檔** UUID 清單（記錄成員來自哪些檔；**開啟時排序不依**此陣列勾選先後，見排序 spec §2） |
+| `segment_ids` | `uuid[]` | 凍結的句段**成員名單**（`cat_segments.id`）；**不是**顯示順序來源 |
 | `filter_summary` | `jsonb` | 建立時篩選條件快照，供清單「條件摘要」欄渲染（結構需與前端產生文字行的邏輯一致） |
 | `file_roles` | `jsonb` | 選填；`{ "<fileId>": "T_ALLOW_R1" \| "T_DENY_R1" \| "R1" \| "R2" }`，僅 mqxliff 檔需有意義 |
 | `created_at` | `timestamptz` | 建立時間 |
@@ -53,7 +53,7 @@
 
 **為何需要 `file_ids[]`**
 
-專案檔案清單的「序號」來自列表渲染順序（見 [`cat-tool/app.js`](../cat-tool/app.js) `loadFilesList`），非 DB 固定欄位；若僅用檔案 `created_at` 排序，與使用者畫面上 1、2、3 的認知可能不一致。建立句段集時應**明確儲存**當時的檔案 UUID 順序。
+記錄句段集涵蓋哪些檔案，供清單「涉及檔案」欄、mqxliff `file_roles`、所屬檔案欄對照。專案檔案清單序號（#1、#2）來自 `loadFilesList` 之 `created_at`／`id` 順序（見排序 spec §1）；**開啟句段集時**檔案先後亦依此規則，**不以**建立時 `file_ids` 陣列先後為準。
 
 ### 2.1.1 清單可見性與 `owner_user_id`
 
@@ -140,7 +140,7 @@
 
 1. 使用者在檔案清單勾選一個或多個檔案。
 2. 選擇「快速結合建立句段集」（按鈕文案實作時可再縮短）。
-3. 跳**命名**（及 mqxliff 各檔 `file_roles` 若需要）→ 系統將所選檔案之**全部句段**依 `file_ids` 順序與各檔 `rowIdx` 收集為 `segment_ids`，寫入 `cat_views`；`filter_summary` 標記為快速結合。
+3. 跳**命名**（及 mqxliff 各檔 `file_roles` 若需要）→ 系統將所選檔案之**全部句段**依檔序（`created_at`／`id`）與各檔 `globalId` 收集為 `segment_ids`，寫入 `cat_views`；`filter_summary` 標記為快速結合。
 
 ### 5.2 自訂篩選
 
@@ -165,7 +165,9 @@
 | 項目 | 行為 |
 |------|------|
 | 版面 | 與單檔編輯器相同主格線；來源檔案由「所屬檔案」欄（§12.2）顯示，**不插入**整行式檔案分隔標頭列。 |
-| 排序 | 預設：`file_ids` 順序 → 同檔 `rowIdx` 升冪；**支援使用者於當次工作階段調整排序**（排序後仍以 §12.2 欄辨識句段所屬檔）。**不寫回** `cat_views`（僅記憶體／session 狀態）。 |
+| 排序 | 預設：檔 `created_at`（離線 `id`）升冪 → 檔內 `globalId` 升冪（見 [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) §2）；**支援當次工作階段手動排序**，**不寫回** `cat_views`。 |
+| 左欄 ID | **全清單顯示列序** 1、2、3…（`rowIdx + 1`），非母檔 `globalId`；可選 tooltip 母檔匯入序。 |
+| 篩選 | **定案 A**：只隱藏列，**不重編**左欄 ID（可見 1、2、5、8）。 |
 | 儲存 | 沿用既有 `updateSegmentTarget` / `updateSegmentStatus` 等，以句段 `id` 寫回 `cat_segments` |
 | **匯出檔案** | **不顯示**匯出按鈕（跨多檔、多格式，避免誤導單檔匯出）；其餘工具列動作（內部註記、提問表單、預先翻譯、AI 等）維持與單檔同一**工具列動作列**排版習慣。 |
 | **內部註記** | 依**目前焦點／上下文句段**的 `fileId` 載入對應 `cat_files` 列，使用其 `relatedLmsCaseId`／`relatedLmsCaseTitle` 呼叫既有 `openInternalNoteFromEditor`（見 [`cat-tool/app.js`](../cat-tool/app.js) 約 L8922） |
@@ -198,7 +200,7 @@ flowchart TD
   openFlow["開啟句段集"]
   openFlow --> getView["SELECT cat_views by id"]
   getView --> loadSegs["SELECT cat_segments WHERE id = ANY(segment_ids)"]
-  loadSegs --> sortUi["預設依 file_ids 與 rowIdx；當次工作階段可調排序（不持久化）"]
+  loadSegs --> sortUi["預設：檔 created_at → 檔內 globalId；左欄 ID＝顯示列序；篩選 A"]
   sortUi --> edit["使用者編輯句段"]
   edit --> rpcUpdate["RPC updateSegmentTarget 等"]
 ```
@@ -382,4 +384,4 @@ flowchart LR
 
 ---
 
-*文件版本：2026-05-01 起稿；2026-05-02 增修 §1.3、§5.2、§12；2026-05-02 晚：**§6 移除檔案分隔標頭列**（改賴所屬檔案欄＋可調排序）；含 §13、§14；**2026-05-01（本輯）**：§3.1 譯者專案清單／左欄／唯讀開啟／管理按鈕隱藏；§2.2 離線句段集第一版納入；§5.2 預覽欄與編輯器一致（譯文唯讀）；§6 排序不持久化、§6.1 每次進入說明；§7 唯讀不跳 mqxliff modal；§8 mermaid 與 §6 一致；§2.1.1／§2.3／§13.6 PM+ 管理；§10 檢查清單增量。**2026-05-08**：§12.2 補「所屬檔案」與 Key／原文之固定相對順序及狀態欄置尾；新增 §12.4（單檔與句段集欄寬拖曳、右三欄固定）；新增 §12.5（Key／額外資訊全空白自動隱藏與設定鎖定）。實作時若與程式分歧，以 PR 說明為準。*
+*文件版本：2026-05-01 起稿；2026-05-02 增修 §1.3、§5.2、§12；2026-05-02 晚：**§6 移除檔案分隔標頭列**（改賴所屬檔案欄＋可調排序）；含 §13、§14；**2026-05-01（本輯）**：§3.1 譯者專案清單／左欄／唯讀開啟／管理按鈕隱藏；§2.2 離線句段集第一版納入；§5.2 預覽欄與編輯器一致（譯文唯讀）；§6 排序不持久化、§6.1 每次進入說明；§7 唯讀不跳 mqxliff modal；§8 mermaid 與 §6 一致；§2.1.1／§2.3／§13.6 PM+ 管理；§10 檢查清單增量。**2026-05-08**：§12.2 補「所屬檔案」與 Key／原文之固定相對順序及狀態欄置尾；新增 §12.4（單檔與句段集欄寬拖曳、右三欄固定）；新增 §12.5（Key／額外資訊全空白自動隱藏與設定鎖定）。**2026-06-12**：§1.2、§2.1、§5.1、§6、§8 對齊 Phase B 排序定案（`globalId`、左欄顯示序、篩選 A）；見 [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)。實作時若與程式分歧，以 PR 說明為準。*

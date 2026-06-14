@@ -65,6 +65,24 @@ flowchart LR
   grp --> eval
 ```
 
+### 2.3 第五維（內部 Workflow 標記，Phase B 規劃）
+
+> **狀態**：規劃中，尚未實作於 `evaluateSegment`。完整規格見 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §3、§7 B-5。
+
+與第四維（memoQ `mq_t`／`mq_r1`／`mq_r2`）**分開**；僅在 Phase B 落地後啟用。
+
+| 鍵值 | 意義 |
+|------|------|
+| `wf_trans_marked` | 句段已標記內部**翻譯**步（對應狀態欄實心綠點） |
+| `wf_review_marked` | 句段已標記內部**審稿**步（對應狀態欄綠外圈） |
+
+**語意（草案）**
+
+1. 與 memoQ 第四維獨立：勾選 `wf_*` 不隱含 `confirmed`／`mq_*` 條件。
+2. 維度內 OR、維度間 AND，與 §2.1 既有三維＋第四維相同。
+3. 非 mqxliff 開檔時仍可套用 `wf_*`（若 Phase B 對通用檔啟用內部標記）；memoQ 第四維仍僅 mqxliff 顯示。
+4. 左欄 ID（全清單列序）見 [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) §3。
+
 ---
 
 ## 3. 定案 UI（編輯器 `#sfAdvancedPanel`）
@@ -131,3 +149,4 @@ flowchart LR
 | 日期 | 說明 |
 |------|------|
 | 2026-05-10 | 初版：整合計畫書、觸點表與 `evaluateSegment` 規格。 |
+| 2026-06-12 | §2.3：Phase B 內部 Workflow 篩選第五維草案（`wf_trans_marked`／`wf_review_marked`）。 |
