@@ -2844,6 +2844,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         return arr.find((s) => s.status !== 'completed') || null;
     }
 
+    /** B-4 A：依 session 工作步驟取對應 stage（無 session 時沿用 active） */
+    function _workflowSessionStage(stages) {
+        const arr = Array.isArray(stages) ? stages : [];
+        if (currentWfSessionKind) {
+            const hit = arr.find((s) => s.stageKind === currentWfSessionKind);
+            if (hit) return hit;
+        }
+        return _workflowActiveStage(arr);
+    }
+
+    function _needsWfSessionChoice() {
+        if (!isTeamMode()) return false;
+        const userId = String(window._tmsCurrentUserId || '');
+        if (!userId) return false;
+        const assigns = _wfTaskAssignmentsInContext();
+        const mine = assigns.filter((a) => String(a.assigneeUserId) === userId);
+        let hasTranslate = false;
+        let hasReview = false;
+        mine.forEach((a) => {
+            const st = _workflowStageById(_getStagesForAssignment(a), a.fileWorkflowStageId);
+            if (!st) return;
+            if (st.stageKind === 'translate') hasTranslate = true;
+            if (st.stageKind === 'review') hasReview = true;
+        });
+        return hasTranslate && hasReview;
+    }
+
+    async function _maybePromptWfSessionKind() {
+        currentWfSessionKind = null;
+        if (!_needsWfSessionChoice()) return true;
+        const kind = await showWfSessionModal();
+        if (!kind) return false;
+        currentWfSessionKind = kind;
+        _refreshWfSessionKindHint();
+        return true;
+    }
+
+    function _refreshWfSessionKindHint() {
+        const el = document.getElementById('wfSessionKindHint');
+        if (!el) return;
+        if (!currentWfSessionKind || !isTeamMode() || activeView !== 'viewEditor') {
+            el.style.display = 'none';
+            el.textContent = '';
+            return;
+        }
+        el.style.display = '';
+        el.textContent = currentWfSessionKind === 'review' ? '目前：審稿工作' : '目前：翻譯工作';
+    }
+
     function _resolveAssigneeDisplayName(userId) {
         const uid = String(userId || '');
         if (!uid) return '—';
@@ -3168,6 +3217,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             const reqId = String(p.requestId || '');
             if (reqId && catQfNotesListRequestId && reqId !== catQfNotesListRequestId) return;
             renderInNoteListFromPayload(p);
+        } else if (event.data.type === 'CAT_WF_REFRESH_WORKFLOW') {
+            const p = event.data.payload || {};
+            const caseId = String(p.caseId || '');
+            void (async () => {
+                try {
+                    if (currentFileId) {
+                        const file = await catGetFile(currentFileId, { includeOriginal: false });
+                        if (file && caseId && String(file.relatedLmsCaseId || '') !== caseId) return;
+                        await _loadFileWorkflowContext(currentFileId);
+                    } else if (_currentViewId) {
+                        const view = await DBService.getView(_currentViewId);
+                        const fids = view && Array.isArray(view.fileIds) ? view.fileIds : [];
+                        await _loadViewWorkflowContext(fids);
+                    }
+                    refreshWfTaskCompleteToolbar();
+                } catch (e) {
+                    console.warn('[workflow] refresh from LMS', e);
+                }
+            })();
         } else if (event.data.type === 'TMS_SIDEBAR_MODE') {
             const mode = String((event.data && event.data.mode) || '');
             if (mode === 'editor' || mode === 'lms') {
@@ -4861,8 +4929,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function _isAssignmentOnActiveStage(a) {
         const stages = _getStagesForAssignment(a);
-        const active = _workflowActiveStage(stages);
-        return !!(active && String(active.id) === String(a.fileWorkflowStageId));
+        const sessionSt = _workflowSessionStage(stages);
+        return !!(sessionSt && String(sessionSt.id) === String(a.fileWorkflowStageId));
     }
 
     function _wfTaskAssignmentsInContext() {
@@ -4881,16 +4949,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    function _wfIncompleteTaskAssignments(opts) {
+    function _wfTranslateAssignmentsInContext(opts) {
         const o = opts || {};
         const userId = String(window._tmsCurrentUserId || '');
         const includeAll = !!o.includeAll;
         return _wfTaskAssignmentsInContext().filter((a) => {
+            const stages = _getStagesForAssignment(a);
+            const st = _workflowStageById(stages, a.fileWorkflowStageId);
+            if (!st || st.stageKind !== 'translate') return false;
+            if (!includeAll && userId && String(a.assigneeUserId) !== userId) return false;
+            return true;
+        });
+    }
+
+    function _wfIncompleteTaskAssignments(opts) {
+        const o = opts || {};
+        const userId = String(window._tmsCurrentUserId || '');
+        const includeAll = !!o.includeAll;
+        return _wfTranslateAssignmentsInContext({ includeAll }).filter((a) => {
             if (!_isAssignmentOnActiveStage(a)) return false;
             if (a.workflowStatus === 'completed') return false;
             if (!includeAll && userId && String(a.assigneeUserId) !== userId) return false;
             return true;
         });
+    }
+
+    function _wfMyCompletedTranslateAssignments() {
+        const userId = String(window._tmsCurrentUserId || '');
+        return _wfTranslateAssignmentsInContext({ includeAll: false }).filter((a) => {
+            if (!_isAssignmentOnActiveStage(a)) return false;
+            return a.workflowStatus === 'completed' && (!userId || String(a.assigneeUserId) === userId);
+        });
+    }
+
+    function _hasSplitTranslateAssignments() {
+        const assigns = _wfTranslateAssignmentsInContext({ includeAll: true });
+        if (assigns.length > 1) return true;
+        return assigns.some((a) => a.lineStart != null || a.lineEnd != null || String(a.scopeLabel || '').trim());
     }
 
     function _formatWfTaskAssignmentLabel(a) {
@@ -4933,6 +5028,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function _renderPmAdjustStatusDropdownItems() {
+        const body = document.getElementById('wfTaskCompleteDropdown');
+        if (!body) return;
+        const esc = (s) => String(s ?? '').replace(/</g, '&lt;');
+        body.innerHTML = [
+            '<button type="button" class="wf-pm-adjust-item" data-mode="active" style="display:block;width:100%;text-align:left;padding:0.55rem 0.75rem;border:none;background:#fff;cursor:pointer;font-size:0.84rem;color:#334155;">翻譯執行中</button>',
+            '<button type="button" class="wf-pm-adjust-item" data-mode="completed" style="display:block;width:100%;text-align:left;padding:0.55rem 0.75rem;border:none;background:#fff;cursor:pointer;font-size:0.84rem;color:#334155;">翻譯完成</button>',
+        ].join('');
+        body.querySelectorAll('.wf-pm-adjust-item').forEach((btn) => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const mode = btn.getAttribute('data-mode');
+                closeWfTaskCompleteDropdown();
+                if (mode) void _pmApplyWholeFileTranslateState(mode);
+            });
+            btn.addEventListener('mouseenter', () => { btn.style.background = '#f1f5f9'; });
+            btn.addEventListener('mouseleave', () => { btn.style.background = '#fff'; });
+        });
+    }
+
     function toggleWfTaskCompleteDropdown() {
         const dd = document.getElementById('wfTaskCompleteDropdown');
         const arrow = document.getElementById('btnWfTaskCompleteArrow');
@@ -4942,16 +5057,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         const isPm = _isCatPmOrExecutive();
+        if (isPm && !_hasSplitTranslateAssignments()) {
+            _renderPmAdjustStatusDropdownItems();
+            dd.classList.add('show');
+            arrow.classList.add('open');
+            return;
+        }
         const mine = _wfIncompleteTaskAssignments({ includeAll: false });
-        const items = (isPm || mine.length > 1)
-            ? _wfIncompleteTaskAssignments({ includeAll: isPm })
-            : mine;
+        const items = mine.length > 1 ? mine : mine;
         _renderWfTaskCompleteDropdownItems(items);
         dd.classList.add('show');
         arrow.classList.add('open');
     }
 
-    async function _emitWfTaskCompleteToLms(assignment, fileMeta) {
+    async function _emitWfCollabRowsBulkToLms(caseId, updates) {
+        if (!caseId || !updates || !updates.length) return;
+        try {
+            window.parent.postMessage({
+                type: 'CAT_WF_COLLAB_ROWS_BULK',
+                payload: {
+                    caseId: String(caseId),
+                    updates,
+                    updatedAt: new Date().toISOString(),
+                },
+            }, window.location.origin);
+        } catch (e) {
+            console.warn('[workflow] LMS bulk notify', e);
+        }
+    }
+
+    async function _emitWfTaskCompleteToLms(assignment, fileMeta, taskCompleted = true) {
         const collabRowId = assignment && assignment.collabRowId ? String(assignment.collabRowId) : '';
         const caseId = fileMeta && fileMeta.relatedLmsCaseId ? String(fileMeta.relatedLmsCaseId) : '';
         if (!collabRowId || !caseId) return;
@@ -4964,11 +5099,136 @@ document.addEventListener('DOMContentLoaded', async () => {
                     assignmentId: String(assignment.id),
                     fileId: assignment.fileId != null ? String(assignment.fileId) : null,
                     viewId: assignment.viewId != null ? String(assignment.viewId) : null,
+                    taskCompleted: !!taskCompleted,
                     completedAt: new Date().toISOString(),
                 },
             }, window.location.origin);
         } catch (e) {
             console.warn('[workflow] LMS notify', e);
+        }
+    }
+
+    async function _getFileMetaForAssignment(a) {
+        try {
+            return await catGetFile(a.fileId, { includeOriginal: false });
+        } catch (_) {
+            return null;
+        }
+    }
+
+    async function _syncLmsForAssignments(assignments, taskCompleted) {
+        const byCase = new Map();
+        for (const a of assignments || []) {
+            if (!a || !a.collabRowId) continue;
+            const meta = await _getFileMetaForAssignment(a);
+            const caseId = meta && meta.relatedLmsCaseId ? String(meta.relatedLmsCaseId) : '';
+            if (!caseId) continue;
+            if (!byCase.has(caseId)) byCase.set(caseId, []);
+            byCase.get(caseId).push({ collabRowId: String(a.collabRowId), taskCompleted: !!taskCompleted });
+        }
+        for (const [caseId, updates] of byCase.entries()) {
+            await _emitWfCollabRowsBulkToLms(caseId, updates);
+        }
+    }
+
+    async function _updateAssignmentWorkflowStatusLocal(assignmentId, workflowStatus) {
+        const arr = window._currentFileStageAssignments || [];
+        const updated = await DBService.updateStageAssignmentWorkflowStatus(assignmentId, workflowStatus);
+        const idx = arr.findIndex((a) => String(a.id) === String(assignmentId));
+        if (idx >= 0) arr[idx] = { ...arr[idx], ...updated };
+        return updated;
+    }
+
+    async function _pmApplyWholeFileTranslateState(mode) {
+        const fileId = currentFileId != null ? String(currentFileId) : null;
+        if (!fileId) {
+            showCatToast('請先開啟檔案', 'info');
+            return;
+        }
+        const stages = window._currentFileWorkflowStages || [];
+        const translateStage = stages.find((s) => s.stageKind === 'translate');
+        const reviewStage = stages.find((s) => s.stageKind === 'review');
+        if (!translateStage) {
+            showCatToast('找不到翻譯步驟', 'error');
+            return;
+        }
+        const isComplete = mode === 'completed';
+        try {
+            const updatedTranslate = await DBService.updateFileWorkflowStageStatus(
+                translateStage.id,
+                isComplete ? 'completed' : 'active',
+            );
+            const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
+            if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updatedTranslate };
+            if (reviewStage) {
+                const reviewStatus = isComplete ? 'active' : 'pending';
+                const updatedReview = await DBService.updateFileWorkflowStageStatus(reviewStage.id, reviewStatus);
+                const rIdx = stages.findIndex((s) => String(s.id) === String(reviewStage.id));
+                if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updatedReview };
+            }
+            window._currentFileWorkflowStages = stages;
+            const assigns = _wfTranslateAssignmentsInContext({ includeAll: true }).filter((a) => String(a.fileId) === fileId);
+            const wfStatus = isComplete ? 'completed' : 'assigned';
+            for (const a of assigns) {
+                await _updateAssignmentWorkflowStatusLocal(a.id, wfStatus);
+            }
+            await _syncLmsForAssignments(assigns, isComplete);
+            showCatToast(isComplete ? '已標記翻譯完成' : '已改回翻譯執行中', 'info');
+            refreshWfTaskCompleteToolbar();
+            if (currentProjectId && typeof _fillFilesWorkflowCellsAsync === 'function' && window._lastFilesListForProject) {
+                void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
+            }
+        } catch (e) {
+            console.error('[workflow] PM whole-file adjust', e);
+            showCatToast('無法調整狀態，請稍後再試', 'error');
+        }
+    }
+
+    function _openWfAdjustStatusModal() {
+        const modal = document.getElementById('wfAdjustStatusModal');
+        const list = document.getElementById('wfAdjustStatusList');
+        if (!modal || !list) return;
+        const assigns = _wfTranslateAssignmentsInContext({ includeAll: true });
+        const esc = (s) => String(s ?? '').replace(/</g, '&lt;');
+        list.innerHTML = assigns.map((a) => {
+            const label = esc(_formatWfTaskAssignmentLabel(a));
+            const done = a.workflowStatus === 'completed';
+            return `<label style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;">`
+                + `<input type="checkbox" class="wf-adjust-pick" data-assignment-id="${esc(a.id)}" checked>`
+                + `<span style="font-size:0.84rem;flex:1;">${label}</span>`
+                + `<span style="font-size:0.75rem;color:#64748b;">${done ? '已完成' : '執行中'}</span>`
+                + `</label>`;
+        }).join('');
+        modal.classList.remove('hidden');
+    }
+
+    function _closeWfAdjustStatusModal() {
+        const modal = document.getElementById('wfAdjustStatusModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    async function _pmApplySplitAdjustStatus() {
+        const target = document.getElementById('wfAdjustStatusTarget');
+        const wfStatus = target && target.value === 'completed' ? 'completed' : 'assigned';
+        const picks = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-pick:checked')];
+        const ids = picks.map((el) => el.getAttribute('data-assignment-id')).filter(Boolean);
+        if (!ids.length) {
+            showCatToast('請至少勾選一個段落', 'info');
+            return;
+        }
+        const arr = window._currentFileStageAssignments || [];
+        const hits = arr.filter((a) => ids.includes(String(a.id)));
+        try {
+            for (const id of ids) {
+                await _updateAssignmentWorkflowStatusLocal(id, wfStatus);
+            }
+            await _syncLmsForAssignments(hits, wfStatus === 'completed');
+            _closeWfAdjustStatusModal();
+            showCatToast('已更新勾選段落狀態', 'info');
+            refreshWfTaskCompleteToolbar();
+        } catch (e) {
+            console.error('[workflow] PM split adjust', e);
+            showCatToast('無法調整狀態，請稍後再試', 'error');
         }
     }
 
@@ -5014,18 +5274,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             toggleWfTaskCompleteDropdown();
             return;
         }
-        if (_isCatPmOrExecutive()) {
-            const all = _wfIncompleteTaskAssignments({ includeAll: true });
-            if (all.length === 1) {
-                await _completeWfStageAssignmentById(all[0].id);
-                return;
-            }
-            if (all.length > 1) {
-                toggleWfTaskCompleteDropdown();
-                return;
-            }
-        }
         showCatToast('目前沒有可標記的段落指派', 'info');
+    }
+
+    async function _onWfAdjustStatusClick() {
+        if (!_isCatPmOrExecutive()) return;
+        if (_hasSplitTranslateAssignments()) {
+            _openWfAdjustStatusModal();
+            return;
+        }
+        toggleWfTaskCompleteDropdown();
     }
 
     let _wfTaskCompleteUiBound = false;
@@ -5033,12 +5291,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (_wfTaskCompleteUiBound) return;
         _wfTaskCompleteUiBound = true;
         const main = document.getElementById('btnWfTaskCompleteMain');
+        const adjust = document.getElementById('btnWfAdjustStatus');
         const arrow = document.getElementById('btnWfTaskCompleteArrow');
         if (main) main.addEventListener('click', () => { void _onWfTaskCompleteMainClick(); });
+        if (adjust) adjust.addEventListener('click', () => { void _onWfAdjustStatusClick(); });
         if (arrow) arrow.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleWfTaskCompleteDropdown();
         });
+        const btnAdjCancel = document.getElementById('btnWfAdjustStatusCancel');
+        const btnAdjClose = document.getElementById('btnCloseWfAdjustStatusModal');
+        const btnAdjConfirm = document.getElementById('btnWfAdjustStatusConfirm');
+        if (btnAdjCancel) btnAdjCancel.addEventListener('click', () => _closeWfAdjustStatusModal());
+        if (btnAdjClose) btnAdjClose.addEventListener('click', () => _closeWfAdjustStatusModal());
+        if (btnAdjConfirm) btnAdjConfirm.addEventListener('click', () => { void _pmApplySplitAdjustStatus(); });
         document.addEventListener('click', (e) => {
             const dd = document.getElementById('wfTaskCompleteDropdown');
             if (!dd || !dd.classList.contains('show')) return;
@@ -5050,26 +5316,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function refreshWfTaskCompleteToolbar() {
         _bindWfTaskCompleteUiOnce();
+        _refreshWfSessionKindHint();
         const group = document.getElementById('wfTaskCompleteGroup');
+        const main = document.getElementById('btnWfTaskCompleteMain');
+        const adjust = document.getElementById('btnWfAdjustStatus');
         const arrow = document.getElementById('btnWfTaskCompleteArrow');
         if (!group) return;
         if (!isTeamMode() || activeView !== 'viewEditor') {
             group.style.display = 'none';
             closeWfTaskCompleteDropdown();
+            _closeWfAdjustStatusModal();
             return;
         }
         const isPm = _isCatPmOrExecutive();
-        const mine = _wfIncompleteTaskAssignments({ includeAll: false });
-        const all = _wfIncompleteTaskAssignments({ includeAll: true });
-        const canUse = mine.length > 0 || (isPm && all.length > 0);
-        if (!canUse) {
+        const mineIncomplete = _wfIncompleteTaskAssignments({ includeAll: false });
+        const mineCompleted = _wfMyCompletedTranslateAssignments();
+        const hasTranslateAssign = _wfTranslateAssignmentsInContext({ includeAll: false }).some((a) => _isAssignmentOnActiveStage(a));
+        const hasPmTarget = _wfTranslateAssignmentsInContext({ includeAll: true }).length > 0;
+
+        if (isPm) {
+            if (!hasPmTarget) {
+                group.style.display = 'none';
+                closeWfTaskCompleteDropdown();
+                return;
+            }
+            group.style.display = '';
+            if (main) main.style.display = 'none';
+            if (adjust) adjust.style.display = '';
+            if (arrow) arrow.style.display = 'none';
+            return;
+        }
+
+        if (!hasTranslateAssign && mineCompleted.length === 0) {
             group.style.display = 'none';
             closeWfTaskCompleteDropdown();
             return;
         }
         group.style.display = '';
-        const showArrow = (isPm && all.length > 0) || mine.length > 1;
-        if (arrow) arrow.style.display = showArrow ? '' : 'none';
+        if (main) {
+            main.style.display = '';
+            const allDone = hasTranslateAssign && mineIncomplete.length === 0;
+            main.disabled = !!allDone;
+            main.classList.toggle('disabled', !!allDone);
+        }
+        if (adjust) adjust.style.display = 'none';
+        if (arrow) arrow.style.display = mineIncomplete.length > 1 ? '' : 'none';
     }
 
     function _workflowStagesForSegment(seg) {
@@ -5096,7 +5387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (_workflowAllStagesCompleted(stages)) return false;
         if (!isTeamMode()) return false;
 
-        const activeStage = _workflowActiveStage(stages);
+        const activeStage = _workflowSessionStage(stages);
         if (!activeStage) return false;
 
         const stageAssigns = window._currentFileStageAssignments || [];
@@ -5160,8 +5451,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _workflowConfirmKinds(seg) {
+        if (currentWfSessionKind) {
+            return currentWfSessionKind === 'review' ? ['review'] : ['translate'];
+        }
         const stages = _workflowStagesForSegment(seg);
-        const active = _workflowActiveStage(stages);
+        const active = _workflowSessionStage(stages);
         if (active) {
             return active.stageKind === 'review' ? ['review'] : ['translate'];
         }
@@ -5423,6 +5717,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _currentViewFilesMap = {};
     let _viewEditorReadOnly = false; // 未受指派唯讀保護（§3.1）
     let _fileUnassignedReadOnly = false; // 團隊版：未受派檔案全檔唯讀（Phase A）
+    /** B-4 A：開檔工作步驟 session（換檔／換句段集重問） */
+    let currentWfSessionKind = null;
 
     async function openEditorFromView(viewId) {
         const view = await DBService.getView(viewId);
@@ -5472,6 +5768,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await _loadViewWorkflowContext(
             fileIds.length ? fileIds : [...new Set((segments || []).map((s) => s.fileId).filter(Boolean))]
         );
+
+        if (!_viewEditorReadOnly) {
+            const wfOk = await _maybePromptWfSessionKind();
+            if (!wfOk) return;
+        }
 
         // 進入編輯器
         const proj = await DBService.getProject(currentProjectId);
@@ -12652,6 +12953,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    /** 顯示 Workflow 工作步驟選擇視窗（B-4 A）；回傳 translate|review|null */
+    function showWfSessionModal() {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('wfSessionModal');
+            const btnConfirm = document.getElementById('btnWfSessionConfirm');
+            const btnClose = document.getElementById('btnCloseWfSessionModal');
+            if (!modal) { resolve('translate'); return; }
+            document.querySelectorAll('input[name="wfSessionChoice"]').forEach((r) => {
+                r.checked = r.value === 'translate';
+            });
+            const finish = (val) => {
+                modal.classList.add('hidden');
+                document.removeEventListener('keydown', onEsc);
+                resolve(val);
+            };
+            const onEsc = (e) => { if (e.key === 'Escape') finish(null); };
+            modal.classList.remove('hidden');
+            document.addEventListener('keydown', onEsc);
+            const handler = () => {
+                const checked = document.querySelector('input[name="wfSessionChoice"]:checked');
+                finish(checked ? checked.value : 'translate');
+            };
+            if (btnConfirm) btnConfirm.onclick = handler;
+            if (btnClose) btnClose.onclick = () => finish(null);
+            modal.onclick = (e) => { if (e.target === modal) finish(null); };
+        });
+    }
+
     /** 顯示 mqxliff 身分選擇視窗，回傳選中的 'T'|'R1'|'R2'，取消則回傳 null。opts.hideWizardFirst: 匯入時先隱藏 wizard；opts.defaultRole: 預設選中的身分 */
     function showMqRoleModal(opts = {}) {
         return new Promise((resolve) => {
@@ -14716,6 +15045,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         _fileUnassignedReadOnly = await resolveFileUnassignedReadOnly(fileId);
 
         await _loadFileWorkflowContext(fileId);
+
+        if (!_fileUnassignedReadOnly) {
+            const wfOk = await _maybePromptWfSessionKind();
+            if (!wfOk) {
+                currentFileId = null;
+                resetEditorTransientUi();
+                if (currentProjectId) {
+                    await openProjectDetail(currentProjectId);
+                } else {
+                    switchView('viewDashboard');
+                    await loadDashboardData();
+                }
+                return;
+            }
+        }
 
         editorFileName.textContent = file.name;
         editorFileName.title = file.name;

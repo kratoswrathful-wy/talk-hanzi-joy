@@ -1,6 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import {
+  syncCatWorkflowAssignmentsForCase,
+  broadcastCatWorkflowAssignmentsSynced,
+} from "@/lib/cat-workflow-dispatch";
+import {
   planDuplicateCaseTitle,
   DEFAULT_DUPLICATE_SORT,
   type DuplicateSortKey,
@@ -372,6 +376,12 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     !!prev &&
     prev.status !== "dispatched" &&
     partial.status === "dispatched";
+  const nextStatus = partial.status ?? prev?.status;
+  const shouldSyncCatWorkflowAssignments =
+    !!prev &&
+    ((prev.status !== "dispatched" && partial.status === "dispatched") ||
+      ((nextStatus === "dispatched" || nextStatus === "task_completed") &&
+        (partial.collabRows !== undefined || partial.reviewer !== undefined)));
   let merged: Partial<CaseRecord> = partial;
   if (
     prev &&
@@ -437,6 +447,15 @@ async function update(id: string, partial: Partial<CaseRecord>) {
       await (supabase as any).rpc("sync_cat_file_assignments_for_case", { p_case_id: id });
     } catch (e) {
       console.warn("[case-store] sync CAT assignments skipped:", e);
+    }
+  }
+
+  if (!error && shouldSyncCatWorkflowAssignments) {
+    try {
+      await syncCatWorkflowAssignmentsForCase(supabase, id);
+      broadcastCatWorkflowAssignmentsSynced(id);
+    } catch (e) {
+      console.warn("[case-store] sync CAT workflow assignments skipped:", e);
     }
   }
 

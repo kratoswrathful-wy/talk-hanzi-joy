@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { MultilineInput } from "@/components/ui/multiline-input";
@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import ColorSelect from "@/components/ColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -18,11 +25,29 @@ import {
 import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users } from "lucide-react";
 import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   rows: CollabRow[];
   onChange: (rows: CollabRow[]) => void;
   caseStatus: string;
+  caseId?: string;
+}
+
+type CatBindOption = { kind: "file" | "view"; id: string; label: string };
+
+function encodeCatBind(row: CollabRow): string {
+  if (row.linkedCatViewId) return `view:${row.linkedCatViewId}`;
+  if (row.linkedCatFileId) return `file:${row.linkedCatFileId}`;
+  return "";
+}
+
+function decodeCatBind(value: string): Pick<CollabRow, "linkedCatFileId" | "linkedCatViewId"> {
+  if (!value) return { linkedCatFileId: null, linkedCatViewId: null };
+  const [kind, id] = value.split(":");
+  if (kind === "view" && id) return { linkedCatFileId: null, linkedCatViewId: id };
+  if (kind === "file" && id) return { linkedCatFileId: id, linkedCatViewId: null };
+  return { linkedCatFileId: null, linkedCatViewId: null };
 }
 
 function CopySegmentButton({ value }: { value: string }) {
@@ -46,11 +71,48 @@ function CopySegmentButton({ value }: { value: string }) {
   );
 }
 
-export default function CollaborationTable({ rows, onChange, caseStatus }: Props) {
+export default function CollaborationTable({ rows, onChange, caseStatus, caseId }: Props) {
   const { primaryRole, profile } = useAuth();
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
   const displayName = profile?.display_name || "";
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [catBindOptions, setCatBindOptions] = useState<CatBindOption[]>([]);
+
+  useEffect(() => {
+    if (!caseId) {
+      setCatBindOptions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: files } = await supabase
+        .from("cat_files")
+        .select("id, name, project_id")
+        .eq("related_lms_case_id", caseId);
+      const fileRows = files ?? [];
+      const projectIds = [...new Set(fileRows.map((f) => f.project_id).filter(Boolean))];
+      const options: CatBindOption[] = fileRows.map((f) => ({
+        kind: "file",
+        id: f.id,
+        label: `檔案：${f.name}`,
+      }));
+      if (projectIds.length) {
+        const { data: views } = await (supabase as any)
+          .from("cat_views")
+          .select("id, name, project_id")
+          .in("project_id", projectIds);
+        ((views ?? []) as { id: string; name: string }[]).forEach((v) => {
+          options.push({ kind: "view", id: v.id, label: `句段集：${v.name}` });
+        });
+      }
+      if (!cancelled) setCatBindOptions(options);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
+  const canEditCatBind = isPmOrAbove || caseStatus === "draft" || caseStatus === "inquiry";
 
   // removed: isDispatched, isTaskCompleted no longer needed
 
@@ -81,7 +143,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const showTaskCompleted = !showAccepted;
 
   const columns = [
-    { key: "segment", label: "檔案或分段", width: "200px" },
+    { key: "segment", label: "檔案或分段", width: "240px" },
     { key: "translator", label: "譯者", width: "140px", bulkPerson: true },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
@@ -188,25 +250,61 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
               className="grid items-center gap-0 border-b border-border last:border-b-0 text-sm min-w-max"
               style={{ gridTemplateColumns: gridTemplate }}
             >
-              {/* Segment */}
-              <div className="px-1.5 py-1 flex items-center gap-1">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex-1 text-left h-7 text-xs px-2 py-1 rounded-md border border-border bg-background truncate hover:bg-muted/50 min-w-0"
-                        onClick={() => setSegmentOverlay({ idx, value: row.segment })}
-                      >
-                        {row.segment || <span className="text-muted-foreground">分段名稱</span>}
-                      </button>
-                    </TooltipTrigger>
-                    {row.segment && row.segment.length > 12 && (
-                      <TooltipContent side="top" className="max-w-xs break-all">{row.segment}</TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
-                <CopySegmentButton value={row.segment} />
+              {/* Segment + CAT 綁定 */}
+              <div className="px-1.5 py-1 flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex-1 text-left h-7 text-xs px-2 py-1 rounded-md border border-border bg-background truncate hover:bg-muted/50 min-w-0"
+                          onClick={() => setSegmentOverlay({ idx, value: row.segment })}
+                        >
+                          {row.segment || <span className="text-muted-foreground">分段名稱</span>}
+                        </button>
+                      </TooltipTrigger>
+                      {row.segment && row.segment.length > 12 && (
+                        <TooltipContent side="top" className="max-w-xs break-all">{row.segment}</TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                  <CopySegmentButton value={row.segment} />
+                </div>
+                {caseId && catBindOptions.length > 0 && (
+                  <div className="flex flex-col gap-0.5">
+                    <Select
+                      value={encodeCatBind(row) || "__none__"}
+                      onValueChange={(v) => {
+                        const bind = decodeCatBind(v === "__none__" ? "" : v);
+                        updateRow(idx, {
+                          ...bind,
+                          scopeLabel: row.segment || row.scopeLabel || null,
+                        });
+                      }}
+                      disabled={!canEditCatBind}
+                    >
+                      <SelectTrigger className="h-6 text-[10px] px-1.5">
+                        <SelectValue placeholder="CAT 派工對象" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">未綁定 CAT</SelectItem>
+                        {catBindOptions.map((o) => (
+                          <SelectItem key={`${o.kind}:${o.id}`} value={`${o.kind}:${o.id}`}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={row.lineRange || ""}
+                      onChange={(e) => updateRow(idx, { lineRange: e.target.value || null })}
+                      placeholder="列範圍（例 10-50）"
+                      className="h-6 text-[10px] px-1.5"
+                      disabled={!canEditCatBind}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Translator – locked when accepted (except PM+) */}
@@ -335,7 +433,10 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   if (segmentOverlay) {
-                    updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
+                    updateRow(segmentOverlay.idx, {
+                      segment: segmentOverlay.value,
+                      scopeLabel: segmentOverlay.value || null,
+                    });
                   }
                   setSegmentOverlay(null);
                 }
@@ -346,7 +447,10 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
               <Button
                 onClick={() => {
                   if (segmentOverlay) {
-                    updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
+                    updateRow(segmentOverlay.idx, {
+                      segment: segmentOverlay.value,
+                      scopeLabel: segmentOverlay.value || null,
+                    });
                   }
                   setSegmentOverlay(null);
                 }}

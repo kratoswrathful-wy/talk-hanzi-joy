@@ -781,6 +781,16 @@ const DBService = {
         return { ...row, workflowStatus, updatedAt: now };
     },
 
+    async updateFileWorkflowStageStatus(stageId, status) {
+        const valid = ['pending', 'active', 'completed'];
+        if (!valid.includes(status)) throw new Error('invalid workflow stage status');
+        const row = await db.fileWorkflowStages.get(stageId);
+        if (!row) throw new Error('workflow stage not found');
+        const now = new Date().toISOString();
+        await db.fileWorkflowStages.update(stageId, { status, updatedAt: now });
+        return { ...row, status, updatedAt: now };
+    },
+
     async getProjects() {
         return await db.projects.orderBy('id').toArray();
     },
@@ -2032,6 +2042,8 @@ const DBService = {
         rpc('db.listStageAssignmentsForFile', { fileId });
     DBService.updateStageAssignmentWorkflowStatus = async (assignmentId, workflowStatus) =>
         rpc('db.updateStageAssignmentWorkflowStatus', { assignmentId, workflowStatus });
+    DBService.updateFileWorkflowStageStatus = async (stageId, status) =>
+        rpc('db.updateFileWorkflowStageStatus', { stageId, status });
 
     // views (句段集)
     DBService.listViews = async (projectId) => rpc('db.listViews', { projectId });

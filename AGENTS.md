@@ -52,7 +52,7 @@
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
 - [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 匯入選填連結 LMS 案件（一般＋GS；`49db7c2` 起）
 - [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A 已收尾；Phase B 規劃中）
-- [`docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — **Phase B Workflow** 完整規格 v2（確認合併、B-0～B-5、LMS 雙向、進度兩段、舊檔遷移兩檔例外）
+- [`docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — **Phase B Workflow** 完整規格 v3（B-4 派出／任務完成／調整狀態、開檔 session、LMS 雙向；B-5 篩選已落地）
 - [`docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) — **B-0** 檔序、句段集排序、左欄顯示序、篩選 A、Workflow 列號對齊
 - **1UP CAT／LMS 整合 UX 大計畫**（Cursor plan `1up_ux_與遷移`）— **唯一完整主紀錄**（第二波 UX、B+D2、UX 微調、加號）；Git 摘要 [`docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md)
 

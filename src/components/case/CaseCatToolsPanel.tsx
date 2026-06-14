@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import {
+  syncCatWorkflowAssignmentsForCase,
+  broadcastCatWorkflowAssignmentsSynced,
+} from "@/lib/cat-workflow-dispatch";
+import {
   CatProjectFilePickerModal,
   type CatFileOption,
 } from "@/components/case/CatProjectFilePickerModal";
@@ -186,6 +190,8 @@ export function CaseCatToolsPanel({
         })
         .eq("id", unlinkOldId);
     }
+    await syncCatWorkflowAssignmentsForCase(supabase, caseId);
+    broadcastCatWorkflowAssignmentsSynced(caseId);
   };
 
   const handleRemoveLink = async (fileId: string) => {

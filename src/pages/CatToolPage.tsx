@@ -2,7 +2,10 @@ import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
-import { markCollabRowTaskCompletedFromCat } from "@/lib/cat-wf-lms-sync";
+import {
+  setCollabRowTaskCompletedFromCat,
+  setCollabRowsTaskCompletedBulkFromCat,
+} from "@/lib/cat-wf-lms-sync";
 import { getEnvironment } from "@/lib/environment";
 import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -755,11 +758,37 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         const caseId = String(p.caseId || "");
         const collabRowId = String(p.collabRowId || "");
         const completedAt = String(p.completedAt || new Date().toISOString());
+        const taskCompleted = p.taskCompleted !== false;
         if (!caseId || !collabRowId || !user?.id) return;
         try {
-          await markCollabRowTaskCompletedFromCat(supabase, caseId, collabRowId, completedAt);
+          await setCollabRowTaskCompletedFromCat(
+            supabase,
+            caseId,
+            collabRowId,
+            taskCompleted,
+            completedAt,
+          );
         } catch (e) {
           console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", e);
+        }
+      } else if (event.data?.type === "CAT_WF_COLLAB_ROWS_BULK") {
+        const p = event.data.payload ?? {};
+        const caseId = String(p.caseId || "");
+        const updates = Array.isArray(p.updates) ? p.updates : [];
+        const updatedAt = String(p.updatedAt || new Date().toISOString());
+        if (!caseId || !updates.length || !user?.id) return;
+        try {
+          await setCollabRowsTaskCompletedBulkFromCat(
+            supabase,
+            caseId,
+            updates.map((u: { collabRowId?: string; taskCompleted?: boolean }) => ({
+              collabRowId: String(u.collabRowId || ""),
+              taskCompleted: !!u.taskCompleted,
+            })).filter((u: { collabRowId: string }) => u.collabRowId),
+            updatedAt,
+          );
+        } catch (e) {
+          console.warn("[CAT] CAT_WF_COLLAB_ROWS_BULK", e);
         }
       } else if (event.data?.type === "CAT_OPEN_CASE_PAGE") {
         const caseId = String(event.data?.payload?.caseId || "");
@@ -833,6 +862,22 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [isPmOrAbove, mode, user, profile, navigate]);
+
+  useEffect(() => {
+    if (mode !== "team" || typeof BroadcastChannel === "undefined") return;
+    const ch = new BroadcastChannel("tms-cat-wf-sync");
+    ch.onmessage = (ev) => {
+      const data = ev.data || {};
+      if (data.type !== "WORKFLOW_ASSIGNMENTS_SYNCED") return;
+      const caseId = String(data.caseId || "");
+      if (!caseId) return;
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "CAT_WF_REFRESH_WORKFLOW", payload: { caseId } },
+        window.location.origin,
+      );
+    };
+    return () => ch.close();
+  }, [mode]);
 
   useEffect(() => {
     return () => {

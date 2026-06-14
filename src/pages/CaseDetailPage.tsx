@@ -2328,6 +2328,7 @@ export default function CaseDetailPage() {
           </div>
           <CollaborationTable
             rows={caseData.collabRows}
+            caseId={caseData.id}
             onChange={(newRows) => {
               const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
               const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);

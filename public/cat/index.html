@@ -755,8 +755,10 @@
                             <button type="button" id="btnClientQuestionFormArrow" class="success-btn btn-sm split-btn-arrow" data-tip="欄位設定">▾</button>
                         </div>
                         <button id="btnPreTranslate" class="primary-btn btn-sm" data-tip="預先翻譯">預先翻譯</button>
+                        <span id="wfSessionKindHint" class="wf-session-hint" style="display:none; font-size:0.75rem; color:#64748b; white-space:nowrap;"></span>
                         <div class="split-btn-group" id="wfTaskCompleteGroup" style="display:none;">
                             <button type="button" id="btnWfTaskCompleteMain" class="secondary-btn btn-sm split-btn-main" data-tip="標記目前段落指派為任務完成">任務完成</button>
+                            <button type="button" id="btnWfAdjustStatus" class="secondary-btn btn-sm split-btn-main" style="display:none;" data-tip="調整翻譯步驟與段落指派狀態">調整狀態</button>
                             <button type="button" id="btnWfTaskCompleteArrow" class="secondary-btn btn-sm split-btn-arrow" data-tip="選擇段落指派" style="display:none;">▾</button>
                             <div class="split-dropdown" id="wfTaskCompleteDropdown"></div>
                         </div>
@@ -1633,6 +1635,51 @@
                 <div class="panel-footer" style="padding:1rem 1.5rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
                     <button type="button" class="secondary-btn" id="btnQaFilterScopeConfirmCancel">取消</button>
                     <button type="button" class="primary-btn" id="btnQaFilterScopeConfirmOk">確定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 開檔工作步驟選擇（B-4 A） -->
+        <div class="wizard-overlay hidden" id="wfSessionModal">
+            <div class="wizard-modal" style="max-width: 460px;">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">選擇本次工作步驟</h2>
+                    <button class="close-btn" id="btnCloseWfSessionModal">&times;</button>
+                </div>
+                <div class="wizard-body">
+                    <p style="margin:0 0 1rem 0; font-size:0.85rem; color:#64748b;">您同時被指派翻譯與審稿，請選擇本次要以哪個身分工作：</p>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px;"><input type="radio" name="wfSessionChoice" value="translate" checked> <span><strong>本次以翻譯身分工作</strong></span></label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px;"><input type="radio" name="wfSessionChoice" value="review"> <span><strong>本次以審稿身分工作</strong></span></label>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
+                        <button id="btnWfSessionConfirm" class="primary-btn">確認</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PM 拆段調整狀態 Modal（B-4） -->
+        <div class="wizard-overlay hidden" id="wfAdjustStatusModal">
+            <div class="wizard-modal" style="max-width: 520px;">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">調整段落狀態</h2>
+                    <button class="close-btn" id="btnCloseWfAdjustStatusModal">&times;</button>
+                </div>
+                <div class="wizard-body">
+                    <p style="margin:0 0 0.75rem 0; font-size:0.85rem; color:#64748b;">勾選要調整的段落，並選擇目標狀態：</p>
+                    <div id="wfAdjustStatusList" style="display:flex; flex-direction:column; gap:0.4rem; max-height:280px; overflow-y:auto;"></div>
+                    <div style="display:flex; gap:0.5rem; margin-top:1rem; align-items:center;">
+                        <span style="font-size:0.85rem; color:#475569;">目標狀態：</span>
+                        <select id="wfAdjustStatusTarget" class="form-input" style="width:auto; min-width:140px;">
+                            <option value="assigned">翻譯執行中</option>
+                            <option value="completed">翻譯完成</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="panel-footer" style="padding:1rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnWfAdjustStatusCancel">取消</button>
+                    <button type="button" class="primary-btn" id="btnWfAdjustStatusConfirm">套用</button>
                 </div>
             </div>
         </div>
