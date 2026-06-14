@@ -27,6 +27,8 @@ import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildCatDeepLink } from "@/lib/cat-deep-link";
+import { countUnconfirmedSegmentsInCollabRange } from "@/lib/cat-collab-task-complete";
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   rows: CollabRow[];
@@ -84,6 +86,7 @@ function CopyTextButton({ value }: { value: string }) {
 
 export default function CollaborationTable({ rows, onChange, caseStatus, caseId }: Props) {
   const { primaryRole, profile } = useAuth();
+  const { toast } = useToast();
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
   const displayName = profile?.display_name || "";
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -199,6 +202,53 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
       }
     }
     return null;
+  };
+
+  const resolveCollabRowFileIds = async (row: CollabRow): Promise<string[]> => {
+    if (row.linkedCatFileId) return [row.linkedCatFileId];
+    if (!row.linkedCatViewId) return [];
+    const { data, error } = await (supabase as any)
+      .from("cat_views")
+      .select("file_ids")
+      .eq("id", row.linkedCatViewId)
+      .maybeSingle();
+    if (error || !data) return [];
+    const fileIds = (data as { file_ids?: string[] }).file_ids;
+    return Array.isArray(fileIds) ? fileIds.map(String).filter(Boolean) : [];
+  };
+
+  const handleTaskCompletedChange = async (idx: number, row: CollabRow, checked: boolean) => {
+    if (!checked) {
+      updateRow(idx, { taskCompleted: false });
+      return;
+    }
+    if (isPmOrAbove) {
+      updateRow(idx, { taskCompleted: true });
+      return;
+    }
+    if (!isCatBound(row)) {
+      updateRow(idx, { taskCompleted: true });
+      return;
+    }
+    const fileIds = await resolveCollabRowFileIds(row);
+    if (!fileIds.length) {
+      toast({ title: "尚有未確認句段，無法勾選", variant: "destructive" });
+      return;
+    }
+    const { count, error } = await countUnconfirmedSegmentsInCollabRange(
+      supabase,
+      fileIds,
+      row.lineRange,
+    );
+    if (error) {
+      toast({ title: "無法驗證句段確認狀態", description: error, variant: "destructive" });
+      return;
+    }
+    if (count > 0) {
+      toast({ title: "尚有未確認句段，無法勾選", variant: "destructive" });
+      return;
+    }
+    updateRow(idx, { taskCompleted: true });
   };
 
   return (
@@ -400,7 +450,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                   <Checkbox
                     checked={row.taskCompleted}
                     disabled={!canCheckTaskCompleted && !row.taskCompleted}
-                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
+                    onCheckedChange={(v) => { void handleTaskCompletedChange(idx, row, !!v); }}
                   />
                 )}
               </div>

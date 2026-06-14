@@ -7,6 +7,12 @@ type CollabRowJson = {
   [key: string]: unknown;
 };
 
+const ELIGIBLE_TASK_COMPLETED_STATUSES = ["draft", "inquiry", "dispatched"] as const;
+
+function canUpgradeCaseToTaskCompleted(status?: string) {
+  return (ELIGIBLE_TASK_COMPLETED_STATUSES as readonly string[]).includes(status ?? "");
+}
+
 function mapCollabRows(rows: CollabRowJson[], collabRowId: string, taskCompleted: boolean) {
   return rows.map((r) =>
     String(r.id) === String(collabRowId) ? { ...r, taskCompleted } : r,
@@ -56,7 +62,7 @@ export async function setCollabRowTaskCompletedFromCat(
     updated_at: updatedAt,
   };
   const status = (caseRow as { status?: string }).status;
-  if (taskCompleted && status === "dispatched" && allTaskCompleted) {
+  if (taskCompleted && canUpgradeCaseToTaskCompleted(status) && allTaskCompleted) {
     updates.status = "task_completed";
   } else if (!taskCompleted && status === "task_completed") {
     updates.status = "dispatched";
@@ -104,7 +110,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
     updated_at: updatedAt,
   };
   const status = (caseRow as { status?: string }).status;
-  if (status === "dispatched" && allTaskCompleted) {
+  if (canUpgradeCaseToTaskCompleted(status) && allTaskCompleted) {
     patch.status = "task_completed";
   } else if (status === "task_completed" && !allTaskCompleted) {
     patch.status = "dispatched";

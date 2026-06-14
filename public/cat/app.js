@@ -2831,6 +2831,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         active: '進行中',
         completed: '已完成',
     };
+    const WF_ASSIGN_STATUS_LABEL = {
+        assigned: '進行中',
+        completed: '已完成',
+    };
 
     function _workflowAllStagesCompleted(stages) {
         const arr = Array.isArray(stages) ? stages : [];
@@ -2919,30 +2923,69 @@ document.addEventListener('DOMContentLoaded', async () => {
         const stageArr = Array.isArray(stages) ? stages.slice().sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0)) : [];
         const assigns = Array.isArray(assignments) ? assignments : [];
         const lines = [];
+
+        function _assignmentStatusLabel(a, st) {
+            if (st && st.stageKind === 'review') {
+                return WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
+            }
+            return WF_ASSIGN_STATUS_LABEL[a.workflowStatus] || a.workflowStatus || '—';
+        }
+
+        function _assignmentStatusColor(a, st, statusLabel) {
+            if (statusLabel === '已完成') return '#16a34a';
+            if (statusLabel === '進行中') return '#d97706';
+            if (st && st.stageKind === 'review' && st.status === 'active') return '#d97706';
+            return '#64748b';
+        }
+
         if (stageArr.length) {
             stageArr.forEach((st) => {
-                const statusLabel = WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
                 const stageAssigns = assigns.filter((a) => String(a.fileWorkflowStageId) === String(st.id));
-                let names = '';
                 if (stageAssigns.length) {
-                    const uniq = [];
-                    const seen = new Set();
                     stageAssigns.forEach((a) => {
-                        const n = _resolveAssigneeDisplayName(a.assigneeUserId) + _formatWorkflowScopeSuffix(a);
-                        if (!seen.has(n)) { seen.add(n); uniq.push(n); }
+                        const who = _resolveAssigneeDisplayName(a.assigneeUserId) + _formatWorkflowScopeSuffix(a);
+                        const stageLabel = st.label || st.stageKind || '步驟';
+                        const statusLabel = _assignmentStatusLabel(a, st);
+                        const color = _assignmentStatusColor(a, st, statusLabel);
+                        lines.push(
+                            `<div style="line-height:1.35; font-size:0.8rem;">`
+                            + `<span style="color:#334155;">${esc(who)}</span>`
+                            + `<span style="color:#94a3b8;"> · </span>`
+                            + `<span style="color:#475569;">${esc(stageLabel)}</span>`
+                            + `<span style="color:#94a3b8;"> </span>`
+                            + `<span style="color:${color};">${esc(statusLabel)}</span>`
+                            + `</div>`
+                        );
                     });
-                    names = uniq.join('、');
                 } else if (Array.isArray(fileAssigneeNames) && fileAssigneeNames.length && st.stageKind === 'translate') {
-                    names = fileAssigneeNames.join('、') + '（整檔）';
+                    const statusLabel = WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
+                    const color = st.status === 'completed' ? '#16a34a' : (st.status === 'active' ? '#d97706' : '#64748b');
+                    fileAssigneeNames.forEach((name) => {
+                        lines.push(
+                            `<div style="line-height:1.35; font-size:0.8rem;">`
+                            + `<span style="color:#334155;">${esc(name)}（整檔）</span>`
+                            + `<span style="color:#94a3b8;"> · </span>`
+                            + `<span style="color:#475569;">翻譯</span>`
+                            + `<span style="color:#94a3b8;"> </span>`
+                            + `<span style="color:${color};">${esc(statusLabel)}</span>`
+                            + `</div>`
+                        );
+                    });
+                } else if (st.stageKind === 'review' && Array.isArray(fileAssigneeNames) && fileAssigneeNames.length) {
+                    const statusLabel = WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
+                    const color = st.status === 'completed' ? '#16a34a' : (st.status === 'active' ? '#d97706' : '#64748b');
+                    fileAssigneeNames.forEach((name) => {
+                        lines.push(
+                            `<div style="line-height:1.35; font-size:0.8rem;">`
+                            + `<span style="color:#334155;">${esc(name)}</span>`
+                            + `<span style="color:#94a3b8;"> · </span>`
+                            + `<span style="color:#475569;">審稿</span>`
+                            + `<span style="color:#94a3b8;"> </span>`
+                            + `<span style="color:${color};">${esc(statusLabel)}</span>`
+                            + `</div>`
+                        );
+                    });
                 }
-                lines.push(
-                    `<div style="line-height:1.35; font-size:0.8rem;">`
-                    + `<span style="color:#475569;">${esc(st.label || st.stageKind)}</span>`
-                    + `<span style="color:#94a3b8;"> · </span>`
-                    + `<span style="color:${st.status === 'completed' ? '#16a34a' : (st.status === 'active' ? '#d97706' : '#64748b')};">${esc(statusLabel)}</span>`
-                    + (names ? `<span style="color:#94a3b8;"> · </span><span style="color:#334155;">${esc(names)}</span>` : '')
-                    + `</div>`
-                );
             });
         } else {
             lines.push('<span style="color:#94a3b8; font-size:0.8rem;">—</span>');
@@ -4974,6 +5017,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function _isAssignmentRangeFullyConfirmed(a) {
+        if (!a) return false;
+        const fileId = a.fileId != null ? String(a.fileId) : (currentFileId != null ? String(currentFileId) : '');
+        if (!fileId) return false;
+        const lineStart = a.lineStart != null ? Number(a.lineStart) : 1;
+        const lineEnd = a.lineEnd != null ? Number(a.lineEnd) : null;
+        const segs = (allSegments || []).filter((s) => {
+            if (String(s.fileId) !== fileId) return false;
+            const gid = s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null;
+            if (gid == null) return false;
+            if (gid < lineStart) return false;
+            if (lineEnd != null && gid > lineEnd) return false;
+            return true;
+        });
+        return segs.length > 0 && segs.every((s) => !!s.wfTransConfirmedAt);
+    }
+
+    function _wfReadyTaskAssignments(opts) {
+        return _wfIncompleteTaskAssignments(opts).filter((a) => _isAssignmentRangeFullyConfirmed(a));
+    }
+
     function _wfMyCompletedTranslateAssignments() {
         const userId = String(window._tmsCurrentUserId || '');
         return _wfTranslateAssignmentsInContext({ includeAll: false }).filter((a) => {
@@ -5063,7 +5127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             arrow.classList.add('open');
             return;
         }
-        const mine = _wfIncompleteTaskAssignments({ includeAll: false });
+        const mine = _wfReadyTaskAssignments({ includeAll: false });
         const items = mine.length > 1 ? mine : mine;
         _renderWfTaskCompleteDropdownItems(items);
         dd.classList.add('show');
@@ -5307,7 +5371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _onWfTaskCompleteMainClick() {
-        const mine = _wfIncompleteTaskAssignments({ includeAll: false });
+        const mine = _wfReadyTaskAssignments({ includeAll: false });
         if (mine.length === 1) {
             await _completeWfStageAssignmentById(mine[0].id);
             return;
@@ -5372,9 +5436,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const isPm = _isCatPmOrExecutive();
         const mineIncomplete = _wfIncompleteTaskAssignments({ includeAll: false });
+        const mineReady = _wfReadyTaskAssignments({ includeAll: false });
         const mineCompleted = _wfMyCompletedTranslateAssignments();
         const mineTranslate = _wfTranslateAssignmentsInContext({ includeAll: false });
-        const hasPmTarget = _wfTranslateAssignmentsInContext({ includeAll: true }).length > 0;
         const hasMineTranslate = mineTranslate.length > 0;
 
         if (isPm) {
@@ -5382,8 +5446,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (main) main.style.display = 'none';
             if (adjust) {
                 adjust.style.display = '';
-                adjust.disabled = !hasPmTarget;
-                adjust.classList.toggle('disabled', !hasPmTarget);
+                adjust.disabled = false;
+                adjust.classList.remove('disabled');
             }
             if (arrow) arrow.style.display = 'none';
             return;
@@ -5398,11 +5462,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (main) {
             main.style.display = '';
             const allDone = hasMineTranslate && mineIncomplete.length === 0;
-            main.disabled = !!allDone;
-            main.classList.toggle('disabled', !!allDone);
+            const canComplete = mineReady.length > 0;
+            main.disabled = allDone || !canComplete;
+            main.classList.toggle('disabled', allDone || !canComplete);
         }
         if (adjust) adjust.style.display = 'none';
-        if (arrow) arrow.style.display = mineIncomplete.length > 1 ? '' : 'none';
+        if (arrow) arrow.style.display = mineReady.length > 1 ? '' : 'none';
     }
 
     function _workflowStagesForSegment(seg) {
@@ -5519,6 +5584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             seg.wfTransConfirmedBy = null;
             seg.wfReviewConfirmedAt = null;
             seg.wfReviewConfirmedBy = null;
+            if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
             return;
         }
         const now = new Date().toISOString();
@@ -5536,6 +5602,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (currentFileFormat === 'mqxliff') {
             seg.confirmationRole = resolveConfirmationRole(seg);
         }
+        if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
     }
 
     function buildWorkflowStatusExtra(seg) {
