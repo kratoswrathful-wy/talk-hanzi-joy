@@ -626,7 +626,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .select("id")
         .single();
       if (error) throw error;
-      await supabase.rpc("ensure_cat_project_default_workflow_template", {
+      await supabase.rpc("ensure_cat_project_default_workflow_template" as any, {
         p_project_id: data.id,
       } as any);
       return data.id;
@@ -733,9 +733,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .single();
       if (error) throw error;
       await supabase.from("cat_projects").update({ last_modified: nowIso() } as any).eq("id", projectId);
-      await supabase.rpc("ensure_cat_file_workflow_stages", { p_file_id: fileId } as any);
+      await supabase.rpc("ensure_cat_file_workflow_stages" as any, { p_file_id: fileId } as any);
       return data.id;
     }
+    case "db.getFiles": {
       const { data } = await supabase
         .from("cat_files")
         .select(CAT_FILE_LIST_COLUMNS)
@@ -2178,19 +2179,19 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
 
     case "db.ensureProjectWorkflowTemplate": {
-      const { data, error } = await supabase.rpc("ensure_cat_project_default_workflow_template", {
+      const { data, error } = await supabase.rpc("ensure_cat_project_default_workflow_template" as any, {
         p_project_id: payload.projectId,
       } as any);
       if (error) throw error;
       return data;
     }
     case "db.ensureFileWorkflowStages": {
-      const { error: ensErr } = await supabase.rpc("ensure_cat_file_workflow_stages", {
+      const { error: ensErr } = await supabase.rpc("ensure_cat_file_workflow_stages" as any, {
         p_file_id: payload.fileId,
       } as any);
       if (ensErr) throw ensErr;
       const { data, error } = await supabase
-        .from("cat_file_workflow_stages")
+        .from("cat_file_workflow_stages" as any)
         .select("*")
         .eq("file_id", payload.fileId)
         .order("stage_order", { ascending: true });
@@ -2199,7 +2200,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.getFileWorkflowStages": {
       const { data, error } = await supabase
-        .from("cat_file_workflow_stages")
+        .from("cat_file_workflow_stages" as any)
         .select("*")
         .eq("file_id", payload.fileId)
         .order("stage_order", { ascending: true });
@@ -2208,7 +2209,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.listStageAssignmentsForFile": {
       const { data, error } = await supabase
-        .from("cat_stage_assignments")
+        .from("cat_stage_assignments" as any)
         .select("*")
         .eq("file_id", payload.fileId)
         .order("assigned_at", { ascending: true });
