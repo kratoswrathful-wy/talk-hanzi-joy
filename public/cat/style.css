@@ -1507,6 +1507,79 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .status-icon-mq { border: none; background: none; min-width: auto; width: auto; height: auto; font-size: 1.1rem;}
 .status-icon-mq.done { border: none; background: none; color: var(--success-color); opacity: 1;}
 
+/* Phase B B-3：Workflow 三層狀態欄（內部綠點／綠外圈 + mqxliff 白字） */
+.col-status {
+    min-width: 42px;
+    width: 42px;
+}
+.status-icon-stack {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    box-sizing: border-box;
+    border: none;
+    background: none;
+    opacity: 1;
+    border-radius: 0;
+    overflow: visible;
+}
+.status-icon-stack .status-wf-core {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+.status-icon-stack.wf-trans .status-wf-core {
+    background: var(--success-color);
+    border-color: var(--success-color);
+}
+.status-icon-stack.wf-review .status-wf-core {
+    box-shadow: 0 0 0 2px var(--success-color);
+}
+.status-icon-stack.wf-review:not(.wf-trans) .status-wf-core {
+    background: #fff;
+    border-color: #cbd5e1;
+}
+.status-icon-stack.mq-done:not(.wf-trans) .status-wf-core {
+    background: #f0fdf4;
+    border-color: var(--success-color);
+}
+.status-icon-stack .status-mq-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.62rem;
+    line-height: 1;
+    pointer-events: none;
+    font-weight: 600;
+}
+.status-icon-stack:not(.wf-trans).mq-done .status-mq-overlay {
+    color: #fff;
+}
+.status-mq-glyph sup {
+    font-size: 0.5em;
+    margin-left: -0.1em;
+    line-height: 0;
+}
+.status-mq-glyph-r2 {
+    font-size: 0.55rem;
+    flex-direction: column;
+    display: inline-flex;
+    align-items: center;
+    line-height: 0.85;
+}
+
 /* Context Menu */
 .context-menu {
     position: fixed; background: white; border: 1px solid var(--border-color); border-radius: 4px;

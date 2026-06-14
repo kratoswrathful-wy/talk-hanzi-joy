@@ -1,6 +1,6 @@
 # Phase B — Workflow 框架實作規格（2026-06）
 
-> **狀態**：B-0／B-1／**B-2 已落地**；B-3～B-5 規劃中。  
+> **狀態**：B-0／B-1／B-2／**B-3 已落地**；B-4～B-5 規劃中。  
 > **上層路線圖**：[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2。  
 > **前置**：Phase A 已收尾（2026-06-12）。  
 > **排序／序號（B-0）**：[`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)。
@@ -200,7 +200,7 @@ flowchart LR
 | **B-0** | 排序 spec 落地：檔序、句段集 sort、左欄顯示序、篩選 A；更新檔×句段集 UI 規格（UI 可併 B-4 實作） | [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)；`app.js` |
 | **B-1** | migration、Dexie v23、RPC 範本／檔案步驟；舊檔遷移（§9） | **已落地** `20260612120000` |
 | **B-2** | 檔案／句段集清單步驟與負責人；`computeSegmentEditForbidden` | **已落地** `app.js` |
-| **B-3** | 三層狀態欄、確認／取消合併、進度兩段 | `app.js`、`style.css` |
+| **B-3** | 三層狀態欄、確認／取消合併、進度兩段 | **已落地** `app.js`、`style.css` |
 | **B-4** | 任務完成 + PM+ split；`CollabRow` 雙向；LMS 選句段集；派出 RPC | `index.html`、`CaseDetailPage.tsx` |
 | **B-5** | 篩選第五維；教學案與兩例外檔驗收 | `evaluateSegment`；[`CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md`](./CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md) §2.3 |
 

@@ -1131,11 +1131,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (op === 'clear') applyMatchCellVisual(rowEl, '');
             if (seg.status === 'confirmed') {
-                seg.status = 'unconfirmed';
-                const si = rowEl.querySelector('.status-icon');
-                if (si) si.classList.remove('done');
-                rowEl.style.backgroundColor = '';
-                await DBService.updateSegmentStatus(seg.id, 'unconfirmed');
+                applyWorkflowConfirmToSegment(seg, false);
+                refreshStatusIconForRow(rowEl, seg);
+                syncRowConfirmedStateClass(rowEl, seg);
+                await DBService.updateSegmentStatus(seg.id, 'unconfirmed', buildWorkflowStatusExtra(seg));
             }
         }
         const extra = { targetTags: seg.targetTags };
@@ -1180,12 +1179,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             if (op === 'clear') applyMatchCellVisual(rowEl, '');
                             if (seg.status === 'confirmed') {
-                                seg.status = 'unconfirmed';
-                                const si = rowEl.querySelector('.status-icon');
-                                if (si) si.classList.remove('done');
-                                if (currentFileFormat === 'mqxliff' && si) si.innerHTML = '';
-                                rowEl.style.backgroundColor = '';
-                                pending.push(DBService.updateSegmentStatus(seg.id, 'unconfirmed'));
+                                applyWorkflowConfirmToSegment(seg, false);
+                                refreshStatusIconForRow(rowEl, seg);
+                                syncRowConfirmedStateClass(rowEl, seg);
+                                pending.push(DBService.updateSegmentStatus(seg.id, 'unconfirmed', buildWorkflowStatusExtra(seg)));
                             }
                         }
                         const extra = { targetTags: seg.targetTags };
@@ -4900,6 +4897,139 @@ document.addEventListener('DOMContentLoaded', async () => {
             const end = le != null ? Number(le) : Number.MAX_SAFE_INTEGER;
             return lineNo >= start && lineNo <= end;
         });
+    }
+
+    function _isWfTransMarked(seg) {
+        return !!(seg && seg.wfTransConfirmedAt);
+    }
+
+    function _isWfReviewMarked(seg) {
+        return !!(seg && seg.wfReviewConfirmedAt);
+    }
+
+    /** 舊檔 Workflow 步驟皆已完成、句段僅有 memoQ 確認時，進度顯示 fallback */
+    function _isWfTransMarkedEffective(seg) {
+        if (_isWfTransMarked(seg)) return true;
+        if (seg && seg.status === 'confirmed' && _workflowAllStagesCompleted(_workflowStagesForSegment(seg))) return true;
+        return false;
+    }
+
+    function _isWfReviewMarkedEffective(seg) {
+        if (_isWfReviewMarked(seg)) return true;
+        if (seg && seg.status === 'confirmed' && _workflowAllStagesCompleted(_workflowStagesForSegment(seg))) return true;
+        return false;
+    }
+
+    function _workflowConfirmKinds(seg) {
+        const stages = _workflowStagesForSegment(seg);
+        const active = _workflowActiveStage(stages);
+        if (active) {
+            return active.stageKind === 'review' ? ['review'] : ['translate'];
+        }
+        if (_workflowAllStagesCompleted(stages)) return ['translate', 'review'];
+        return ['translate'];
+    }
+
+    function _wfUserIdForConfirm() {
+        const uid = String(window._tmsCurrentUserId || '').trim();
+        return uid || null;
+    }
+
+    /** 確認／取消：內部 wf_* 與 memoQ status 一次寫入或清除（B-3） */
+    function applyWorkflowConfirmToSegment(seg, confirm) {
+        if (!seg) return;
+        if (!confirm) {
+            seg.status = 'unconfirmed';
+            seg.wfTransConfirmedAt = null;
+            seg.wfTransConfirmedBy = null;
+            seg.wfReviewConfirmedAt = null;
+            seg.wfReviewConfirmedBy = null;
+            return;
+        }
+        const now = new Date().toISOString();
+        const userId = _wfUserIdForConfirm();
+        const kinds = _workflowConfirmKinds(seg);
+        if (kinds.includes('translate')) {
+            seg.wfTransConfirmedAt = now;
+            seg.wfTransConfirmedBy = userId;
+        }
+        if (kinds.includes('review')) {
+            seg.wfReviewConfirmedAt = now;
+            seg.wfReviewConfirmedBy = userId;
+        }
+        seg.status = 'confirmed';
+        if (currentFileFormat === 'mqxliff') {
+            seg.confirmationRole = resolveConfirmationRole(seg);
+        }
+    }
+
+    function buildWorkflowStatusExtra(seg) {
+        const ex = {
+            wfTransConfirmedAt: seg.wfTransConfirmedAt ?? null,
+            wfTransConfirmedBy: seg.wfTransConfirmedBy ?? null,
+            wfReviewConfirmedAt: seg.wfReviewConfirmedAt ?? null,
+            wfReviewConfirmedBy: seg.wfReviewConfirmedBy ?? null,
+        };
+        if (currentFileFormat === 'mqxliff' && seg.confirmationRole) {
+            ex.confirmationRole = seg.confirmationRole;
+        }
+        return ex;
+    }
+
+    function _buildMqSymbolHtml(role) {
+        if (role === 'R1') {
+            return '<span class="status-mq-glyph">&#10003;<sup>+</sup></span>';
+        }
+        if (role === 'R2') {
+            return '<span class="status-mq-glyph status-mq-glyph-r2">&#10003;&#10003;</span>';
+        }
+        return '<span class="status-mq-glyph">&#10003;</span>';
+    }
+
+    function _buildStatusCellTooltip(seg) {
+        const lines = [];
+        lines.push(_isWfTransMarked(seg)
+            ? `內部翻譯：${seg.wfTransConfirmedAt ? new Date(seg.wfTransConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
+            : '內部翻譯：未標');
+        lines.push(_isWfReviewMarked(seg)
+            ? `內部審稿：${seg.wfReviewConfirmedAt ? new Date(seg.wfReviewConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
+            : '內部審稿：未標');
+        if (currentFileFormat === 'mqxliff') {
+            if (seg.status === 'confirmed') {
+                const r = seg.confirmationRole || 'T';
+                lines.push(`memoQ：${r === 'R2' ? '✓✓ R2' : r === 'R1' ? '✓+ R1' : '✓ T'}`);
+            } else {
+                lines.push('memoQ：未確認');
+            }
+        }
+        return lines.join('\n') + '\nCtrl+Enter／點擊 確認狀態';
+    }
+
+    function buildStatusCellHtml(seg) {
+        const twf = _isWfTransMarked(seg);
+        const rwf = _isWfReviewMarked(seg);
+        const mq = seg && seg.status === 'confirmed';
+        const classes = ['status-icon', 'status-icon-stack'];
+        if (twf) classes.push('wf-trans');
+        if (rwf) classes.push('wf-review');
+        if (mq) classes.push('mq-done');
+        const tip = _buildStatusCellTooltip(seg).replace(/"/g, '&quot;');
+        let mqHtml = '';
+        if (currentFileFormat === 'mqxliff' && mq) {
+            mqHtml = `<span class="status-mq-overlay">${_buildMqSymbolHtml(seg.confirmationRole || 'T')}</span>`;
+        }
+        return `<span class="${classes.join(' ')}" data-tip="${tip}" style="cursor:pointer;">`
+            + '<span class="status-wf-core" aria-hidden="true"></span>'
+            + mqHtml
+            + '</span>';
+    }
+
+    function refreshStatusIconForRow(row, seg) {
+        if (!row || !seg) return null;
+        const host = row.querySelector('.col-status');
+        if (!host) return null;
+        host.innerHTML = buildStatusCellHtml(seg);
+        return host.querySelector('.status-icon');
     }
 
     // ── 建立句段集精靈 ────────────────────────────────────────────────────────
@@ -17293,7 +17423,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             confirmationRole: seg.confirmationRole,
             isLockedUser: !!seg.isLockedUser,
             matchValue: seg.matchValue,
-            targetTags: seg.targetTags ? seg.targetTags.map(t => ({ ...t })) : []
+            targetTags: seg.targetTags ? seg.targetTags.map(t => ({ ...t })) : [],
+            wfTransConfirmedAt: seg.wfTransConfirmedAt ?? null,
+            wfTransConfirmedBy: seg.wfTransConfirmedBy ?? null,
+            wfReviewConfirmedAt: seg.wfReviewConfirmedAt ?? null,
+            wfReviewConfirmedBy: seg.wfReviewConfirmedBy ?? null,
         };
     }
 
@@ -17305,10 +17439,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         seg.isLockedUser = snap.isLockedUser;
         seg.matchValue = snap.matchValue;
         seg.targetTags = snap.targetTags ? snap.targetTags.map(t => ({ ...t })) : [];
+        seg.wfTransConfirmedAt = snap.wfTransConfirmedAt ?? null;
+        seg.wfTransConfirmedBy = snap.wfTransConfirmedBy ?? null;
+        seg.wfReviewConfirmedAt = snap.wfReviewConfirmedAt ?? null;
+        seg.wfReviewConfirmedBy = snap.wfReviewConfirmedBy ?? null;
     }
 
     async function persistSegStateToDb(seg) {
-        const ex = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
+        const ex = buildWorkflowStatusExtra(seg);
         if (seg.isLockedUser !== undefined) {
             ex.isLockedUser = seg.isLockedUser;
             ex.isLocked = !!(seg.isLockedSystem || seg.isLockedUser);
@@ -17459,27 +17597,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 scheduleNpCaretAfterTargetUndo(segIdx, caretPlain);
             }
             applyMatchCellVisual(row, seg.matchValue);
-            const isConfirmed = seg.status === 'confirmed';
             syncRowConfirmedStateClass(row, seg);
-            const si = row.querySelector('.status-icon');
-            if (si) {
-                if (isConfirmed) {
-                    si.classList.add('done');
-                    if (currentFileFormat === 'mqxliff') {
-                        const role = seg.confirmationRole || 'T';
-                        if (role === 'R1') {
-                            si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                        } else if (role === 'R2') {
-                            si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                        } else {
-                            si.innerHTML = '&#10003;';
-                        }
-                    }
-                } else {
-                    si.classList.remove('done');
-                    if (currentFileFormat === 'mqxliff') si.innerHTML = '';
-                }
-            }
+            refreshStatusIconForRow(row, seg);
             if (editorUndoEditStart[seg.id] !== undefined) editorUndoEditStart[seg.id] = tgt;
         }
 
@@ -17487,7 +17606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (mv !== undefined) extra.matchValue = mv;
         if (tags !== undefined) extra.targetTags = seg.targetTags;
         if (st !== undefined) {
-            DBService.updateSegmentStatus(seg.id, st, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {}).catch(console.error);
+            DBService.updateSegmentStatus(seg.id, st, buildWorkflowStatusExtra(seg)).catch(console.error);
         }
         if (seg.id) applyUpdateSegmentTarget(seg, tgt, extra).catch(console.error);
 
@@ -17533,27 +17652,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 else row.dataset.tip = '';
                 const isConfirmed = seg.status === 'confirmed';
                 syncRowConfirmedStateClass(row, seg);
-                const si = row.querySelector('.status-icon');
-                if (si) {
-                    if (isConfirmed) {
-                        si.classList.add('done');
-                        if (currentFileFormat === 'mqxliff') {
-                            const role = seg.confirmationRole || 'T';
-                            if (role === 'R1') {
-                                si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                            } else if (role === 'R2') {
-                                si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                            } else {
-                                si.innerHTML = '&#10003;';
-                            }
-                        }
-                    } else {
-                        si.classList.remove('done');
-                        if (currentFileFormat === 'mqxliff') si.innerHTML = '';
-                    }
-                }
+                refreshStatusIconForRow(row, seg);
             }
-            const ex = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
+            const ex = buildWorkflowStatusExtra(seg);
             if (seg.isLockedUser !== undefined) {
                 ex.isLockedUser = seg.isLockedUser;
                 ex.isLocked = !!(seg.isLockedSystem || seg.isLockedUser);
@@ -17952,19 +18053,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function unconfirmSegmentVisualAfterReplace(seg, segIdx) {
-        seg.status = 'unconfirmed';
+        applyWorkflowConfirmToSegment(seg, false);
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const row = rows[segIdx];
         if (row) {
             syncRowConfirmedStateClass(row, seg);
-            const si = row.querySelector('.status-icon');
-            if (si) {
-                si.classList.remove('done');
-                if (currentFileFormat === 'mqxliff') si.innerHTML = '';
-            }
+            refreshStatusIconForRow(row, seg);
         }
-        const ex = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
-        DBService.updateSegmentStatus(seg.id, 'unconfirmed', ex).catch(console.error);
+        DBService.updateSegmentStatus(seg.id, 'unconfirmed', buildWorkflowStatusExtra(seg)).catch(console.error);
     }
 
     const AFTER_CONFIRM_NAV_KEY = 'catToolAfterConfirmNav';
@@ -18026,11 +18122,8 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {'revision'|'other'} failureKind — revision：樂觀鎖衝突；other：連線／伺服器等其他錯誤（Phase D）
      */
     function _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, failureKind = 'revision') {
-        seg.status = 'unconfirmed';
-        if (statusIcon) {
-            statusIcon.classList.remove('done');
-            statusIcon.innerHTML = '';
-        }
+        applyWorkflowConfirmToSegment(seg, false);
+        refreshStatusIconForRow(row, seg);
         if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
         updateProgress();
         const label = seg.rowIdx != null ? seg.rowIdx + 1 : '?';
@@ -18567,17 +18660,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const src = seg.sourceText;
         const tgt = seg.targetText;
         const rows = updateDom && gridBody ? gridBody.querySelectorAll('.grid-data-row') : null;
-        const paintMqStatusIcon = (si, other) => {
-            if (!si || currentFileFormat !== 'mqxliff') return;
-            const r = other.confirmationRole || 'T';
-            if (r === 'R1') {
-                si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-            } else if (r === 'R2') {
-                si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-            } else {
-                si.innerHTML = '&#10003;';
-            }
-        };
         for (let j = 0; j < currentSegmentsList.length; j++) {
             if (j === primaryIndex) continue;
             const other = currentSegmentsList[j];
@@ -18585,10 +18667,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (otherLocked || other.sourceText !== src) continue;
             if (mode === 'after' && j <= primaryIndex) continue;
             other.targetText = tgt;
-            other.status = 'confirmed';
-            if (currentFileFormat === 'mqxliff') {
-                other.confirmationRole = resolveConfirmationRole(other);
-            }
+            applyWorkflowConfirmToSegment(other, true);
             if (updateDom && rows && rows[j]) {
                 const row = rows[j];
                 const ta = row.querySelector('.grid-textarea');
@@ -18596,11 +18675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(other)));
                     updateTagColors(row, tgt);
                 }
-                const si = row.querySelector('.status-icon');
-                if (si) {
-                    si.classList.add('done');
-                    paintMqStatusIcon(si, other);
-                }
+                refreshStatusIconForRow(row, other);
                 if (!isDynamicForbidden(other) && !other.isLockedUser) syncRowConfirmedStateClass(row, other);
             }
         }
@@ -18631,12 +18706,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (mode === 'after' && j <= segIndex) continue;
 
             other.targetText = tgt;
-            other.status = 'confirmed';
-            if (currentFileFormat === 'mqxliff') {
-                other.confirmationRole = resolveConfirmationRole(other);
-            }
+            applyWorkflowConfirmToSegment(other, true);
             await applyUpdateSegmentTarget(other, tgt, {});
-            await DBService.updateSegmentStatus(other.id, 'confirmed', currentFileFormat === 'mqxliff' && other.confirmationRole ? { confirmationRole: other.confirmationRole } : {});
+            await DBService.updateSegmentStatus(other.id, other.status, buildWorkflowStatusExtra(other));
             mergeTmPair(accum, await syncSegmentToWriteTmsOnConfirm(other, j));
 
             const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
@@ -18646,20 +18718,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(other)));
                     updateTagColors(rows[j], tgt);
                 }
-                const si = rows[j].querySelector('.status-icon');
-                if (si) {
-                    si.classList.add('done');
-                    if (currentFileFormat === 'mqxliff') {
-                        const r = other.confirmationRole || 'T';
-                        if (r === 'R1') {
-                            si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                        } else if (r === 'R2') {
-                            si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                        } else {
-                            si.innerHTML = '&#10003;';
-                        }
-                    }
-                }
+                refreshStatusIconForRow(rows[j], other);
                 if (!isDynamicForbidden(other) && !other.isLockedUser) syncRowConfirmedStateClass(rows[j], other);
             }
         }
@@ -18703,8 +18762,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const i of indices) {
                 const seg = currentSegmentsList[i];
                 if (seg.status !== 'confirmed') {
-                    seg.status = 'confirmed';
-                    if (currentFileFormat === 'mqxliff') seg.confirmationRole = resolveConfirmationRole(seg);
+                    applyWorkflowConfirmToSegment(seg, true);
                 }
             }
             indices.forEach((i) => applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: false }));
@@ -18713,8 +18771,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const seg = currentSegmentsList[idx];
                 const bs = beforeSnapshots[seg.id];
                 if (bs && bs.status !== 'confirmed' && seg.status === 'confirmed') {
-                    const extra = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
-                    dbWaits.push(DBService.updateSegmentStatus(seg.id, seg.status, extra));
+                    dbWaits.push(DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg)));
                 }
             });
             const lastIdx = indices[indices.length - 1];
@@ -20073,24 +20130,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             rowInnerContent += `<div class="col-match" style="${matchStyle}">${seg.matchValue || ''}</div>`;
 
-            // 狀態欄：mqxliff 顯示 T/R1/R2 圖示，其它格式顯示綠點
-            let statusCellHtml = '';
-            if (currentFileFormat === 'mqxliff') {
-                const role = seg.confirmationRole || 'T';
-                let symbolHtml = '';
-                if (isConfirmed) {
-                    if (role === 'R1') {
-                        symbolHtml = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                    } else if (role === 'R2') {
-                        symbolHtml = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                    } else {
-                        symbolHtml = '&#10003;';
-                    }
-                }
-                statusCellHtml = `<span class="status-icon status-icon-mq ${isConfirmed ? 'done' : ''}" data-role="${seg.confirmationRole || ''}" style="cursor:pointer;" data-tip="Ctrl+Enter/點擊 確認狀態">${symbolHtml}</span>`;
-            } else {
-                statusCellHtml = `<span class="status-icon ${isConfirmed ? 'done' : ''}" style="cursor:pointer;" data-tip="Ctrl+Enter/點擊 確認狀態"></span>`;
-            }
+            // 狀態欄：Workflow 三層（B-3）+ mqxliff memoQ 白字
+            const statusCellHtml = buildStatusCellHtml(seg);
             rowInnerContent += `<div class="col-status">${statusCellHtml}</div>`;
             row.innerHTML = rowInnerContent;
             
@@ -20343,10 +20384,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     // Unconfirm immediately if edited and was confirmed
                     if (seg.status === 'confirmed') {
-                        seg.status = 'unconfirmed';
-                        statusIcon.classList.remove('done');
+                        applyWorkflowConfirmToSegment(seg, false);
+                        refreshStatusIconForRow(row, seg);
                         syncRowConfirmedStateClass(row, seg);
-                        await DBService.updateSegmentStatus(seg.id, seg.status);
+                        await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
                     }
 
                     updateProgress();
@@ -20920,20 +20961,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const tmU = [];
                             const tmR = [];
                             if (seg.status !== 'confirmed') {
-                                seg.status = 'confirmed';
-                                statusIcon.classList.add('done');
+                                applyWorkflowConfirmToSegment(seg, true);
+                                refreshStatusIconForRow(row, seg);
                                 if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
-                                if (currentFileFormat === 'mqxliff') {
-                                    seg.confirmationRole = resolveConfirmationRole(seg);
-                                    const role = seg.confirmationRole || 'T';
-                                    if (role === 'R1') {
-                                        statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                                    } else if (role === 'R2') {
-                                        statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                                    } else {
-                                        statusIcon.innerHTML = '&#10003;';
-                                    }
-                                }
                                 updateProgress();
                             }
                             if (seg.status === 'confirmed') {
@@ -20985,15 +21015,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         emitCollabEdit('commit', seg, latestTarget);
                                     } catch (err) {
                                         if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'revision');
+                                            _revertConfirmAndToast(seg, row, null, effectiveLocked, 'revision');
                                         } else {
                                             console.error('[確認寫庫失敗]', err, seg.id);
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'other');
+                                            _revertConfirmAndToast(seg, row, null, effectiveLocked, 'other');
                                         }
                                         return;
                                     }
                                     if (wasUnconfirmed) {
-                                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                                        await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
                                         updateProgress();
                                     }
                                     if (seg.status === 'confirmed') {
@@ -21070,7 +21100,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 // Click icon to toggle
-                statusIcon.addEventListener('click', () => {
+                const statusCol = row.querySelector('.col-status');
+                if (statusCol) statusCol.addEventListener('click', () => {
                     const willConfirm = seg.status !== 'confirmed';
                     if (willConfirm) {
                         void (async () => {
@@ -21097,20 +21128,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const wasUnconfirmed = seg.status !== 'confirmed';
                             const tmU = [];
                             const tmR = [];
-                            seg.status = 'confirmed';
-                            statusIcon.classList.add('done');
+                            applyWorkflowConfirmToSegment(seg, true);
+                            refreshStatusIconForRow(row, seg);
                             if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
-                            if (currentFileFormat === 'mqxliff') {
-                                seg.confirmationRole = resolveConfirmationRole(seg);
-                                const role = seg.confirmationRole || 'T';
-                                if (role === 'R1') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                                } else if (role === 'R2') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                                } else {
-                                    statusIcon.innerHTML = '&#10003;';
-                                }
-                            }
                             updateProgress();
                             applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
                             isConfirming = true;
@@ -21156,15 +21176,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         emitCollabEdit('commit', seg, latestTarget);
                                     } catch (err) {
                                         if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'revision');
+                                            _revertConfirmAndToast(seg, row, null, effectiveLocked, 'revision');
                                         } else {
                                             console.error('[狀態圖示確認寫庫失敗]', err, seg.id);
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'other');
+                                            _revertConfirmAndToast(seg, row, null, effectiveLocked, 'other');
                                         }
                                         return;
                                     }
                                     if (wasUnconfirmed) {
-                                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                                        await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
                                         updateProgress();
                                     }
                                     mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
@@ -21188,16 +21208,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         })();
                     } else {
                         const beforeSnap = snapshotSegForUndo(seg);
-                        seg.status = 'unconfirmed';
-                        statusIcon.classList.remove('done');
-                        if (currentFileFormat === 'mqxliff') {
-                            statusIcon.innerHTML = '';
-                        }
+                        applyWorkflowConfirmToSegment(seg, false);
+                        refreshStatusIconForRow(row, seg);
                         syncRowConfirmedStateClass(row, seg);
                         const afterSnap = snapshotSegForUndo(seg);
                         pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
                         enqueueConfirmSideEffects(async () => {
-                    await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                    await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
                         });
                     updateProgress();
                     }
@@ -22343,6 +22360,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const total = baseline.length;
         const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser) && inProgressRange(s));
         const translated = sessionValid.filter(s => s.status === 'confirmed').length;
+        const wfTransMarked = sessionValid.filter((s) => _isWfTransMarkedEffective(s)).length;
+        const wfReviewMarked = sessionValid.filter((s) => _isWfReviewMarkedEffective(s)).length;
+        const wfTotal = sessionValid.length;
+        const wfTransPct = wfTotal ? Math.round((wfTransMarked / wfTotal) * 100) : 0;
+        const wfReviewPct = wfTotal ? Math.round((wfReviewMarked / wfTotal) * 100) : 0;
+        const wfEl = document.getElementById('statusBarWfProgress');
+        if (wfEl) wfEl.textContent = `翻譯 ${wfTransPct}%｜審稿 ${wfReviewPct}%`;
 
         const pctEl = document.getElementById('statusBarPercent');
         const sbWords = document.getElementById('statusBarWords');
