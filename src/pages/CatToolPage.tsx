@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
+import { markCollabRowTaskCompletedFromCat } from "@/lib/cat-wf-lms-sync";
 import { getEnvironment } from "@/lib/environment";
 import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -748,6 +749,17 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             },
             window.location.origin
           );
+        }
+      } else if (event.data?.type === "CAT_WF_STAGE_ASSIGNMENT_COMPLETED") {
+        const p = event.data.payload ?? {};
+        const caseId = String(p.caseId || "");
+        const collabRowId = String(p.collabRowId || "");
+        const completedAt = String(p.completedAt || new Date().toISOString());
+        if (!caseId || !collabRowId || !user?.id) return;
+        try {
+          await markCollabRowTaskCompletedFromCat(supabase, caseId, collabRowId, completedAt);
+        } catch (e) {
+          console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", e);
         }
       } else if (event.data?.type === "CAT_OPEN_CASE_PAGE") {
         const caseId = String(event.data?.payload?.caseId || "");

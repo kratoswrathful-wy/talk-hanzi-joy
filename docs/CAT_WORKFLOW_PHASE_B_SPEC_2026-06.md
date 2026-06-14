@@ -1,6 +1,6 @@
 # Phase B — Workflow 框架實作規格（2026-06）
 
-> **狀態**：B-0／B-1／B-2／**B-3 已落地**；B-4～B-5 規劃中。  
+> **狀態**：B-0／B-1／B-2／**B-3 已落地**（含 `fafd1c8` 進度 fallback）；**B-4 進行中**（CAT 任務完成）；B-5 規劃中。  
 > **上層路線圖**：[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2。  
 > **前置**：Phase A 已收尾（2026-06-12）。  
 > **排序／序號（B-0）**：[`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)。
@@ -200,8 +200,8 @@ flowchart LR
 | **B-0** | 排序 spec 落地：檔序、句段集 sort、左欄顯示序、篩選 A；更新檔×句段集 UI 規格（UI 可併 B-4 實作） | [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)；`app.js` |
 | **B-1** | migration、Dexie v23、RPC 範本／檔案步驟；舊檔遷移（§9） | **已落地** `20260612120000` |
 | **B-2** | 檔案／句段集清單步驟與負責人；`computeSegmentEditForbidden` | **已落地** `app.js` |
-| **B-3** | 三層狀態欄、確認／取消合併、進度兩段 | **已落地** `app.js`、`style.css` |
-| **B-4** | 任務完成 + PM+ split；`CollabRow` 雙向；LMS 選句段集；派出 RPC | `index.html`、`CaseDetailPage.tsx` |
+| **B-3** | 三層狀態欄、確認／取消合併、進度兩段 | **已落地** `86190c8`、`fafd1c8`（`app.js`、`style.css`、`index.html`） |
+| **B-4** | 任務完成 + PM+ split；`CollabRow` 雙向；LMS 選句段集；派出 RPC | **進行中**：CAT 工具列＋`updateStageAssignmentWorkflowStatus`＋`CAT_WF_STAGE_ASSIGNMENT_COMPLETED`；LMS 派出 RPC 待做 |
 | **B-5** | 篩選第五維；教學案與兩例外檔驗收 | `evaluateSegment`；[`CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md`](./CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md) §2.3 |
 
 ---
@@ -210,10 +210,14 @@ flowchart LR
 
 | 位置 | 顯示 |
 |------|------|
-| 專案檔案清單、句段集清單進度區 | **翻譯 xx%｜審稿 yy%**（僅內部 `wf_*`） |
-| 編輯器左下角 | 同上；受派→己段範圍，PM+→整檔 |
+| 專案檔案清單、句段集清單進度區 | **翻譯 xx%｜審稿 yy%**（內部 `wf_*`＋舊檔 fallback，見下） |
+| 編輯器左下角 | **進度：A% / B%**　**句段：x / y / z**　**字數：x / y / z**（翻譯／審稿／總計）；綠色進度條＝翻譯 A% |
 
-**不算** memoQ 白勾進度。mqxliff `isBaselineForbidden` 字數基準與內部進度**分離**（實作註記於 B-3）。
+**規格原則**：進度以內部 Workflow 為主，**不算** memoQ 白勾為獨立第三段。
+
+**舊檔 fallback（`fafd1c8`，2026-06-10 驗收）**：例外 mqxliff 等「Workflow 翻譯步進行中、句段僅 memoQ 已確認」時，`_isWfTransMarkedEffective`／`_isWfReviewMarkedEffective` 須將已確認句段計入**翻譯**進度（與遷移前綠條一致）；審稿步進行中才將 memoQ 已確認計入**審稿**；狀態欄綠點／綠圈與進度共用同一 effective 規則。
+
+mqxliff `isBaselineForbidden` 字數基準與內部進度**分離**（實作註記於 B-3）。
 
 ---
 
@@ -253,3 +257,4 @@ flowchart LR
 |------|------|
 | 2026-06-12 | 初稿：產品決策、雙通道、三層狀態欄、任務完成、LMS、B-1～B-5 |
 | 2026-06-12 | **v2**：確認合併、排序 spec／B-0、LMS 雙向、句段集派工、進度兩段、舊檔遷移兩檔例外、編輯權限 B、離線 Workflow |
+| 2026-06-10 | **B-3 進度修正** `fafd1c8`：編輯器左下角單行三組數字；舊 memoQ 已確認句段納入翻譯進度 fallback；狀態欄 effective 與進度一致 |

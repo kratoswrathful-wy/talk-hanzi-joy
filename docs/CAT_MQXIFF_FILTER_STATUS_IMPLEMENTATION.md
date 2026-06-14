@@ -67,7 +67,7 @@ flowchart LR
 
 ### 2.3 第五維（內部 Workflow 標記，Phase B 規劃）
 
-> **狀態**：規劃中，尚未實作於 `evaluateSegment`。完整規格見 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §3、§7 B-5。
+> **狀態**：**已落地**於 `evaluateSegment`（Phase B B-5）。完整規格見 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §3、§7 B-5。
 
 與第四維（memoQ `mq_t`／`mq_r1`／`mq_r2`）**分開**；僅在 Phase B 落地後啟用。
 
@@ -150,3 +150,4 @@ flowchart LR
 |------|------|
 | 2026-05-10 | 初版：整合計畫書、觸點表與 `evaluateSegment` 規格。 |
 | 2026-06-12 | §2.3：Phase B 內部 Workflow 篩選第五維草案（`wf_trans_marked`／`wf_review_marked`）。 |
+| 2026-06-10 | §2.3：**已落地** B-5：`evaluateSegment` 第五維；進階面板「內部 Workflow」列；語意與 `_isWfTransMarkedEffective`／`_isWfReviewMarkedEffective` 一致。 |

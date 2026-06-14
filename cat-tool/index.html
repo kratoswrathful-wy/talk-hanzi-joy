@@ -755,6 +755,11 @@
                             <button type="button" id="btnClientQuestionFormArrow" class="success-btn btn-sm split-btn-arrow" data-tip="欄位設定">▾</button>
                         </div>
                         <button id="btnPreTranslate" class="primary-btn btn-sm" data-tip="預先翻譯">預先翻譯</button>
+                        <div class="split-btn-group" id="wfTaskCompleteGroup" style="display:none;">
+                            <button type="button" id="btnWfTaskCompleteMain" class="secondary-btn btn-sm split-btn-main" data-tip="標記目前段落指派為任務完成">任務完成</button>
+                            <button type="button" id="btnWfTaskCompleteArrow" class="secondary-btn btn-sm split-btn-arrow" data-tip="選擇段落指派" style="display:none;">▾</button>
+                            <div class="split-dropdown" id="wfTaskCompleteDropdown"></div>
+                        </div>
                         <button id="exportBtn" class="export-teal-btn btn-sm" data-tip="匯出檔案">匯出檔案</button>
                         <button id="btnAiMode" class="btn-sm ai-mode-btn" style="display:none;" data-tip="AI 輔助翻譯模式">✨ AI 輔助</button>
                     </div>
@@ -862,6 +867,11 @@
                                         <label><input type="checkbox" class="sf-status-cb sf-mq-role-cb" value="mq_r2"> R2（&#10003;&#10003;）</label>
                                     </div>
                                     <p id="sfMqRoleFilterHint" class="sf-mq-role-hint" style="display:none;" hidden>已確認句段：篩選由誰按下最終確認（與格線狀態欄圖示相同）。未確認句段不受 memoQ 確認身分勾選影響。</p>
+                                    <div id="sfWfMarkedFilterRow" class="sf-adv-grid sf-adv-status-row-wf" style="display:none;" hidden>
+                                        <span class="sf-wf-marked-heading" aria-hidden="true">內部 Workflow</span>
+                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_trans_marked"> 翻譯已標</label>
+                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_review_marked"> 審稿已標</label>
+                                    </div>
                                 </div>
 
                                 <div class="sf-adv-section">

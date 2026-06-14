@@ -4847,6 +4847,231 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowStages = [];
     }
 
+    function _getStagesForAssignment(a) {
+        if (_currentViewId) {
+            return (window._currentFileWorkflowStagesByFileId || {})[String(a.fileId)] || [];
+        }
+        return window._currentFileWorkflowStages || [];
+    }
+
+    function _workflowStageById(stages, stageId) {
+        const arr = Array.isArray(stages) ? stages : [];
+        return arr.find((s) => String(s.id) === String(stageId)) || null;
+    }
+
+    function _isAssignmentOnActiveStage(a) {
+        const stages = _getStagesForAssignment(a);
+        const active = _workflowActiveStage(stages);
+        return !!(active && String(active.id) === String(a.fileWorkflowStageId));
+    }
+
+    function _wfTaskAssignmentsInContext() {
+        const assigns = window._currentFileStageAssignments || [];
+        const fileId = currentFileId != null ? String(currentFileId) : null;
+        const viewId = _currentViewId ? String(_currentViewId) : null;
+        return assigns.filter((a) => {
+            if (viewId) {
+                if (a.viewId != null && String(a.viewId) !== viewId) return false;
+                if (a.viewId == null && fileId && String(a.fileId) !== fileId) return false;
+                return true;
+            }
+            if (fileId && String(a.fileId) !== fileId) return false;
+            if (a.viewId != null) return false;
+            return true;
+        });
+    }
+
+    function _wfIncompleteTaskAssignments(opts) {
+        const o = opts || {};
+        const userId = String(window._tmsCurrentUserId || '');
+        const includeAll = !!o.includeAll;
+        return _wfTaskAssignmentsInContext().filter((a) => {
+            if (!_isAssignmentOnActiveStage(a)) return false;
+            if (a.workflowStatus === 'completed') return false;
+            if (!includeAll && userId && String(a.assigneeUserId) !== userId) return false;
+            return true;
+        });
+    }
+
+    function _formatWfTaskAssignmentLabel(a) {
+        const stages = _getStagesForAssignment(a);
+        const st = _workflowStageById(stages, a.fileWorkflowStageId);
+        const stageLabel = st ? (st.label || st.stageKind || '步驟') : '步驟';
+        const who = _resolveAssigneeDisplayName(a.assigneeUserId);
+        const scope = _formatWorkflowScopeSuffix(a);
+        return `${stageLabel} · ${who}${scope}`;
+    }
+
+    function closeWfTaskCompleteDropdown() {
+        const dd = document.getElementById('wfTaskCompleteDropdown');
+        const arrow = document.getElementById('btnWfTaskCompleteArrow');
+        if (dd) dd.classList.remove('show');
+        if (arrow) arrow.classList.remove('open');
+    }
+
+    function _renderWfTaskCompleteDropdownItems(items) {
+        const body = document.getElementById('wfTaskCompleteDropdown');
+        if (!body) return;
+        const esc = (s) => String(s ?? '').replace(/</g, '&lt;');
+        if (!items.length) {
+            body.innerHTML = '<div class="note-list-empty" style="padding:0.65rem 0.8rem; font-size:0.82rem; color:#64748b;">目前沒有可標記的段落指派</div>';
+            return;
+        }
+        body.innerHTML = items.map((a) => {
+            const label = esc(_formatWfTaskAssignmentLabel(a));
+            return `<button type="button" class="wf-task-complete-item" data-assignment-id="${esc(a.id)}" style="display:block;width:100%;text-align:left;padding:0.55rem 0.75rem;border:none;background:#fff;cursor:pointer;font-size:0.84rem;color:#334155;">${label}</button>`;
+        }).join('');
+        body.querySelectorAll('.wf-task-complete-item').forEach((btn) => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const aid = btn.getAttribute('data-assignment-id');
+                closeWfTaskCompleteDropdown();
+                if (aid) void _completeWfStageAssignmentById(aid);
+            });
+            btn.addEventListener('mouseenter', () => { btn.style.background = '#f1f5f9'; });
+            btn.addEventListener('mouseleave', () => { btn.style.background = '#fff'; });
+        });
+    }
+
+    function toggleWfTaskCompleteDropdown() {
+        const dd = document.getElementById('wfTaskCompleteDropdown');
+        const arrow = document.getElementById('btnWfTaskCompleteArrow');
+        if (!dd || !arrow) return;
+        if (dd.classList.contains('show')) {
+            closeWfTaskCompleteDropdown();
+            return;
+        }
+        const isPm = _isCatPmOrExecutive();
+        const mine = _wfIncompleteTaskAssignments({ includeAll: false });
+        const items = (isPm || mine.length > 1)
+            ? _wfIncompleteTaskAssignments({ includeAll: isPm })
+            : mine;
+        _renderWfTaskCompleteDropdownItems(items);
+        dd.classList.add('show');
+        arrow.classList.add('open');
+    }
+
+    async function _emitWfTaskCompleteToLms(assignment, fileMeta) {
+        const collabRowId = assignment && assignment.collabRowId ? String(assignment.collabRowId) : '';
+        const caseId = fileMeta && fileMeta.relatedLmsCaseId ? String(fileMeta.relatedLmsCaseId) : '';
+        if (!collabRowId || !caseId) return;
+        try {
+            window.parent.postMessage({
+                type: 'CAT_WF_STAGE_ASSIGNMENT_COMPLETED',
+                payload: {
+                    caseId,
+                    collabRowId,
+                    assignmentId: String(assignment.id),
+                    fileId: assignment.fileId != null ? String(assignment.fileId) : null,
+                    viewId: assignment.viewId != null ? String(assignment.viewId) : null,
+                    completedAt: new Date().toISOString(),
+                },
+            }, window.location.origin);
+        } catch (e) {
+            console.warn('[workflow] LMS notify', e);
+        }
+    }
+
+    async function _completeWfStageAssignmentById(assignmentId) {
+        const arr = window._currentFileStageAssignments || [];
+        const hit = arr.find((a) => String(a.id) === String(assignmentId));
+        if (!hit) {
+            showCatToast('找不到段落指派', 'error');
+            return;
+        }
+        if (hit.workflowStatus === 'completed') {
+            showCatToast('此段落已完成', 'info');
+            refreshWfTaskCompleteToolbar();
+            return;
+        }
+        try {
+            const updated = await DBService.updateStageAssignmentWorkflowStatus(assignmentId, 'completed');
+            const idx = arr.findIndex((a) => String(a.id) === String(assignmentId));
+            if (idx >= 0) arr[idx] = { ...arr[idx], ...updated };
+            let fileMeta = null;
+            try {
+                fileMeta = await catGetFile(hit.fileId, { includeOriginal: false });
+            } catch (_) { /* ignore */ }
+            await _emitWfTaskCompleteToLms({ ...hit, ...updated }, fileMeta);
+            showCatToast('已標記任務完成', 'info');
+            refreshWfTaskCompleteToolbar();
+            if (currentProjectId && typeof _fillFilesWorkflowCellsAsync === 'function' && window._lastFilesListForProject) {
+                void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
+            }
+        } catch (e) {
+            console.error('[workflow] complete assignment', e);
+            showCatToast('無法更新任務完成狀態，請稍後再試', 'error');
+        }
+    }
+
+    async function _onWfTaskCompleteMainClick() {
+        const mine = _wfIncompleteTaskAssignments({ includeAll: false });
+        if (mine.length === 1) {
+            await _completeWfStageAssignmentById(mine[0].id);
+            return;
+        }
+        if (mine.length > 1) {
+            toggleWfTaskCompleteDropdown();
+            return;
+        }
+        if (_isCatPmOrExecutive()) {
+            const all = _wfIncompleteTaskAssignments({ includeAll: true });
+            if (all.length === 1) {
+                await _completeWfStageAssignmentById(all[0].id);
+                return;
+            }
+            if (all.length > 1) {
+                toggleWfTaskCompleteDropdown();
+                return;
+            }
+        }
+        showCatToast('目前沒有可標記的段落指派', 'info');
+    }
+
+    let _wfTaskCompleteUiBound = false;
+    function _bindWfTaskCompleteUiOnce() {
+        if (_wfTaskCompleteUiBound) return;
+        _wfTaskCompleteUiBound = true;
+        const main = document.getElementById('btnWfTaskCompleteMain');
+        const arrow = document.getElementById('btnWfTaskCompleteArrow');
+        if (main) main.addEventListener('click', () => { void _onWfTaskCompleteMainClick(); });
+        if (arrow) arrow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleWfTaskCompleteDropdown();
+        });
+        document.addEventListener('click', (e) => {
+            const dd = document.getElementById('wfTaskCompleteDropdown');
+            if (!dd || !dd.classList.contains('show')) return;
+            const group = document.getElementById('wfTaskCompleteGroup');
+            if (group && group.contains(e.target)) return;
+            closeWfTaskCompleteDropdown();
+        });
+    }
+
+    function refreshWfTaskCompleteToolbar() {
+        _bindWfTaskCompleteUiOnce();
+        const group = document.getElementById('wfTaskCompleteGroup');
+        const arrow = document.getElementById('btnWfTaskCompleteArrow');
+        if (!group) return;
+        if (!isTeamMode() || activeView !== 'viewEditor') {
+            group.style.display = 'none';
+            closeWfTaskCompleteDropdown();
+            return;
+        }
+        const isPm = _isCatPmOrExecutive();
+        const mine = _wfIncompleteTaskAssignments({ includeAll: false });
+        const all = _wfIncompleteTaskAssignments({ includeAll: true });
+        const canUse = mine.length > 0 || (isPm && all.length > 0);
+        if (!canUse) {
+            group.style.display = 'none';
+            closeWfTaskCompleteDropdown();
+            return;
+        }
+        group.style.display = '';
+        const showArrow = (isPm && all.length > 0) || mine.length > 1;
+        if (arrow) arrow.style.display = showArrow ? '' : 'none';
+    }
+
     function _workflowStagesForSegment(seg) {
         if (_currentViewId && seg && seg.fileId != null) {
             const map = window._currentFileWorkflowStagesByFileId || {};
@@ -5305,6 +5530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (sfCellModeRow2) sfCellModeRow2.classList.add('mq-role-hidden');
             }
             syncSfMqRoleFilterRowVisibility();
+            syncSfWfMarkedFilterRowVisibility();
 
             // TM / TB
             window.ActiveTmCache = [];
@@ -5457,6 +5683,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             activeView = 'viewEditor';
             persistCatRoute();
             syncEditorWordCountToolbarBtn();
+            refreshWfTaskCompleteToolbar();
         } finally {
             hideCatLoadingOverlay();
         }
@@ -14565,6 +14792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         syncSfMqRoleFilterRowVisibility();
+        syncSfWfMarkedFilterRowVisibility();
 
         // LOAD PROJECT TM CACHE ---
         window.ActiveTmCache = [];
@@ -14744,6 +14972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         activeView = 'viewEditor';
         persistCatRoute();
         syncEditorWordCountToolbarBtn();
+        refreshWfTaskCompleteToolbar();
         } catch (e) {
             console.error('[CAT] openEditor failed', e);
             currentFileId = null;
@@ -16017,7 +16246,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         unlocked: '未鎖定',
         mq_t: 'memoQ 確認身分：T（譯者）',
         mq_r1: 'memoQ 確認身分：R1',
-        mq_r2: 'memoQ 確認身分：R2'
+        mq_r2: 'memoQ 確認身分：R2',
+        wf_trans_marked: '內部 Workflow：翻譯已標',
+        wf_review_marked: '內部 Workflow：審稿已標',
     };
 
     /** mqxliff 進階篩選：顯示／隱藏 memoQ 身分列並清除非 mqxliff 時之勾選 */
@@ -16043,6 +16274,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 hint.style.display = 'none';
                 hint.setAttribute('hidden', 'hidden');
             }
+        }
+    }
+
+    /** 團隊版：顯示／隱藏內部 Workflow 篩選列 */
+    function syncSfWfMarkedFilterRowVisibility() {
+        const row = document.getElementById('sfWfMarkedFilterRow');
+        const show = isTeamMode();
+        if (!row) return;
+        if (show) {
+            row.style.display = '';
+            row.removeAttribute('hidden');
+        } else {
+            row.style.display = 'none';
+            row.setAttribute('hidden', 'hidden');
+            row.querySelectorAll('.sf-wf-marked-cb').forEach((cb) => { cb.checked = false; });
         }
     }
 
@@ -16174,7 +16420,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const confirmKeys = ['confirmed', 'unconfirmed'];
             const lockKeys = ['locked', 'unlocked'];
             const mqRoleKeys = ['mq_t', 'mq_r1', 'mq_r2'];
-            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys];
+            const wfMarkedKeys = ['wf_trans_marked', 'wf_review_marked'];
+            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys, wfMarkedKeys];
             statusMatch = true;
             for (const keys of dims) {
                 const picked = statuses.filter((s) => keys.includes(s));
@@ -16199,6 +16446,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (!isConfirmed) dimOk = true;
                         else if (seg.confirmationRole === 'R2') dimOk = true;
                     }
+                    if (s === 'wf_trans_marked' && _isWfTransMarkedEffective(seg)) dimOk = true;
+                    if (s === 'wf_review_marked' && _isWfReviewMarkedEffective(seg)) dimOk = true;
                 }
                 if (!dimOk) { statusMatch = false; break; }
             }
@@ -23497,6 +23746,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             runSearchAndFilter();
         }
         syncSfMqRoleFilterRowVisibility();
+        syncSfWfMarkedFilterRowVisibility();
+        refreshWfTaskCompleteToolbar();
     }
 
     function getQaScopeVisibleSegIdSet() {

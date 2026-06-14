@@ -34,6 +34,11 @@ export interface CollabRow {
   reviewDeadline: string | null;      // 審稿交期
   taskCompleted: boolean; // 任務完成
   delivered: boolean;     // 交件完畢
+  /** Phase B B-4：與 CAT cat_stage_assignments.collab_row_id 雙向 */
+  linkedCatFileId?: string | null;
+  linkedCatViewId?: string | null;
+  lineRange?: string | null;
+  scopeLabel?: string | null;
 }
 
 export interface CaseComment {

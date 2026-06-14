@@ -2216,6 +2216,19 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (error) throw error;
       return (data ?? []).map(mapStageAssignmentRow);
     }
+    case "db.updateStageAssignmentWorkflowStatus": {
+      const { data, error } = await supabase
+        .from("cat_stage_assignments" as any)
+        .update({
+          workflow_status: payload.workflowStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", payload.assignmentId)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return mapStageAssignmentRow(data);
+    }
 
     default:
       throw new Error(`Unknown CAT cloud RPC action: ${action}`);

@@ -1383,6 +1383,20 @@ button:disabled { cursor: not-allowed; }
     margin: 0.35rem 0 0;
     line-height: 1.35;
 }
+/* 團隊版：內部 Workflow 篩選列 */
+.sf-adv-status-row-wf {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed #e2e8f0;
+    align-items: center;
+}
+.sf-wf-marked-heading {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    white-space: nowrap;
+    margin-right: 0.15rem;
+}
 .sf-adv-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; padding-top: 0.5rem; border-top: 1px solid #e2e8f0;}
 .sf-presets-select { padding: 0.2rem; border: 1px solid var(--border-color); border-radius: 4px; outline: none; font-size: 0.8rem;}
 .sf-presets-select:focus-visible {
