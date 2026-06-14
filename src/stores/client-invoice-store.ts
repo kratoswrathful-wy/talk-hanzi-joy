@@ -29,7 +29,6 @@ interface DbClientInvoice {
   is_record_only: boolean;
   record_amount: number;
   expected_collection_date: string | null;
-  actual_collection_date: string | null;
   adjustment_lines?: unknown;
   edit_log_started_at?: string | null;
 }
@@ -53,7 +52,6 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     recordCurrency: (row as any).record_currency || undefined,
     billingChannel: (row as any).billing_channel || undefined,
     expectedCollectionDate: row.expected_collection_date || undefined,
-    actualCollectionDate: row.actual_collection_date || undefined,
     adjustmentLines: parseAdjustmentLines((row as any).adjustment_lines),
     editLogStartedAt: (row as any).edit_log_started_at || undefined,
   };
@@ -217,7 +215,7 @@ export const clientInvoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate" | "adjustmentLines" | "editLogStartedAt">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "adjustmentLines" | "editLogStartedAt">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -235,7 +233,6 @@ export const clientInvoiceStore = {
     if (updates.recordCurrency !== undefined) dbUpdates.record_currency = updates.recordCurrency;
     if (updates.billingChannel !== undefined) dbUpdates.billing_channel = updates.billingChannel;
     if (updates.expectedCollectionDate !== undefined) dbUpdates.expected_collection_date = updates.expectedCollectionDate || null;
-    if (updates.actualCollectionDate !== undefined) dbUpdates.actual_collection_date = updates.actualCollectionDate || null;
     if (updates.adjustmentLines !== undefined) dbUpdates.adjustment_lines = updates.adjustmentLines ?? [];
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 

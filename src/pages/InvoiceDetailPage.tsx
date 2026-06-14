@@ -57,6 +57,8 @@ import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { toast } from "sonner";
 import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
+import DateOnlyInputPicker from "@/components/DateOnlyInputPicker";
+import { todayDateString } from "@/lib/date-only";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 
@@ -117,6 +119,8 @@ const fieldLabels: Record<string, string> = {
   title: "標題",
   status: "狀態",
   note: "稿費請款備註",
+  付款紀錄: "付款紀錄",
+  付款時間: "付款時間",
 };
 
 export default function InvoiceDetailPage() {
@@ -139,6 +143,7 @@ export default function InvoiceDetailPage() {
   const [showPartialInput, setShowPartialInput] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
   const [showOverpayWarning, setShowOverpayWarning] = useState(false);
+  const [showClearPayments, setShowClearPayments] = useState(false);
   const [overpayRemaining, setOverpayRemaining] = useState(0);
   const [addFeeOpen, setAddFeeOpen] = useState(false);
   const [selectedAddFees, setSelectedAddFees] = useState<string[]>([]);
@@ -380,17 +385,17 @@ export default function InvoiceDetailPage() {
   };
 
   const handleFullPayment = () => {
-    const now = new Date().toISOString();
+    const today = todayDateString();
     const payment: PaymentRecord = {
       id: crypto.randomUUID(),
       type: "full",
-      timestamp: now,
+      timestamp: today,
     };
     const newPayments = [...invoice.payments, payment];
     invoiceStore.updateInvoice(invoice.id, {
       status: "paid",
       payments: newPayments,
-      transferDate: now,
+      transferDate: today,
     });
     trackChange("status", invoiceStatusLabels[invoice.status], "已付款");
     forceCommitPending();
@@ -411,12 +416,12 @@ export default function InvoiceDetailPage() {
       setShowOverpayWarning(true);
       return;
     }
-    const now = new Date().toISOString();
+    const today = todayDateString();
     const payment: PaymentRecord = {
       id: crypto.randomUUID(),
       type: "partial",
       amount,
-      timestamp: now,
+      timestamp: today,
     };
     const newPayments = [...invoice.payments, payment];
     const newPaidTotal = paidSoFar + amount;
@@ -424,13 +429,41 @@ export default function InvoiceDetailPage() {
     invoiceStore.updateInvoice(invoice.id, {
       status: newStatus,
       payments: newPayments,
-      ...(newStatus === "paid" ? { transferDate: now } : {}),
+      ...(newStatus === "paid" ? { transferDate: today } : {}),
     });
     trackChange("status", invoiceStatusLabels[invoice.status], invoiceStatusLabels[newStatus]);
     if (newStatus === "paid") forceCommitPending();
     setShowPartialInput(false);
     setPartialAmount("");
     toast.success("已記錄部份付款");
+  };
+
+  const handlePaymentDateChange = (idx: number, newDate: string | undefined) => {
+    if (!newDate) return;
+    const oldDate = invoice.payments[idx]?.timestamp || "";
+    if (oldDate === newDate) return;
+    const newPayments = invoice.payments.map((p, i) =>
+      i === idx ? { ...p, timestamp: newDate } : p
+    );
+    const isLast = idx === invoice.payments.length - 1;
+    const updates: Parameters<typeof invoiceStore.updateInvoice>[1] = { payments: newPayments };
+    if (isLast && invoice.status === "paid") {
+      updates.transferDate = newDate;
+    }
+    invoiceStore.updateInvoice(invoice.id, updates);
+    trackChange("付款時間", oldDate || "(空)", newDate);
+  };
+
+  const handleClearPayments = () => {
+    const count = invoice.payments.length;
+    invoiceStore.updateInvoice(invoice.id, {
+      status: "pending",
+      payments: [],
+      transferDate: "",
+    });
+    trackChange("付款紀錄", `已付款（共 ${count} 筆）`, "已清除");
+    setShowClearPayments(false);
+    toast.success("已清除付款紀錄");
   };
 
   const handleNoteChange = (newNote: string) => {
@@ -524,7 +557,7 @@ export default function InvoiceDetailPage() {
         <div className="rounded-xl border border-border bg-card p-6 space-y-6">
           {/* Title */}
           <div className="flex items-start justify-between gap-4">
-            {isPaid ? (
+            {isPaid && !isAdmin ? (
               <h1 className="text-2xl font-semibold tracking-tight text-muted-foreground">
                 {invoice.title || "未命名"}
               </h1>
@@ -684,6 +717,11 @@ export default function InvoiceDetailPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            {isPaid && isAdmin && invoice.payments.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setShowClearPayments(true)}>
+                清除付款紀錄
+              </Button>
+            )}
           </div>
 
           {showPartialInput && (
@@ -708,9 +746,14 @@ export default function InvoiceDetailPage() {
             );
             const remainingAfter = total - paidUpToHere;
             return (
-              <div key={p.id} className="flex items-center gap-2 text-sm">
+              <div key={p.id} className="flex items-center gap-2 text-sm flex-wrap">
                 <span className="text-muted-foreground">付款時間：</span>
-                <span>{formatTimestamp(new Date(p.timestamp))}</span>
+                <DateOnlyInputPicker
+                  value={p.timestamp}
+                  onChange={(newDate) => handlePaymentDateChange(idx, newDate)}
+                  disabled={!isAdmin}
+                  className="w-[160px] h-8"
+                />
                 <span className="text-muted-foreground">
                   {p.type === "full"
                     ? "（全額付款）"
@@ -836,6 +879,24 @@ export default function InvoiceDetailPage() {
         )}
         </div>
       </motion.div>
+
+      {/* Clear payments dialog */}
+      <AlertDialog open={showClearPayments} onOpenChange={setShowClearPayments}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確定清除付款紀錄？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作將刪除所有付款紀錄，請款單狀態會恢復為「待付款」，可重新點選付款。此操作無法自動復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearPayments} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              清除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete invoice dialog */}
       <AlertDialog open={showDelete} onOpenChange={setShowDelete}>

@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
@@ -59,6 +58,8 @@ import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { toast } from "sonner";
 import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
+import DateOnlyInputPicker from "@/components/DateOnlyInputPicker";
+import { todayDateString } from "@/lib/date-only";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 
@@ -117,13 +118,6 @@ const formatTimestamp = (date: Date | string) => {
   return `${formatted} (${tzLabel})`;
 };
 
-const formatDateOnly = (iso: string) => {
-  if (!iso) return "";
-  const tz = getUserTimezone();
-  const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz });
-};
-
 interface CommentEntry {
   id: string;
   author: string;
@@ -141,53 +135,8 @@ const fieldLabels: Record<string, string> = {
   invoiceNumber: "請款單編號",
   status: "狀態",
   note: "客戶請款備註",
+  收款時間: "收款時間",
 };
-
-/** Date-only picker (no time selection) */
-function DateOnlyPicker({ value, onChange, disabled, placeholder }: {
-  value?: string;
-  onChange: (v: string | undefined) => void;
-  disabled?: boolean;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = value ? new Date(value + "T00:00:00") : undefined;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal h-9", !value && "text-muted-foreground")} disabled={disabled}>
-          {value ? formatDateOnly(value) : (placeholder || "選擇日期")}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={selected}
-          onSelect={(day) => {
-            if (day) {
-              const yyyy = day.getFullYear();
-              const mm = String(day.getMonth() + 1).padStart(2, "0");
-              const dd = String(day.getDate()).padStart(2, "0");
-              onChange(`${yyyy}-${mm}-${dd}`);
-            } else {
-              onChange(undefined);
-            }
-            setOpen(false);
-          }}
-          initialFocus
-        />
-        {value && (
-          <div className="px-3 pb-2">
-            <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" onClick={() => { onChange(undefined); setOpen(false); }}>
-              清除日期
-            </Button>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 export default function ClientInvoiceDetailPage() {
   const { id } = useParams();
@@ -530,19 +479,19 @@ export default function ClientInvoiceDetailPage() {
       setAmountTooHighMsg(`輸入金額過高，目前剩餘應收總額為 ${formatCurrency(remaining)}，請調整金額。`);
       return;
     }
-    const now = new Date().toISOString();
+    const today = todayDateString();
     const payment: ClientPaymentRecord = {
       id: crypto.randomUUID(),
       type: "full",
       amount: noFee ? undefined : amount,
       noFee,
-      timestamp: now,
+      timestamp: today,
     };
     const newPayments = [...invoice.payments, payment];
     clientInvoiceStore.updateInvoice(invoice.id, {
       status: "collected" as ClientInvoiceStatus,
       payments: newPayments,
-      transferDate: now,
+      transferDate: today,
     });
     trackChange("status", clientInvoiceStatusLabels[invoice.status], "收款完畢");
     forceCommitPending();
@@ -563,12 +512,12 @@ export default function ClientInvoiceDetailPage() {
       setAmountTooHighMsg(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(totalOriginal, recordCur)}，請調整金額。`);
       return;
     }
-    const now = new Date().toISOString();
+    const today = todayDateString();
     const payment: ClientPaymentRecord = {
       id: crypto.randomUUID(),
       type: "partial",
       amount,
-      timestamp: now,
+      timestamp: today,
     };
     const newPayments = [...invoice.payments, payment];
     const newPaidTotal = paidSoFar + amount;
@@ -577,7 +526,7 @@ export default function ClientInvoiceDetailPage() {
     clientInvoiceStore.updateInvoice(invoice.id, {
       status: newStatus,
       payments: newPayments,
-      ...(shouldClose ? { transferDate: now } : {}),
+      ...(shouldClose ? { transferDate: today } : {}),
     });
     trackChange("status", clientInvoiceStatusLabels[invoice.status], clientInvoiceStatusLabels[newStatus]);
     if (shouldClose) forceCommitPending();
@@ -585,6 +534,22 @@ export default function ClientInvoiceDetailPage() {
     setPartialPayAmount("");
     setPartialPayClose(false);
     toast.success(shouldClose ? "已記錄收款完畢" : "已記錄部份收款");
+  };
+
+  const handlePaymentDateChange = (idx: number, newDate: string | undefined) => {
+    if (!newDate) return;
+    const oldDate = invoice.payments[idx]?.timestamp || "";
+    if (oldDate === newDate) return;
+    const newPayments = invoice.payments.map((p, i) =>
+      i === idx ? { ...p, timestamp: newDate } : p
+    );
+    const isLast = idx === invoice.payments.length - 1;
+    const updates: Parameters<typeof clientInvoiceStore.updateInvoice>[1] = { payments: newPayments };
+    if (isLast && invoice.status === "collected") {
+      updates.transferDate = newDate;
+    }
+    clientInvoiceStore.updateInvoice(invoice.id, updates);
+    trackChange("收款時間", oldDate || "(空)", newDate);
   };
 
   const handleRecordAmountConfirm = () => {
@@ -761,7 +726,7 @@ export default function ClientInvoiceDetailPage() {
           {/* Title row with status */}
           <div className="grid grid-cols-2 gap-4 items-center">
             <div className="min-w-0">
-              {isCollected ? (
+              {isCollected && !isAdmin ? (
                 <h1 className="text-2xl font-semibold tracking-tight text-muted-foreground">
                   {invoice.title || "未命名"}
                 </h1>
@@ -787,7 +752,7 @@ export default function ClientInvoiceDetailPage() {
           {/* Invoice number row */}
           <div className="flex items-center gap-3">
             <Label className="text-xs text-muted-foreground whitespace-nowrap">請款單編號</Label>
-            {isCollected ? (
+            {isCollected && !isAdmin ? (
               <span className="text-sm text-muted-foreground">{invoice.invoiceNumber || "—"}</span>
             ) : (
               <Input
@@ -846,23 +811,13 @@ export default function ClientInvoiceDetailPage() {
             </div>
 
             {/* Date fields row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">預計收款時間</Label>
-                <DateOnlyPicker
-                  value={invoice.expectedCollectionDate}
-                  onChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { expectedCollectionDate: v })}
-                  disabled={!isAdmin}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">實際收款時間</Label>
-                <DateOnlyPicker
-                  value={invoice.actualCollectionDate}
-                  onChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { actualCollectionDate: v })}
-                  disabled={!isAdmin}
-                />
-              </div>
+            <div className="grid gap-1.5 max-w-xs">
+              <Label className="text-xs text-muted-foreground">預計收款時間</Label>
+              <DateOnlyInputPicker
+                value={invoice.expectedCollectionDate}
+                onChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { expectedCollectionDate: v })}
+                disabled={!isAdmin}
+              />
             </div>
           </div>
 
@@ -1166,9 +1121,14 @@ export default function ClientInvoiceDetailPage() {
               );
               const remainingAfter = totalOriginal - paidUpToHere;
               return (
-                <div key={p.id} className="flex items-center gap-2 text-sm">
+                <div key={p.id} className="flex items-center gap-2 text-sm flex-wrap">
                   <span className="text-muted-foreground">收款時間：</span>
-                  <span>{formatTimestamp(new Date(p.timestamp))}</span>
+                  <DateOnlyInputPicker
+                    value={p.timestamp}
+                    onChange={(newDate) => handlePaymentDateChange(idx, newDate)}
+                    disabled={!isAdmin}
+                    className="w-[160px] h-8"
+                  />
                   <span className="text-muted-foreground">
                     {p.type === "full"
                       ? p.noFee

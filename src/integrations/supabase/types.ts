@@ -1061,7 +1061,6 @@ export type Database = {
       }
       client_invoices: {
         Row: {
-          actual_collection_date: string | null
           adjustment_lines: Json
           billing_channel: string
           client: string
@@ -1085,7 +1084,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          actual_collection_date?: string | null
           adjustment_lines?: Json
           billing_channel?: string
           client?: string
@@ -1109,7 +1107,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          actual_collection_date?: string | null
           adjustment_lines?: Json
           billing_channel?: string
           client?: string

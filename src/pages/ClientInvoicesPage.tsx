@@ -331,18 +331,8 @@ export default function ClientInvoicesPage() {
       ),
     },
     {
-      key: "actualCollectionDate",
-      label: "實際收款時間",
-      minWidth: 110,
-      render: (inv) => (
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {inv.actualCollectionDate ? formatDate(inv.actualCollectionDate) : "—"}
-        </span>
-      ),
-    },
-    {
       key: "transferDate",
-      label: "匯款日期",
+      label: "收款日期",
       minWidth: 90,
       render: (inv) => (
         <span className="text-sm text-muted-foreground tabular-nums">

@@ -25,8 +25,7 @@ export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "serviceFee", label: "手續費", type: "computed" },
   { key: "netReceived", label: "實收金額", type: "computed" },
   { key: "expectedCollectionDate", label: "預計收款時間", type: "date" },
-  { key: "actualCollectionDate", label: "實際收款時間", type: "date" },
-  { key: "transferDate", label: "匯款日期", type: "date" },
+  { key: "transferDate", label: "收款日期", type: "date" },
   { key: "note", label: "客戶請款備註", type: "text" },
   { key: "createdBy", label: "建立者", type: "select" },
   { key: "createdAt", label: "建立時間", type: "date" },
@@ -76,7 +75,6 @@ function getFieldValue(
     case "isRecordOnly": return !!inv.isRecordOnly;
     case "recordCurrency": return inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "";
     case "expectedCollectionDate": return inv.expectedCollectionDate || "";
-    case "actualCollectionDate": return inv.actualCollectionDate || "";
     case "transferDate": return inv.transferDate || "";
     case "note": return inv.note;
     case "createdBy": return inv.createdBy;
@@ -160,7 +158,7 @@ const defaultColumnWidths: Record<string, number> = {
   title: 220, invoiceNumber: 140, client: 150, status: 100, billingChannel: 100, isRecordOnly: 100,
   feeCount: 80, recordCurrency: 80,
   receiptTotalOriginal: 120, receiptTotalTwd: 120, serviceFee: 100, netReceived: 120,
-  expectedCollectionDate: 130, actualCollectionDate: 130,
+  expectedCollectionDate: 130,
   transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
 };
 const defaultHiddenColumns = ["createdBy", "transferDate", "isRecordOnly", "recordCurrency"];
