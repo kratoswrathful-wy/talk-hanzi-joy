@@ -96,9 +96,9 @@ flowchart LR
 | 指派查詢逾時 | 若 `cat_file_assignments` 查詢逾時仍 fail-open，未受派唯讀可能未生效；Phase B 前可觀察是否需改 fail-closed |
 | GS 更新作業檔 wizard | `btnGsWizFinish` 路徑是否仍走 `createFile` 而非更新既有檔 — 列為可選技術債，不阻擋 Phase A 收尾 |
 
-### 4.2 Phase B：Workflow 框架（規劃中）
+### 4.2 Phase B：Workflow 框架（**已落地**，2026-06-15）
 
-> **完整規格**：[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md)（v2）  
+> **完整規格**：[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md)（v5 + §11.7 熱修）  
 > **排序／序號（B-0）**：[`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)
 
 #### 已定案產品決策（摘要）
@@ -144,8 +144,8 @@ flowchart LR
 | **B-1** | migration、Dexie v23、RPC 範本／檔案步驟；舊檔遷移（兩檔例外） |
 | **B-2** | 檔案／句段集清單步驟／負責人；`computeSegmentEditForbidden` 含行數 |
 | **B-3** | 三層狀態欄、確認／取消合併、進度兩段（含 `fafd1c8` 舊檔進度 fallback） |
-| **B-4** | 派出 RPC、任務完成／調整狀態、LMS 雙向、開檔 session（**進行中**） |
-| **B-5** | 進階篩選第五維（**已落地** `d53b568`） |
+| **B-4** | 派出 RPC、任務完成／調整狀態、LMS 雙向、開檔 session | **已落地**（v4 `e4a6205`、v5 熱修 `cee4b03`+） |
+| **B-5** | 進階篩選第五維 | **已落地** `d53b568` |
 
 #### 程式觸點（草案）
 
@@ -227,3 +227,4 @@ flowchart LR
 | 2026-06-10 | 初稿：可行性評估、三階段路線圖、需求對照表；收錄 `49db7c2` 匯入連結案件 |
 | 2026-06-12 | Phase A 收尾（A-2／A-5 `ab04381`、§4.1.1 驗收）；Phase B 定案與子文件 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) |
 | 2026-06-12 | Phase B v2 摘要：確認合併、B-0 排序 spec、LMS 雙向、進度兩段、舊檔遷移兩檔例外 |
+| 2026-06-15 | Phase B 收尾：B-4 v5 落地與 CCT6012 驗收；開檔熱修（§11.7）；Phase C 仍規劃中 |

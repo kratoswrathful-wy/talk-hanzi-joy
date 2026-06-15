@@ -377,6 +377,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const viewSections = document.querySelectorAll('.view-section');
     let currentFileId = null;
     let _wfTaskCompleteUiBound = false;
+    /** B-4 A：開檔工作步驟 session（換檔／換句段集重問）；須在 applyTmsIdentityToUI 前初始化 */
+    let currentWfSessionKind = null;
 
     // 進度條統計範圍（null = 不限；1-based，依原始 rowIdx 排序後的位置）
     let progressRangeStart = null;
@@ -5837,8 +5839,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _currentViewFilesMap = {};
     let _viewEditorReadOnly = false; // 未受指派唯讀保護（§3.1）
     let _fileUnassignedReadOnly = false; // 團隊版：未受派檔案全檔唯讀（Phase A）
-    /** B-4 A：開檔工作步驟 session（換檔／換句段集重問） */
-    let currentWfSessionKind = null;
 
     async function openEditorFromView(viewId) {
         const view = await DBService.getView(viewId);
