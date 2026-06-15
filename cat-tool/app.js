@@ -1836,6 +1836,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._tmsManagedIdentity = true;
         enforceTeamRoleLayout();
         syncExecutiveCatDebugApi();
+        if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
     }
 
     /** 顯示 TMS 個人資訊唯讀卡片。 */
@@ -2882,6 +2883,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!kind) return false;
         currentWfSessionKind = kind;
         _refreshWfSessionKindHint();
+        if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
         return true;
     }
 
@@ -4932,6 +4934,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         window._currentFileWorkflowStages = stages;
         window._currentFileStageAssignments = assignments;
+        if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
         return { stages, assignments };
     }
 
@@ -4956,6 +4959,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowStagesByFileId = stagesByFile;
         window._currentFileStageAssignments = allAssigns;
         window._currentFileWorkflowStages = [];
+        if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
     }
 
     function _getStagesForAssignment(a) {
@@ -5435,6 +5439,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         const isPm = _isCatPmOrExecutive();
+        const userId = String(window._tmsCurrentUserId || '');
+        if (!isPm && isTeamMode() && !userId) {
+            group.style.display = 'none';
+            closeWfTaskCompleteDropdown();
+            return;
+        }
         const mineIncomplete = _wfIncompleteTaskAssignments({ includeAll: false });
         const mineReady = _wfReadyTaskAssignments({ includeAll: false });
         const mineCompleted = _wfMyCompletedTranslateAssignments();
