@@ -376,6 +376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const navItems = document.querySelectorAll('.nav-item');
     const viewSections = document.querySelectorAll('.view-section');
     let currentFileId = null;
+    let _wfTaskCompleteUiBound = false;
 
     // 進度條統計範圍（null = 不限；1-based，依原始 rowIdx 排序後的位置）
     let progressRangeStart = null;
@@ -5027,7 +5028,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!fileId) return false;
         const lineStart = a.lineStart != null ? Number(a.lineStart) : 1;
         const lineEnd = a.lineEnd != null ? Number(a.lineEnd) : null;
-        const segs = (allSegments || []).filter((s) => {
+        const segs = (currentSegmentsList || []).filter((s) => {
             if (String(s.fileId) !== fileId) return false;
             const gid = s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null;
             if (gid == null) return false;
@@ -5396,7 +5397,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         toggleWfTaskCompleteDropdown();
     }
 
-    let _wfTaskCompleteUiBound = false;
     function _bindWfTaskCompleteUiOnce() {
         if (_wfTaskCompleteUiBound) return;
         _wfTaskCompleteUiBound = true;
@@ -5445,11 +5445,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeWfTaskCompleteDropdown();
             return;
         }
-        const mineIncomplete = _wfIncompleteTaskAssignments({ includeAll: false });
-        const mineReady = _wfReadyTaskAssignments({ includeAll: false });
-        const mineCompleted = _wfMyCompletedTranslateAssignments();
-        const mineTranslate = _wfTranslateAssignmentsInContext({ includeAll: false });
-        const hasMineTranslate = mineTranslate.length > 0;
 
         if (isPm) {
             group.style.display = '';
@@ -5462,6 +5457,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (arrow) arrow.style.display = 'none';
             return;
         }
+
+        const mineIncomplete = _wfIncompleteTaskAssignments({ includeAll: false });
+        const mineReady = _wfReadyTaskAssignments({ includeAll: false });
+        const mineCompleted = _wfMyCompletedTranslateAssignments();
+        const mineTranslate = _wfTranslateAssignmentsInContext({ includeAll: false });
+        const hasMineTranslate = mineTranslate.length > 0;
 
         if (!hasMineTranslate && mineCompleted.length === 0) {
             group.style.display = 'none';
