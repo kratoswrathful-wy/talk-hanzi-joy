@@ -1,6 +1,6 @@
 # CAT 檔案／句段集排序與左欄顯示序 — 規格（2026-06）
 
-> **狀態**：**B-0 已落地**（`cat-tool/app.js`）；更新作業檔×句段集 UI 仍待 B-4。  
+> **狀態**：**B-0 已落地**（`cat-tool/app.js`）；**更新作業檔×句段集 UI 已落地**（2026-06-15，`fileUpdateViewsModal`）。  
 > **交付切片**：Phase B **B-0**（Workflow 段落鎖定與 LMS 行數對齊之前須完成）。  
 > **上層**：[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md)、[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2。
 
@@ -107,7 +107,7 @@
 2. 跨檔順序：**先舊檔後新檔**，檔內依匯入序。
 3. 篩選後 ID **不連號可接受**（1、2、5、8）；取消篩選恢復全列號。
 4. 重開句段集恢復 §2 預設順序（非上次手動排序）。
-5. 更新作業檔涉及句段集時出現**條件說明 + 新句是否加入**流程（UI 可與 B-4 併實作，規格 B-0 先定）。
+5. 更新作業檔涉及句段集時出現**條件說明 + 新句是否加入**流程（`fileUpdateViewsModal`；略過時仍移除已刪句段）。
 
 ---
 
@@ -117,3 +117,4 @@
 |------|------|
 | 2026-06-12 | 初稿：B-0 檔序、句段集排序、左欄顯示序、篩選 A、更新檔×句段集、Workflow 列號對齊 |
 | 2026-06-12 | B-0 程式落地：`openEditorFromView`、建立句段集排序、左欄 `rowIdx+1`、移除句段集 Fix A |
+| 2026-06-15 | **更新作業檔×句段集 UI**：`fileUpdateViewsModal`、篩選條件顯示、新句勾選、多人拆段新列範圍；`db.upsertTranslateStageAssignment` |

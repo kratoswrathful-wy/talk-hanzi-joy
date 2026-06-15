@@ -2216,6 +2216,21 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (error) throw error;
       return (data ?? []).map(mapStageAssignmentRow);
     }
+    case "db.upsertTranslateStageAssignment": {
+      const p = payload.payload || {};
+      const { error } = await supabase.rpc("cat_upsert_translate_stage_assignment" as any, {
+        p_file_id: payload.fileId,
+        p_assignee_user_id: p.assigneeUserId,
+        p_collab_row_id: p.collabRowId ?? null,
+        p_view_id: p.viewId ?? null,
+        p_scope_label: p.scopeLabel ?? null,
+        p_line_start: p.lineStart ?? null,
+        p_line_end: p.lineEnd ?? null,
+        p_workflow_status: p.workflowStatus ?? "assigned",
+      } as any);
+      if (error) throw error;
+      return { ok: true };
+    }
     case "db.updateStageAssignmentWorkflowStatus": {
       const { data, error } = await supabase
         .from("cat_stage_assignments" as any)

@@ -770,6 +770,54 @@ const DBService = {
         return db.stageAssignments.where('fileId').equals(fid).toArray();
     },
 
+    async upsertTranslateStageAssignment(fileId, payload) {
+        const fid = toDexieLocalId(fileId);
+        const p = payload || {};
+        const assigneeUserId = p.assigneeUserId;
+        if (!assigneeUserId) throw new Error('assignee required');
+        const stages = await DBService.ensureFileWorkflowStages(fid);
+        const translateStage = (stages || []).find((s) => s.stageKind === 'translate');
+        if (!translateStage) throw new Error('translate stage not found');
+        const lineStart = p.lineStart != null ? Number(p.lineStart) : null;
+        const lineEnd = p.lineEnd != null ? Number(p.lineEnd) : null;
+        const viewId = p.viewId != null ? toDexieLocalId(p.viewId) : null;
+        const collabRowId = p.collabRowId != null ? String(p.collabRowId) : null;
+        const all = await db.stageAssignments.where('fileId').equals(fid).toArray();
+        let hit = null;
+        if (collabRowId) {
+            hit = all.find((a) => String(a.collabRowId || '') === collabRowId) || null;
+        } else {
+            hit = all.find((a) =>
+                String(a.fileWorkflowStageId) === String(translateStage.id)
+                && String(a.assigneeUserId) === String(assigneeUserId)
+                && !a.collabRowId
+                && (a.viewId == null ? viewId == null : String(a.viewId) === String(viewId))
+                && (a.lineStart == null ? lineStart == null : Number(a.lineStart) === lineStart)
+                && (a.lineEnd == null ? lineEnd == null : Number(a.lineEnd) === lineEnd)
+            ) || null;
+        }
+        const now = new Date().toISOString();
+        const wfStatus = p.workflowStatus === 'completed' ? 'completed' : 'assigned';
+        const patch = {
+            fileId: fid,
+            viewId,
+            fileWorkflowStageId: translateStage.id,
+            assigneeUserId,
+            lineStart,
+            lineEnd,
+            scopeLabel: p.scopeLabel != null ? String(p.scopeLabel) : null,
+            workflowStatus: wfStatus,
+            collabRowId,
+            updatedAt: now,
+        };
+        if (hit) {
+            await db.stageAssignments.update(hit.id, patch);
+            return { ...hit, ...patch, id: hit.id };
+        }
+        const id = await db.stageAssignments.add({ ...patch, assignedAt: now });
+        return { ...patch, id, assignedAt: now };
+    },
+
     async updateStageAssignmentWorkflowStatus(assignmentId, workflowStatus) {
         const valid = ['assigned', 'in_progress', 'completed'];
         if (!valid.includes(workflowStatus)) throw new Error('invalid workflow status');
@@ -2040,6 +2088,8 @@ const DBService = {
         rpc('db.getFileWorkflowStages', { fileId });
     DBService.listStageAssignmentsForFile = async (fileId) =>
         rpc('db.listStageAssignmentsForFile', { fileId });
+    DBService.upsertTranslateStageAssignment = async (fileId, payload) =>
+        rpc('db.upsertTranslateStageAssignment', { fileId, payload });
     DBService.updateStageAssignmentWorkflowStatus = async (assignmentId, workflowStatus) =>
         rpc('db.updateStageAssignmentWorkflowStatus', { assignmentId, workflowStatus });
     DBService.updateFileWorkflowStageStatus = async (stageId, status) =>

@@ -12453,50 +12453,336 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    /**
-     * 更新作業檔後，同步所有涵蓋該檔案的句段集：
-     *   - 快速結合型（type:'quick'）：新增句段全部加入，刪除句段移除
-     *   - 自訂篩選型：新增句段比對 filterSummary，符合才加入；刪除句段移除
-     *
-     * @param {string|number} fileId
-     * @param {object[]}      addedSegs   已寫入 DB 的新增句段（含 id）
-     * @param {(string|number)[]} removedIds  已刪除的句段 id 陣列
-     * @returns {{ viewName: string, added: number, removed: number }[]}
-     */
-    async function _syncViewsAfterFileUpdate(fileId, addedSegs, removedIds) {
+    function _formatNewSegGlobalIdRange(addedSegs) {
+        const gids = (addedSegs || [])
+            .map((s) => (s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null))
+            .filter((n) => n != null)
+            .sort((a, b) => a - b);
+        if (!gids.length) return '（新句尚無列號）';
+        if (gids.length === 1) return `第 ${gids[0]} 列（1 句）`;
+        return `第 ${gids[0]}–${gids[gids.length - 1]} 列（共 ${gids.length} 句）`;
+    }
+
+    function _formatWfLineRange(lineStart, lineEnd) {
+        const ls = lineStart != null ? Number(lineStart) : null;
+        const le = lineEnd != null ? Number(lineEnd) : null;
+        if (ls != null && le != null) return `${ls}–${le} 列`;
+        if (ls != null) return `${ls} 列起`;
+        if (le != null) return `至 ${le} 列`;
+        return '整檔';
+    }
+
+    async function _buildFileUpdateWfSplitContext(fileId, addedSegs) {
+        if (!_isCatPmOrExecutive() || !addedSegs || !addedSegs.length) return null;
+        try {
+            const stages = await DBService.ensureFileWorkflowStages(fileId);
+            const translateStage = (stages || []).find((s) => s.stageKind === 'translate');
+            if (!translateStage) return null;
+            const assigns = await DBService.listStageAssignmentsForFile(fileId);
+            const translateAssigns = (assigns || []).filter(
+                (a) => String(a.fileWorkflowStageId) === String(translateStage.id)
+            );
+            if (translateAssigns.length < 2) return null;
+            const gids = addedSegs
+                .map((s) => (s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null))
+                .filter((n) => n != null);
+            if (!gids.length) return null;
+            gids.sort((a, b) => a - b);
+            return {
+                newGidMin: gids[0],
+                newGidMax: gids[gids.length - 1],
+                newCount: gids.length,
+                existingAssigns: translateAssigns.map((a) => ({
+                    id: a.id,
+                    assigneeUserId: a.assigneeUserId,
+                    assigneeName: _resolveAssigneeDisplayName(a.assigneeUserId),
+                    lineStart: a.lineStart,
+                    lineEnd: a.lineEnd,
+                    scopeLabel: a.scopeLabel,
+                    collabRowId: a.collabRowId,
+                })),
+            };
+        } catch (e) {
+            console.warn('[fileUpdate] wf split context', e);
+            return null;
+        }
+    }
+
+    function _prepareFileUpdateViewPlans(views, fileId, addedSegs, removedIds) {
         const FileUpdate = window.CatToolFileUpdate;
-        if (!currentProjectId || !FileUpdate) return [];
-        const views = await _getViewsForProject(currentProjectId);
         const fileIdStr = String(fileId);
-        const removedSet = new Set(removedIds.map(id => String(id)));
-        const summary = [];
-
-        for (const v of views) {
-            const coverFile = Array.isArray(v.fileIds) && v.fileIds.some(fid => String(fid) === fileIdStr);
+        const removedSet = new Set((removedIds || []).map((id) => String(id)));
+        const plans = [];
+        for (const v of views || []) {
+            const coverFile = Array.isArray(v.fileIds) && v.fileIds.some((fid) => String(fid) === fileIdStr);
             if (!coverFile) continue;
-
-            const oldIds = Array.isArray(v.segmentIds) ? v.segmentIds.map(id => String(id)) : [];
-            // 移除被刪的句段
-            const afterRemove = oldIds.filter(id => !removedSet.has(id));
-
-            // 加入符合條件的新句段
-            const fs = v.filterSummary || {};
-            const toAdd = addedSegs.filter(seg => FileUpdate.segmentMatchesFilter(seg, fs));
-            const toAddIds = toAdd.map(seg => String(seg.id));
-
-            // 合併（避免重複）
-            const merged = [...new Set([...afterRemove, ...toAddIds])];
-
-            const addedCount   = merged.length - afterRemove.length + (oldIds.length - afterRemove.length > 0 ? 0 : 0);
+            const oldIds = Array.isArray(v.segmentIds) ? v.segmentIds.map((id) => String(id)) : [];
+            const afterRemove = oldIds.filter((id) => !removedSet.has(id));
             const removedCount = oldIds.length - afterRemove.length;
-            const netAdded     = toAddIds.length;
+            const fs = v.filterSummary || {};
+            const candidates = (addedSegs || []).map((seg) => {
+                const matchesFilter = FileUpdate ? FileUpdate.segmentMatchesFilter(seg, fs) : true;
+                const gid = seg.globalId != null && Number.isFinite(Number(seg.globalId)) ? Number(seg.globalId) : null;
+                const preview = (seg.sourceText || '').replace(/\s+/g, ' ').trim().slice(0, 48);
+                return {
+                    segId: String(seg.id),
+                    globalId: gid,
+                    matchesFilter,
+                    preview: preview || '（無原文預覽）',
+                };
+            });
+            const defaultAddIds = candidates.filter((c) => c.matchesFilter).map((c) => c.segId);
+            if (!candidates.length && removedCount === 0) continue;
+            plans.push({
+                viewId: String(v.id),
+                viewName: v.name || '未命名句段集',
+                filterText: _renderFilterSummaryText(fs),
+                filterSummary: fs,
+                removedCount,
+                afterRemoveIds: afterRemove,
+                candidates,
+                defaultAddIds,
+            });
+        }
+        return plans;
+    }
 
-            if (merged.length !== oldIds.length || netAdded > 0) {
-                await DBService.updateView(v.id, { segmentIds: merged });
-                summary.push({ viewName: v.name || '未命名句段集', added: netAdded, removed: removedCount });
+    function showFileUpdateViewsModal(ctx) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('fileUpdateViewsModal');
+            const intro = document.getElementById('fileUpdateViewsIntro');
+            const list = document.getElementById('fileUpdateViewsList');
+            const wfSection = document.getElementById('fileUpdateWfSplitSection');
+            const wfExisting = document.getElementById('fileUpdateWfExistingList');
+            const wfNewRows = document.getElementById('fileUpdateWfNewRowsList');
+            const btnConfirm = document.getElementById('btnFileUpdateViewsConfirm');
+            const btnSkip = document.getElementById('btnFileUpdateViewsSkip');
+            const btnClose = document.getElementById('btnCloseFileUpdateViewsModal');
+            if (!modal || !list) {
+                resolve({ skipAdd: true, viewChoices: [], wfNewRanges: [] });
+                return;
+            }
+            const esc = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const plans = ctx.plans || [];
+            const wfSplit = ctx.wfSplit || null;
+            if (intro) {
+                const parts = [`檔案「${esc(ctx.fileName || '')}」已更新。`];
+                if (ctx.inserted > 0) parts.push(`新增 ${ctx.inserted} 句。`);
+                if (ctx.removed > 0) parts.push(`刪除 ${ctx.removed} 句（將自句段集移除）。`);
+                parts.push('請確認是否把新句加入下列句段集（成員預設凍結，需您明確勾選）。');
+                intro.textContent = parts.join(' ');
+            }
+            if (!plans.length) {
+                list.innerHTML = '<div style="font-size:0.85rem;color:#64748b;">此檔未涵蓋任何句段集。</div>';
+            } else {
+                list.innerHTML = plans.map((p) => {
+                    const matchCount = p.defaultAddIds.length;
+                    const candHtml = p.candidates.length <= 40
+                        ? `<details style="margin-top:0.35rem;font-size:0.8rem;"><summary style="cursor:pointer;color:#64748b;">檢視新句明細（${p.candidates.length} 句）</summary>`
+                            + `<div style="margin-top:0.35rem;max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:0.2rem;">`
+                            + p.candidates.map((c) => {
+                                const checked = c.matchesFilter ? 'checked' : '';
+                                const dim = c.matchesFilter ? '' : ' style="opacity:0.65;"';
+                                const gidLabel = c.globalId != null ? `列 ${c.globalId}` : '無列號';
+                                return `<label${dim}><input type="checkbox" class="fu-view-seg-cb" data-view-id="${esc(p.viewId)}" data-seg-id="${esc(c.segId)}" data-matches-filter="${c.matchesFilter ? '1' : '0'}" ${checked}> `
+                                    + `${gidLabel} · ${esc(c.preview)}${c.matchesFilter ? '' : '（不符合篩選）'}</label>`;
+                            }).join('')
+                            + `</div></details>`
+                        : `<div style="margin-top:0.25rem;font-size:0.78rem;color:#94a3b8;">新句較多（${p.candidates.length} 句），請用下方總開關勾選。</div>`;
+                    const removedLine = p.removedCount > 0
+                        ? `<div style="font-size:0.8rem;color:#b45309;margin-top:0.25rem;">將自本句段集移除 ${p.removedCount} 句已刪除句段</div>`
+                        : '';
+                    return `<div class="fu-view-plan" data-view-id="${esc(p.viewId)}" style="padding:0.65rem 0.75rem;border:1px solid #e2e8f0;border-radius:8px;background:#fff;">`
+                        + `<label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;font-weight:600;font-size:0.9rem;">`
+                        + `<input type="checkbox" class="fu-view-enable" data-view-id="${esc(p.viewId)}" ${matchCount > 0 ? 'checked' : ''} style="margin-top:0.2rem;">`
+                        + `<span>${esc(p.viewName)}</span></label>`
+                        + `<div style="font-size:0.8rem;color:#64748b;margin:0.35rem 0 0 1.5rem;white-space:pre-wrap;">篩選條件：${esc(p.filterText).replace(/\n/g, '；')}</div>`
+                        + removedLine
+                        + `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.35rem 0 0 1.5rem;font-size:0.82rem;cursor:pointer;">`
+                        + `<input type="checkbox" class="fu-view-add-matching" data-view-id="${esc(p.viewId)}" ${matchCount > 0 ? 'checked' : ''}>`
+                        + `加入符合條件的新句（${matchCount} 句）</label>`
+                        + `<div style="margin-left:1.5rem;">${candHtml}</div>`
+                        + `</div>`;
+                }).join('');
+            }
+            if (wfSection && wfExisting && wfNewRows) {
+                if (wfSplit) {
+                    wfSection.style.display = '';
+                    wfExisting.innerHTML = '<div style="font-weight:600;margin-bottom:0.25rem;">現有翻譯段落</div>'
+                        + wfSplit.existingAssigns.map((a) =>
+                            `<div>· ${esc(a.assigneeName)}：${_formatWfLineRange(a.lineStart, a.lineEnd)}</div>`
+                        ).join('');
+                    wfNewRows.innerHTML = `<div style="font-size:0.8rem;color:#475569;margin-bottom:0.35rem;">新增句範圍：${_formatNewSegGlobalIdRange(ctx.addedSegs || [])}</div>`
+                        + wfSplit.existingAssigns.map((a) =>
+                            `<div class="fu-wf-assign-row" data-assignee-id="${esc(a.assigneeUserId)}" data-collab-row-id="${esc(a.collabRowId || '')}" `
+                            + `style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;padding:0.45rem 0.5rem;border:1px dashed #cbd5e1;border-radius:6px;">`
+                            + `<span style="font-size:0.84rem;min-width:5rem;">${esc(a.assigneeName)}</span>`
+                            + `<label style="font-size:0.8rem;">新列起 <input type="number" min="1" class="form-input fu-wf-line-start" placeholder="${wfSplit.newGidMin}" style="width:5rem;height:28px;padding:0 0.35rem;box-sizing:border-box;"></label>`
+                            + `<label style="font-size:0.8rem;">新列迄 <input type="number" min="1" class="form-input fu-wf-line-end" placeholder="${wfSplit.newGidMax}" style="width:5rem;height:28px;padding:0 0.35rem;box-sizing:border-box;"></label>`
+                            + `</div>`
+                        ).join('');
+                } else {
+                    wfSection.style.display = 'none';
+                    wfExisting.innerHTML = '';
+                    wfNewRows.innerHTML = '';
+                }
+            }
+            const finish = (result) => {
+                modal.classList.add('hidden');
+                document.removeEventListener('keydown', onEsc);
+                resolve(result);
+            };
+            const onEsc = (e) => {
+                if (e.key === 'Escape') finish({ skipAdd: true, viewChoices: [], wfNewRanges: [] });
+            };
+            list.querySelectorAll('.fu-view-add-matching').forEach((cb) => {
+                cb.addEventListener('change', () => {
+                    const vid = cb.getAttribute('data-view-id');
+                    list.querySelectorAll(`.fu-view-seg-cb[data-view-id="${vid}"]`).forEach((segCb) => {
+                        if (cb.checked) {
+                            if (segCb.getAttribute('data-matches-filter') === '1') segCb.checked = true;
+                        } else {
+                            segCb.checked = false;
+                        }
+                    });
+                });
+            });
+            const collect = (skipAdd) => {
+                const viewChoices = [];
+                plans.forEach((p) => {
+                    const enable = list.querySelector(`.fu-view-enable[data-view-id="${p.viewId}"]`);
+                    if (!enable || !enable.checked) {
+                        viewChoices.push({ viewId: p.viewId, addSegIds: [] });
+                        return;
+                    }
+                    const addIds = new Set();
+                    if (!skipAdd) {
+                        list.querySelectorAll(`.fu-view-seg-cb[data-view-id="${p.viewId}"]:checked`).forEach((cb) => {
+                            const sid = cb.getAttribute('data-seg-id');
+                            if (sid) addIds.add(sid);
+                        });
+                        if (!addIds.size) {
+                            const matchCb = list.querySelector(`.fu-view-add-matching[data-view-id="${p.viewId}"]`);
+                            if (matchCb && matchCb.checked) {
+                                p.defaultAddIds.forEach((id) => addIds.add(id));
+                            }
+                        }
+                    }
+                    viewChoices.push({ viewId: p.viewId, addSegIds: [...addIds] });
+                });
+                const wfNewRanges = [];
+                if (!skipAdd && wfSplit && wfNewRows) {
+                    wfNewRows.querySelectorAll('.fu-wf-assign-row').forEach((row) => {
+                        const assigneeUserId = row.getAttribute('data-assignee-id');
+                        const collabRowId = row.getAttribute('data-collab-row-id') || null;
+                        const lsEl = row.querySelector('.fu-wf-line-start');
+                        const leEl = row.querySelector('.fu-wf-line-end');
+                        const lsRaw = lsEl && lsEl.value !== '' ? Number(lsEl.value) : null;
+                        const leRaw = leEl && leEl.value !== '' ? Number(leEl.value) : null;
+                        if (lsRaw == null && leRaw == null) return;
+                        if (!Number.isFinite(lsRaw) || !Number.isFinite(leRaw) || lsRaw > leRaw) return;
+                        wfNewRanges.push({
+                            assigneeUserId,
+                            collabRowId: collabRowId || null,
+                            lineStart: lsRaw,
+                            lineEnd: leRaw,
+                        });
+                    });
+                }
+                return { skipAdd, viewChoices, wfNewRanges };
+            };
+            if (btnSkip) btnSkip.onclick = () => finish(collect(true));
+            if (btnClose) btnClose.onclick = () => finish(collect(true));
+            if (btnConfirm) btnConfirm.onclick = () => finish(collect(false));
+            modal.onclick = (e) => { if (e.target === modal) finish(collect(true)); };
+            modal.classList.remove('hidden');
+            document.addEventListener('keydown', onEsc);
+        });
+    }
+
+    async function _applyFileUpdateViewChoices(fileId, plans, choice) {
+        const summary = [];
+        const planById = new Map((plans || []).map((p) => [String(p.viewId), p]));
+        for (const ch of (choice.viewChoices || [])) {
+            const p = planById.get(String(ch.viewId));
+            if (!p) continue;
+            const addSet = new Set((ch.addSegIds || []).map(String));
+            const merged = [...new Set([...p.afterRemoveIds, ...addSet])];
+            const netAdded = [...addSet].filter((id) => !p.afterRemoveIds.includes(id)).length;
+            const removedCount = p.removedCount;
+            if (netAdded > 0 || removedCount > 0) {
+                await DBService.updateView(ch.viewId, { segmentIds: merged });
+                summary.push({ viewName: p.viewName, added: netAdded, removed: removedCount });
+            }
+        }
+        if (choice.wfNewRanges && choice.wfNewRanges.length && typeof DBService.upsertTranslateStageAssignment === 'function') {
+            let wfCount = 0;
+            for (const r of choice.wfNewRanges) {
+                try {
+                    await DBService.upsertTranslateStageAssignment(fileId, {
+                        assigneeUserId: r.assigneeUserId,
+                        collabRowId: r.collabRowId,
+                        lineStart: r.lineStart,
+                        lineEnd: r.lineEnd,
+                        workflowStatus: 'assigned',
+                    });
+                    wfCount += 1;
+                } catch (e) {
+                    console.warn('[fileUpdate] wf upsert', e);
+                }
+            }
+            if (wfCount > 0) {
+                summary.push({ viewName: '（Workflow 翻譯段落）', added: wfCount, removed: 0, wf: true });
             }
         }
         return summary;
+    }
+
+    async function _applyViewRemovalsOnly(fileId, plans) {
+        const summary = [];
+        for (const p of plans || []) {
+            if (!p.removedCount) continue;
+            await DBService.updateView(p.viewId, { segmentIds: p.afterRemoveIds });
+            summary.push({ viewName: p.viewName, added: 0, removed: p.removedCount });
+        }
+        return summary;
+    }
+
+    /**
+     * 更新作業檔後同步句段集（B-0 §5）：刪除句段自動移除；新增句段經 Modal 由 PM 勾選。
+     */
+    async function _syncViewsAfterFileUpdate(fileId, addedSegs, removedIds, opts) {
+        const o = opts || {};
+        if (!currentProjectId || !window.CatToolFileUpdate) return [];
+        const views = await _getViewsForProject(currentProjectId);
+        const plans = _prepareFileUpdateViewPlans(views, fileId, addedSegs, removedIds);
+        const wfSplit = await _buildFileUpdateWfSplitContext(fileId, addedSegs);
+        const hasNew = (addedSegs || []).length > 0;
+        const hasRemovals = (removedIds || []).length > 0;
+
+        if (!plans.length && !wfSplit) {
+            return [];
+        }
+        if (!hasNew && hasRemovals) {
+            return _applyViewRemovalsOnly(fileId, plans);
+        }
+        if (!hasNew && !wfSplit) {
+            return _applyViewRemovalsOnly(fileId, plans);
+        }
+
+        const choice = await showFileUpdateViewsModal({
+            fileName: o.fileName || '',
+            inserted: (addedSegs || []).length,
+            removed: (removedIds || []).length,
+            plans,
+            wfSplit,
+            addedSegs,
+        });
+        if (choice.skipAdd) {
+            const removalSummary = await _applyViewRemovalsOnly(fileId, plans);
+            return removalSummary;
+        }
+        return _applyFileUpdateViewChoices(fileId, plans, choice);
     }
 
     /**
@@ -12608,7 +12894,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 新增的句段：在 freshSegs 中但不在 existingSegs 的（以 idValue/rowIdx 比對）
                 const existingIds = new Set(existingSegs.map(s => String(s.id)));
                 const addedSegs = freshSegs.filter(s => !existingIds.has(String(s.id)));
-                viewSummary = await _syncViewsAfterFileUpdate(targetFileId, addedSegs, mergeResult.remove);
+                viewSummary = await _syncViewsAfterFileUpdate(targetFileId, addedSegs, mergeResult.remove, { fileName });
             }
         } catch (err) {
             console.warn('[runFileUpdate] 句段集同步失敗：', err);
@@ -12647,7 +12933,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             resultLines.push('');
             resultLines.push('句段集同步：');
             viewSummary.forEach(vs => {
-                resultLines.push(`　「${vs.viewName}」：+${vs.added} / -${vs.removed}`);
+                if (vs.wf) resultLines.push(`　Workflow 新列指派：${vs.added} 筆`);
+                else resultLines.push(`　「${vs.viewName}」：+${vs.added} / -${vs.removed}`);
             });
         }
         alert(resultLines.join('\n'));
@@ -13533,7 +13820,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const freshSegs = await DBService.getSegmentsByFile(targetId);
                         const existingIdSet = new Set(existingSegs.map(s => String(s.id)));
                         const addedSegs = freshSegs.filter(s => !existingIdSet.has(String(s.id)));
-                        viewSummary = await _syncViewsAfterFileUpdate(targetId, addedSegs, mergeResult.remove);
+                        viewSummary = await _syncViewsAfterFileUpdate(targetId, addedSegs, mergeResult.remove, { fileName: originalFileName });
                     }
                 } catch (_) {}
 
@@ -13563,7 +13850,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ].filter(Boolean);
                 if (viewSummary.length) {
                     resultLines.push(''); resultLines.push('句段集同步：');
-                    viewSummary.forEach(vs => resultLines.push(`　「${vs.viewName}」：+${vs.added} / -${vs.removed}`));
+                    viewSummary.forEach(vs => {
+                        if (vs.wf) resultLines.push(`　Workflow 新列指派：${vs.added} 筆`);
+                        else resultLines.push(`　「${vs.viewName}」：+${vs.added} / -${vs.removed}`);
+                    });
                 }
                 alert(resultLines.join('\n'));
             } else {

@@ -1659,6 +1659,30 @@
             </div>
         </div>
 
+        <!-- 更新作業檔 × 句段集確認（B-0 §5） -->
+        <div class="wizard-overlay hidden" id="fileUpdateViewsModal" style="z-index:100045;">
+            <div class="wizard-modal" style="max-width:min(560px,94vw);">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">更新作業檔：句段集與段落</h2>
+                    <button type="button" class="close-btn" id="btnCloseFileUpdateViewsModal" aria-label="關閉">&times;</button>
+                </div>
+                <div class="wizard-body" style="max-height:70vh; overflow-y:auto;">
+                    <p id="fileUpdateViewsIntro" style="margin:0 0 0.75rem 0; font-size:0.85rem; color:#64748b; line-height:1.5;"></p>
+                    <div id="fileUpdateViewsList" style="display:flex; flex-direction:column; gap:0.65rem;"></div>
+                    <div id="fileUpdateWfSplitSection" style="display:none; margin-top:1rem; padding-top:1rem; border-top:1px solid #e2e8f0;">
+                        <h3 style="margin:0 0 0.35rem 0; font-size:0.95rem;">翻譯步驟：新列範圍分配</h3>
+                        <p style="margin:0 0 0.65rem 0; font-size:0.82rem; color:#64748b; line-height:1.45;">此檔翻譯步驟已拆給多人。請為<strong>新增列</strong>指定負責人與列號範圍（與 LMS 全清單列序／globalId 一致）。留空表示不指派給該人。</p>
+                        <div id="fileUpdateWfExistingList" style="font-size:0.82rem; color:#475569; margin-bottom:0.65rem;"></div>
+                        <div id="fileUpdateWfNewRowsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+                    </div>
+                </div>
+                <div class="panel-footer" style="padding:1rem 1.25rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc; flex-wrap:wrap;">
+                    <button type="button" class="secondary-btn" id="btnFileUpdateViewsSkip">略過加入新句（仍移除已刪句）</button>
+                    <button type="button" class="primary-btn" id="btnFileUpdateViewsConfirm">套用</button>
+                </div>
+            </div>
+        </div>
+
         <!-- PM 拆段調整狀態 Modal（B-4） -->
         <div class="wizard-overlay hidden" id="wfAdjustStatusModal">
             <div class="wizard-modal" style="max-width: 520px;">
