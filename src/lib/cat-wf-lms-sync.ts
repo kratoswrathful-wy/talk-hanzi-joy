@@ -124,3 +124,70 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   if (updErr) return { ok: false, error: updErr.message };
   return { ok: true, allTaskCompleted };
 }
+
+/** 單人多檔：全連結檔整檔翻譯指派皆 completed → 升案件 task_completed（無 collab_row_id） */
+export async function maybeUpgradeCaseTaskCompletedFromCatFiles(
+  supabase: SupabaseClient,
+  caseId: string,
+  updatedAt: string,
+): Promise<{ ok: boolean; upgraded: boolean; error?: string }> {
+  const env = getEnvironment();
+  const { data: caseRow, error: fetchErr } = await supabase
+    .from("cases")
+    .select("status, multi_collab")
+    .eq("id", caseId)
+    .eq("env", env)
+    .maybeSingle();
+  if (fetchErr) return { ok: false, upgraded: false, error: fetchErr.message };
+  if (!caseRow) return { ok: false, upgraded: false, error: "case not found" };
+
+  const status = (caseRow as { status?: string }).status;
+  if (!canUpgradeCaseToTaskCompleted(status)) {
+    return { ok: true, upgraded: false };
+  }
+
+  const { data: files, error: filesErr } = await supabase
+    .from("cat_files" as never)
+    .select("id")
+    .eq("related_lms_case_id", caseId);
+  if (filesErr) return { ok: false, upgraded: false, error: filesErr.message };
+
+  const fileIds = ((files as { id: string }[] | null) ?? []).map((f) => f.id);
+  if (!fileIds.length) return { ok: true, upgraded: false };
+
+  const { data: stages, error: stErr } = await supabase
+    .from("cat_file_workflow_stages" as never)
+    .select("id, file_id")
+    .in("file_id", fileIds)
+    .eq("stage_kind", "translate");
+  if (stErr) return { ok: false, upgraded: false, error: stErr.message };
+
+  const stageRows = (stages as { id: string; file_id: string }[] | null) ?? [];
+  const stageIds = stageRows.map((s) => s.id);
+  if (!stageIds.length) return { ok: true, upgraded: false };
+
+  const { data: assigns, error: aErr } = await supabase
+    .from("cat_stage_assignments" as never)
+    .select("file_id, workflow_status, collab_row_id")
+    .in("file_workflow_stage_id", stageIds)
+    .is("collab_row_id", null);
+  if (aErr) return { ok: false, upgraded: false, error: aErr.message };
+
+  const assignRows =
+    (assigns as { file_id: string; workflow_status: string; collab_row_id: string | null }[] | null) ?? [];
+
+  const filesWithAssign = new Set(assignRows.map((a) => String(a.file_id)));
+  if (filesWithAssign.size === 0) return { ok: true, upgraded: false };
+
+  const allDone = assignRows.every((a) => a.workflow_status === "completed");
+  const coversAllFiles = fileIds.every((fid) => filesWithAssign.has(String(fid)));
+  if (!allDone || !coversAllFiles) return { ok: true, upgraded: false };
+
+  const { error: updErr } = await supabase
+    .from("cases")
+    .update({ status: "task_completed", updated_at: updatedAt } as Record<string, unknown> as Record<string, never>)
+    .eq("id", caseId)
+    .eq("env", env);
+  if (updErr) return { ok: false, upgraded: false, error: updErr.message };
+  return { ok: true, upgraded: true };
+}

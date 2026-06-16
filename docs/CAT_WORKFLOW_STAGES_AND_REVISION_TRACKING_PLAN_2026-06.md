@@ -42,10 +42,12 @@
 
 | # | 需求 | 可行性 | 複雜度（AI 施作） | 狀態 |
 |---|------|--------|-------------------|------|
-| 1 | 專案／檔案可自訂步驟（增減） | 高 | 中 | 規劃中 |
-| 2 | 各步驟指派人員；負責人標記完成 | 高 | 中 | 規劃中 |
-| 2-i | 多人同檔 UI（階段名、進度、句段歸屬提示等） | 高 | 低～中 | 規劃中 |
-| 2-ii | 非自己負責句段鎖定（可檢視全檔、僅編輯己責） | 高 | 中 | 規劃中 |
+| 1 | 專案／檔案可自訂步驟（增減） | 高 | 中 | **部分落地**（Phase B：範本＋檔案覆寫；預設翻譯→審稿；**尚無** PM 自訂增減步驟 UI） |
+| 2 | 各步驟指派人員；負責人標記完成 | 高 | 中 | **已落地**（Phase B `e4a6205`～`d7232ab`） |
+| 2-i | 多人同檔 UI（階段名、進度、句段歸屬提示等） | 高 | 低～中 | **已落地**（Phase B；檔案清單 assignment 逐行 `e4a6205`） |
+| 2-ii | 非自己負責句段鎖定（可檢視全檔、僅編輯己責） | 高 | 中 | **已落地**（Phase B `computeSegmentEditForbidden`） |
+| 2-iii | **B-6** 匯入後第 0 步「檔案準備中」；PM 標「準備完成」後才可派出 | 高 | 中 | **已實作**（2026-06-16；[`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md)） |
+| 2-iv | **B-6** 審稿人員任務完成；PM 調整狀態可設「審稿完成」 | 高 | 中 | **已實作**（2026-06-16；審稿完成**暫不** Slack／**暫不**單人多檔 LMS 聚合） |
 | 3 | 階段間追蹤修訂檔案 | 高 | **高** | 規劃中 |
 | 3-i | 檔案清單按鈕開啟追蹤修訂檢視 | 高 | 低～中 | 規劃中 |
 | 3-ii | 顯示各階段負責人 + diff 呈現 | 高 | 中高 | 規劃中 |
@@ -69,9 +71,10 @@ flowchart LR
     phase12 --> phase3[追蹤修訂]
 ```
 
-1. **Phase A — TMS 整合（低投入、高價值）**
-2. **Phase B — Workflow 框架（步驟定義 + 指派 + 鎖定）**
-3. **Phase C — 追蹤修訂（快照、diff、評註、匯出）**
+1. **Phase A — TMS 整合（低投入、高價值）** — **已收尾**
+2. **Phase B — Workflow 框架（步驟定義 + 指派 + 鎖定）** — **已落地**（2026-06-15）
+3. **Phase B-6 — 檔案準備閘門 + 審稿任務完成** — **已實作**（2026-06-16）
+4. **Phase C — 追蹤修訂（快照、diff、評註、匯出）** — 規劃中
 
 ### 4.1 Phase A：TMS 整合（已收尾，2026-06-12）
 
@@ -98,7 +101,7 @@ flowchart LR
 
 ### 4.2 Phase B：Workflow 框架（**已落地**，2026-06-15）
 
-> **完整規格**：[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md)（v5 + §11.7 熱修）  
+> **完整規格**：[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md)（v5 `e4a6205`～`d7232ab`；§11.7 熱修、§11.8 更新檔 Modal、§11.9 任務完成按下驗證）  
 > **排序／序號（B-0）**：[`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md)
 
 #### 已定案產品決策（摘要）
@@ -144,22 +147,63 @@ flowchart LR
 | **B-1** | migration、Dexie v23、RPC 範本／檔案步驟；舊檔遷移（兩檔例外） |
 | **B-2** | 檔案／句段集清單步驟／負責人；`computeSegmentEditForbidden` 含行數 |
 | **B-3** | 三層狀態欄、確認／取消合併、進度兩段（含 `fafd1c8` 舊檔進度 fallback） |
-| **B-4** | 派出 RPC、任務完成／調整狀態、LMS 雙向、開檔 session | **已落地**（v4 `e4a6205`、v5 熱修 `cee4b03`+） |
+| **B-4** | 派出 RPC、任務完成／調整狀態、LMS 雙向、開檔 session | **已落地**（`e4a6205`～`d7232ab`；含熱修、更新檔 Modal、按下驗證） |
 | **B-5** | 進階篩選第五維 | **已落地** `d53b568` |
 
-#### 程式觸點（草案）
+### 4.2.1 Phase B-6：檔案準備閘門 + 審稿任務完成（**規劃中**）
+
+> **完整規格**：[`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md)
+
+#### 已定案產品決策（摘要）
+
+| 議題 | 定案 |
+|------|------|
+| 準備中編輯 | **僅 PM+** 可編譯文；譯者／審稿人唯讀 |
+| 派出閘門 | 本案連結之**每一 CAT 檔** `prep` 須 `completed` 才可 LMS 派出 |
+| 審稿任務完成 | 對稱翻譯：session=審稿、`_isWfReviewMarkedEffective`、PM 調整狀態 |
+| 審稿完成 Slack | **暫不** |
+| 單人多檔審稿聚合 | **暫不** |
+| 舊檔 backfill | 已派出或翻譯已啟動 → `prep=completed` |
+
+#### 交付切片
+
+```mermaid
+flowchart LR
+  B6a[B6a prep閘門與派出] --> B6b[B6b 審稿任務完成]
+  B6b --> B6c[B6c Phase C snapshot hook]
+```
+
+| 子項 | 交付物 | 狀態 |
+|------|--------|------|
+| **B-6a** | `prep` 步驟、匯入預設、PM 標記準備完成、編輯鎖、LMS 派出 RPC | **已實作**（2026-06-16） |
+| **B-6b** | 審稿任務完成、PM 審稿完成調整狀態 | **已實作**（2026-06-16） |
+| **B-6c** | `enqueueStageSnapshot` stub；Phase C 表結構註明 | **已實作** stub（2026-06-16） |
+
+**建議實作順序**：先 **波次 A**（翻譯完成 Slack／單人多檔，見 B-6 子文件 §9），再 B-6 本體。
+
+#### 程式觸點（規劃）
+
+- Migration：`stage_kind` 含 `prep`；`cat_case_all_linked_files_prep_ready`
+- CAT：`computeSegmentEditForbidden`、`refreshWfTaskCompleteToolbar`（審稿分流）、檔案清單 prep 狀態
+- LMS：`CaseDetailPage` 派出前閘門
+
+#### 程式觸點（已落地）
 
 - 鎖定：三層 AND — Workflow 行數、`computeForbiddenForRole`、未受派／系統鎖（見子文件 §2）。
-- UI：專案檔案清單顯示步驟／負責人；工具列「任務完成」（AI 與匯出之間）；編輯器狀態欄三層圖示（mqxliff）。
+- UI：專案檔案清單顯示步驟／負責人（`_formatWorkflowListCellHtml` assignment 逐行）；工具列「任務完成」／「調整狀態」；編輯器狀態欄三層圖示（mqxliff）。
+- 任務完成：`_validateAssignmentForTaskComplete`、`_assignmentRangeConfirmAudit`（`d7232ab`）。
+- 更新作業檔：`showFileUpdateViewsModal`、`_syncViewsAfterFileUpdate`（`76be7ee`）。
 - 雙模式：`db.js` v23+；Supabase migration + `cat-cloud-rpc.ts`。
 
 ### 4.3 Phase C：追蹤修訂（規劃中）
 
-> **依賴**：Phase B 步驟交接時的快照觸發點（段落／步驟完成）須先落地，再實作本階段快照與 diff。
+> **依賴**：**B-6** 步驟交接時的快照觸發點須先落地（至少 no-op hook），再實作本階段快照與 diff。  
+> **翻譯前基準**：以 **prep 準備完成**（`baseline_before_translate`）為比對起點，用於回答「翻譯階段對 AI／機翻／客戶預譯做了哪些修改」。
 
 #### 核心機制
 
-- **快照**：步驟交接時寫入 `cat_segment_stage_snapshots`（`file_id`, `stage_id`, `segment_id`, `target_text`, `target_tags`, `assignee_user_id`, `snapshotted_at`）。
+- **快照**：步驟交接時寫入 `cat_segment_stage_snapshots`（`file_id`, `stage_id`, `segment_id`, `target_text`, `target_tags`, `assignee_user_id`, `snapshotted_at`, `snapshot_reason`）。
+- **觸發點**（B-6 定案）：`baseline_before_translate`（prep 完成）→ `post_translate`（翻譯完成）→ `post_review`（審稿完成）；見 [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) §5。
 - **Diff**：兩快照間文字 diff；需 **tag-aware** renderer（不可把 tag XML 當純文字 diff）。
 - **評註**：`cat_segment_annotations`（`issue_type`, `severity`, `note`）；回覆可沿用 `parentReplyId` 模式。
 
@@ -210,6 +254,7 @@ flowchart LR
 |------|------|
 | 本大計畫 | 本文件 |
 | **Phase B 完整規格** | [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) |
+| **Phase B-6 準備閘門 + 審稿完成** | [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) |
 | **B-0 排序與顯示序** | [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) |
 | 匯入連結案件（已落地） | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
 | 批次匯入精靈 | [`CAT_BATCH_IMPORT_WIZARD_SESSION.md`](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) |
@@ -227,4 +272,6 @@ flowchart LR
 | 2026-06-10 | 初稿：可行性評估、三階段路線圖、需求對照表；收錄 `49db7c2` 匯入連結案件 |
 | 2026-06-12 | Phase A 收尾（A-2／A-5 `ab04381`、§4.1.1 驗收）；Phase B 定案與子文件 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) |
 | 2026-06-12 | Phase B v2 摘要：確認合併、B-0 排序 spec、LMS 雙向、進度兩段、舊檔遷移兩檔例外 |
-| 2026-06-15 | Phase B 收尾：B-4 v5 落地與 CCT6012 驗收；開檔熱修（§11.7）；Phase C 仍規劃中 |
+| 2026-06-15 | Phase B 收尾：B-4 v5（`e4a6205`）、開檔熱修（`cee4b03`／`60e8526`）、更新作業檔×句段集 Modal（`76be7ee`）、任務完成按下驗證（`d7232ab`）；CCT6012 驗收通過；Phase C 仍規劃中 |
+| 2026-06-15 | **B-6 規格定案**：三步驟（prep→translate→review）、派出閘門、審稿任務完成；產品決策（prep 僅 PM 可編、審稿暫不 Slack、舊檔 backfill）；子文件 [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) |
+| 2026-06-16 | **B-6 實作**：migration `20260616120000`、波次 A（CAT→Slack、協作表順序、單人多檔聚合）、CAT prep／審稿任務完成、LMS 派出閘門 |

@@ -66,6 +66,7 @@ import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
+import { assertCaseLinkedFilesPrepReady } from "@/lib/cat-prep-dispatch-gate";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import { getUserTimezone } from "@/lib/format-timestamp";
@@ -1711,8 +1712,20 @@ export default function CaseDetailPage() {
   };
 
   const handleFinalize = () => {
-    save({ status: "dispatched" as CaseStatus });
-    toast({ title: "已確定指派" });
+    void (async () => {
+      if (!caseData?.id) return;
+      const gate = await assertCaseLinkedFilesPrepReady(supabase, caseData.id);
+      if (!gate.ok) {
+        toast({
+          title: "無法確定指派",
+          description: `以下 CAT 檔案尚未標記準備完成：${gate.fileNames.join("、")}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      save({ status: "dispatched" as CaseStatus });
+      toast({ title: "已確定指派" });
+    })();
   };
 
   const handleTaskComplete = () => {
@@ -2340,9 +2353,20 @@ export default function CaseDetailPage() {
               updates.translator = collabTranslators;
 
               if (isInquiry && allAccepted) {
-                updates.status = "dispatched" as CaseStatus;
-                save(updates);
-                toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
+                void (async () => {
+                  const gate = await assertCaseLinkedFilesPrepReady(supabase, caseData.id);
+                  if (!gate.ok) {
+                    toast({
+                      title: "無法更新為已派出",
+                      description: `以下 CAT 檔案尚未標記準備完成：${gate.fileNames.join("、")}`,
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  updates.status = "dispatched" as CaseStatus;
+                  save(updates);
+                  toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
+                })();
                 return;
               }
               if (isInquiry) {
@@ -2360,12 +2384,6 @@ export default function CaseDetailPage() {
                   }
                 });
               }
-              if (isDispatched && allTaskCompleted) {
-                updates.status = "task_completed" as CaseStatus;
-                save(updates);
-                toast({ title: "所有任務已完成" });
-                return;
-              }
               if (isDispatched) {
                 const prevRows = caseData.collabRows || [];
                 newRows.forEach((r, i) => {
@@ -2380,6 +2398,12 @@ export default function CaseDetailPage() {
                     });
                   }
                 });
+              }
+              if (isDispatched && allTaskCompleted) {
+                updates.status = "task_completed" as CaseStatus;
+                save(updates);
+                toast({ title: "所有任務已完成" });
+                return;
               }
               if ((caseData.status === "dispatched" || caseData.status === "task_completed") && allDelivered) {
                 updates.status = "delivered" as CaseStatus;

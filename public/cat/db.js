@@ -478,6 +478,7 @@ function _isWorkflowExceptionFileName(name) {
 }
 
 const CAT_WORKFLOW_DEFAULT_STAGES = [
+    { stageOrder: 0, stageKind: 'prep', label: '檔案準備' },
     { stageOrder: 1, stageKind: 'translate', label: '翻譯' },
     { stageOrder: 2, stageKind: 'review', label: '審稿' },
 ];
@@ -559,6 +560,74 @@ db.version(23).stores({
                 updatedAt: now,
             });
         }
+    }
+});
+
+// v24：B-6 檔案準備（prep）步驟 backfill
+db.version(24).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt',
+    workflowTemplates: '++id, projectId, isDefault',
+    workflowTemplateStages: '++id, templateId, stageOrder',
+    fileWorkflowStages: '++id, fileId, stageOrder',
+    stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
+}).upgrade(async (tx) => {
+    const now = new Date().toISOString();
+    const projects = await tx.projects.toArray();
+    for (const p of projects) {
+        let tpl = await tx.workflowTemplates.where('projectId').equals(p.id).filter((t) => t.isDefault).first();
+        if (!tpl) continue;
+        const hasPrep = await tx.workflowTemplateStages
+            .where('templateId').equals(tpl.id)
+            .filter((s) => s.stageKind === 'prep')
+            .count();
+        if (!hasPrep) {
+            await tx.workflowTemplateStages.add({
+                templateId: tpl.id,
+                stageOrder: 0,
+                stageKind: 'prep',
+                label: '檔案準備',
+                createdAt: now,
+            });
+        }
+    }
+    const files = await tx.files.toArray();
+    for (const f of files) {
+        const stages = await tx.fileWorkflowStages.where('fileId').equals(f.id).toArray();
+        const hasPrep = stages.some((s) => s.stageKind === 'prep');
+        if (hasPrep) continue;
+        const translate = stages.find((s) => s.stageKind === 'translate');
+        const prepDone = !!(f.relatedLmsCaseId)
+            || (translate && translate.status !== 'pending');
+        await tx.fileWorkflowStages.add({
+            fileId: f.id,
+            stageOrder: 0,
+            stageKind: 'prep',
+            label: '檔案準備',
+            status: prepDone ? 'completed' : 'active',
+            startedAt: now,
+            completedAt: prepDone ? now : null,
+            createdAt: now,
+            updatedAt: now,
+        });
     }
 });
 
@@ -730,19 +799,23 @@ const DBService = {
         if (!file) return [];
         await DBService.ensureProjectWorkflowTemplate(file.projectId);
         const now = new Date().toISOString();
-        const isEx = _isWorkflowExceptionFileName(file.name);
         const rows = [];
         for (const st of CAT_WORKFLOW_DEFAULT_STAGES) {
-            const completed = !isEx || st.stageOrder === 1 ? !isEx : false;
-            const active = isEx && st.stageOrder === 1;
+            let status = 'pending';
+            let startedAt = null;
+            let completedAt = null;
+            if (st.stageKind === 'prep') {
+                status = 'active';
+                startedAt = now;
+            }
             const id = await db.fileWorkflowStages.add({
                 fileId: fid,
                 stageOrder: st.stageOrder,
                 stageKind: st.stageKind,
                 label: st.label,
-                status: completed ? 'completed' : (active ? 'active' : 'pending'),
-                startedAt: (completed || active) ? now : null,
-                completedAt: completed ? now : null,
+                status,
+                startedAt,
+                completedAt,
                 createdAt: now,
                 updatedAt: now,
             });
@@ -752,9 +825,9 @@ const DBService = {
                 stageOrder: st.stageOrder,
                 stageKind: st.stageKind,
                 label: st.label,
-                status: completed ? 'completed' : (active ? 'active' : 'pending'),
-                startedAt: (completed || active) ? now : null,
-                completedAt: completed ? now : null,
+                status,
+                startedAt,
+                completedAt,
             });
         }
         return rows;

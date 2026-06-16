@@ -5,7 +5,9 @@ import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
 import {
   setCollabRowTaskCompletedFromCat,
   setCollabRowsTaskCompletedBulkFromCat,
+  maybeUpgradeCaseTaskCompletedFromCatFiles,
 } from "@/lib/cat-wf-lms-sync";
+import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { getEnvironment } from "@/lib/environment";
 import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -759,15 +761,43 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         const collabRowId = String(p.collabRowId || "");
         const completedAt = String(p.completedAt || new Date().toISOString());
         const taskCompleted = p.taskCompleted !== false;
-        if (!caseId || !collabRowId || !user?.id) return;
+        const segmentTitle = typeof p.segmentTitle === "string" ? p.segmentTitle : undefined;
+        if (!caseId || !user?.id) return;
         try {
-          await setCollabRowTaskCompletedFromCat(
-            supabase,
-            caseId,
-            collabRowId,
-            taskCompleted,
-            completedAt,
-          );
+          if (collabRowId) {
+            const result = await setCollabRowTaskCompletedFromCat(
+              supabase,
+              caseId,
+              collabRowId,
+              taskCompleted,
+              completedAt,
+            );
+            if (result.ok && taskCompleted && user.id) {
+              void maybeSendTranslatorCaseReplySlack({
+                userId: user.id,
+                slackMessageDefaults: profile?.slack_message_defaults,
+                caseId,
+                caseTitle: typeof p.caseTitle === "string" ? p.caseTitle : "",
+                kind: "task_complete",
+                segmentTitle,
+              });
+            }
+          } else if (taskCompleted) {
+            const result = await maybeUpgradeCaseTaskCompletedFromCatFiles(
+              supabase,
+              caseId,
+              completedAt,
+            );
+            if (result.ok && result.upgraded && user.id) {
+              void maybeSendTranslatorCaseReplySlack({
+                userId: user.id,
+                slackMessageDefaults: profile?.slack_message_defaults,
+                caseId,
+                caseTitle: typeof p.caseTitle === "string" ? p.caseTitle : "",
+                kind: "task_complete",
+              });
+            }
+          }
         } catch (e) {
           console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", e);
         }
