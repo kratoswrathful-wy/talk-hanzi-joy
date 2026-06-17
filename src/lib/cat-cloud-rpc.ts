@@ -2247,7 +2247,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.markStageAssignmentFirstEdited": {
       const { assignmentId } = payload;
-      const { data, error } = await supabase.rpc("cat_mark_stage_assignment_first_edited", {
+      const { data, error } = await supabase.rpc("cat_mark_stage_assignment_first_edited" as any, {
         p_assignment_id: assignmentId,
       } as any);
       if (error) throw error;
