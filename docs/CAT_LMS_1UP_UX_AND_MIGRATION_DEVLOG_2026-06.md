@@ -55,9 +55,31 @@ Phase A 全項已收尾，見主計畫 [`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKI
 
 子規格：[`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md)（prep 閘門、審稿任務完成、Phase C 基準快照觸發點）。**程式尚未實作**。
 
+## Phase B-6 實作與 db push（2026-06-16）
+
+| 項目 | 內容 |
+|------|------|
+| Commit | `fd67332` — B-6 本體 + 波次 A（Slack、單人多檔、協作表順序） |
+| Migration | `20260616120000` 已 push；遠端 repair `20260614160000`／`20260615120000` |
+| 驗收 | prep 閘門、審稿任務完成、派出閘門（見 B-6 §10） |
+
+顯示語意（「準備完成」、儀表板狀態）待 **B-7** 改版。
+
+## Phase B-7 規格定案（2026-06-16，文件 only）
+
+| 決策 | 定案 |
+|------|------|
+| 翻譯／審稿待開始 | 至受派範圍內首次改譯文前（含派出後僅開檔） |
+| 顯示統一 | 儀表板與檔案清單共用 resolver；每人每階段 |
+| 清單 | 「指派對象」grid；僅紅字「準備中」 |
+| 資料 | `first_edited_at`、`cat_file_user_access`；`cat_file_assignments.status` 不驅動 UI |
+
+子規格：[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md)。**程式尚未實作**。
+
 ## 相關檔案
 
 - [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) — A-1／A-2 匯入連結
 - [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — Phase B 規格（**已落地** `e4a6205`～`d7232ab`）
-- [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — Phase B-6（**規劃中**）
+- [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — Phase B-6（**已實作** `fd67332`、migration 已 push）
+- [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — Phase B-7（**規劃中**）
 - [`CODEMAP.md`](./CODEMAP.md) — 1UP 子區塊路徑

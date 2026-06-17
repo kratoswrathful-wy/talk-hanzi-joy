@@ -1,9 +1,9 @@
 # Phase B-6 — 檔案準備閘門 + 審稿任務完成（2026-06）
 
-> **狀態**：**已實作**（2026-06-16）；migration `20260616120000_cat_workflow_b6_prep_review.sql` 須 `supabase db push`。  
-> **上層路線圖**：[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2（B-6 切片）、§4.3（Phase C 依賴）。  
+> **狀態**：**已實作並驗收**（2026-06-16）；Git `fd67332`；migration `20260616120000_cat_workflow_b6_prep_review.sql` **已 push** 至雲端（見 §11）。  
+> **上層路線圖**：[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2.1（B-6 切片）、§4.3（Phase C 依賴）。  
 > **前置**：Phase B 已落地（[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) `e4a6205`～`d7232ab`）。  
-> **建議實作順序**：先完成 **波次 A**（翻譯完成 Slack／單人多檔聚合，見 §9），再實作本規格 **波次 B**。
+> **後續顯示語意**：清單「準備完成」、儀表板 `cat_file_assignments.status` 等由 [**B-7**](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) 取代（§2.1）。
 
 本文件為 B-6 的**完整實作依據**；欄位命名為草案，**實作前以 migration 與 `cat-cloud-rpc.ts` 為準**，變更時須同步回寫本文件與上層大計畫。
 
@@ -121,10 +121,10 @@ stateDiagram-v2
 | 顯示 | 說明 |
 |------|------|
 | `prep` + `active` | **檔案準備中**（建議色：灰或藍） |
-| `prep` + `completed` | **準備完成**；若翻譯尚未開始可僅顯示此狀態 |
-| PM 操作 | 「標記準備完成」按鈕（`prep` 已 completed 時隱藏或改為「退回準備中」— **v1 可不實作退回**，僅單向） |
+| `prep` + `completed` | **準備完成**（B-6 現行）；**B-7** 改為不顯示此列、翻譯列顯示「翻譯待開始」 |
+| PM 操作 | 「標記準備完成」按鈕（B-6 現行）；**B-7** 併入 PM「調整狀態」 |
 
-實作掛載：`_formatWorkflowListCellHtml`、`_fillFilesWorkflowCellsAsync`（與 Phase B 檔案清單步驟欄共用）。
+實作掛載：`_formatWorkflowListCellHtml`、`_fillFilesWorkflowCellsAsync`（與 Phase B 檔案清單步驟欄共用）。顯示改版見 [B-7 §4](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md)。
 
 ---
 
@@ -287,7 +287,7 @@ B-6 **明確不包含**：審稿完成 Slack、單人多檔審稿聚合。
 1. 團隊版新匯入一檔 → 專案檔案清單顯示「**檔案準備中**」。
 2. 譯者開該檔 → 可檢視句段，**無法**修改譯文（橘底或 tooltip 說明）。
 3. PM 開同一檔 → **可以**修改譯文。
-4. PM 按「標記準備完成」→ 清單改為「**準備完成**」。
+4. PM 按「標記準備完成」→ 清單改為「**準備完成**」（B-6 現行；**B-7** 改為翻譯列顯示「**翻譯待開始**」，見 [B-7 §10.1](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md)）。
 5. 案件已連結該檔、尚未準備完成時 → LMS「確定指派」**失敗**並列出檔名。
 6. 全部連結檔準備完成後 → 可正常派出；譯者進入翻譯流程。
 7. **舊案**（B-6 前已派出）→ 不需 PM 再點準備完成。
@@ -307,8 +307,37 @@ B-6 **明確不包含**：審稿完成 Slack、單人多檔審稿聚合。
 
 ---
 
-## 11. 修訂紀錄
+## 11. 實作與部署紀錄（2026-06-16）
+
+### 11.1 Git 與程式
+
+| 項目 | 內容 |
+|------|------|
+| Commit | `fd67332` — `feat(workflow): B-6 檔案準備閘門、審稿任務完成與 CAT 完成 Slack` |
+| 波次 A | [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx) Slack；[`src/lib/cat-wf-lms-sync.ts`](../src/lib/cat-wf-lms-sync.ts) 單人多檔聚合；[`src/pages/CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx) 協作表順序 |
+| 波次 B | [`supabase/migrations/20260616120000_cat_workflow_b6_prep_review.sql`](../supabase/migrations/20260616120000_cat_workflow_b6_prep_review.sql)；[`src/lib/cat-prep-dispatch-gate.ts`](../src/lib/cat-prep-dispatch-gate.ts)；[`cat-tool/app.js`](../cat-tool/app.js) prep／審稿／`enqueueStageSnapshot` stub；Dexie v24；`npm run sync:cat` |
+
+### 11.2 雲端 migration
+
+| 步驟 | 說明 |
+|------|------|
+| `migration repair --status reverted` | `20260614211726`、`20260614221832`、`20260614221842`（遠端孤兒紀錄） |
+| `migration repair --status applied` | `20260614160000`、`20260615120000`（本機與遠端 schema 已等價，跳過重跑） |
+| 手動補跑 | B-4 v4 協作列 `collab_rows` 資料遷移 + multi_collab `sync_cat_workflow_assignments_for_case` |
+| `supabase db push` | 成功套用 **`20260616120000`** |
+| 驗證 | `stage_kind` 含 `prep`；402 檔 `prep` backfill 為 `completed` |
+
+### 11.3 已知與 B-7 銜接缺口
+
+- 清單仍顯示「準備完成」（`_prepStageLabel`）。
+- 無 PM 離開清單／編輯器 prep 閘門。
+- 儀表板仍讀 `cat_file_assignments.status`（`renderAssignedFilesView`）。
+
+---
+
+## 12. 修訂紀錄
 
 | 日期 | 內容 |
 |------|------|
 | 2026-06-15 | 初稿：產品決策鎖定（prep 僅 PM 可編、審稿暫不 Slack／暫不單人多檔聚合、舊檔 backfill）；三步驟狀態機、派出閘門、審稿任務完成、Phase C hook、程式觸點與驗收 |
+| 2026-06-16 | **已實作**：`fd67332`、波次 A+B；§11 部署紀錄；migration 已 push。顯示語意待 [B-7](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) |

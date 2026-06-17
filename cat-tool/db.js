@@ -631,6 +631,34 @@ db.version(24).stores({
     }
 });
 
+// v25：B-7a stageAssignments.firstEditedAt（顯示層待開始／進行中）
+db.version(25).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt',
+    workflowTemplates: '++id, projectId, isDefault',
+    workflowTemplateStages: '++id, templateId, stageOrder',
+    fileWorkflowStages: '++id, fileId, stageOrder',
+    stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -900,6 +928,17 @@ const DBService = {
         const now = new Date().toISOString();
         await db.stageAssignments.update(id, { workflowStatus, updatedAt: now });
         return { ...row, workflowStatus, updatedAt: now };
+    },
+
+    async markStageAssignmentFirstEdited(assignmentId, assigneeUserId) {
+        const id = assignmentId;
+        const row = await db.stageAssignments.get(id);
+        if (!row) return null;
+        if (assigneeUserId && String(row.assigneeUserId) !== String(assigneeUserId)) return null;
+        if (row.firstEditedAt) return row;
+        const now = new Date().toISOString();
+        await db.stageAssignments.update(id, { firstEditedAt: now, updatedAt: now });
+        return { ...row, firstEditedAt: now, updatedAt: now };
     },
 
     async updateFileWorkflowStageStatus(stageId, status) {
@@ -2165,6 +2204,8 @@ const DBService = {
         rpc('db.upsertTranslateStageAssignment', { fileId, payload });
     DBService.updateStageAssignmentWorkflowStatus = async (assignmentId, workflowStatus) =>
         rpc('db.updateStageAssignmentWorkflowStatus', { assignmentId, workflowStatus });
+    DBService.markStageAssignmentFirstEdited = async (assignmentId, assigneeUserId) =>
+        rpc('db.markStageAssignmentFirstEdited', { assignmentId, assigneeUserId });
     DBService.updateFileWorkflowStageStatus = async (stageId, status) =>
         rpc('db.updateFileWorkflowStageStatus', { stageId, status });
 

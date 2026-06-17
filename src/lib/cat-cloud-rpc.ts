@@ -298,6 +298,7 @@ const mapStageAssignmentRow = (r: any) => ({
   lineEnd: r.line_end ?? null,
   scopeLabel: r.scope_label ?? null,
   workflowStatus: r.workflow_status,
+  firstEditedAt: r.first_edited_at ?? null,
   collabRowId: r.collab_row_id ?? null,
   assignedBy: r.assigned_by ?? null,
   assignedAt: r.assigned_at,
@@ -2243,6 +2244,16 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .single();
       if (error) throw error;
       return mapStageAssignmentRow(data);
+    }
+    case "db.markStageAssignmentFirstEdited": {
+      const { assignmentId } = payload;
+      const { data, error } = await supabase.rpc("cat_mark_stage_assignment_first_edited", {
+        p_assignment_id: assignmentId,
+      } as any);
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) throw new Error("markStageAssignmentFirstEdited: no row returned");
+      return mapStageAssignmentRow(row);
     }
     case "db.updateFileWorkflowStageStatus": {
       const { data, error } = await supabase

@@ -1093,6 +1093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (isCatCollabDebug() && r && r.conflict !== true) {
                     console.info('[cat-revision] ok', { segId: seg.id, segmentRevision: seg.segmentRevision });
                 }
+                void _maybeMarkStageFirstEditedForSegment(seg);
                 return r;
             };
 
@@ -2943,90 +2944,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _formatWorkflowListCellHtml(stages, assignments, fileAssigneeNames) {
-        const esc = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const stageArr = Array.isArray(stages) ? stages.slice().sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0)) : [];
-        const assigns = Array.isArray(assignments) ? assignments : [];
-        const lines = [];
-
-        function _assignmentStatusLabel(a, st) {
-            if (st && st.stageKind === 'review') {
-                return WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
-            }
-            return WF_ASSIGN_STATUS_LABEL[a.workflowStatus] || a.workflowStatus || '—';
-        }
-
-        function _assignmentStatusColor(a, st, statusLabel) {
-            if (statusLabel === '已完成') return '#16a34a';
-            if (statusLabel === '進行中') return '#d97706';
-            if (st && st.stageKind === 'review' && st.status === 'active') return '#d97706';
-            return '#64748b';
-        }
-
-        if (stageArr.length) {
-            stageArr.forEach((st) => {
-                const stageAssigns = assigns.filter((a) => String(a.fileWorkflowStageId) === String(st.id));
-                if (st.stageKind === 'prep') {
-                    const statusLabel = _prepStageLabel(st);
-                    const color = st.status === 'completed' ? '#16a34a' : (st.status === 'active' ? '#2563eb' : '#64748b');
-                    lines.push(
-                        `<div style="line-height:1.35; font-size:0.8rem;">`
-                        + `<span style="color:#475569;">${esc(st.label || '檔案準備')}</span>`
-                        + `<span style="color:#94a3b8;"> · </span>`
-                        + `<span style="color:${color};">${esc(statusLabel)}</span>`
-                        + `</div>`
-                    );
-                    return;
-                }
-                if (stageAssigns.length) {
-                    stageAssigns.forEach((a) => {
-                        const who = _resolveAssigneeDisplayName(a.assigneeUserId) + _formatWorkflowScopeSuffix(a);
-                        const stageLabel = st.label || st.stageKind || '步驟';
-                        const statusLabel = _assignmentStatusLabel(a, st);
-                        const color = _assignmentStatusColor(a, st, statusLabel);
-                        lines.push(
-                            `<div style="line-height:1.35; font-size:0.8rem;">`
-                            + `<span style="color:#334155;">${esc(who)}</span>`
-                            + `<span style="color:#94a3b8;"> · </span>`
-                            + `<span style="color:#475569;">${esc(stageLabel)}</span>`
-                            + `<span style="color:#94a3b8;"> </span>`
-                            + `<span style="color:${color};">${esc(statusLabel)}</span>`
-                            + `</div>`
-                        );
-                    });
-                } else if (Array.isArray(fileAssigneeNames) && fileAssigneeNames.length && st.stageKind === 'translate') {
-                    const statusLabel = WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
-                    const color = st.status === 'completed' ? '#16a34a' : (st.status === 'active' ? '#d97706' : '#64748b');
-                    fileAssigneeNames.forEach((name) => {
-                        lines.push(
-                            `<div style="line-height:1.35; font-size:0.8rem;">`
-                            + `<span style="color:#334155;">${esc(name)}（整檔）</span>`
-                            + `<span style="color:#94a3b8;"> · </span>`
-                            + `<span style="color:#475569;">翻譯</span>`
-                            + `<span style="color:#94a3b8;"> </span>`
-                            + `<span style="color:${color};">${esc(statusLabel)}</span>`
-                            + `</div>`
-                        );
-                    });
-                } else if (st.stageKind === 'review' && Array.isArray(fileAssigneeNames) && fileAssigneeNames.length) {
-                    const statusLabel = WF_STAGE_STATUS_LABEL[st.status] || st.status || '—';
-                    const color = st.status === 'completed' ? '#16a34a' : (st.status === 'active' ? '#d97706' : '#64748b');
-                    fileAssigneeNames.forEach((name) => {
-                        lines.push(
-                            `<div style="line-height:1.35; font-size:0.8rem;">`
-                            + `<span style="color:#334155;">${esc(name)}</span>`
-                            + `<span style="color:#94a3b8;"> · </span>`
-                            + `<span style="color:#475569;">審稿</span>`
-                            + `<span style="color:#94a3b8;"> </span>`
-                            + `<span style="color:${color};">${esc(statusLabel)}</span>`
-                            + `</div>`
-                        );
-                    });
-                }
+        const api = window.WfDisplayStatus;
+        if (api && typeof api.formatWorkflowListCellHtml === 'function') {
+            return api.formatWorkflowListCellHtml({
+                stages,
+                assignments,
+                fileAssigneeNames,
+                resolveName: _resolveAssigneeDisplayName,
+                formatScopeSuffix: _formatWorkflowScopeSuffix,
             });
-        } else {
-            lines.push('<span style="color:#94a3b8; font-size:0.8rem;">—</span>');
         }
-        return lines.join('');
+        return '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+    }
+
+    /** B-7a：受派人在範圍內首次改譯文時寫入 first_edited_at */
+    async function _maybeMarkStageFirstEditedForSegment(seg) {
+        if (!seg || currentFileId == null) return;
+        const userId = String(window._tmsCurrentUserId || '');
+        if (!userId) return;
+        if (_isCatPmOrExecutive()) return;
+
+        const stages = window._currentFileWorkflowStages || [];
+        if (_isFilePrepIncomplete(stages)) return;
+
+        let stageKind = currentWfSessionKind;
+        if (!stageKind) {
+            const active = _workflowSessionStage(stages);
+            if (active && (active.stageKind === 'translate' || active.stageKind === 'review')) {
+                stageKind = active.stageKind;
+            }
+        }
+        if (stageKind !== 'translate' && stageKind !== 'review') return;
+
+        const stage = (stages || []).find((s) => s.stageKind === stageKind);
+        if (!stage) return;
+
+        const assigns = window._currentFileStageAssignments || [];
+        const mine = assigns.filter((a) =>
+            String(a.assigneeUserId) === userId
+            && String(a.fileWorkflowStageId) === String(stage.id)
+            && !a.firstEditedAt
+            && _segInAssignmentLineRange(seg, a, currentFileId)
+        );
+        if (!mine.length) return;
+
+        await Promise.all(mine.map(async (a) => {
+            try {
+                const updated = await DBService.markStageAssignmentFirstEdited(a.id, userId);
+                if (updated) {
+                    Object.assign(a, updated);
+                }
+            } catch (e) {
+                console.warn('[workflow] mark first_edited_at', a.id, e);
+            }
+        }));
+
+        if (window._lastFilesListForProject) {
+            void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
+        }
     }
 
     async function _loadProjectWorkflowMetaByFileId(fileIds) {
