@@ -29,46 +29,125 @@
         return assignment.firstEditedAt || assignment.first_edited_at || null;
     }
 
+    function assignmentWorkflowStatus(assignment) {
+        if (!assignment) return null;
+        return assignment.workflowStatus || assignment.workflow_status || null;
+    }
+
+    function assignmentLineStart(a) {
+        if (!a) return null;
+        const v = a.lineStart != null ? a.lineStart : a.line_start;
+        return v != null ? Number(v) : null;
+    }
+
+    function assignmentLineEnd(a) {
+        if (!a) return null;
+        const v = a.lineEnd != null ? a.lineEnd : a.line_end;
+        return v != null ? Number(v) : null;
+    }
+
+    function lineInAssignment(line, assignment) {
+        if (!assignment) return false;
+        const ls = assignmentLineStart(assignment);
+        const le = assignmentLineEnd(assignment);
+        if (ls == null && le == null) return true;
+        if (ls != null && line < ls) return false;
+        if (le != null && line > le) return false;
+        return true;
+    }
+
+    function reviewAssignmentLineSpan(reviewAssignment) {
+        if (!reviewAssignment) return null;
+        const ls = assignmentLineStart(reviewAssignment);
+        const le = assignmentLineEnd(reviewAssignment);
+        if (ls == null && le == null) return null;
+        const start = ls != null ? ls : 1;
+        const end = le != null ? le : start;
+        return { start, end };
+    }
+
+    function translateAssignmentsForStages(stages, allAssignments) {
+        const translateStage = wfStageByKind(stages, 'translate');
+        if (!translateStage) return [];
+        return (allAssignments || []).filter(
+            (a) => String(a.fileWorkflowStageId) === String(translateStage.id),
+        );
+    }
+
     /**
-     * @param {{ stages?: object[], assignment?: object|null, stage?: object|null, stageKind?: string }} input
+     * 審稿「待開始」閘門：覆蓋範圍內每一列皆有已完成翻譯指派；無 stage 指派時 fallback 整檔 translate 步驟。
+     */
+    function reviewTranslateGatePassed(stages, reviewAssignment, allAssignments) {
+        if (isPrepIncomplete(stages)) return false;
+        const translateStage = wfStageByKind(stages, 'translate');
+        const translateAssigns = translateAssignmentsForStages(stages, allAssignments);
+
+        if (!translateAssigns.length) {
+            return !!(translateStage && translateStage.status === 'completed');
+        }
+
+        const span = reviewAssignmentLineSpan(reviewAssignment);
+        if (!span) {
+            return translateAssigns.every((a) => assignmentWorkflowStatus(a) === 'completed');
+        }
+
+        for (let line = span.start; line <= span.end; line += 1) {
+            const covered = translateAssigns.some(
+                (a) => assignmentWorkflowStatus(a) === 'completed' && lineInAssignment(line, a),
+            );
+            if (!covered) return false;
+        }
+        return true;
+    }
+
+    /**
+     * @param {{
+     *   stages?: object[],
+     *   assignment?: object|null,
+     *   stage?: object|null,
+     *   stageKind?: string,
+     *   allAssignments?: object[],
+     * }} input
      * @returns {{ label: string, tone: 'danger'|'muted'|'warning'|'success' }}
      */
     function resolveAssignmentDisplayStatus(input) {
         const stages = input.stages || [];
         const assignment = input.assignment || null;
+        const allAssignments = input.allAssignments || [];
         const stage = input.stage
             || (assignment ? wfStageById(stages, assignment.fileWorkflowStageId) : null);
         const stageKind = input.stageKind || stage?.stageKind;
         const prepDone = !isPrepIncomplete(stages);
         const firstEditedAt = assignmentFirstEditedAt(assignment);
+        const wfStatus = assignmentWorkflowStatus(assignment);
 
         if (stageKind === 'translate') {
-            if (!prepDone) return { label: '—', tone: 'muted' };
-            if (assignment && assignment.workflowStatus === 'completed') {
-                return { label: '翻譯已完成', tone: 'success' };
+            if (!prepDone) return { label: '等待準備完成', tone: 'muted' };
+            if (assignment && wfStatus === 'completed') {
+                return { label: '完成', tone: 'success' };
             }
             const translateStage = wfStageByKind(stages, 'translate');
             if (!assignment && translateStage?.status === 'completed') {
-                return { label: '翻譯已完成', tone: 'success' };
+                return { label: '完成', tone: 'success' };
             }
-            if (firstEditedAt) return { label: '翻譯進行中', tone: 'warning' };
-            return { label: '翻譯待開始', tone: 'muted' };
+            if (firstEditedAt) return { label: '進行中', tone: 'warning' };
+            return { label: '待開始', tone: 'muted' };
         }
 
         if (stageKind === 'review') {
-            const translateStage = wfStageByKind(stages, 'translate');
+            if (!prepDone) return { label: '等待準備完成', tone: 'muted' };
+            if (assignment && wfStatus === 'completed') {
+                return { label: '完成', tone: 'success' };
+            }
             const reviewStage = wfStageByKind(stages, 'review');
-            const transComplete = !!(translateStage && translateStage.status === 'completed');
-
-            if (assignment && assignment.workflowStatus === 'completed') {
-                return { label: '審稿已完成', tone: 'success' };
-            }
             if (!assignment && reviewStage?.status === 'completed') {
-                return { label: '審稿已完成', tone: 'success' };
+                return { label: '完成', tone: 'success' };
             }
-            if (!transComplete) return { label: '—', tone: 'muted' };
-            if (firstEditedAt) return { label: '審稿進行中', tone: 'warning' };
-            return { label: '審稿待開始', tone: 'muted' };
+            if (!reviewTranslateGatePassed(stages, assignment, allAssignments)) {
+                return { label: '等待翻譯完成', tone: 'muted' };
+            }
+            if (firstEditedAt) return { label: '進行中', tone: 'warning' };
+            return { label: '待開始', tone: 'muted' };
         }
 
         return { label: '—', tone: 'muted' };
@@ -89,12 +168,13 @@
         return String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
-    function renderAssigneeEntry(whoHtml, stages, assignment, stage, stageKind) {
+    function renderAssigneeEntry(whoHtml, stages, assignment, stage, stageKind, allAssignments) {
         const { label, tone } = resolveAssignmentDisplayStatus({
             stages,
             assignment,
             stage,
             stageKind,
+            allAssignments,
         });
         const color = toneToColor(tone);
         return (
@@ -138,21 +218,21 @@
             if (stageAssigns.length) {
                 stageAssigns.forEach((a) => {
                     const who = esc(resolveName(a.assigneeUserId) + formatScope(a));
-                    parts.push(renderAssigneeEntry(who, stages, a, stage, stageKind));
+                    parts.push(renderAssigneeEntry(who, stages, a, stage, stageKind, assignments));
                 });
                 return parts.join('');
             }
             if (fileAssigneeNames.length && stageKind === 'translate' && translateStage) {
                 fileAssigneeNames.forEach((name) => {
                     const who = esc(`${name}（整檔）`);
-                    parts.push(renderAssigneeEntry(who, stages, null, translateStage, 'translate'));
+                    parts.push(renderAssigneeEntry(who, stages, null, translateStage, 'translate', assignments));
                 });
                 return parts.join('');
             }
             if (fileAssigneeNames.length && stageKind === 'review' && reviewStage) {
                 fileAssigneeNames.forEach((name) => {
                     const who = esc(name);
-                    parts.push(renderAssigneeEntry(who, stages, null, reviewStage, 'review'));
+                    parts.push(renderAssigneeEntry(who, stages, null, reviewStage, 'review', assignments));
                 });
                 return parts.join('');
             }
@@ -188,5 +268,6 @@
         isPrepIncomplete,
         isPrepActive,
         assignmentFirstEditedAt,
+        reviewTranslateGatePassed,
     };
 })(typeof window !== 'undefined' ? window : globalThis);

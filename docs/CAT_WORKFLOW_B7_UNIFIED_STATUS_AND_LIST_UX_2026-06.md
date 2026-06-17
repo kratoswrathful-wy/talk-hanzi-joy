@@ -1,6 +1,6 @@
 # Phase B-7 — 統一顯示狀態 + 檔案清單／儀表板 UX（2026-06）
 
-> **狀態**：**B-7a 已實作**（`b577c08`／`60d48ce`、migration `20260617120000`）；**§3 文案與 §4.2 PM 階梯為驗收後修訂**，待 **B-7b** 實作對齊。**B-7b／B-7c／B-7d** 規劃中。  
+> **狀態**：**B-7a 已實作**（`b577c08`／`60d48ce`）；**B-7b 已實作**（resolver 文案、PM 六階、準備完成按鈕、離開閘門）。**B-7c／B-7d** 待實作。  
 > **上層路線圖**：[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2.2。  
 > **前置**：Phase B 已落地；**B-6 已實作**（`fd67332`、migration `20260616120000` 已 push）— 見 [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md)。  
 > **延伸**：Phase B 檔案清單步驟欄改版構想見 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §11.2；本規格為**產品定案版**並含儀表板。  
@@ -248,7 +248,7 @@ CREATE TABLE IF NOT EXISTS public.cat_file_user_access (
 | 波次 | 內容 | 狀態 |
 |------|------|------|
 | **B-7a** | migration、`first_edited_at`、grid 骨架、`wf-display-status.js` | **已實作**（文案為舊版，待 B-7b 對齊 §3.1） |
-| **B-7b** | §4.2 PM 六階、準備完成按鈕、`openCatConfirmModal`、畫面＋寫入連動、離開閘門、resolver 文案 | 待實作 |
+| **B-7b** | §4.2 PM 六階、準備完成按鈕、`openCatConfirmModal`、畫面＋寫入連動、離開閘門、resolver 文案 | **已實作** |
 | **B-7c** | 儀表板、`cat_file_user_access`、`CatToolPage`、停用 `in_progress` | 待實作 |
 | **B-7d** | §12：CAT 指派同步 stage assignment、檔內／句段集內列號鎖定 | 待實作 |
 
@@ -341,6 +341,7 @@ CREATE TABLE IF NOT EXISTS public.cat_file_user_access (
 
 | 日期 | 內容 |
 |------|------|
+| 2026-06-17 | **B-7b 落地**：`wf-display-status.js` 文案、PM 六階、準備完成按鈕、離開閘門 |
 | 2026-06-17 | **驗收後修訂**：§2.2 決策；§3.1 文案（待開始／進行中／完成）；§4.2 PM 六階與準備完成按鈕；§11 指派／列號；波次 **B-7d**；驗收 §10 更新 |
 | 2026-06-17 | **B-7a 落地**：`b577c08`／`60d48ce`、migration `20260617120000`、`wf-display-status.js`、清單 grid、`first_edited_at` |
 | 2026-06-16 | 初稿：產品決策、檔案清單／儀表板 UX、實作波次 |
