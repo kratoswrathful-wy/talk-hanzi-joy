@@ -78,15 +78,24 @@
 
 ---
 
-## 6. Workflow／LMS 列號對齊
+## 6. Workflow／LMS 列號對齊（2026-06-17 修訂）
 
-| 用途 | 座標 |
-|------|------|
-| 段落鎖定、`line_start`／`line_end`、`scopeLabel`（如 2A） | **全清單列序**（與左欄 ID 相同；§4.1 篩選**不改號**） |
+> **產品定案**（B-7a 驗收後）：**不用全案多檔累加列號**。PM 在 LMS 協作列上連結句段集時，範圍以**該句段集內**列號指派；連結單檔時以**該檔內**列號。詳見 [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §11。
+
+| 情境 | `line_start`／`line_end` 語意 | 與左欄 ID |
+|------|------------------------------|-----------|
+| **單檔**開啟／指派僅 `file_id` | **該檔內** 1..N | 單檔編輯器左欄（§3） |
+| **句段集**開啟／指派含 `view_id` 或 LMS `linkedCatViewId` | **該句段集內** 1..N | 句段集編輯器左欄（§3） |
+| `line_start`／`line_end` 皆 null | **整檔**或**整句段集** | — |
+
+| 其他用途 | 座標 |
+|----------|------|
 | 句段資料綁定 | `cat_segments.id`（UUID） |
-| 母檔匯入／更新作業檔對帳 | `globalId`（不取代左欄顯示序） |
+| 母檔匯入／更新作業檔對帳 | `globalId`（**不**取代鎖定列號、**不**取代左欄顯示序） |
 
-句段集編輯器畫面為子集時，鎖定與 LMS 行數仍以**母檔開啟時之全清單列序**為準（見 Phase B §5-bis 句段集模式）。
+**禁止**：以全案從第一個檔累加下去的「全案第 N 列」作為鎖定或 LMS `lineRange` 語意（多檔協作時 PM 無法對照；且「第 1 列」在多檔間重複）。
+
+**白話**：協作列若連 **句段集**，「第 1～50 列」= 打開該句段集後左欄第 1～50 句；若連 **單檔**，= 打開該檔後左欄第 1～50 句。
 
 ---
 
@@ -100,6 +109,13 @@
 | `renderEditorSegments` | `col-id` 顯示 `rowIdx + 1`（單檔／句段集） |
 | `applySorting` `col-id` | 排序鍵改**顯示序**（`rowIdx`），非 `globalId` |
 | `updateProgress` | 列範圍以畫面上 `rowIdx` 序為準（與 §6 一致） |
+| `showFileUpdateViewsModal` | 更新作業檔後句段集確認；新句勾選、已刪句移除、多人新列範圍（`76be7ee`） |
+| `db.upsertTranslateStageAssignment` | 更新檔流程寫入翻譯段落指派（離線／RPC） |
+| `computeSegmentEditForbidden` | 列範圍比對須依 §6（檔內或句段集內）；**待 B-7d** |
+| `_buildFullListLineNoCacheForFile` | 單檔快取：檔內 1..N |
+| `_buildFullListLineNoCacheForView`（待實作） | 句段集快取：句段集內 1..N（`openEditorFromView` 排序後） |
+| `sync_cat_workflow_assignments_for_case` | `collab_rows.lineRange` 寫入須符合 §6（相對 `linkedCatFileId` 或 `linkedCatViewId`） |
+| `CAT_ASSIGN_FILE`（[`CatToolPage.tsx`](../src/pages/CatToolPage.tsx)） | 同步 `cat_stage_assignments` 整檔指派；**待 B-7d** |
 
 ### 驗收（白話）
 
@@ -117,4 +133,5 @@
 |------|------|
 | 2026-06-12 | 初稿：B-0 檔序、句段集排序、左欄顯示序、篩選 A、更新檔×句段集、Workflow 列號對齊 |
 | 2026-06-12 | B-0 程式落地：`openEditorFromView`、建立句段集排序、左欄 `rowIdx+1`、移除句段集 Fix A |
-| 2026-06-15 | **更新作業檔×句段集 UI**：`fileUpdateViewsModal`、篩選條件顯示、新句勾選、多人拆段新列範圍；`db.upsertTranslateStageAssignment` |
+| 2026-06-15 | **更新作業檔×句段集 UI**：`fileUpdateViewsModal`、篩選條件顯示、新句勾選、多人拆段新列範圍；`db.upsertTranslateStageAssignment`（`76be7ee`）；驗收通過 |
+| 2026-06-17 | **§6 修訂**：列號改為**檔內**或**句段集內**（禁止全案累加）；B-7 §11 對齊；觸點增 B-7d |

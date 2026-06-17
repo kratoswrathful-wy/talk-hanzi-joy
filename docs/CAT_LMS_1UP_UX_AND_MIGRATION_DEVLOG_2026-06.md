@@ -74,12 +74,23 @@ Phase A 全項已收尾，見主計畫 [`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKI
 | 清單 | 「指派對象」grid；僅紅字「準備中」 |
 | 資料 | `first_edited_at`、`cat_file_user_access`；`cat_file_assignments.status` 不驅動 UI |
 
-子規格：[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md)。**程式尚未實作**。
+子規格：[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md)。
+
+## Phase B-7a 已實作 + 驗收後修訂（2026-06-17）
+
+| 項目 | 內容 |
+|------|------|
+| Commit | `b577c08`（B-7a 本體）、`60d48ce`（RPC 型別熱修） |
+| 已落地 | `first_edited_at` migration、`wf-display-status.js`、清單 grid、譯文首次改動 RPC |
+| 驗收後修訂 | 文案待開始／進行中／完成；PM 六階畫面＋寫入；審稿提前改句防呆；**B-7d** 指派／列號鎖定 |
+| 待實作 | **B-7b**（文案、PM 階梯、離開閘門）、**B-7c**（儀表板）、**B-7d**（鎖定修復；見 [bug-report](./bug-report_workflow-whole-file-assign-edit-lock_2026-06.md)） |
+
+---
 
 ## 相關檔案
 
 - [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) — A-1／A-2 匯入連結
 - [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — Phase B 規格（**已落地** `e4a6205`～`d7232ab`）
 - [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — Phase B-6（**已實作** `fd67332`、migration 已 push）
-- [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — Phase B-7（**規劃中**）
+- [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — Phase B-7（**B-7a 已實作** `b577c08`；B-7b～d 待實作）
 - [`CODEMAP.md`](./CODEMAP.md) — 1UP 子區塊路徑

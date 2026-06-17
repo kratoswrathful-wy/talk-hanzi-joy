@@ -329,9 +329,25 @@ B-6 **明確不包含**：審稿完成 Slack、單人多檔審稿聚合。
 
 ### 11.3 已知與 B-7 銜接缺口
 
-- 清單仍顯示「準備完成」（`_prepStageLabel`）。
-- 無 PM 離開清單／編輯器 prep 閘門。
-- 儀表板仍讀 `cat_file_assignments.status`（`renderAssignedFilesView`）。
+#### B-7a 已解（`b577c08`）
+
+- 清單「指派對象」兩列 grid（`wf-display-status.js`）。
+- `first_edited_at` migration 與譯文首次改動寫入。
+- 部分顯示狀態 resolver 骨架（**文案仍待 B-7b**）。
+
+#### 仍待 B-7b
+
+- 右欄文案改為待開始／進行中／完成；等待準備完成、等待翻譯完成。
+- PM 六階畫面＋寫入連動；`prep` active 時工具列「準備完成」按鈕（`openCatConfirmModal`）。
+- PM 離開清單／編輯器 prep 閘門。
+
+#### 仍待 B-7c
+
+- 儀表板改讀 `cat_file_user_access`；停用 `cat_file_assignments.status` 驅動 UI。
+
+#### 仍待 B-7d
+
+- CAT 整檔指派同步 `cat_stage_assignments`；檔內／句段集內列號鎖定。見 [bug-report](./bug-report_workflow-whole-file-assign-edit-lock_2026-06.md)、B-7 §11。
 
 ---
 
@@ -341,3 +357,4 @@ B-6 **明確不包含**：審稿完成 Slack、單人多檔審稿聚合。
 |------|------|
 | 2026-06-15 | 初稿：產品決策鎖定（prep 僅 PM 可編、審稿暫不 Slack／暫不單人多檔聚合、舊檔 backfill）；三步驟狀態機、派出閘門、審稿任務完成、Phase C hook、程式觸點與驗收 |
 | 2026-06-16 | **已實作**：`fd67332`、波次 A+B；§11 部署紀錄；migration 已 push。顯示語意待 [B-7](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) |
+| 2026-06-17 | §11.3 更新：B-7a 已解 vs B-7b～d 待辦分項；[bug-report](./bug-report_workflow-whole-file-assign-edit-lock_2026-06.md) |
