@@ -385,10 +385,10 @@ CREATE TABLE IF NOT EXISTS public.cat_user_ui_prefs (
 
 | 狀態 | 視覺 |
 |------|------|
-| 未確認 | 灰邊白圓（內圓 10px） |
-| 系統翻譯確認 | 實心綠內圓 |
-| 系統審稿確認 | 實心綠內圓 + **有間隙外環**（`box-shadow: 0 0 0 3px #fff, 0 0 0 6px green`） |
-| 原檔已確認、系統未確認（`orig-confirmed`） | 白內圓 + 有間隙外環；**mqxliff** 疊 T／R1／R2 符號（**綠色**） |
+| 未確認 | 灰邊白圓（內圓 14px） |
+| 系統翻譯確認 | 實心綠內圓（14px） |
+| 系統審稿確認 | 實心綠內圓 + **有間隙外環**（`box-shadow: 0 0 0 2px #fff, 0 0 0 4px green`） |
+| 原檔已確認、系統未確認（`orig-confirmed`） | **僅**外環（透明內圈、無邊框）+ 綠色符號（mqxliff）；非 mqxliff 僅外環 |
 | 原檔 + 系統皆確認 | 實心綠 + 外環 + 符號（**白色**） |
 
 **適用格式**：所有 XLIFF 衍生格式；非 mqxliff 僅外環、不疊符號。
@@ -413,7 +413,7 @@ CREATE TABLE IF NOT EXISTS public.cat_user_ui_prefs (
 | 日期 | 內容 |
 |------|------|
 | 2026-06-19 | **B-7d 落地**：`CatToolPage.tsx` `CAT_ASSIGN_FILE`／`CAT_UNASSIGN_FILE` 同步整檔 `cat_stage_assignments`；`_buildFullListLineNoCacheForView` 句段集列號 |
-| 2026-06-19 | **B-7e 落地**：`#importConfirmedModal`、`showConfirmedSegmentsDialog`、`xliff-import.js` 匯入選項；狀態欄 `orig-confirmed` 外環視覺 |
+| 2026-06-19 | **B-7e 視覺微調**：內圓 14px；外環 `2px` 白隙 + `4px` 綠；`orig-confirmed` 透明內圈（僅外環 + 綠符號） |
 | 2026-06-19 | **B-7d／B-7e 規格定案**：§12 匯入已確認句段對話框、狀態欄外環視覺、全格式 `orig-confirmed`；§11 B-7d 整檔指派同步 |
 | 2026-06-19 | **B-7c 落地（補記）**：commit `7476192`；`cat_file_user_access` migration `20260618120000`；`CatToolPage.tsx` 改查 `cat_stage_assignments`；最近使用檔案改依 `cat_file_user_access`；停用 `in_progress` 驅動 |
 | 2026-06-19 | **批次審稿完成作業**：`scripts/bulk-set-review-completed.mjs` 批次設 413 個 `review` stage 為 `completed`；LMS 審稿人員比對補齊 74 筆指派（只調整審稿、不動翻譯）；修正 264 個 `cat_stage_assignments.workflow_status` 由 `assigned` 改為 `completed`（已存在指派但 `workflow_status` 未同步 bug 修正，見下 §14）；稍後處理清單：[`CAT_BULK_REVIEW_COMPLETE_2026-06.md`](./CAT_BULK_REVIEW_COMPLETE_2026-06.md) |
