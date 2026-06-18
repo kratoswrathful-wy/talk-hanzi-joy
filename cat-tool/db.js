@@ -1083,6 +1083,16 @@ const DBService = {
         return { ok: true };
     },
 
+    async getUserUiPref() {
+        // 離線：回傳預設值（隱藏已完成預設勾選）
+        return { hide_completed_dashboard: true };
+    },
+
+    async setUserUiPref(_prefs) {
+        // 離線：無法持久化，回傳成功
+        return { ok: true };
+    },
+
     async getFile(fileId, _opts) {
         let result = await db.files.get(fileId);
         if (result == null && typeof fileId === 'string') {
@@ -2069,6 +2079,8 @@ const DBService = {
         return Promise.all(rows.map((f) => hydrateFile(f)));
     };
     DBService.upsertFileUserAccess = async (fileId) => rpc('db.upsertFileUserAccess', { fileId });
+    DBService.getUserUiPref = async () => rpc('db.getUserUiPref', {});
+    DBService.setUserUiPref = async (prefs) => rpc('db.setUserUiPref', prefs);
     DBService.getFile = async (fileId, opts) => {
         const includeOriginal = !!(opts && opts.includeOriginal);
         return await hydrateFile(await rpc('db.getFile', { fileId, includeOriginal }));

@@ -2858,6 +2858,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (dashboardHideCompleted) {
         dashboardHideCompleted.addEventListener('change', () => {
             renderAssignedFilesView(window._tmsAssignments);
+            DBService.setUserUiPref({ hideCompletedDashboard: dashboardHideCompleted.checked })
+                .catch((e) => console.warn('[CAT] setUserUiPref', e));
         });
     }
     if (dashboardAssignedSort) {
@@ -4429,6 +4431,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         statProjects.textContent = ps.length;
         statTMs.textContent = tms.length;
         statTBs.textContent = tbs.length;
+
+        // 讀取使用者介面偏好（隱藏已完成，預設 true）
+        if (dashboardHideCompleted) {
+            try {
+                const pref = await DBService.getUserUiPref();
+                const hide = pref != null ? !!pref.hide_completed_dashboard : true;
+                dashboardHideCompleted.checked = hide;
+            } catch (_) {
+                dashboardHideCompleted.checked = true;
+            }
+        }
 
         // 最近使用的檔案（B-7c：雲端依 cat_file_user_access；離線依 lastModified）
         if (recentFilesList) {

@@ -795,6 +795,32 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       await supabase.from("cat_files").update({ last_modified: nowIso() } as any).eq("id", fileId);
       return { ok: true };
     }
+    case "db.getUserUiPref": {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from("cat_user_ui_prefs" as any)
+        .select("hide_completed_dashboard")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return (data as { hide_completed_dashboard: boolean } | null) ?? null;
+    }
+    case "db.setUserUiPref": {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("not authenticated");
+      const patch: Record<string, unknown> = { user_id: user.id, updated_at: nowIso() };
+      if (payload.hideCompletedDashboard !== undefined)
+        patch.hide_completed_dashboard = !!payload.hideCompletedDashboard;
+      const { error } = await supabase
+        .from("cat_user_ui_prefs" as any)
+        .upsert(patch as any, { onConflict: "user_id" });
+      if (error) throw error;
+      return { ok: true };
+    }
     case "db.getFile": {
       const { data } = await supabase.from("cat_files").select("*").eq("id", payload.fileId).maybeSingle();
       if (!data) return null;
