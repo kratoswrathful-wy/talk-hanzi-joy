@@ -766,10 +766,11 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .map((row: any) => {
           const f = row?.file;
           if (!f) return null;
-          const mapped = mapFileRow(f, { listMode: true });
-          mapped.lastOpenedAt = row.last_opened_at ?? null;
-          mapped.projectName = f.project?.name ?? "";
-          return mapped;
+          return {
+            ...mapFileRow(f, { listMode: true }),
+            lastOpenedAt: row.last_opened_at ?? null,
+            projectName: f.project?.name ?? "",
+          };
         })
         .filter(Boolean);
     }
