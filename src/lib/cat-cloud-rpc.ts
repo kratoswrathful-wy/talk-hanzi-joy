@@ -805,7 +805,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .select("hide_completed_dashboard")
         .eq("user_id", user.id)
         .maybeSingle();
-      return (data as { hide_completed_dashboard: boolean } | null) ?? null;
+      return (data as unknown as { hide_completed_dashboard: boolean } | null) ?? null;
     }
     case "db.setUserUiPref": {
       const {
