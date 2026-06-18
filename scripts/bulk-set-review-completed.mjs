@@ -1,14 +1,17 @@
 /**
- * 批次將所有 CAT 檔案設為「審稿完成」並完整比對 LMS 指派。
+ * 批次將所有 CAT 檔案設為「審稿完成」，並對 LMS 連結檔案比對審稿人員。
  *
  * 規則：
  *  - prep 階段未完成的檔案 → 跳過，最後列出
  *  - 有綁定 LMS 案件（related_lms_case_id 非空）的檔案
- *      → 先完整比對 cat_stage_assignments（以 LMS 案件的現有人員為準，刪舊補新）
+ *      → 只比對 review 階段的 cat_stage_assignments（以 LMS 案件的 reviewer 為準）
+ *        - 刪除不符合現有 reviewer 的審稿指派
+ *        - 補齊缺少的審稿指派（呼叫 cat_upsert_review_stage_assignment）
+ *        - 翻譯指派完全不動
  *      → 再設 translate + review 階段為 completed
  *  - 其他檔案 → 直接設 translate + review 階段為 completed
  *
- * 僅更新狀態欄位（不新增指派紀錄）。
+ * 僅更新狀態欄位（不新增翻譯指派紀錄）。
  *
  * 預設 dry-run（不寫入）；加 --apply 才套用。
  *
@@ -144,102 +147,64 @@ async function fetchCase(caseId) {
 }
 
 /**
- * 對一個 LMS 連結檔案完整比對 cat_stage_assignments（翻譯 stage）。
- * - 多人協作：刪除 collab_row_id 不在案件現有 collab_rows 裡的指派
- * - 單人案件：刪除 assignee_user_id 不符合現有 translator 的指派
- * - 審稿：刪除 assignee_user_id 不符合現有 reviewer 的指派
+ * 對一個 LMS 連結檔案比對審稿指派（翻譯指派完全不動）。
+ * - 刪除 assignee_user_id 不符合案件現有 reviewer 的審稿指派
+ * - reviewer 為空時：清除所有審稿指派
  * 回傳 { deleted, skippedNoCase }
  */
-async function reconcileFileAssignments(file, caseRow, translateStageId, reviewStageId) {
+async function reconcileReviewerAssignment(file, caseRow, reviewStageId) {
   const result = { deleted: 0, skippedNoCase: false };
   if (!caseRow) { result.skippedNoCase = true; return result; }
+  if (!reviewStageId) return result;
 
-  // --- 翻譯指派 ---
-  if (translateStageId) {
-    const { data: existingTranslate } = await supabase
-      .from("cat_stage_assignments")
-      .select("id, assignee_user_id, collab_row_id")
-      .eq("file_workflow_stage_id", translateStageId);
+  const { data: existingReview } = await supabase
+    .from("cat_stage_assignments")
+    .select("id, assignee_user_id")
+    .eq("file_workflow_stage_id", reviewStageId);
 
-    const existing = existingTranslate || [];
-    const toDelete = [];
+  const existing = existingReview || [];
+  const reviewerId = await resolveProfileId(caseRow.reviewer);
+  const toDelete = [];
 
-    if (caseRow.multi_collab && Array.isArray(caseRow.collab_rows)) {
-      const validCollobRowIds = new Set(caseRow.collab_rows.map((r) => String(r.id)));
-      for (const a of existing) {
-        if (a.collab_row_id && !validCollobRowIds.has(String(a.collab_row_id))) {
-          toDelete.push(a.id);
-        }
-      }
-    } else {
-      // 單人：以 translator 陣列為準
-      const translators = Array.isArray(caseRow.translator) ? caseRow.translator : [];
-      const validIds = new Set(
-        (await Promise.all(translators.map(resolveProfileId))).filter(Boolean)
-      );
-      for (const a of existing) {
-        if (!validIds.has(a.assignee_user_id)) {
-          toDelete.push(a.id);
-        }
-      }
-    }
-
-    if (toDelete.length > 0) {
-      if (apply) {
-        const { error } = await supabase
-          .from("cat_stage_assignments")
-          .delete()
-          .in("id", toDelete);
-        if (error) throw new Error(`刪除翻譯指派失敗 (${file.id}): ${error.message}`);
-      }
-      result.deleted += toDelete.length;
+  for (const a of existing) {
+    if (reviewerId && a.assignee_user_id !== reviewerId) {
+      toDelete.push(a.id);
+    } else if (!reviewerId) {
+      // reviewer 已從案件移除 → 清除所有審稿指派
+      toDelete.push(a.id);
     }
   }
 
-  // --- 審稿指派 ---
-  if (reviewStageId) {
-    const { data: existingReview } = await supabase
-      .from("cat_stage_assignments")
-      .select("id, assignee_user_id")
-      .eq("file_workflow_stage_id", reviewStageId);
-
-    const existing = existingReview || [];
-    const reviewerId = await resolveProfileId(caseRow.reviewer);
-    const toDelete = [];
-
-    for (const a of existing) {
-      if (reviewerId && a.assignee_user_id !== reviewerId) {
-        toDelete.push(a.id);
-      } else if (!reviewerId) {
-        // reviewer 已從案件移除 → 清除所有審稿指派
-        toDelete.push(a.id);
-      }
+  if (toDelete.length > 0) {
+    if (apply) {
+      const { error } = await supabase
+        .from("cat_stage_assignments")
+        .delete()
+        .in("id", toDelete);
+      if (error) throw new Error(`刪除審稿指派失敗 (${file.id}): ${error.message}`);
     }
+    result.deleted += toDelete.length;
+  }
 
-    if (toDelete.length > 0) {
+  // 補齊缺少的審稿指派（若 reviewer 有對應 profile）
+  if (reviewerId) {
+    const alreadyExists = existing.some(
+      (a) => !toDelete.includes(a.id) && a.assignee_user_id === reviewerId
+    );
+    if (!alreadyExists) {
+      result.reviewerAdded = true;
       if (apply) {
-        const { error } = await supabase
-          .from("cat_stage_assignments")
-          .delete()
-          .in("id", toDelete);
-        if (error) throw new Error(`刪除審稿指派失敗 (${file.id}): ${error.message}`);
+        const { error } = await supabase.rpc("cat_upsert_review_stage_assignment", {
+          p_file_id: file.id,
+          p_assignee_user_id: reviewerId,
+          p_workflow_status: "assigned",
+        });
+        if (error) throw new Error(`補齊審稿指派失敗 (${file.id}): ${error.message}`);
       }
-      result.deleted += toDelete.length;
     }
   }
 
   return result;
-}
-
-/**
- * 呼叫 sync_cat_workflow_assignments_for_case 補齊缺少的指派
- */
-async function syncWorkflowAssignments(caseId) {
-  if (!apply) return;
-  const { error } = await supabase.rpc("sync_cat_workflow_assignments_for_case", {
-    p_case_id: caseId,
-  });
-  if (error) throw new Error(`sync_cat_workflow_assignments 失敗 (case ${caseId}): ${error.message}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +252,7 @@ async function setStagesCompleted(file) {
 let totalStagesUpdated = 0;
 let totalAssignmentsUpdated = 0;
 let totalAssignmentsDeleted = 0;
-let totalAssignmentsSynced = 0;
+let totalReviewerAdded = 0;
 const skipLmsNoCase = [];
 
 if (!apply) {
@@ -307,11 +272,10 @@ console.log(`  assignments 設為 completed：${totalAssignmentsUpdated}`);
 // 6b: LMS 連結檔案
 console.log(`\n--- LMS 連結檔案（${lmsFiles.length} 個）---`);
 
-// 蒐集 distinct case ids，batch 處理
 const distinctCaseIds = [...new Set(lmsFiles.map((f) => f.related_lms_case_id))];
 console.log(`  涉及 ${distinctCaseIds.length} 個不同 LMS 案件`);
 
-// 先完整比對指派
+// 比對審稿指派（翻譯指派完全不動）
 for (const file of lmsFiles) {
   const caseRow = await fetchCase(file.related_lms_case_id);
   if (!caseRow) {
@@ -319,23 +283,13 @@ for (const file of lmsFiles) {
     continue;
   }
   const stages = stagesByFile[file.id] || {};
-  const translateStageId = stages["translate"]?.id ?? null;
   const reviewStageId = stages["review"]?.id ?? null;
 
-  const { deleted } = await reconcileFileAssignments(
-    file, caseRow, translateStageId, reviewStageId
+  const { deleted, reviewerAdded } = await reconcileReviewerAssignment(
+    file, caseRow, reviewStageId
   );
   totalAssignmentsDeleted += deleted;
-}
-
-// 補齊缺少的指派（每個 case 呼叫一次 sync）
-for (const caseId of distinctCaseIds) {
-  try {
-    await syncWorkflowAssignments(caseId);
-    totalAssignmentsSynced++;
-  } catch (e) {
-    console.warn(`  ⚠️  sync assignments 失敗 (case ${caseId}):`, e.message);
-  }
+  if (reviewerAdded) totalReviewerAdded++;
 }
 
 // 設 LMS 連結檔案為 completed
@@ -349,8 +303,8 @@ for (const file of lmsFiles) {
 totalStagesUpdated += lmsStages;
 totalAssignmentsUpdated += lmsAssigns;
 
-console.log(`  指派刪除（不再符合 LMS）：${totalAssignmentsDeleted}`);
-console.log(`  案件 sync 呼叫次數：${totalAssignmentsSynced}`);
+console.log(`  審稿指派刪除（不符合現有 reviewer）：${totalAssignmentsDeleted}`);
+console.log(`  審稿指派補齊（新增）：${totalReviewerAdded}`);
 console.log(`  stages 設為 completed：${lmsStages}`);
 console.log(`  assignments 設為 completed：${lmsAssigns}`);
 
@@ -360,7 +314,8 @@ console.log(`  assignments 設為 completed：${lmsAssigns}`);
 console.log("\n========== 結果摘要 ==========");
 console.log(`總 stages 更新：${totalStagesUpdated}`);
 console.log(`總 assignments 更新（設完成）：${totalAssignmentsUpdated}`);
-console.log(`總 assignments 刪除（指派比對清理）：${totalAssignmentsDeleted}`);
+console.log(`總審稿指派刪除（比對清理）：${totalAssignmentsDeleted}`);
+console.log(`總審稿指派補齊（新增）：${totalReviewerAdded}`);
 
 if (skipPrepIncomplete.length > 0) {
   console.log(`\n⏭️  跳過（prep 未完成）${skipPrepIncomplete.length} 個檔案：`);
