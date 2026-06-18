@@ -1,10 +1,11 @@
 # Phase B-7 — 統一顯示狀態 + 檔案清單／儀表板 UX（2026-06）
 
-> **狀態**：**B-7a 已實作**（`b577c08`／`60d48ce`）；**B-7b 已實作**（resolver 文案、PM 六階、準備完成按鈕、離開閘門）。**B-7c／B-7d** 待實作。  
+> **狀態**：**B-7a 已實作**（`b577c08`／`60d48ce`）；**B-7b 已實作**（`e313016`）；**B-7c 已實作**。**B-7d** 待實作；**B-7e**（狀態欄匯入／空心圈）**待排程**。  
 > **上層路線圖**：[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.2.2。  
 > **前置**：Phase B 已落地；**B-6 已實作**（`fd67332`、migration `20260616120000` 已 push）— 見 [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md)。  
 > **延伸**：Phase B 檔案清單步驟欄改版構想見 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §11.2；本規格為**產品定案版**並含儀表板。  
-> **列號／鎖定**：見 §11 與 [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) §6；誤鎖調查見 [`bug-report_workflow-whole-file-assign-edit-lock_2026-06.md`](./bug-report_workflow-whole-file-assign-edit-lock_2026-06.md)。
+> **列號／鎖定**：見 §11 與 [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) §6；誤鎖調查見 [`bug-report_workflow-whole-file-assign-edit-lock_2026-06.md`](./bug-report_workflow-whole-file-assign-edit-lock_2026-06.md)。  
+> **狀態欄匯入**：見 §12；調查 [`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md)（**B-7e 待排程**）。
 
 本文件為 B-7 的**完整實作依據**；欄位命名為草案，**實作前以 migration 與 `cat-cloud-rpc.ts` 為準**，變更時須同步回寫本文件與上層大計畫。
 
@@ -14,8 +15,8 @@
 
 B-6 已提供 `prep` 步驟、派出閘門與審稿任務完成，但**使用者可見狀態**仍分散：
 
-- 專案檔案清單：Workflow 步驟欄顯示語意與產品不一致（B-7a 已改 grid 骨架，文案待 B-7b）。
-- 儀表板「我的受派檔案」：仍讀 **`cat_file_assignments.status`**，與 Workflow 段落指派脫鉤（待 B-7c）。
+- 專案檔案清單：Workflow 步驟欄顯示語意（B-7a／b 已對齊 §3.1）。
+- 儀表板「我的受派檔案」：讀 **`cat_stage_assignments`** + `resolveAssignmentDisplayStatus`（**B-7c 已實作**）。
 
 B-7 目標：
 
@@ -205,7 +206,7 @@ flowchart TD
 ### 7.1 Migration
 
 - **B-7a 已套用**：`20260617120000` — `cat_stage_assignments.first_edited_at` + RPC `cat_mark_stage_assignment_first_edited`。
-- **B-7c 待套用**：`cat_file_user_access`（見下草案）。
+- **B-7c 已套用**：`20260618120000` — `cat_file_user_access`。
 
 ```sql
 CREATE TABLE IF NOT EXISTS public.cat_file_user_access (
@@ -247,10 +248,11 @@ CREATE TABLE IF NOT EXISTS public.cat_file_user_access (
 
 | 波次 | 內容 | 狀態 |
 |------|------|------|
-| **B-7a** | migration、`first_edited_at`、grid 骨架、`wf-display-status.js` | **已實作**（文案為舊版，待 B-7b 對齊 §3.1） |
-| **B-7b** | §4.2 PM 六階、準備完成按鈕、`openCatConfirmModal`、畫面＋寫入連動、離開閘門、resolver 文案 | **已實作** |
-| **B-7c** | 儀表板、`cat_file_user_access`、`CatToolPage`、停用 `in_progress` | 待實作 |
-| **B-7d** | §12：CAT 指派同步 stage assignment、檔內／句段集內列號鎖定 | 待實作 |
+| **B-7a** | migration、`first_edited_at`、grid 骨架、`wf-display-status.js` | **已實作**（`b577c08`） |
+| **B-7b** | §4.2 PM 六階、準備完成按鈕、`openCatConfirmModal`、畫面＋寫入連動、離開閘門、resolver 文案 | **已實作**（`e313016`） |
+| **B-7c** | 儀表板、`cat_file_user_access`、`CatToolPage`、停用 `in_progress` | **已實作** |
+| **B-7d** | §11：CAT 指派同步 stage assignment、檔內／句段集內列號鎖定 | 待實作 |
+| **B-7e** | §12：狀態欄匯入 confirmed／空心圈與清單對齊 | **待排程** |
 
 每波次：`npm run sync:cat`、更新本文件狀態欄。
 
@@ -337,11 +339,28 @@ CREATE TABLE IF NOT EXISTS public.cat_file_user_access (
 
 ---
 
-## 12. 修訂紀錄
+## 12. 編輯器狀態欄已知缺口（B-7e，待排程）
+
+> **完整調查**：[`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md)
+
+B-7a／b 已統一**檔案清單**右欄文案（待開始／進行中／完成），**未**改編輯器**狀態欄**（Phase B 三層綠點／白勾）。
+
+| 問題 | 摘要 | 修復波次 |
+|------|------|----------|
+| 匯入 mqxliff／sdlxliff 實心綠點 | 原檔 `confirmed` + `_isWfTransMarkedEffective` fallback → 使用者未在 1UP 確認卻亮內部綠點 | **B-7e**（待產品定案） |
+| sdlxliff 無「原檔已確認、內部未標」空心白勾 | 僅 mqxliff 有第三層 overlay；sdlxliff 視覺不明顯 | **B-7e** |
+| 準備完成按鈕右框線 | `split-btn-main` 隱藏 ▾ 後右邊框缺失 | UI 待修（見 bug-report 附錄 A） |
+
+**白話**：清單可顯示「待開始」，狀態欄仍可能因 memoQ／Studio 匯入確認而亮綠——屬 B-3 與 B-7 範圍落差，非 B-7b 遺漏。
+
+---
+
+## 13. 修訂紀錄
 
 | 日期 | 內容 |
 |------|------|
 | 2026-06-17 | **B-7b 落地**：`wf-display-status.js` 文案、PM 六階、準備完成按鈕、離開閘門 |
+| 2026-06-17 | **§12 B-7e 待排程**：狀態欄匯入 confirmed fallback、sdlxliff 空心圈；[`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md) |
 | 2026-06-17 | **驗收後修訂**：§2.2 決策；§3.1 文案（待開始／進行中／完成）；§4.2 PM 六階與準備完成按鈕；§11 指派／列號；波次 **B-7d**；驗收 §10 更新 |
 | 2026-06-17 | **B-7a 落地**：`b577c08`／`60d48ce`、migration `20260617120000`、`wf-display-status.js`、清單 grid、`first_edited_at` |
 | 2026-06-16 | 初稿：產品決策、檔案清單／儀表板 UX、實作波次 |

@@ -746,12 +746,53 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return (data ?? []).map((r: any) => mapFileRow(r, { listMode: true }));
     }
     case "db.getRecentFiles": {
-      const { data } = await supabase
-        .from("cat_files")
-        .select(CAT_FILE_LIST_COLUMNS)
-        .order("last_modified", { ascending: false })
-        .limit(payload.limit || 10);
-      return (data ?? []).map((r: any) => mapFileRow(r, { listMode: true }));
+      const limit = Math.min(Math.max(Number(payload.limit) || 10, 1), 50);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data: accessRows, error: accessErr } = await supabase
+        .from("cat_file_user_access" as any)
+        .select(
+          `last_opened_at, file:cat_files (${CAT_FILE_LIST_COLUMNS}, project:cat_projects (id, name))`,
+        )
+        .eq("user_id", user.id)
+        .order("last_opened_at", { ascending: false })
+        .limit(limit);
+      if (accessErr) throw accessErr;
+
+      return (accessRows ?? [])
+        .map((row: any) => {
+          const f = row?.file;
+          if (!f) return null;
+          const mapped = mapFileRow(f, { listMode: true });
+          mapped.lastOpenedAt = row.last_opened_at ?? null;
+          mapped.projectName = f.project?.name ?? "";
+          return mapped;
+        })
+        .filter(Boolean);
+    }
+    case "db.upsertFileUserAccess": {
+      const fileId = payload.fileId;
+      if (!fileId) throw new Error("upsertFileUserAccess: fileId required");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("not authenticated");
+
+      const { error } = await supabase.from("cat_file_user_access" as any).upsert(
+        {
+          user_id: user.id,
+          file_id: fileId,
+          last_opened_at: nowIso(),
+        },
+        { onConflict: "user_id,file_id" },
+      );
+      if (error) throw error;
+
+      await supabase.from("cat_files").update({ last_modified: nowIso() } as any).eq("id", fileId);
+      return { ok: true };
     }
     case "db.getFile": {
       const { data } = await supabase.from("cat_files").select("*").eq("id", payload.fileId).maybeSingle();

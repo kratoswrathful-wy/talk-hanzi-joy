@@ -55,15 +55,28 @@
                 <!-- 受指派檔案（譯者身分在團隊線上版時顯示） -->
                 <div id="dashboardAssignedBlock" style="display:none; margin-bottom:2rem;">
                     <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 0.25rem 0;">我的受派檔案</h2>
-                    <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.9rem;">以下為目前指派給你的 CAT 檔案。</p>
+                    <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.9rem;">以下為目前 Workflow 指派給你的 CAT 檔案（翻譯／審稿列各自顯示）。</p>
+                    <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap; margin-bottom:0.5rem; font-size:0.88rem;">
+                        <label style="display:flex; align-items:center; gap:0.35rem; color:#475569; cursor:pointer;">
+                            <input type="checkbox" id="dashboardHideCompleted" /> 隱藏已完成
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.35rem; color:#475569;">
+                            排序
+                            <select id="dashboardAssignedSort" class="form-input" style="width:auto; min-width:11rem; padding:0.25rem 0.5rem; font-size:0.88rem;">
+                                <option value="last_desc">最後使用時間（新→舊）</option>
+                                <option value="last_asc">最後使用時間（舊→新）</option>
+                            </select>
+                        </label>
+                    </div>
                     <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">
                             <thead>
                                 <tr style="background:#f1f5f9;">
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">狀態</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:140px;">狀態</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">檔案</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">更新時間</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px;">語言對</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">進度</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後使用時間</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
                                 </tr>
                             </thead>
@@ -105,8 +118,8 @@
                 </div>
                 <div style="margin-top: 2rem;">
                     <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 1rem 0;">最近使用的檔案</h2>
-                    <div id="recentFilesList" class="files-list">
-                        <!-- 由 JS 動態注入最近 10 個檔案 -->
+                    <div id="recentFilesList" class="files-list" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <!-- 由 JS 動態注入最近使用的檔案（B-7c：cat_file_user_access） -->
                     </div>
                 </div>
             </section>

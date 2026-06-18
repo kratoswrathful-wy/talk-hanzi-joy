@@ -359,17 +359,151 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
 
     const assignments = data ?? [];
 
+    const { data: stageAssignRows } = await supabase
+      .from("cat_stage_assignments" as any)
+      .select(`
+        id,
+        file_id,
+        view_id,
+        file_workflow_stage_id,
+        assignee_user_id,
+        line_start,
+        line_end,
+        scope_label,
+        workflow_status,
+        first_edited_at,
+        assigned_at,
+        updated_at,
+        file:cat_files (
+          id,
+          project_id,
+          name,
+          source_lang,
+          target_lang,
+          project:cat_projects ( id, name )
+        ),
+        stage:cat_file_workflow_stages!inner (
+          id,
+          stage_kind,
+          status,
+          stage_order
+        )
+      `)
+      .eq("assignee_user_id", user.id)
+      .order("assigned_at", { ascending: false });
+
+    const { data: accessRows } = await supabase
+      .from("cat_file_user_access" as any)
+      .select("file_id, last_opened_at")
+      .eq("user_id", user.id);
+
+    const lastOpenedByFileId = new Map<string, string>();
+    (accessRows ?? []).forEach((row: any) => {
+      if (row?.file_id) lastOpenedByFileId.set(String(row.file_id), row.last_opened_at);
+    });
+
+    const stageFileIds = [
+      ...new Set(
+        (stageAssignRows ?? [])
+          .map((r: any) => r?.file_id)
+          .filter((id: unknown): id is string => !!id)
+          .map((id: string) => String(id)),
+      ),
+    ];
+
+    const workflowByFileId: Record<
+      string,
+      { stages: any[]; allAssignments: any[] }
+    > = {};
+
+    if (stageFileIds.length > 0) {
+      const [{ data: allStages }, { data: allAssigns }] = await Promise.all([
+        supabase
+          .from("cat_file_workflow_stages" as any)
+          .select("*")
+          .in("file_id", stageFileIds)
+          .order("stage_order", { ascending: true }),
+        supabase.from("cat_stage_assignments" as any).select("*").in("file_id", stageFileIds),
+      ]);
+
+      stageFileIds.forEach((fid) => {
+        workflowByFileId[fid] = {
+          stages: (allStages ?? []).filter((s: any) => String(s.file_id) === fid),
+          allAssignments: (allAssigns ?? []).filter((a: any) => String(a.file_id) === fid),
+        };
+      });
+    }
+
+    const mapStageAssignment = (r: any) => ({
+      id: r.id,
+      fileId: r.file_id,
+      viewId: r.view_id ?? null,
+      fileWorkflowStageId: r.file_workflow_stage_id,
+      assigneeUserId: r.assignee_user_id,
+      lineStart: r.line_start ?? null,
+      lineEnd: r.line_end ?? null,
+      scopeLabel: r.scope_label ?? null,
+      workflowStatus: r.workflow_status,
+      firstEditedAt: r.first_edited_at ?? null,
+      assignedAt: r.assigned_at,
+      updatedAt: r.updated_at,
+    });
+
+    const mapWorkflowStage = (s: any) => ({
+      id: s.id,
+      fileId: s.file_id,
+      stageOrder: s.stage_order,
+      stageKind: s.stage_kind,
+      label: s.label,
+      status: s.status,
+      startedAt: s.started_at ?? null,
+      completedAt: s.completed_at ?? null,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at,
+    });
+
+    const dashboardStageAssignments = (stageAssignRows ?? [])
+      .map((row: any) => {
+        const fid = row?.file_id ? String(row.file_id) : "";
+        const file = row?.file;
+        if (!fid || !file) return null;
+        const stageKind = row?.stage?.stage_kind;
+        if (stageKind !== "translate" && stageKind !== "review") return null;
+        const pack = workflowByFileId[fid] || { stages: [], allAssignments: [] };
+        return {
+          id: row.id,
+          fileId: fid,
+          stageKind,
+          assignment: mapStageAssignment(row),
+          file: {
+            id: file.id,
+            project_id: file.project_id,
+            name: file.name,
+            source_lang: file.source_lang,
+            target_lang: file.target_lang,
+          },
+          projectName: file.project?.name ?? "",
+          lastOpenedAt: lastOpenedByFileId.get(fid) ?? null,
+          stages: pack.stages.map(mapWorkflowStage),
+          allAssignments: pack.allAssignments.map(mapStageAssignment),
+        };
+      })
+      .filter(Boolean);
+
     let translatorVisibleProjectIds: string[] | undefined;
     let viewAssignments: any[] = [];
 
     if (isTranslatorOnly) {
-      // 從 cat_file_assignments 取得專案 ids
       const fileAssignProjectIds = assignments
         .map((row: { file?: { project_id?: string } | null }) => row?.file?.project_id)
         .filter((id): id is string => !!id)
         .map((id) => String(id));
 
-      // 從 cat_view_assignments 取得句段集指派（§3.1 / §13.3）
+      const stageProjectIds = dashboardStageAssignments
+        .map((row: any) => row?.file?.project_id)
+        .filter((id: unknown): id is string => !!id)
+        .map((id: string) => String(id));
+
       const { data: viewAssignData } = await supabase
         .from("cat_view_assignments" as any)
         .select(`
@@ -394,7 +528,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         .filter((id: unknown): id is string => !!id)
         .map((id: string) => String(id));
 
-      translatorVisibleProjectIds = [...new Set([...fileAssignProjectIds, ...viewAssignProjectIds])];
+      translatorVisibleProjectIds = [
+        ...new Set([...fileAssignProjectIds, ...stageProjectIds, ...viewAssignProjectIds]),
+      ];
     }
 
     const liveWindow = iframeRef.current?.contentWindow;
@@ -404,10 +540,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         type: "TMS_ASSIGNMENTS",
         payload: {
           assignments,
+          dashboardStageAssignments,
           translatorOnly: isTranslatorOnly,
-          /** 譯者專案清單：cat_file_assignments ∪ cat_view_assignments（非 cancelled）所屬專案（CAT_VIEW_SPEC §3.1） */
           translatorVisibleProjectIds,
-          /** 譯者句段集指派清單（§13.3）；非譯者為空陣列 */
           viewAssignments,
         },
       },

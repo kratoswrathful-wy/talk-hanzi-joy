@@ -485,6 +485,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnHighMatchGuardCancel = document.getElementById('btnHighMatchGuardCancel');
     const btnHighMatchGuardClose = document.getElementById('btnHighMatchGuardClose');
     const assignedFilesBody = document.getElementById('assignedFilesBody');
+    const dashboardHideCompleted = document.getElementById('dashboardHideCompleted');
+    const dashboardAssignedSort = document.getElementById('dashboardAssignedSort');
     const collabPresenceBar = document.getElementById('collabPresenceBar');
     const fileAssignModal = document.getElementById('fileAssignModal');
     const fileAssignModalTitle = document.getElementById('fileAssignModalTitle');
@@ -2715,44 +2717,152 @@ document.addEventListener('DOMContentLoaded', async () => {
         _applyAiPmOnlyVisibility();
     }
 
-    function renderAssignedFilesView(assignments) {
+    function _dashboardStageKindLabel(kind) {
+        if (kind === 'translate') return '翻譯';
+        if (kind === 'review') return '審稿';
+        return String(kind || '—');
+    }
+
+    function _dashboardAssignmentStatusLabel(row) {
+        const api = window.WfDisplayStatus;
+        if (!api || typeof api.resolveAssignmentDisplayStatus !== 'function') return '—';
+        const stage = (row.stages || []).find((s) => s.stageKind === row.stageKind) || null;
+        const { label, tone } = api.resolveAssignmentDisplayStatus({
+            stages: row.stages || [],
+            assignment: row.assignment || null,
+            stage,
+            stageKind: row.stageKind,
+            allAssignments: row.allAssignments || [],
+        });
+        const color = typeof api.toneToColor === 'function' ? api.toneToColor(tone) : '#64748b';
+        const stagePrefix = _dashboardStageKindLabel(row.stageKind);
+        return `<span style="color:#334155;">${stagePrefix}</span><span style="color:#94a3b8;"> · </span><span style="color:${color};">${String(label).replace(/</g, '&lt;')}</span>`;
+    }
+
+    function _dashboardAssignmentIsCompleted(row) {
+        const api = window.WfDisplayStatus;
+        if (!api || typeof api.resolveAssignmentDisplayStatus !== 'function') return false;
+        const stage = (row.stages || []).find((s) => s.stageKind === row.stageKind) || null;
+        const { label } = api.resolveAssignmentDisplayStatus({
+            stages: row.stages || [],
+            assignment: row.assignment || null,
+            stage,
+            stageKind: row.stageKind,
+            allAssignments: row.allAssignments || [],
+        });
+        return label === '完成';
+    }
+
+    function _dashboardSegLineNo(sortedSegs, seg) {
+        const idx = sortedSegs.findIndex((s) => String(s.id) === String(seg.id));
+        return idx >= 0 ? idx + 1 : null;
+    }
+
+    function _dashboardSegInAssignmentRange(sortedSegs, seg, assignment) {
+        if (!assignment) return true;
+        const ls = assignment.lineStart != null ? assignment.lineStart : assignment.line_start;
+        const le = assignment.lineEnd != null ? assignment.lineEnd : assignment.line_end;
+        if (ls == null && le == null) return true;
+        const lineNo = _dashboardSegLineNo(sortedSegs, seg);
+        if (lineNo == null) return false;
+        const start = ls != null ? Number(ls) : 1;
+        const end = le != null ? Number(le) : Number.MAX_SAFE_INTEGER;
+        return lineNo >= start && lineNo <= end;
+    }
+
+    async function _fillDashboardAssignmentProgressCell(cell, row) {
+        if (!cell) return;
+        const fileId = row.fileId;
+        try {
+            const segs = await DBService.getSegmentsByFile(fileId);
+            if (!segs || !segs.length) {
+                cell.textContent = '—';
+                return;
+            }
+            const sorted = segs.slice();
+            const inRange = sorted.filter((s) => _dashboardSegInAssignmentRange(sorted, s, row.assignment));
+            const total = inRange.length;
+            const confirmed = inRange.filter((s) => s.status === 'confirmed').length;
+            const pct = total === 0 ? 0 : Math.round((confirmed / total) * 100);
+            cell.textContent = total === 0 ? '—' : `${pct}%（${confirmed}/${total}）`;
+        } catch (_) {
+            cell.textContent = '—';
+        }
+    }
+
+    function _getDashboardAssignedRows() {
+        const raw = Array.isArray(window._tmsDashboardStageAssignments)
+            ? window._tmsDashboardStageAssignments.slice()
+            : [];
+        let rows = raw;
+        if (dashboardHideCompleted && dashboardHideCompleted.checked) {
+            rows = rows.filter((r) => !_dashboardAssignmentIsCompleted(r));
+        }
+        const sortMode = dashboardAssignedSort ? dashboardAssignedSort.value : 'last_desc';
+        rows.sort((a, b) => {
+            const ta = a.lastOpenedAt ? new Date(a.lastOpenedAt).getTime() : 0;
+            const tb = b.lastOpenedAt ? new Date(b.lastOpenedAt).getTime() : 0;
+            return sortMode === 'last_asc' ? ta - tb : tb - ta;
+        });
+        return rows;
+    }
+
+    function renderAssignedFilesView(_legacyAssignments) {
+        void _legacyAssignments;
         if (!assignedFilesBody) return;
-        const list = (assignments || []).filter(a => a && a.status !== 'cancelled');
+        const list = _getDashboardAssignedRows();
         if (list.length === 0) {
-            assignedFilesBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">目前沒有受派檔案。</td></tr>';
+            assignedFilesBody.innerHTML = '<tr><td colspan="6" style="padding:0.75rem; color:#64748b;">目前沒有受派檔案。</td></tr>';
             return;
         }
-        assignedFilesBody.innerHTML = list.map(a => {
-            const file = a.file || {};
-            const status = STATUS_LABELS_TMS[a.status] || a.status || '—';
-            const at = (a.updated_at || a.assigned_at) ? new Date(a.updated_at || a.assigned_at).toLocaleString('zh-TW', { hour12: false }) : '—';
+        assignedFilesBody.innerHTML = list.map((row) => {
+            const file = row.file || {};
+            const statusHtml = _dashboardAssignmentStatusLabel(row);
+            const langs = `${(file.source_lang || file.sourceLang || '').replace(/</g, '&lt;')} → ${(file.target_lang || file.targetLang || '').replace(/</g, '&lt;')}`;
+            const at = row.lastOpenedAt
+                ? new Date(row.lastOpenedAt).toLocaleString('zh-TW', { hour12: false })
+                : '—';
+            const nameEsc = (file.name || '').replace(/</g, '&lt;');
+            const rowKey = String(row.id || '').replace(/"/g, '&quot;');
             return `
-                <tr>
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${status}</td>
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${(file.name || '').replace(/</g, '&lt;')}</td>
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${(file.source_lang || '')} → ${(file.target_lang || '')}</td>
+                <tr data-dashboard-row-id="${rowKey}">
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.88rem;">${statusHtml}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${nameEsc}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${langs}</td>
+                    <td class="dashboard-assigned-progress" data-row-id="${rowKey}" style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">…</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0;">${at}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0;">
-                        <button type="button" class="primary-btn btn-sm open-assigned-file-btn" data-assignment-id="${a.id}" data-file-id="${file.id || ''}" data-project-id="${file.project_id || ''}">開啟</button>
+                        <button type="button" class="primary-btn btn-sm open-assigned-file-btn" data-file-id="${file.id || ''}" data-project-id="${file.project_id || file.projectId || ''}">開啟</button>
                     </td>
                 </tr>
             `;
         }).join('');
-        assignedFilesBody.querySelectorAll('.open-assigned-file-btn').forEach(btn => {
+
+        list.forEach((row) => {
+            const rowKey = String(row.id || '');
+            const cell = assignedFilesBody.querySelector(`.dashboard-assigned-progress[data-row-id="${rowKey}"]`);
+            void _fillDashboardAssignmentProgressCell(cell, row);
+        });
+
+        assignedFilesBody.querySelectorAll('.open-assigned-file-btn').forEach((btn) => {
             btn.addEventListener('click', async () => {
                 const fileId = btn.getAttribute('data-file-id');
                 const projectId = btn.getAttribute('data-project-id');
-                const assignmentId = btn.getAttribute('data-assignment-id');
                 if (!fileId) return;
                 if (projectId) currentProjectId = projectId;
                 await openEditor(fileId);
-                if (assignmentId) {
-                    window.parent.postMessage({
-                        type: 'CAT_ASSIGNMENT_STATUS',
-                        payload: { assignmentId, status: 'in_progress' }
-                    }, window.location.origin);
-                }
             });
+        });
+    }
+
+    if (dashboardHideCompleted) {
+        dashboardHideCompleted.addEventListener('change', () => {
+            renderAssignedFilesView(window._tmsAssignments);
+        });
+    }
+    if (dashboardAssignedSort) {
+        dashboardAssignedSort.addEventListener('change', () => {
+            renderAssignedFilesView(window._tmsAssignments);
         });
     }
 
@@ -2792,12 +2902,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 先載入檔案清單以建立 filesMap
                 await loadFilesList();
                 await openEditorFromView(viewId);
-                if (assignmentId) {
-                    window.parent.postMessage({
-                        type: 'CAT_VIEW_ASSIGNMENT_STATUS',
-                        payload: { assignmentId, status: 'in_progress' }
-                    }, window.location.origin);
-                }
             });
         });
     }
@@ -3357,6 +3461,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const payload = event.data.payload || {};
             const assignments = payload.assignments || [];
             window._tmsAssignments = assignments;
+            window._tmsDashboardStageAssignments = Array.isArray(payload.dashboardStageAssignments)
+                ? payload.dashboardStageAssignments
+                : [];
             window._tmsTranslatorOnly = !!payload.translatorOnly;
             window._tmsViewAssignments = Array.isArray(payload.viewAssignments) ? payload.viewAssignments : [];
             const tvp = payload.translatorVisibleProjectIds;
@@ -4323,31 +4430,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         statTMs.textContent = tms.length;
         statTBs.textContent = tbs.length;
 
-        // 最近使用的檔案（依 lastModified 由新到舊取前 10 筆）
+        // 最近使用的檔案（B-7c：雲端依 cat_file_user_access；離線依 lastModified）
         if (recentFilesList) {
             const recentFiles = await DBService.getRecentFiles(10);
             recentFilesList.innerHTML = '';
             if (!recentFiles.length) {
-                recentFilesList.innerHTML = '<div style="color:#64748b; font-size:0.9rem;">尚未有任何檔案。</div>';
+                recentFilesList.innerHTML = '<div style="color:#64748b; font-size:0.9rem;">尚未開啟過任何檔案。</div>';
             } else {
-                recentFiles.forEach(f => {
+                recentFiles.forEach((f) => {
                     const row = document.createElement('div');
                     row.className = 'list-item-row';
+                    row.style.cssText = 'border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; background:#fff; cursor:pointer;';
+                    const openedAt = f.lastOpenedAt || f.lastModified;
+                    const projLabel = (f.projectName || '').trim();
+                    const metaParts = [];
+                    if (projLabel) metaParts.push(`專案：${projLabel.replace(/</g, '&lt;')}`);
+                    if (openedAt) {
+                        metaParts.push(`最後使用：${new Date(openedAt).toLocaleString('zh-TW', { hour12: false })}`);
+                    }
                     row.innerHTML = `
-                        <div class="list-item-info" data-file-id="${f.id}">
-                            <div class="project-title">${f.name}</div>
-                            <div class="project-meta">最後使用時間：${new Date(f.lastModified).toLocaleString('zh-TW', { hour12: false })}</div>
+                        <div class="list-item-info" data-file-id="${f.id}" data-project-id="${f.projectId || ''}">
+                            <div class="project-title" style="font-weight:600; color:#1e293b;">${(f.name || '').replace(/</g, '&lt;')}</div>
+                            <div class="project-meta" style="color:#64748b; font-size:0.85rem; margin-top:0.2rem;">${metaParts.join(' · ') || '—'}</div>
+                            <div class="recent-file-wf-cell" data-file-id="${f.id}" style="margin-top:0.45rem; color:#94a3b8; font-size:0.78rem;">載入中…</div>
                         </div>
                     `;
                     recentFilesList.appendChild(row);
                 });
-                // 點擊最近檔案直接開啟對應專案與檔案
-                recentFilesList.querySelectorAll('.list-item-info').forEach(el => {
+
+                const fileIds = recentFiles.map((f) => f.id);
+                const meta = await _loadProjectWorkflowMetaByFileId(fileIds);
+                recentFilesList.querySelectorAll('.recent-file-wf-cell').forEach((cell) => {
+                    const fid = cell.getAttribute('data-file-id');
+                    const pack = meta[String(fid)] || { stages: [], assignments: [] };
+                    cell.innerHTML = _formatWorkflowListCellHtml(pack.stages, pack.assignments, []);
+                });
+
+                recentFilesList.querySelectorAll('.list-item-info').forEach((el) => {
                     el.addEventListener('click', async () => {
                         const fileId = parseId(el.getAttribute('data-file-id'));
+                        const projectId = el.getAttribute('data-project-id');
                         const file = await DBService.getFile(fileId);
                         if (!file) return;
-                        if (file.projectId) currentProjectId = file.projectId;
+                        if (projectId) currentProjectId = projectId;
+                        else if (file.projectId) currentProjectId = file.projectId;
                         await openEditor(fileId);
                     });
                 });
@@ -16204,6 +16330,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         persistCatRoute();
         syncEditorWordCountToolbarBtn();
         refreshWfTaskCompleteToolbar();
+        try {
+            await DBService.upsertFileUserAccess(fileId);
+        } catch (e) {
+            console.warn('[CAT] upsertFileUserAccess', e);
+        }
         } catch (e) {
             console.error('[CAT] openEditor failed', e);
             currentFileId = null;

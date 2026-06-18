@@ -51,11 +51,12 @@
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
 - [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 匯入選填連結 LMS 案件（一般＋GS；`49db7c2` 起）
-- [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A／**Phase B 已落地**；**B-6 已實作**；**B-7a 已實作**；B-7b～d 待實作；Phase C 規劃中）
+- [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A／**Phase B 已落地**；**B-6 已實作**；**B-7a／b／c 已實作**；B-7d～e 待實作／待排程；Phase C 規劃中）
 - [`docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — **Phase B Workflow** 完整規格（**已落地並驗收** `e4a6205`～`d7232ab`：v5 migration／檔案清單逐行、LMS 雙向、開檔熱修 §11.7、更新檔 Modal §11.8、任務完成按下驗證 §11.9；**B-6 延伸** §12 已實作；**B-7** §13）
 - [`docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — **Phase B-6** 檔案準備閘門 + 審稿任務完成（**已實作** `fd67332`、migration 已 push；prep 僅 PM 可編、派出閘門、審稿任務完成；審稿暫不 Slack；舊檔 backfill）
-- [`docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — **Phase B-7** 統一顯示狀態 + 檔案清單／儀表板 UX（**B-7a 已實作** `b577c08`：`wf-display-status.js`、`first_edited_at`、grid；**B-7b～d 待實作**：文案、PM 六階、儀表板、指派鎖定 §11）
-- [`docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md`](docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md) — Workflow **整檔指派卻句段鎖定**（根因：`cat_file_assignments` 與 `cat_stage_assignments` 脫鉤；修復 **B-7d**）
+- [`docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — **Phase B-7** 統一顯示狀態 + 檔案清單／儀表板 UX（**B-7a／b／c 已實作**；B-7d～e 待實作／待排程）
+- [`docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md`](docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md) — Workflow **整檔指派卻句段鎖定**（修復 **B-7d**）
+- [`docs/bug-report_workflow-import-confirmed-status-column_2026-06.md`](docs/bug-report_workflow-import-confirmed-status-column_2026-06.md) — 匯入 XLIFF **已確認 vs 狀態欄實心綠／sdlxliff 空心圈**（**B-7e 待排程**）
 - [`docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) — **B-0** 檔序、句段集排序、左欄顯示序、篩選 A、Workflow 列號對齊
 - **1UP CAT／LMS 整合 UX 大計畫**（Cursor plan `1up_ux_與遷移`）— **唯一完整主紀錄**（第二波 UX、B+D2、UX 微調、加號）；Git 摘要 [`docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md)
 

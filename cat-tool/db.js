@@ -1065,9 +1065,22 @@ const DBService = {
     },
 
     async getRecentFiles(limit = 10) {
-        // 依 lastModified 由新到舊取出最近使用的檔案
+        // 離線：依 lastModified 由新到舊（B-7c 雲端改為 cat_file_user_access）
         const files = await db.files.orderBy('lastModified').reverse().limit(limit).toArray();
-        return files;
+        return files.map((f) => ({
+            ...f,
+            lastOpenedAt: f.lastModified ?? null,
+            projectName: '',
+        }));
+    },
+
+    async upsertFileUserAccess(fileId) {
+        const fid = toDexieLocalId(fileId);
+        const now = new Date().toISOString();
+        await db.files.update(fid, { lastModified: now });
+        const file = await db.files.get(fid);
+        if (file) await db.projects.update(file.projectId, { lastModified: now });
+        return { ok: true };
     },
 
     async getFile(fileId, _opts) {
@@ -2055,6 +2068,7 @@ const DBService = {
         const rows = await rpc('db.getRecentFiles', { limit });
         return Promise.all(rows.map((f) => hydrateFile(f)));
     };
+    DBService.upsertFileUserAccess = async (fileId) => rpc('db.upsertFileUserAccess', { fileId });
     DBService.getFile = async (fileId, opts) => {
         const includeOriginal = !!(opts && opts.includeOriginal);
         return await hydrateFile(await rpc('db.getFile', { fileId, includeOriginal }));
