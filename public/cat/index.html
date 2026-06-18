@@ -1860,6 +1860,49 @@
             </div>
         </div>
 
+        <!-- 匯入：原檔已確認句段處理 Modal（B-7e） -->
+        <div class="wizard-overlay hidden" id="importConfirmedModal">
+            <div class="wizard-modal" style="max-width: min(560px, 95vw);">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">原檔已確認句段</h2>
+                    <button class="close-btn" id="btnCloseImportConfirmedModal" type="button">&times;</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.85rem;">
+                    <p id="importConfirmedSummary" style="margin:0; font-size:0.88rem; color:#64748b;"></p>
+                    <p id="importConfirmedOrigLangPair" style="margin:0; font-size:0.88rem; color:#334155;"></p>
+                    <label class="form-checkbox-row" style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+                        <input type="checkbox" id="importConfirmedMarkSystem" checked style="margin-top:0.2rem;" />
+                        <span>將原檔已確認句段在系統內標為確認</span>
+                    </label>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <label class="form-checkbox-row" style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+                            <input type="checkbox" id="importConfirmedWriteTm" checked style="margin-top:0.2rem;" />
+                            <span>將原檔已確認句段寫入翻譯記憶庫</span>
+                        </label>
+                        <div id="importConfirmedTmOptions" style="margin-left:1.5rem; display:flex; flex-direction:column; gap:0.4rem;">
+                            <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.88rem;">
+                                <input type="radio" name="importConfirmedTmLangMode" value="system" checked />
+                                <span>語言對依系統設定（<span id="importConfirmedSystemLangPair">—</span>）</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.88rem;">
+                                <input type="radio" name="importConfirmedTmLangMode" value="custom" />
+                                <span>自行選擇語言對</span>
+                            </label>
+                            <p id="importConfirmedCustomLangPair" class="hidden" style="margin:0; font-size:0.85rem; color:#64748b;"></p>
+                            <label class="form-checkbox-row" style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; font-size:0.88rem;">
+                                <input type="checkbox" id="importConfirmedIncludeLocked" checked style="margin-top:0.2rem;" />
+                                <span>包含鎖定句段</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <button type="button" id="btnImportConfirmedCancel" class="secondary-btn">取消</button>
+                        <button type="button" id="btnImportConfirmedConfirm" class="primary-btn">確認匯入</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 專案頁：選擇掛載 TM -->
         <div class="wizard-overlay hidden" id="projectTmPickerModal">
             <div class="wizard-modal project-picker-modal">

@@ -1,6 +1,6 @@
 # Bug 調查：整檔指派卻句段鎖定「不在您受派的列範圍內」（2026-06）
 
-> **狀態**：**根因已釐清**；修復規劃於 **B-7d**（見 [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §11）。  
+> **狀態**：**根因已釐清**；修復已於 **B-7d 落地**（見 [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §11）。  
 > **關聯**：列號語意見 [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) §6。
 
 ---

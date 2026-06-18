@@ -3529,7 +3529,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else if (_currentViewId) {
                         const view = await DBService.getView(_currentViewId);
                         const fids = view && Array.isArray(view.fileIds) ? view.fileIds : [];
-                        await _loadViewWorkflowContext(fids);
+                        const segIds = view && Array.isArray(view.segmentIds) ? view.segmentIds : [];
+                        await _loadViewWorkflowContext(fids, segIds);
                     }
                     refreshWfTaskCompleteToolbar();
                 } catch (e) {
@@ -5209,6 +5210,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    /** B-7d：句段集內 1..N 列號快取（依 view.segmentIds 順序） */
+    function _buildFullListLineNoCacheForView(segmentIds) {
+        if (!Array.isArray(segmentIds) || !segmentIds.length) return;
+        segmentIds.forEach((id, i) => {
+            if (id != null) _fullListLineNoBySegId[String(id)] = i + 1;
+        });
+    }
+
     async function _loadFileWorkflowContext(fileId) {
         _fullListLineNoBySegId = {};
         window._currentFileWorkflowStagesByFileId = {};
@@ -5227,7 +5236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { stages, assignments };
     }
 
-    async function _loadViewWorkflowContext(fileIds) {
+    async function _loadViewWorkflowContext(fileIds, viewSegmentIds) {
         _fullListLineNoBySegId = {};
         const ids = [...new Set((fileIds || []).map(String).filter(Boolean))];
         const stagesByFile = {};
@@ -5239,12 +5248,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 stagesByFile[fid] = stages || [];
                 const assigns = await DBService.listStageAssignmentsForFile(fid);
                 allAssigns.push(...(assigns || []));
-                await _buildFullListLineNoCacheForFile(fid);
             } catch (e) {
                 console.warn('[workflow] loadViewWorkflowContext', fid, e);
                 stagesByFile[fid] = [];
             }
         }));
+        if (_currentViewId && Array.isArray(viewSegmentIds) && viewSegmentIds.length) {
+            _buildFullListLineNoCacheForView(viewSegmentIds);
+        } else {
+            await Promise.all(ids.map((fid) => _buildFullListLineNoCacheForFile(fid)));
+        }
         window._currentFileWorkflowStagesByFileId = stagesByFile;
         window._currentFileStageAssignments = allAssigns;
         window._currentFileWorkflowStages = [];
@@ -6106,7 +6119,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!seg) return null;
         const cached = _fullListLineNoBySegId[String(seg.id)];
         if (cached != null && Number.isFinite(cached)) return cached;
-        if (seg.rowIdx != null && Number.isFinite(seg.rowIdx) && !_currentViewId) return seg.rowIdx + 1;
+        if (_currentViewId) return null;
+        if (seg.rowIdx != null && Number.isFinite(seg.rowIdx)) return seg.rowIdx + 1;
         return null;
     }
 
@@ -6275,16 +6289,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function buildStatusCellHtml(seg) {
-        const rwf = _isWfReviewMarkedEffective(seg);
-        const twf = _isWfTransMarkedEffective(seg) || rwf;
+        const rwf = _isWfReviewMarked(seg);
+        const twf = _isWfTransMarked(seg);
         const mq = seg && seg.status === 'confirmed';
+        const origOnly = mq && !twf && !rwf;
         const classes = ['status-icon', 'status-icon-stack'];
         if (twf) classes.push('wf-trans');
         if (rwf) classes.push('wf-review');
-        if (mq) classes.push('mq-done');
+        if (origOnly) classes.push('orig-confirmed');
         const tip = _buildStatusCellTooltip(seg).replace(/"/g, '&quot;');
         let mqHtml = '';
-        if (currentFileFormat === 'mqxliff' && mq) {
+        if (mq && currentFileFormat === 'mqxliff') {
             mqHtml = `<span class="status-mq-overlay">${_buildMqSymbolHtml(seg.confirmationRole || 'T')}</span>`;
         }
         return `<span class="${classes.join(' ')}" data-tip="${tip}" style="cursor:pointer;">`
@@ -6498,7 +6513,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentViewFileRoles = view.fileRoles || {};
 
         await _loadViewWorkflowContext(
-            fileIds.length ? fileIds : [...new Set((segments || []).map((s) => s.fileId).filter(Boolean))]
+            fileIds.length ? fileIds : [...new Set((segments || []).map((s) => s.fileId).filter(Boolean))],
+            segmentIds
         );
 
         if (!_viewEditorReadOnly) {
@@ -14060,7 +14076,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadFilesList: suppress ? () => {} : loadFilesList,
             selectedSourceLang: _importSelectedSrcLang,
             selectedTargetLang: _importSelectedTgtLang,
-            caseInfo: opts.caseInfo || null
+            caseInfo: opts.caseInfo || null,
+            showConfirmedSegmentsDialog,
+            writeImportConfirmedToProjectTms,
         };
     }
 
@@ -14152,6 +14170,203 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnCancel.addEventListener('click', onCancel);
             if (btnClose) btnClose.addEventListener('click', onCancel);
         });
+    }
+
+    /** B-7e：匯入時若原檔含已確認句段，詢問處理方式 */
+    async function showConfirmedSegmentsDialog(opts) {
+        const {
+            originalSourceLang = '',
+            originalTargetLang = '',
+            confirmedCount = 0,
+            systemSourceLang = '',
+            systemTargetLang = '',
+        } = opts || {};
+
+        const modal = document.getElementById('importConfirmedModal');
+        const summaryEl = document.getElementById('importConfirmedSummary');
+        const origPairEl = document.getElementById('importConfirmedOrigLangPair');
+        const systemPairEl = document.getElementById('importConfirmedSystemLangPair');
+        const markCb = document.getElementById('importConfirmedMarkSystem');
+        const writeTmCb = document.getElementById('importConfirmedWriteTm');
+        const tmOptionsEl = document.getElementById('importConfirmedTmOptions');
+        const lockedCb = document.getElementById('importConfirmedIncludeLocked');
+        const customPairEl = document.getElementById('importConfirmedCustomLangPair');
+        const btnConfirm = document.getElementById('btnImportConfirmedConfirm');
+        const btnCancel = document.getElementById('btnImportConfirmedCancel');
+        const btnClose = document.getElementById('btnCloseImportConfirmedModal');
+
+        if (!modal || !markCb || !writeTmCb || !btnConfirm) {
+            return {
+                cancelled: false,
+                markSystemConfirmed: true,
+                writeToTm: true,
+                tmLangMode: 'system',
+                tmSourceLang: systemSourceLang,
+                tmTargetLang: systemTargetLang,
+                includeLocked: true,
+            };
+        }
+
+        const origSrc = (originalSourceLang || '').trim() || '（未知）';
+        const origTgt = (originalTargetLang || '').trim() || '（未知）';
+        if (summaryEl) {
+            summaryEl.textContent = `偵測到 ${confirmedCount} 個原檔已確認句段，請選擇處理方式。`;
+        }
+        if (origPairEl) {
+            origPairEl.textContent = `原檔語言對：${langLabel(origSrc) !== origSrc ? `${langLabel(origSrc)}（${origSrc}）` : origSrc} → ${langLabel(origTgt) !== origTgt ? `${langLabel(origTgt)}（${origTgt}）` : origTgt}`;
+        }
+        if (systemPairEl) {
+            const s = systemSourceLang || '—';
+            const t = systemTargetLang || '—';
+            systemPairEl.textContent = `${langLabel(s)} → ${langLabel(t)}`;
+        }
+
+        markCb.checked = true;
+        writeTmCb.checked = true;
+        if (lockedCb) lockedCb.checked = true;
+        const systemRadio = modal.querySelector('input[name="importConfirmedTmLangMode"][value="system"]');
+        const customRadio = modal.querySelector('input[name="importConfirmedTmLangMode"][value="custom"]');
+        if (systemRadio) systemRadio.checked = true;
+        if (customRadio) customRadio.checked = false;
+        if (customPairEl) {
+            customPairEl.textContent = '';
+            customPairEl.classList.add('hidden');
+        }
+
+        const syncTmOptionsVisibility = () => {
+            const on = writeTmCb.checked;
+            if (tmOptionsEl) tmOptionsEl.style.display = on ? '' : 'none';
+        };
+        syncTmOptionsVisibility();
+
+        let customLang = null;
+
+        return new Promise((resolve) => {
+            const cleanup = (val) => {
+                modal.classList.add('hidden');
+                writeTmCb.removeEventListener('change', syncTmOptionsVisibility);
+                btnConfirm.removeEventListener('click', onConfirm);
+                btnCancel.removeEventListener('click', onCancel);
+                if (btnClose) btnClose.removeEventListener('click', onCancel);
+                resolve(val);
+            };
+
+            const onCancel = () => cleanup({ cancelled: true });
+
+            const onConfirm = async () => {
+                const markSystemConfirmed = !!markCb.checked;
+                const writeToTm = !!writeTmCb.checked;
+                const includeLocked = lockedCb ? !!lockedCb.checked : true;
+                let tmLangMode = 'system';
+                let tmSourceLang = systemSourceLang;
+                let tmTargetLang = systemTargetLang;
+
+                if (writeToTm) {
+                    const picked = modal.querySelector('input[name="importConfirmedTmLangMode"]:checked');
+                    tmLangMode = picked && picked.value === 'custom' ? 'custom' : 'system';
+                    if (tmLangMode === 'custom') {
+                        if (!customLang) {
+                            customLang = await showFileLangModal([], []);
+                            if (!customLang || !customLang.sourceLang || !customLang.targetLang) return;
+                        }
+                        tmSourceLang = customLang.sourceLang;
+                        tmTargetLang = customLang.targetLang;
+                        const expanded = await _maybeExpandProjectLangsForImport(tmSourceLang, tmTargetLang);
+                        if (!expanded) return;
+                        if (customPairEl) {
+                            customPairEl.textContent = `已選：${langLabel(tmSourceLang)} → ${langLabel(tmTargetLang)}`;
+                            customPairEl.classList.remove('hidden');
+                        }
+                    } else if (!tmSourceLang || !tmTargetLang) {
+                        await openCatConfirmModal(
+                            '此檔案尚未設定任務語言對，無法寫入翻譯記憶庫。請先完成語言對選擇，或取消「寫入翻譯記憶庫」後再匯入。',
+                            { title: '缺少語言對' }
+                        );
+                        return;
+                    }
+                }
+
+                cleanup({
+                    cancelled: false,
+                    markSystemConfirmed,
+                    writeToTm,
+                    tmLangMode,
+                    tmSourceLang,
+                    tmTargetLang,
+                    includeLocked,
+                });
+            };
+
+            writeTmCb.addEventListener('change', syncTmOptionsVisibility);
+            btnConfirm.addEventListener('click', onConfirm);
+            btnCancel.addEventListener('click', onCancel);
+            if (btnClose) btnClose.addEventListener('click', onCancel);
+            modal.classList.remove('hidden');
+        });
+    }
+
+    async function _maybeExpandProjectLangsForImport(src, tgt) {
+        if (!currentProjectId || !src || !tgt) return true;
+        const proj = await DBService.getProject(currentProjectId);
+        if (!proj) return true;
+        const srcLangs = new Set(proj.sourceLangs || []);
+        const tgtLangs = new Set(proj.targetLangs || []);
+        const needSrc = !srcLangs.has(src);
+        const needTgt = !tgtLangs.has(tgt);
+        if (!needSrc && !needTgt) return true;
+        const parts = [];
+        if (needSrc) parts.push(`原文「${langLabel(src)}」`);
+        if (needTgt) parts.push(`譯文「${langLabel(tgt)}」`);
+        const ok = await openCatConfirmModal(
+            `所選語言對（${langLabel(src)} → ${langLabel(tgt)}）不在目前專案語言設定內。\n是否將 ${parts.join('、')} 加入專案語言設定？`,
+            { title: '更新專案語言設定' }
+        );
+        if (!ok) return false;
+        await DBService.updateProjectLangs(
+            currentProjectId,
+            needSrc ? [...srcLangs, src] : [...srcLangs],
+            needTgt ? [...tgtLangs, tgt] : [...tgtLangs]
+        );
+        return true;
+    }
+
+    /** B-7e：將原檔已確認句段寫入專案掛載的寫入 TM */
+    async function writeImportConfirmedToProjectTms(file, opts) {
+        const { tmSourceLang = '', tmTargetLang = '', includeLocked = true } = opts || {};
+        const writeTms = window.ActiveWriteTms || [];
+        if (!writeTms.length || !file) return { written: 0 };
+        const ToTm = window.CatToolXliffToTm;
+        if (!ToTm || typeof ToTm.buildTmImportCandidates !== 'function') return { written: 0 };
+
+        let total = 0;
+        for (const rawTmId of writeTms) {
+            const tmId = rawTmId;
+            try {
+                const pack = await ToTm.buildTmImportCandidates(file, {
+                    tmId,
+                    tmSourceLang,
+                    tmTargetLang,
+                });
+                const rows = [];
+                for (const item of pack.candidates || []) {
+                    const { evalSeg, tmPayload } = item;
+                    if (!evalSeg || evalSeg.status !== 'confirmed') continue;
+                    if (!includeLocked && evalSeg.isLocked) continue;
+                    rows.push({
+                        ...tmPayload,
+                        sourceLang: tmSourceLang || tmPayload.sourceLang,
+                        targetLang: tmTargetLang || tmPayload.targetLang,
+                    });
+                }
+                if (rows.length) {
+                    await DBService.bulkAddTMSegments(rows);
+                    total += rows.length;
+                }
+            } catch (e) {
+                console.warn('[import] write TM', tmId, e);
+            }
+        }
+        return { written: total };
     }
 
     function colLetterToIndex(str) { let r=0; for(let i=0; i<str.length; i++) r = r*26 + str.charCodeAt(i) - 64; return r-1; }

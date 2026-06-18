@@ -731,10 +731,30 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           updated_at: new Date().toISOString(),
         }));
         const { error } = await supabase.from("cat_file_assignments").upsert(rows, { onConflict: "file_id,assignee_user_id" });
+        let stageSyncError: string | null = null;
+        if (!error) {
+          for (const uid of uniqueUserIds) {
+            const { error: rpcErr } = await supabase.rpc("cat_upsert_translate_stage_assignment" as any, {
+              p_file_id: fileId,
+              p_assignee_user_id: uid,
+              p_collab_row_id: null,
+              p_view_id: null,
+              p_scope_label: null,
+              p_line_start: null,
+              p_line_end: null,
+              p_workflow_status: "assigned",
+            } as any);
+            if (rpcErr) {
+              stageSyncError = rpcErr.message;
+              break;
+            }
+          }
+        }
+        const ok = !error && !stageSyncError;
         iframeRef.current?.contentWindow?.postMessage(
           {
             type: "TMS_ASSIGN_FILE_RESULT",
-            payload: { ok: !error, fileId, error: error?.message ?? null },
+            payload: { ok, fileId, error: stageSyncError ?? error?.message ?? null },
           },
           window.location.origin
         );
@@ -747,10 +767,33 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           .delete()
           .eq("file_id", fileId)
           .eq("assignee_user_id", assigneeUserId);
+        let stageDeleteError: string | null = null;
+        if (!error) {
+          const { data: stageRow } = await supabase
+            .from("cat_file_workflow_stages" as any)
+            .select("id")
+            .eq("file_id", fileId)
+            .eq("stage_kind", "translate")
+            .maybeSingle();
+          const stageId = (stageRow as { id?: string } | null)?.id;
+          if (stageId) {
+            const { error: delErr } = await supabase
+              .from("cat_stage_assignments" as any)
+              .delete()
+              .eq("file_id", fileId)
+              .eq("file_workflow_stage_id", stageId)
+              .eq("assignee_user_id", assigneeUserId)
+              .is("line_start", null)
+              .is("line_end", null)
+              .is("view_id", null);
+            if (delErr) stageDeleteError = delErr.message;
+          }
+        }
+        const ok = !error && !stageDeleteError;
         iframeRef.current?.contentWindow?.postMessage(
           {
             type: "TMS_UNASSIGN_FILE_RESULT",
-            payload: { ok: !error, fileId, assigneeUserId, error: error?.message ?? null },
+            payload: { ok, fileId, assigneeUserId, error: stageDeleteError ?? error?.message ?? null },
           },
           window.location.origin
         );

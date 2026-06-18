@@ -1543,8 +1543,8 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     overflow: visible;
 }
 .status-icon-stack .status-wf-core {
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     border: 1px solid #cbd5e1;
     background: #fff;
@@ -1556,13 +1556,18 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     border-color: var(--success-color);
 }
 .status-icon-stack.wf-review .status-wf-core {
-    box-shadow: 0 0 0 2px var(--success-color);
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--success-color);
 }
 .status-icon-stack.wf-review:not(.wf-trans) .status-wf-core {
     background: #fff;
-    border-color: #cbd5e1;
+    border-color: var(--success-color);
 }
-.status-icon-stack.mq-done:not(.wf-trans) .status-wf-core {
+.status-icon-stack.orig-confirmed:not(.wf-trans):not(.wf-review) .status-wf-core {
+    background: #fff;
+    border-color: var(--success-color);
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--success-color);
+}
+.status-icon-stack.mq-done:not(.wf-trans):not(.orig-confirmed) .status-wf-core {
     background: #f0fdf4;
     border-color: var(--success-color);
 }
@@ -1572,13 +1577,14 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--success-color);
     font-size: 0.62rem;
     line-height: 1;
     pointer-events: none;
     font-weight: 600;
 }
-.status-icon-stack:not(.wf-trans).mq-done .status-mq-overlay {
+.status-icon-stack.wf-trans .status-mq-overlay,
+.status-icon-stack.wf-review .status-mq-overlay {
     color: #fff;
 }
 .status-mq-glyph sup {
