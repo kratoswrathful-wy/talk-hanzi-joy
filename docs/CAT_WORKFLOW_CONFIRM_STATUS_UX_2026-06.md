@@ -1,6 +1,6 @@
 # CAT Workflow 確認狀態 UX（B-7f）
 
-> **狀態**：規格定案；實作中  
+> **狀態**：規格修訂中；第二波實作待執行  
 > **關聯**：[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §15、[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §6、[`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md)
 
 ---
@@ -63,12 +63,12 @@
 
 ## 3. 狀態欄視覺與 Tooltip
 
-外環共通：`14px` 內圓 + `box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--success-color)`；虛線版外層 `4px` 改 **dashed**。
+外環共通（審稿確認等）：`14px` 內圓 + `box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--success-color)`；虛線版外層 `4px` 改 **dashed**（`inset: -3px`）。
 
 | 顯示狀態 | CSS class（建議） | 視覺 | Tooltip（僅一行） |
 |----------|-------------------|------|------------------|
 | 未確認 | （預設） | 灰邊白圓 | 未確認 |
-| 原檔已確認 | `orig-confirmed` | **實線**外環 + 綠符號；**無內圓 DOM** | 未確認 |
+| 原檔已確認 | `orig-confirmed` | **實線**外環（`18px` 直徑、`2px border`、無 box-shadow）；**無內圓 DOM、無內圓填色** + 綠符號 | 未確認 |
 | 翻譯確認 | `wf-trans` | 實心綠點 + 白符號（mq 依 T／R1／R2） | 翻譯確認 |
 | 審稿確認 | `wf-trans` + `wf-review` | 實心綠點 + **實線**外環 + 白符號 | 審稿確認 |
 | 審稿確認後譯者再編輯 | `wf-review-revoked` | **虛線**外環 + 綠符號（無實心內點） | 審稿確認後譯者再編輯 |
@@ -76,13 +76,16 @@
 
 **mqxliff 符號顏色**：實心綠內圓上為**白色**；僅外環／虛線外環無內點時為**綠色**符號。
 
+**`orig-confirmed` CSS（第二波待實作）**：`.status-icon-stack.orig-confirmed::before` 使用 `inset: -2px; border: 2px solid var(--success-color); background: transparent`（不繪製內圓、不使用 box-shadow）。
+
 ---
 
 ## 4. 編輯取消確認（譯文變更觸發）
 
 - **觸發**：任何導致譯文內容變化之操作（手打、取代、TM、F8、批次清空等）；**僅聚焦不算**
 - **僅翻譯確認** → 一般未確認（清全部 wf、`wfReviewRevokedPending=false`、清快照）
-- **曾審稿確認**（含審稿後再確認）→ 清 `wfReview*`、設 `wfReviewRevokedPending=true`、**保留** `wfReviewRestoreSnapshot`；進入「再編輯」態
+- **曾審稿確認**（含審稿後再確認）→ **保留** `wfReviewConfirmedAt`／`wfReviewConfirmedBy`、設 `wfReviewRevokedPending=true`、`status='unconfirmed'`、**保留** `wfReviewRestoreSnapshot`；進入「再編輯」態  
+  - 保留 `wfReviewConfirmedAt` 的原因：再確認後能以 `wfTransConfirmedAt > wfReviewConfirmedAt` 正確判斷 `post_review_trans`（若清除 review 時間戳，再確認只會落到 `trans_confirmed`）
 - 統一入口：`handleTargetContentChanged(seg, rowEl)`
 
 觸點：[`unconfirmSegmentVisualAfterReplace`](../cat-tool/app.js)、譯文 debounce、取代／TM 路徑。
@@ -111,16 +114,25 @@
 - **ID 右鍵「設定為未確認」**：整句清除 wf（與上表「未確認」結果相同，不走警告）
 - 所有圖示左鍵狀態變更支援 **Ctrl+Z／Ctrl+Y**
 
+**備註（審稿確認 + 譯者左鍵）**：設 `wfReviewRevokedPending=true`、`status='unconfirmed'`；**不清除** `wfReviewConfirmedAt`／`wfReviewConfirmedBy`（讓後續再確認能走 `post_review_trans` 路徑）。上表「未確認」指顯示狀態，非清除 review 時間戳。
+
 ---
 
 ## 6. Ctrl+Enter（獨立，不取消）
 
+**`sameStage` 判斷**：比對**句段目前確認層級**與**操作身分**是否同階段（非比對 session kind 與身分是否一致）。例：審稿身分面對 `trans_confirmed` → 非同階段，可走升級；審稿身分面對 `review_confirmed` → 同階段。
+
 | 情境 | 行為 |
 |------|------|
-| 未確認 | 依 session 身分確認 + 跳下一句 + TM |
+| 未確認／orig-confirmed／review_revoked_editing | 依操作身分確認 + 跳下一句 + TM |
 | 已確認 + **同階段** | 狀態不變；檢查確認範圍並寫入 TM |
 | 已確認 + **跨階段** | 狀態升級（如補審稿標記，甲並存）+ TM |
-| 再確認前比對快照 | 若與審稿快照一致 → 還原審稿確認 + toast（§7） |
+| 再確認前比對快照 | 若與審稿快照 `targetCanonical` 一致 → 還原審稿確認 + toast（§7.2） |
+| **審稿確認**或**審稿後再確認** + **譯者**（未編輯） | 無反應 + toast「審稿已確認，未實質編輯內容」；**不移焦** |
+| **review_revoked_editing** + 譯者按確認，譯文 = 快照 A | 恢復審稿確認 + toast（§7.2）；**不**產生 `post_review_trans` |
+| **review_revoked_editing** + 譯者按確認，譯文 ≠ 快照 A | 狀態 → `post_review_trans` |
+
+無論譯者再編輯並確認多少次，只要譯文與審稿確認當下的 A 相符，即觸發未實質編輯恢復（§7.2）。
 
 **ID 右鍵「設定為已確認」** = 對選取句執行 **Ctrl+Enter 邏輯**（非 §5 圖示邏輯）。
 
@@ -154,7 +166,7 @@
 
 ### 8.1 進階篩選
 
-**保留**：「已確認」、「翻譯已標」、「審稿已標」。
+**保留**：「已確認」（`status === 'confirmed'`，含 orig-confirmed）。
 
 **新增**（與 wf 維 OR；跨維 AND）：
 
@@ -182,7 +194,8 @@
 
 ### 9.1 PM+ 身分切換鈕
 
-- 位置：搜尋列第二列左側 [`#sfCellModeRow2`](../cat-tool/index.html)（進階篩選 ▼ 旁）  
+- 位置：搜尋列第二列「¬」正下方（[`div.sf-cell-invert.sf-cell-row2-spacer`](../cat-tool/index.html)），位於 memoQ 狀態指示器與「取代」之間  
+- 顯示文案：**T**（翻譯模式）／**R**（審稿模式）  
 - 切換 `currentWfSessionKind`：`translate` ↔ `review`  
 - **預設：審稿**（`review`）  
 - 僅 `_isCatPmOrExecutive()` 可見（含個人版）
@@ -237,3 +250,5 @@
 | 日期 | 內容 |
 |------|------|
 | 2026-06-19 | 初稿：本對話定案（A1 甲、點圖示／Ctrl+Enter 分離、五態、審稿回溯、篩選進度、PM UX、禁止編輯用字） |
+| 2026-06-19 | **B-7g 第一波**（commit `24ccdcd`）：CSS 虛線外環改 `inset:-3px`、移除快照覆寫錯誤行、`sameStage` 改以顯示狀態比對身分、T/R 切換鈕移至 ¬ 下方、移除「翻譯已標／審稿已標」篩選項 |
+| 2026-06-19 | **B-7g 第二波（規格修訂）**：§4 更正不應清除 `wfReviewConfirmedAt`；§5 補充圖示左鍵不清除 review 時間戳；§6 補充審稿確認＋譯者三種 Ctrl+Enter 路徑；§3 `orig-confirmed` 改純外圈（18px／2px，待實作） |
