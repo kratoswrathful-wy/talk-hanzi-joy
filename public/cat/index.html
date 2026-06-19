@@ -840,10 +840,11 @@
                                     <!-- Row 2 -->
                                     <div class="sf-cell sf-cell-mode mq-role-hidden" id="sfCellModeRow2">
                                         <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" data-tip="進階篩選" tabindex="4">▼</button>
-                                        <button type="button" class="icon-btn btn-sm sf-pm-acting-role-btn" id="btnPmActingRole" style="display:none;" data-tip="切換目前編輯操作視為翻譯或審稿人員（PM 以上）" tabindex="5">審稿</button>
                                         <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" data-tip="作業中身分：T">✓</span>
                                     </div>
-                                    <div class="sf-cell sf-cell-invert sf-cell-row2-spacer" aria-hidden="true"></div>
+                                    <div class="sf-cell sf-cell-invert sf-cell-row2-spacer">
+                                        <button type="button" class="icon-btn btn-sm sf-pm-acting-role-btn" id="btnPmActingRole" style="display:none;" data-tip="切換目前編輯操作視為翻譯或審稿人員（PM 以上）" tabindex="5">T</button>
+                                    </div>
                                     <span class="sf-cell sf-cell-label">取代：</span>
                                     <div class="sf-cell sf-cell-input">
                                         <div class="sf-input-wrap sf-input-wrap--replace">
@@ -885,8 +886,6 @@
                                     <p id="sfMqRoleFilterHint" class="sf-mq-role-hint" style="display:none;" hidden>已確認句段：篩選由誰按下最終確認（與格線狀態欄圖示相同）。未確認句段不受 memoQ 確認身分勾選影響。</p>
                                     <div id="sfWfMarkedFilterRow" class="sf-adv-grid sf-adv-status-row-wf" style="display:none;" hidden>
                                         <span class="sf-wf-marked-heading" aria-hidden="true">內部 Workflow</span>
-                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_trans_marked"> 翻譯已標</label>
-                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_review_marked"> 審稿已標</label>
                                         <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_trans_confirmed"> 翻譯已確認</label>
                                         <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_review_confirmed"> 審稿已確認</label>
                                         <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_post_review_trans"> 審稿後翻譯確認</label>

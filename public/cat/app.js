@@ -3060,7 +3060,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.style.display = show ? '' : 'none';
         if (!show) return;
         const kind = currentWfSessionKind || 'review';
-        btn.textContent = kind === 'review' ? '審稿' : '翻譯';
+        btn.textContent = kind === 'review' ? 'R' : 'T';
         btn.dataset.actingRole = kind;
         btn.title = kind === 'review' ? '目前操作視為審稿（點擊切換為翻譯）' : '目前操作視為翻譯（點擊切換為審稿）';
     }
@@ -6528,7 +6528,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!seg) return;
         const st = resolveSegmentConfirmDisplayState(seg);
         if (st === 'review_confirmed' || st === 'post_review_trans') {
-            if (_isWfReviewMarked(seg)) _captureReviewRestoreSnapshot(seg);
             seg.wfReviewConfirmedAt = null;
             seg.wfReviewConfirmedBy = null;
             seg.wfReviewRevokedPending = true;
@@ -6635,9 +6634,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return { focusNext: true, restored: true };
         }
         const disp = resolveSegmentConfirmDisplayState(seg);
-        const sessionKind = currentWfSessionKind || (_isActingAsReviewer() ? 'review' : 'translate');
-        const sameStage = (sessionKind === 'review' && _isActingAsReviewer())
-            || (sessionKind === 'translate' && _isActingAsTranslator());
+        const dispIsReviewLevel = disp === 'review_confirmed' || disp === 'post_review_trans';
+        const dispIsTransLevel = disp === 'trans_confirmed';
+        const sameStage = (dispIsReviewLevel && _isActingAsReviewer())
+            || (dispIsTransLevel && _isActingAsTranslator());
 
         if (disp === 'unconfirmed' || disp === 'orig_confirmed' || disp === 'review_revoked_editing') {
             const kinds = _isActingAsReviewer() ? ['review'] : ['translate'];
@@ -18258,8 +18258,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         mq_t: 'memoQ 確認身分：T（譯者）',
         mq_r1: 'memoQ 確認身分：R1',
         mq_r2: 'memoQ 確認身分：R2',
-        wf_trans_marked: '內部 Workflow：翻譯已標',
-        wf_review_marked: '內部 Workflow：審稿已標',
     };
 
     /** mqxliff 進階篩選：顯示／隱藏 memoQ 身分列並清除非 mqxliff 時之勾選 */
@@ -18431,9 +18429,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const confirmKeys = ['confirmed', 'unconfirmed'];
             const lockKeys = ['locked', 'unlocked'];
             const mqRoleKeys = ['mq_t', 'mq_r1', 'mq_r2'];
-            const wfMarkedKeys = ['wf_trans_marked', 'wf_review_marked'];
             const wfConfirmKeys = ['wf_trans_confirmed', 'wf_review_confirmed', 'wf_post_review_trans'];
-            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys, wfMarkedKeys, wfConfirmKeys];
+            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys, wfConfirmKeys];
             statusMatch = true;
             for (const keys of dims) {
                 const picked = statuses.filter((s) => keys.includes(s));
@@ -18458,8 +18455,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (!isConfirmed) dimOk = true;
                         else if (seg.confirmationRole === 'R2') dimOk = true;
                     }
-                    if (s === 'wf_trans_marked' && _isWfTransMarkedEffective(seg)) dimOk = true;
-                    if (s === 'wf_review_marked' && _isWfReviewMarkedEffective(seg)) dimOk = true;
                     if (_segmentMatchesWfFilterKey(seg, s)) dimOk = true;
                 }
                 if (!dimOk) { statusMatch = false; break; }
