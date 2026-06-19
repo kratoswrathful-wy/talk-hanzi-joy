@@ -64,6 +64,8 @@ function segmentExtraCamelToSnake(extra: Record<string, unknown> | null | undefi
   if ("wfTransConfirmedBy" in e) out.wf_trans_confirmed_by = e.wfTransConfirmedBy ?? null;
   if ("wfReviewConfirmedAt" in e) out.wf_review_confirmed_at = e.wfReviewConfirmedAt ?? null;
   if ("wfReviewConfirmedBy" in e) out.wf_review_confirmed_by = e.wfReviewConfirmedBy ?? null;
+  if ("wfReviewRestoreSnapshot" in e) out.wf_review_restore_snapshot = e.wfReviewRestoreSnapshot ?? null;
+  if ("wfReviewRevokedPending" in e) out.wf_review_revoked_pending = !!e.wfReviewRevokedPending;
   return out;
 }
 
@@ -272,6 +274,8 @@ const mapSegmentRow = (r: any) => {
     wfTransConfirmedBy: r.wf_trans_confirmed_by ?? null,
     wfReviewConfirmedAt: r.wf_review_confirmed_at ?? null,
     wfReviewConfirmedBy: r.wf_review_confirmed_by ?? null,
+    wfReviewRestoreSnapshot: tryParseJson(r.wf_review_restore_snapshot, null),
+    wfReviewRevokedPending: !!r.wf_review_revoked_pending,
   };
 };
 

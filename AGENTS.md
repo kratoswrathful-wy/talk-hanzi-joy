@@ -54,10 +54,11 @@
 - [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A／**Phase B 已落地**；**B-6 已實作**；**B-7 已落地**；Phase C 規劃中）
 - [`docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — **Phase B Workflow** 完整規格（**已落地並驗收** `e4a6205`～`d7232ab`：v5 migration／檔案清單逐行、LMS 雙向、開檔熱修 §11.7、更新檔 Modal §11.8、任務完成按下驗證 §11.9；**B-6 延伸** §12 已實作；**B-7** §13）
 - [`docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — **Phase B-6** 檔案準備閘門 + 審稿任務完成（**已實作** `fd67332`、migration 已 push；prep 僅 PM 可編、派出閘門、審稿任務完成；審稿暫不 Slack；舊檔 backfill）
-- [`docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — **Phase B-7** 統一顯示狀態 + 檔案清單／儀表板 UX（**B-7a～f 已實作**；§12 匯入已確認句段；§14 批次審稿完成作業）
+- [`docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — **Phase B-7** 統一顯示狀態 + 檔案清單／儀表板 UX（**B-7a～g**；§12 匯入已確認句段；§14 批次審稿完成作業）
+- [`docs/CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](docs/CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md) — **B-7g** 確認狀態五態、點圖示／Ctrl+Enter、審稿回溯、篩選進度、PM 切換（**實作中**）
 - [`docs/CAT_BULK_REVIEW_COMPLETE_2026-06.md`](docs/CAT_BULK_REVIEW_COMPLETE_2026-06.md) — 批次審稿完成作業執行記錄（2026-06-19；413 個 stage；LMS 審稿指派比對；264 個 `workflow_status` bug 修正；稍後處理清單）
 - [`docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md`](docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md) — Workflow **整檔指派卻句段鎖定**（修復 **B-7d**）
-- [`docs/bug-report_workflow-import-confirmed-status-column_2026-06.md`](docs/bug-report_workflow-import-confirmed-status-column_2026-06.md) — 匯入 XLIFF **已確認 vs 狀態欄實心綠／sdlxliff 空心圈**（**B-7e 待排程**）
+- [`docs/bug-report_workflow-import-confirmed-status-column_2026-06.md`](docs/bug-report_workflow-import-confirmed-status-column_2026-06.md) — 匯入 XLIFF **已確認 vs 狀態欄**（**B-7e 已實作**；五態互動見 **B-7g**）
 - [`docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) — **B-0** 檔序、句段集排序、左欄顯示序、篩選 A、Workflow 列號對齊
 - **1UP CAT／LMS 整合 UX 大計畫**（Cursor plan `1up_ux_與遷移`）— **唯一完整主紀錄**（第二波 UX、B+D2、UX 微調、加號）；Git 摘要 [`docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md)
 

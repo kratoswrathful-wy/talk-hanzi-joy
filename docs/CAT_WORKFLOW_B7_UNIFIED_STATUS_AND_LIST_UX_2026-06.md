@@ -275,6 +275,7 @@ CREATE TABLE IF NOT EXISTS public.cat_user_ui_prefs (
 | **B-7d** | §11：`CAT_ASSIGN_FILE` 同步 `cat_stage_assignments`、句段集內列號快取 | **已實作** |
 | **B-7e** | §12：匯入已確認句段對話框、狀態欄外環視覺、全格式 `orig-confirmed` | **已實作** |
 | **B-7f** | `cat_user_ui_prefs` migration `20260618130000`、「隱藏已完成」雲端持久化、預設勾選、`db.getUserUiPref`／`db.setUserUiPref` | **已實作**（`574f11d`） |
+| **B-7g** | 確認狀態五態、點圖示／Ctrl+Enter 分離、審稿回溯、篩選進度、PM 切換鈕；見 [`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md) | **實作中** |
 
 每波次：`npm run sync:cat`、更新本文件狀態欄。
 
@@ -381,17 +382,22 @@ CREATE TABLE IF NOT EXISTS public.cat_user_ui_prefs (
 
 對話框頂部顯示**原檔語言對**（唯讀）。
 
-### 12.3 狀態欄視覺（全域永久）
+### 12.3 狀態欄視覺（B-7e 初版；完整五態見 B-7g）
 
-| 狀態 | 視覺 |
-|------|------|
-| 未確認 | 灰邊白圓（內圓 14px） |
-| 系統翻譯確認 | 實心綠內圓（14px） |
-| 系統審稿確認 | 實心綠內圓 + **有間隙外環**（`box-shadow: 0 0 0 2px #fff, 0 0 0 4px green`） |
-| 原檔已確認、系統未確認（`orig-confirmed`） | **僅**外環（透明內圈、無邊框）+ 綠色符號（mqxliff）；非 mqxliff 僅外環 |
-| 原檔 + 系統皆確認 | 實心綠 + 外環 + 符號（**白色**） |
+B-7e 已落地匯入對話框與 `orig-confirmed` 初版。**確認狀態互動、五態視覺、tooltip、篩選與進度**之完整規格見專文件：
 
-**適用格式**：所有 XLIFF 衍生格式；非 mqxliff 僅外環、不疊符號。
+→ [`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md)（**B-7g**，本對話亦稱 B-7f 確認狀態 UX）
+
+| 狀態（摘要） | 視覺（摘要） |
+|--------------|--------------|
+| 未確認 | 灰邊白圓（14px） |
+| 翻譯確認 | 實心綠內圓 + 白符號 |
+| 審稿確認 | 實心綠內圓 + 實線外環 + 白符號 |
+| 審稿後譯者再編輯 | 虛線外環 + 綠符號 |
+| 審稿後譯者再確認 | 虛線外環 + 實心綠內圓 + 白符號 |
+| 原檔已確認、系統未確認 | 實線外環 + 綠符號（無內圓 DOM） |
+
+**適用格式**：所有 XLIFF 衍生格式；非 mqxliff 無 mq 符號層。
 
 ### 12.4 程式觸點
 
@@ -412,6 +418,7 @@ CREATE TABLE IF NOT EXISTS public.cat_user_ui_prefs (
 
 | 日期 | 內容 |
 |------|------|
+| 2026-06-19 | **B-7g 規格定案**：[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md)；§15、§12.3 改引用 |
 | 2026-06-19 | **B-7d 落地**：`CatToolPage.tsx` `CAT_ASSIGN_FILE`／`CAT_UNASSIGN_FILE` 同步整檔 `cat_stage_assignments`；`_buildFullListLineNoCacheForView` 句段集列號 |
 | 2026-06-19 | **B-7e 視覺微調**：內圓 14px；外環 `2px` 白隙 + `4px` 綠；`orig-confirmed` 透明內圈（僅外環 + 綠符號） |
 | 2026-06-19 | **B-7d／B-7e 規格定案**：§12 匯入已確認句段對話框、狀態欄外環視覺、全格式 `orig-confirmed`；§11 B-7d 整檔指派同步 |
@@ -503,3 +510,20 @@ WHERE a.file_workflow_stage_id = s.id
 |------|------|----------|
 | `Zoopedia_part4_384-425_TW_zho-TW.mqxliff` | `prep` 未完成，已跳過 | prep 完成後手動補設審稿完成 |
 | 41 個含「自研工具」的 LMS 案件 | 缺少 `related_lms_case_id` 直連 | 手動逐案確認後補連結 |
+
+---
+
+## 15. 確認狀態 UX（B-7g）
+
+> **完整規格**：[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md)
+
+本波次補足 B-7e 之後的使用者回報與對話定案：
+
+- **A1 甲**：審稿確認保留翻譯標記並追加審稿標記  
+- **五態**狀態欄（含「審稿後譯者再編輯」虛線中間態）  
+- **點圖示**與 **Ctrl+Enter** 分離；ID 右鍵「已確認」= Ctrl+Enter  
+- 譯文變更取消確認；審稿快照回溯（toast／離開 modal）  
+- 進階篩選三項 + 雙進度規則  
+- PM+ 搜尋列翻譯／審稿切換（預設審稿）、準備中 tooltip、PM 首次改譯文警告  
+
+實作波次見專文件 §11；驗收見專文件 §11 清單。

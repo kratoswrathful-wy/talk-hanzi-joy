@@ -1558,15 +1558,57 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .status-icon-stack.wf-review .status-wf-core {
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--success-color);
 }
-.status-icon-stack.wf-review:not(.wf-trans) .status-wf-core {
-    background: #fff;
+/* B-7g：審稿確認須實心綠內圓（不再空心） */
+.status-icon-stack.wf-review.wf-trans .status-wf-core {
+    background: var(--success-color);
     border-color: var(--success-color);
 }
-/* 原檔已確認、系統未確認：僅外環 + 綠色符號，不顯示內圈 */
-.status-icon-stack.orig-confirmed:not(.wf-trans):not(.wf-review) .status-wf-core {
-    background: transparent;
-    border-color: transparent;
+/* 原檔已確認：僅外環（無內圓 DOM 時用 pseudo） */
+.status-icon-stack.orig-confirmed {
+    width: 14px;
+    height: 14px;
+}
+.status-icon-stack.orig-confirmed::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--success-color);
+    box-sizing: border-box;
+    pointer-events: none;
+}
+/* 審稿後譯者再編輯：虛線外環 + 綠符號 */
+.status-icon-stack.wf-review-revoked {
+    width: 14px;
+    height: 14px;
+}
+.status-icon-stack.wf-review-revoked::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--success-color);
+    border: 2px dashed var(--success-color);
+    box-sizing: border-box;
+    pointer-events: none;
+}
+/* 審稿後譯者再確認：虛線外環 + 實心內圓 */
+.status-icon-stack.wf-post-review-trans .status-wf-core {
+    background: var(--success-color);
+    border-color: var(--success-color);
+}
+.status-icon-stack.wf-post-review-trans {
+    width: 14px;
+    height: 14px;
+}
+.status-icon-stack.wf-post-review-trans::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px dashed var(--success-color);
+    box-sizing: border-box;
+    pointer-events: none;
 }
 .status-icon-stack.mq-done:not(.wf-trans):not(.orig-confirmed) .status-wf-core {
     background: #f0fdf4;
@@ -1585,7 +1627,9 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     font-weight: 600;
 }
 .status-icon-stack.wf-trans .status-mq-overlay,
-.status-icon-stack.wf-review .status-mq-overlay {
+.status-icon-stack.wf-review .status-mq-overlay,
+.status-icon-stack.wf-post-review-trans .status-mq-overlay,
+.status-mq-overlay.status-mq-overlay--white {
     color: #fff;
 }
 .status-mq-glyph sup {

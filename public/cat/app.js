@@ -124,11 +124,23 @@ function openCatConfirmModal(message, options = {}) {
         const msgEl = document.getElementById('catGenericConfirmMsg');
         const btnOk = document.getElementById('btnCatGenericConfirmOk');
         const btnCancel = document.getElementById('btnCatGenericConfirmCancel');
+        const dontRow = document.getElementById('catGenericConfirmDontShowRow');
+        const dontCb = document.getElementById('catGenericConfirmDontShow');
+        const dontLabel = document.getElementById('catGenericConfirmDontShowLabel');
         if (!modal || !titleEl || !msgEl || !btnOk || !btnCancel) {
             resolve(window.confirm(message));
             return;
         }
         let settled = false;
+        if (options.showDontShowAgain && dontRow && dontCb) {
+            dontRow.classList.remove('hidden');
+            dontRow.style.display = 'flex';
+            dontCb.checked = false;
+            if (dontLabel && options.dontShowAgainLabel) dontLabel.textContent = options.dontShowAgainLabel;
+        } else if (dontRow) {
+            dontRow.classList.add('hidden');
+            dontRow.style.display = 'none';
+        }
         if (title) {
             titleEl.textContent = title;
             titleEl.classList.remove('hidden');
@@ -152,7 +164,15 @@ function openCatConfirmModal(message, options = {}) {
             cleanup();
             resolve(v);
         }
-        function onOk() { finish(true); }
+        function onOk() {
+            if (options.showDontShowAgain && dontCb && dontCb.checked) {
+                finish({ confirmed: true, dontShowAgain: true });
+            } else if (options.showDontShowAgain) {
+                finish({ confirmed: true, dontShowAgain: false });
+            } else {
+                finish(true);
+            }
+        }
         function onCancel() { finish(false); }
         function onOverlay(e) {
             if (e.target === modal) onCancel();
@@ -1121,6 +1141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         markEmptySegUserEdited(seg.id);
 
         const newText = op === 'copy-source' ? seg.sourceText : '';
+        const prevText = seg.targetText || '';
         if (op === 'copy-source') {
             seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
         } else {
@@ -1136,11 +1157,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateTagColors(rowEl, newText);
             }
             if (op === 'clear') applyMatchCellVisual(rowEl, '');
-            if (seg.status === 'confirmed') {
-                applyWorkflowConfirmToSegment(seg, false);
+            const hadWf = seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg);
+            if (hadWf && newText !== prevText) {
+                applyWorkflowRevokeOnTargetEdit(seg);
                 refreshStatusIconForRow(rowEl, seg);
                 syncRowConfirmedStateClass(rowEl, seg);
-                await DBService.updateSegmentStatus(seg.id, 'unconfirmed', buildWorkflowStatusExtra(seg));
+                await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
             }
         }
         const extra = { targetTags: seg.targetTags };
@@ -1170,6 +1192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const beforeSnap = snapshotSegForUndo(seg);
                         markEmptySegUserEdited(seg.id);
                         const newText = op === 'copy-source' ? seg.sourceText : '';
+                        const prevText = seg.targetText || '';
                         if (op === 'copy-source') {
                             seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
                         } else {
@@ -1184,11 +1207,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 updateTagColors(rowEl, newText);
                             }
                             if (op === 'clear') applyMatchCellVisual(rowEl, '');
-                            if (seg.status === 'confirmed') {
-                                applyWorkflowConfirmToSegment(seg, false);
+                            const hadWf = seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg);
+                            if (hadWf && newText !== prevText) {
+                                applyWorkflowRevokeOnTargetEdit(seg);
                                 refreshStatusIconForRow(rowEl, seg);
                                 syncRowConfirmedStateClass(rowEl, seg);
-                                pending.push(DBService.updateSegmentStatus(seg.id, 'unconfirmed', buildWorkflowStatusExtra(seg)));
+                                pending.push(DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg)));
                             }
                         }
                         const extra = { targetTags: seg.targetTags };
@@ -3026,6 +3050,110 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         el.style.display = '';
         el.textContent = currentWfSessionKind === 'review' ? '目前：審稿工作' : '目前：翻譯工作';
+        _refreshPmActingRoleBtn();
+    }
+
+    function _refreshPmActingRoleBtn() {
+        const btn = document.getElementById('btnPmActingRole');
+        if (!btn) return;
+        const show = _isCatPmOrExecutive() && activeView === 'viewEditor' && (currentFileId || _currentViewId);
+        btn.style.display = show ? '' : 'none';
+        if (!show) return;
+        const kind = currentWfSessionKind || 'review';
+        btn.textContent = kind === 'review' ? '審稿' : '翻譯';
+        btn.dataset.actingRole = kind;
+        btn.title = kind === 'review' ? '目前操作視為審稿（點擊切換為翻譯）' : '目前操作視為翻譯（點擊切換為審稿）';
+    }
+
+    const _pmPrepFirstEditWarnedFiles = new Set();
+
+    async function _maybePmPrepFirstEditWarn() {
+        if (!_isCatPmOrExecutive() || !currentFileId) return true;
+        if (_pmPrepFirstEditWarnedFiles.has(String(currentFileId))) return true;
+        if (!_currentFilePrepActive()) return true;
+        _pmPrepFirstEditWarnedFiles.add(String(currentFileId));
+        const name = (editorFileName && editorFileName.textContent) ? editorFileName.textContent.trim() : '目前檔案';
+        const msg = `「${name}」仍在準備中。是否要將狀態改為準備完成？（不會阻擋本次編輯）`;
+        const ok = await openCatConfirmModal(msg, { title: '檔案準備中' });
+        if (ok) {
+            const stages = window._currentFileWorkflowStages || [];
+            const prep = stages.find((s) => s.stageKind === 'prep');
+            if (prep) await _pmMarkPrepReady(currentFileId, prep.id);
+        }
+        return true;
+    }
+
+    function _collectReviewRestoreLeaveCandidates() {
+        const out = [];
+        (currentSegmentsList || []).forEach((seg, listIdx) => {
+            if (!_isEligibleForReviewRestorePrompt(seg)) return;
+            out.push({ seg, listIdx, displayId: _segDisplayId(seg, listIdx) });
+        });
+        return out;
+    }
+
+    function showReviewRestoreLeaveModal(candidates) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('reviewRestoreLeaveModal');
+            const listEl = document.getElementById('reviewRestoreLeaveList');
+            const btnApply = document.getElementById('btnReviewRestoreLeaveApply');
+            const btnSkip = document.getElementById('btnReviewRestoreLeaveSkip');
+            if (!modal || !listEl || !btnApply || !btnSkip) {
+                resolve({ action: 'skip', ids: [] });
+                return;
+            }
+            listEl.innerHTML = candidates.map((c, i) => {
+                const src = String(c.seg.sourceText || '').slice(0, 80);
+                const tgt = String(c.seg.targetText || '').slice(0, 80);
+                return `<label style="display:block; padding:0.45rem 0.35rem; border-bottom:1px solid #f1f5f9; font-size:0.82rem; cursor:pointer;">
+                    <input type="checkbox" class="review-restore-leave-cb" data-seg-id="${c.seg.id}" checked style="margin-right:0.4rem;">
+                    <strong>#${c.displayId}</strong>
+                    <div style="color:#64748b; margin-top:0.2rem;">原文：${src.replace(/</g, '&lt;')}</div>
+                    <div style="color:#334155; margin-top:0.15rem;">譯文：${tgt.replace(/</g, '&lt;')}</div>
+                </label>`;
+            }).join('');
+            const finish = (action, ids) => {
+                modal.classList.add('hidden');
+                btnApply.onclick = null;
+                btnSkip.onclick = null;
+                modal.onclick = null;
+                resolve({ action, ids });
+            };
+            btnApply.onclick = () => {
+                const ids = [];
+                listEl.querySelectorAll('.review-restore-leave-cb:checked').forEach((cb) => {
+                    ids.push(cb.getAttribute('data-seg-id'));
+                });
+                finish('apply', ids);
+            };
+            btnSkip.onclick = () => finish('skip', []);
+            modal.onclick = (e) => { if (e.target === modal) finish('cancel', []); };
+            modal.classList.remove('hidden');
+        });
+    }
+
+    async function maybePromptReviewRestoreBeforeLeave() {
+        const candidates = _collectReviewRestoreLeaveCandidates();
+        if (!candidates.length) return true;
+        const result = await showReviewRestoreLeaveModal(candidates);
+        if (result.action === 'cancel') return false;
+        if (result.action === 'apply' && result.ids && result.ids.length) {
+            const allRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+            for (const id of result.ids) {
+                const seg = currentSegmentsList.find((s) => String(s.id) === String(id));
+                if (!seg) continue;
+                const idx = currentSegmentsList.indexOf(seg);
+                _applyReviewRestoreSnapshot(seg);
+                const row = allRows[idx];
+                if (row) {
+                    refreshStatusIconForRow(row, seg);
+                    syncRowConfirmedStateClass(row, seg);
+                }
+                await _persistSegmentWfState(seg);
+            }
+            updateProgress();
+        }
+        return true;
     }
 
     function _resolveAssigneeDisplayName(userId) {
@@ -4062,6 +4190,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:${barColor}; border-radius:4px; transition:width 0.3s;"></div>
                         <span style="position:relative; z-index:1; font-size:${fs}rem; padding:0 6px; line-height:${h}px; white-space:nowrap; color:#1e293b;">${pct}% (${_fmtProgressNum(confirmed)}/${_fmtProgressNum(total)} 字)</span>
                     </div>`;
+    }
+
+    function _wcCellWfProgressBar(summary, barColor, compact) {
+        const h = compact ? 16 : 18;
+        const fs = compact ? 0.75 : 0.77;
+        const w = compact ? 'min-width:100px; max-width:220px;' : 'min-width:100px; width:100%;';
+        const transPct = summary.transPct ?? 0;
+        const reviewPct = summary.reviewPct ?? 0;
+        return `<div style="position:relative; background:#e2e8f0; border-radius:4px; height:${h}px; ${w}">
+                        <div style="position:absolute; top:0; left:0; bottom:0; width:${transPct}%; background:${barColor}; border-radius:4px; transition:width 0.3s;"></div>
+                        <span style="position:relative; z-index:1; font-size:${fs}rem; padding:0 6px; line-height:${h}px; white-space:nowrap; color:#1e293b;">翻譯 ${transPct}%｜審稿 ${reviewPct}%</span>
+                    </div>`;
+    }
+
+    function _computeListWfProgressFromSegments(segs, wordForSeg) {
+        const list = segs || [];
+        const totalSegs = list.length;
+        const transSegs = list.filter((s) => _isWfTransProgressCounted(s)).length;
+        const reviewSegs = list.filter((s) => _isWfReviewProgressCounted(s)).length;
+        let totalWords = 0;
+        let transWords = 0;
+        let reviewWords = 0;
+        list.forEach((s) => {
+            const w = wordForSeg(s) || 0;
+            totalWords += w;
+            if (_isWfTransProgressCounted(s)) transWords += w;
+            if (_isWfReviewProgressCounted(s)) reviewWords += w;
+        });
+        const transPct = totalSegs ? Math.round((transSegs / totalSegs) * 100) : 0;
+        const reviewPct = totalSegs ? Math.round((reviewSegs / totalSegs) * 100) : 0;
+        return { transPct, reviewPct, transSegs, reviewSegs, totalSegs, transWords, reviewWords, totalWords };
     }
 
     const collabSelfSessionId = `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -6169,12 +6328,128 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(seg && seg.wfReviewConfirmedAt);
     }
 
-    /**
-     * 進度與狀態欄：內部 wf_* 優先；舊檔僅 memoQ 已確認時依 Workflow 步驟 fallback。
-     * 翻譯步驟或審稿步驟進行中，memoQ 已確認視為翻譯已完成（與舊進度條一致）。
-     */
+    /** B-7g：譯文比對用正規化（trim 每行、統一換行） */
+    function normalizeTargetForCompare(text) {
+        if (text == null) return '';
+        return String(text)
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .split('\n')
+            .map((line) => line.trim())
+            .join('\n');
+    }
+
+    /** B-7g：五態 + orig */
+    function resolveSegmentConfirmDisplayState(seg) {
+        if (!seg) return 'unconfirmed';
+        const twf = _isWfTransMarked(seg);
+        const rwf = _isWfReviewMarked(seg);
+        const mq = seg.status === 'confirmed';
+        if (mq && !twf && !rwf) return 'orig_confirmed';
+        if (seg.wfReviewRevokedPending) return 'review_revoked_editing';
+        if (twf && rwf) {
+            const t = new Date(seg.wfTransConfirmedAt).getTime();
+            const r = new Date(seg.wfReviewConfirmedAt).getTime();
+            if (Number.isFinite(t) && Number.isFinite(r) && t > r) return 'post_review_trans';
+            return 'review_confirmed';
+        }
+        if (rwf) return 'review_confirmed';
+        if (twf) return 'trans_confirmed';
+        return 'unconfirmed';
+    }
+
+    const WF_DISPLAY_STATE_LABELS = {
+        unconfirmed: '未確認',
+        orig_confirmed: '未確認',
+        trans_confirmed: '翻譯確認',
+        review_confirmed: '審稿確認',
+        review_revoked_editing: '審稿確認後譯者再編輯',
+        post_review_trans: '審稿確認後譯者再確認',
+    };
+
+    function _wfDisplayStateLabel(seg) {
+        const st = resolveSegmentConfirmDisplayState(seg);
+        return WF_DISPLAY_STATE_LABELS[st] || '未確認';
+    }
+
+    function _captureReviewRestoreSnapshot(seg) {
+        if (!seg) return;
+        seg.wfReviewRestoreSnapshot = {
+            targetCanonical: normalizeTargetForCompare(seg.targetText),
+            wfTransConfirmedAt: seg.wfTransConfirmedAt ?? null,
+            wfTransConfirmedBy: seg.wfTransConfirmedBy ?? null,
+            wfReviewConfirmedAt: seg.wfReviewConfirmedAt ?? null,
+            wfReviewConfirmedBy: seg.wfReviewConfirmedBy ?? null,
+            confirmationRole: seg.confirmationRole ?? null,
+        };
+    }
+
+    function _clearWfReviewRestoreSnapshot(seg) {
+        if (!seg) return;
+        seg.wfReviewRestoreSnapshot = null;
+        seg.wfReviewRevokedPending = false;
+    }
+
+    function _applyReviewRestoreSnapshot(seg) {
+        const snap = seg && seg.wfReviewRestoreSnapshot;
+        if (!snap) return false;
+        seg.targetText = seg.targetText;
+        seg.wfTransConfirmedAt = snap.wfTransConfirmedAt ?? null;
+        seg.wfTransConfirmedBy = snap.wfTransConfirmedBy ?? null;
+        seg.wfReviewConfirmedAt = snap.wfReviewConfirmedAt ?? null;
+        seg.wfReviewConfirmedBy = snap.wfReviewConfirmedBy ?? null;
+        if (snap.confirmationRole) seg.confirmationRole = snap.confirmationRole;
+        seg.status = 'confirmed';
+        seg.wfReviewRevokedPending = false;
+        return true;
+    }
+
+    function _targetMatchesReviewSnapshot(seg) {
+        const snap = seg && seg.wfReviewRestoreSnapshot;
+        if (!snap || !snap.targetCanonical) return false;
+        return normalizeTargetForCompare(seg.targetText) === snap.targetCanonical;
+    }
+
+    function _isEligibleForReviewRestorePrompt(seg) {
+        if (!seg || !seg.wfReviewRestoreSnapshot) return false;
+        if (!_targetMatchesReviewSnapshot(seg)) return false;
+        const st = resolveSegmentConfirmDisplayState(seg);
+        return st === 'review_revoked_editing' || st === 'unconfirmed' || st === 'trans_confirmed' || st === 'post_review_trans';
+    }
+
+    /** PM+ 或 session 身分：目前視為審稿 */
+    function _isActingAsReviewer() {
+        if (currentWfSessionKind === 'review') return true;
+        if (currentWfSessionKind === 'translate') return false;
+        if (_isCatPmOrExecutive()) return true;
+        const stages = window._currentFileWorkflowStages || [];
+        const active = _workflowSessionStage(stages);
+        return !!(active && active.stageKind === 'review');
+    }
+
+    function _isActingAsTranslator() {
+        return !_isActingAsReviewer();
+    }
+
+    function _isWfTransProgressCounted(seg) {
+        const st = resolveSegmentConfirmDisplayState(seg);
+        return st === 'trans_confirmed' || st === 'review_confirmed' || st === 'post_review_trans';
+    }
+
+    function _isWfReviewProgressCounted(seg) {
+        return resolveSegmentConfirmDisplayState(seg) === 'review_confirmed';
+    }
+
+    function _segmentMatchesWfFilterKey(seg, key) {
+        const st = resolveSegmentConfirmDisplayState(seg);
+        if (key === 'wf_trans_confirmed') return st === 'trans_confirmed';
+        if (key === 'wf_review_confirmed') return st === 'review_confirmed';
+        if (key === 'wf_post_review_trans') return st === 'post_review_trans';
+        return false;
+    }
+
     function _isWfTransMarkedEffective(seg) {
-        if (_isWfTransMarked(seg)) return true;
+        if (_isWfTransProgressCounted(seg)) return true;
         if (!seg || seg.status !== 'confirmed') return false;
         const stages = _workflowStagesForSegment(seg);
         if (_workflowAllStagesCompleted(stages)) return true;
@@ -6183,12 +6458,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return active.stageKind === 'translate' || active.stageKind === 'review';
     }
 
-    /**
-     * 審稿進度：wf_review 或 Workflow 全完成；審稿步驟進行中時 memoQ 已確認亦計入。
-     * 翻譯步驟進行中僅算 wf_review，避免舊確認句段誤顯示審稿已完成。
-     */
     function _isWfReviewMarkedEffective(seg) {
-        if (_isWfReviewMarked(seg)) return true;
+        if (_isWfReviewProgressCounted(seg)) return true;
         if (!seg || seg.status !== 'confirmed') return false;
         const stages = _workflowStagesForSegment(seg);
         if (_workflowAllStagesCompleted(stages)) return true;
@@ -6214,28 +6485,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         return uid || null;
     }
 
-    /** 確認／取消：內部 wf_* 與 memoQ status 一次寫入或清除（B-3） */
-    function applyWorkflowConfirmToSegment(seg, confirm) {
+    /** 確認／取消：內部 wf_* 與 memoQ status（B-3／B-7g） */
+    function applyWorkflowConfirmToSegment(seg, confirm, opts) {
         if (!seg) return;
+        const o = opts || {};
         if (!confirm) {
             seg.status = 'unconfirmed';
             seg.wfTransConfirmedAt = null;
             seg.wfTransConfirmedBy = null;
             seg.wfReviewConfirmedAt = null;
             seg.wfReviewConfirmedBy = null;
+            if (!o.keepReviewRestore) _clearWfReviewRestoreSnapshot(seg);
             if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
             return;
         }
         const now = new Date().toISOString();
         const userId = _wfUserIdForConfirm();
-        const kinds = _workflowConfirmKinds(seg);
+        const kinds = o.kinds || _workflowConfirmKinds(seg);
+        const hadReview = _isWfReviewMarked(seg);
         if (kinds.includes('translate')) {
             seg.wfTransConfirmedAt = now;
             seg.wfTransConfirmedBy = userId;
+            seg.wfReviewRevokedPending = false;
         }
         if (kinds.includes('review')) {
             seg.wfReviewConfirmedAt = now;
             seg.wfReviewConfirmedBy = userId;
+            seg.wfReviewRevokedPending = false;
+            _captureReviewRestoreSnapshot(seg);
+        } else if (hadReview && kinds.includes('translate') && !kinds.includes('review')) {
+            /* 審稿後譯者再確認：保留 review 時間 */
         }
         seg.status = 'confirmed';
         if (currentFileFormat === 'mqxliff') {
@@ -6244,12 +6523,164 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
     }
 
+    /** 譯文變更：曾審稿確認 → 中間態；僅翻譯確認 → 全清 */
+    function applyWorkflowRevokeOnTargetEdit(seg) {
+        if (!seg) return;
+        const st = resolveSegmentConfirmDisplayState(seg);
+        if (st === 'review_confirmed' || st === 'post_review_trans') {
+            if (_isWfReviewMarked(seg)) _captureReviewRestoreSnapshot(seg);
+            seg.wfReviewConfirmedAt = null;
+            seg.wfReviewConfirmedBy = null;
+            seg.wfReviewRevokedPending = true;
+            seg.status = seg.wfTransConfirmedAt ? 'confirmed' : 'unconfirmed';
+        } else if (st === 'trans_confirmed') {
+            applyWorkflowConfirmToSegment(seg, false);
+        } else if (st !== 'review_revoked_editing' && st !== 'unconfirmed') {
+            applyWorkflowConfirmToSegment(seg, false, { keepReviewRestore: !!seg.wfReviewRestoreSnapshot });
+            if (seg.wfReviewRestoreSnapshot) seg.wfReviewRevokedPending = true;
+        }
+        if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+    }
+
+    let _wfSkipTranslatorReviewCancelWarn = false;
+
+    async function _maybeWarnTranslatorReviewCancel() {
+        if (_wfSkipTranslatorReviewCancelWarn) return true;
+        const msg = '這樣會在沒有任何編輯的情況下取消審稿確認，是否繼續？';
+        const ok = await openCatConfirmModal(msg, {
+            title: '取消審稿確認',
+            showDontShowAgain: true,
+            dontShowAgainLabel: '本工作階段不再顯示',
+        });
+        if (ok && typeof ok === 'object' && ok.dontShowAgain) _wfSkipTranslatorReviewCancelWarn = true;
+        if (typeof ok === 'object') return !!ok.confirmed;
+        return !!ok;
+    }
+
+    async function maybeRestoreReviewFromSnapshot(seg, row) {
+        if (!_isEligibleForReviewRestorePrompt(seg)) return false;
+        if (!_targetMatchesReviewSnapshot(seg)) return false;
+        _applyReviewRestoreSnapshot(seg);
+        if (row) {
+            refreshStatusIconForRow(row, seg);
+            syncRowConfirmedStateClass(row, seg);
+        }
+        await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
+        showCatToast('取消審稿確認後未實質編輯內容，恢復審稿確認狀態', 'info');
+        updateProgress();
+        return true;
+    }
+
+    async function _persistSegmentWfState(seg) {
+        if (!seg || seg.id == null) return;
+        await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
+    }
+
+    /** B-7g：狀態圖示左鍵 */
+    async function onStatusIconClick(seg, row, segIdx) {
+        if (!seg) return;
+        const disp = resolveSegmentConfirmDisplayState(seg);
+        const asReviewer = _isActingAsReviewer();
+        const asTranslator = !asReviewer;
+        const beforeSnap = snapshotSegForUndo(seg);
+
+        if (disp === 'unconfirmed' || disp === 'orig_confirmed') {
+            const kinds = asReviewer ? ['review'] : ['translate'];
+            applyWorkflowConfirmToSegment(seg, true, { kinds });
+        } else if (disp === 'trans_confirmed') {
+            if (asTranslator) {
+                applyWorkflowConfirmToSegment(seg, false);
+            } else {
+                applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
+            }
+        } else if (disp === 'review_confirmed') {
+            if (asTranslator) {
+                if (!(await _maybeWarnTranslatorReviewCancel())) return;
+                applyWorkflowConfirmToSegment(seg, false, { keepReviewRestore: true });
+                seg.wfReviewRevokedPending = true;
+            } else {
+                applyWorkflowConfirmToSegment(seg, false);
+            }
+        } else if (disp === 'review_revoked_editing') {
+            if (asTranslator) {
+                applyWorkflowConfirmToSegment(seg, false);
+                _clearWfReviewRestoreSnapshot(seg);
+            } else {
+                applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
+            }
+        } else if (disp === 'post_review_trans') {
+            if (asTranslator) {
+                applyWorkflowConfirmToSegment(seg, false, { keepReviewRestore: true });
+                seg.wfReviewRevokedPending = true;
+            } else {
+                applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
+            }
+        }
+
+        refreshStatusIconForRow(row, seg);
+        if (row) syncRowConfirmedStateClass(row, seg);
+        updateProgress();
+        const afterSnap = snapshotSegForUndo(seg);
+        if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
+            pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
+        }
+        await _persistSegmentWfState(seg);
+    }
+
+    /** B-7g：Ctrl+Enter／右鍵已確認 */
+    async function onCtrlEnterConfirm(seg, row, segIdx, opts) {
+        const o = opts || {};
+        if (!seg) return { focusNext: false };
+        if (await maybeRestoreReviewFromSnapshot(seg, row)) {
+            return { focusNext: true, restored: true };
+        }
+        const disp = resolveSegmentConfirmDisplayState(seg);
+        const sessionKind = currentWfSessionKind || (_isActingAsReviewer() ? 'review' : 'translate');
+        const sameStage = (sessionKind === 'review' && _isActingAsReviewer())
+            || (sessionKind === 'translate' && _isActingAsTranslator());
+
+        if (disp === 'unconfirmed' || disp === 'orig_confirmed' || disp === 'review_revoked_editing') {
+            const kinds = _isActingAsReviewer() ? ['review'] : ['translate'];
+            applyWorkflowConfirmToSegment(seg, true, { kinds });
+            refreshStatusIconForRow(row, seg);
+            if (row) syncRowConfirmedStateClass(row, seg);
+            updateProgress();
+            await _persistSegmentWfState(seg);
+            return { focusNext: true, confirmed: true };
+        }
+
+        if (sameStage) {
+            return { focusNext: true, tmOnly: true };
+        }
+
+        if (disp === 'trans_confirmed' && _isActingAsReviewer()) {
+            applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
+            refreshStatusIconForRow(row, seg);
+            if (row) syncRowConfirmedStateClass(row, seg);
+            updateProgress();
+            await _persistSegmentWfState(seg);
+            return { focusNext: true, upgraded: true };
+        }
+        if ((disp === 'review_confirmed' || disp === 'post_review_trans') && _isActingAsTranslator()) {
+            applyWorkflowConfirmToSegment(seg, true, { kinds: ['translate'] });
+            refreshStatusIconForRow(row, seg);
+            if (row) syncRowConfirmedStateClass(row, seg);
+            updateProgress();
+            await _persistSegmentWfState(seg);
+            return { focusNext: true, upgraded: true };
+        }
+
+        return { focusNext: true, tmOnly: true };
+    }
+
     function buildWorkflowStatusExtra(seg) {
         const ex = {
             wfTransConfirmedAt: seg.wfTransConfirmedAt ?? null,
             wfTransConfirmedBy: seg.wfTransConfirmedBy ?? null,
             wfReviewConfirmedAt: seg.wfReviewConfirmedAt ?? null,
             wfReviewConfirmedBy: seg.wfReviewConfirmedBy ?? null,
+            wfReviewRestoreSnapshot: seg.wfReviewRestoreSnapshot ?? null,
+            wfReviewRevokedPending: !!seg.wfReviewRevokedPending,
         };
         if (currentFileFormat === 'mqxliff' && seg.confirmationRole) {
             ex.confirmationRole = seg.confirmationRole;
@@ -6268,42 +6699,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _buildStatusCellTooltip(seg) {
-        const lines = [];
-        const rwf = _isWfReviewMarkedEffective(seg);
-        const twf = _isWfTransMarkedEffective(seg) || rwf;
-        lines.push(twf
-            ? `內部翻譯：${_isWfTransMarked(seg) && seg.wfTransConfirmedAt ? new Date(seg.wfTransConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
-            : '內部翻譯：未標');
-        lines.push(rwf
-            ? `內部審稿：${_isWfReviewMarked(seg) && seg.wfReviewConfirmedAt ? new Date(seg.wfReviewConfirmedAt).toLocaleString('zh-TW', { hour12: false }) : '已標'}`
-            : '內部審稿：未標');
-        if (currentFileFormat === 'mqxliff') {
-            if (seg.status === 'confirmed') {
-                const r = seg.confirmationRole || 'T';
-                lines.push(`memoQ：${r === 'R2' ? '✓✓ R2' : r === 'R1' ? '✓+ R1' : '✓ T'}`);
-            } else {
-                lines.push('memoQ：未確認');
-            }
-        }
-        return lines.join('\n') + '\nCtrl+Enter／點擊 確認狀態';
+        return _wfDisplayStateLabel(seg);
     }
 
     function buildStatusCellHtml(seg) {
-        const rwf = _isWfReviewMarked(seg);
-        const twf = _isWfTransMarked(seg);
+        const disp = resolveSegmentConfirmDisplayState(seg);
         const mq = seg && seg.status === 'confirmed';
-        const origOnly = mq && !twf && !rwf;
         const classes = ['status-icon', 'status-icon-stack'];
-        if (twf) classes.push('wf-trans');
-        if (rwf) classes.push('wf-review');
-        if (origOnly) classes.push('orig-confirmed');
+        const useCore = disp !== 'orig_confirmed' && disp !== 'review_revoked_editing';
+        if (disp === 'trans_confirmed' || disp === 'review_confirmed' || disp === 'post_review_trans') {
+            classes.push('wf-trans');
+        }
+        if (disp === 'review_confirmed') classes.push('wf-review');
+        if (disp === 'post_review_trans') classes.push('wf-post-review-trans');
+        if (disp === 'review_revoked_editing') classes.push('wf-review-revoked');
+        if (disp === 'orig_confirmed') classes.push('orig-confirmed');
         const tip = _buildStatusCellTooltip(seg).replace(/"/g, '&quot;');
+        const whiteGlyph = disp === 'trans_confirmed' || disp === 'review_confirmed' || disp === 'post_review_trans';
         let mqHtml = '';
         if (mq && currentFileFormat === 'mqxliff') {
-            mqHtml = `<span class="status-mq-overlay">${_buildMqSymbolHtml(seg.confirmationRole || 'T')}</span>`;
+            const role = seg.confirmationRole || 'T';
+            const glyphClass = whiteGlyph ? 'status-mq-overlay status-mq-overlay--white' : 'status-mq-overlay';
+            mqHtml = `<span class="${glyphClass}">${_buildMqSymbolHtml(role)}</span>`;
         }
+        const coreHtml = useCore ? '<span class="status-wf-core" aria-hidden="true"></span>' : '';
         return `<span class="${classes.join(' ')}" data-tip="${tip}" style="cursor:pointer;">`
-            + '<span class="status-wf-core" aria-hidden="true"></span>'
+            + coreHtml
             + mqHtml
             + '</span>';
     }
@@ -6730,6 +7151,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             activeView = 'viewEditor';
+            if (_isCatPmOrExecutive() && !currentWfSessionKind) currentWfSessionKind = 'review';
+            _refreshPmActingRoleBtn();
             persistCatRoute();
             syncEditorWordCountToolbarBtn();
             refreshWfTaskCompleteToolbar();
@@ -7803,18 +8226,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">0 字</span>';
             return;
         }
-        let total;
-        let confirmed;
+        let summary;
         if (!useWeighted) {
-            if (WCE) {
-                total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-                confirmed = segs.filter((s) => s.status === 'confirmed')
-                    .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-            } else {
-                total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                confirmed = segs.filter((s) => s.status === 'confirmed')
-                    .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-            }
+            const wordFn = WCE
+                ? (s) => WCE.weightedUnits(s.sourceText || '')
+                : (s) => countWords(s.sourceText || '');
+            summary = _computeListWfProgressFromSegments(segs, wordFn);
         } else {
             const nSeg = segs.length;
             cell.innerHTML = _wcCellLoadingBar(0, nSeg, false);
@@ -7831,18 +8248,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             if (!_wcStillOnProjectDetail(pgId)) return;
             const per = res.perSegment || [];
-            total = 0;
-            confirmed = 0;
-            for (let i = 0; i < segs.length; i++) {
+            summary = _computeListWfProgressFromSegments(segs, (s) => {
+                const i = segs.indexOf(s);
                 const ps = per[i];
-                if (!ps) continue;
-                total += ps.weightedW;
-                if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
-            }
+                return ps ? ps.weightedW : 0;
+            });
         }
-        const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
         const cell2 = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
-        if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, false);
+        if (cell2) cell2.innerHTML = _wcCellWfProgressBar(summary, barColor, false);
     }
 
     /**
@@ -7902,18 +8315,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         let segs = await DBService.getSegmentsByIds(segIds);
         const orderMap = new Map(segIds.map((id, i) => [String(id), i]));
         segs = (segs || []).slice().sort((a, b) => (orderMap.get(String(a.id)) ?? 0) - (orderMap.get(String(b.id)) ?? 0));
-        let total;
-        let confirmed;
+        let summary;
         if (!useWeighted) {
-            if (WCE) {
-                total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-                confirmed = segs.filter((s) => s.status === 'confirmed')
-                    .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-            } else {
-                total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                confirmed = segs.filter((s) => s.status === 'confirmed')
-                    .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-            }
+            const wordFn = WCE
+                ? (s) => WCE.weightedUnits(s.sourceText || '')
+                : (s) => countWords(s.sourceText || '');
+            summary = _computeListWfProgressFromSegments(segs, wordFn);
         } else {
             const nSeg = segs.length;
             cell.innerHTML = _wcCellLoadingBar(0, nSeg, true);
@@ -7930,18 +8337,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             if (!_wcStillOnProjectDetail(pgId)) return;
             const per = res.perSegment || [];
-            total = 0;
-            confirmed = 0;
-            for (let i = 0; i < segs.length; i++) {
+            summary = _computeListWfProgressFromSegments(segs, (s) => {
+                const i = segs.indexOf(s);
                 const ps = per[i];
-                if (!ps) continue;
-                total += ps.weightedW;
-                if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
-            }
+                return ps ? ps.weightedW : 0;
+            });
         }
-        const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
         const cell2 = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-        if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, true);
+        if (cell2) cell2.innerHTML = _wcCellWfProgressBar(summary, barColor, true);
     }
 
     /** @param {{ singleViewId?: string|number }} [opts] */
@@ -14987,6 +15390,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 禁止編輯工具提示：區分「身分權限不足」與「匯入時即已鎖定」
     function getForbiddenTooltip(seg) {
+        if (!_isCatPmOrExecutive()) {
+            const stages = _workflowStagesForSegment(seg);
+            if (_isFilePrepIncomplete(stages)) return '禁止編輯，檔案準備中';
+        }
         if (computeSegmentEditForbidden(seg)) return '禁止編輯：不在您受派的列範圍內';
         if (_fileUnassignedReadOnly) return '禁止編輯：未受指派，無法編輯檔案';
         if (!seg.originalRole && seg.isLockedSystem) return '禁止編輯：匯入時即已鎖定';
@@ -16555,6 +16962,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         activeView = 'viewEditor';
+        if (_isCatPmOrExecutive() && !currentWfSessionKind) currentWfSessionKind = 'review';
+        _refreshPmActingRoleBtn();
         persistCatRoute();
         syncEditorWordCountToolbarBtn();
         refreshWfTaskCompleteToolbar();
@@ -17067,6 +17476,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncWordCountEditorScopeRadios();
         }
     });
+    const btnPmActingRole = document.getElementById('btnPmActingRole');
+    if (btnPmActingRole) {
+        btnPmActingRole.addEventListener('click', () => {
+            const cur = currentWfSessionKind || 'review';
+            currentWfSessionKind = cur === 'review' ? 'translate' : 'review';
+            _refreshPmActingRoleBtn();
+            _refreshWfSessionKindHint();
+            if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+            renderEditorSegments();
+            runSearchAndFilter();
+        });
+    }
     function onSwitchToFilterMode() {
         if (sfReplaceInput) sfReplaceInput.focus();
     }
@@ -18011,7 +18432,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const lockKeys = ['locked', 'unlocked'];
             const mqRoleKeys = ['mq_t', 'mq_r1', 'mq_r2'];
             const wfMarkedKeys = ['wf_trans_marked', 'wf_review_marked'];
-            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys, wfMarkedKeys];
+            const wfConfirmKeys = ['wf_trans_confirmed', 'wf_review_confirmed', 'wf_post_review_trans'];
+            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys, wfMarkedKeys, wfConfirmKeys];
             statusMatch = true;
             for (const keys of dims) {
                 const picked = statuses.filter((s) => keys.includes(s));
@@ -18038,6 +18460,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (s === 'wf_trans_marked' && _isWfTransMarkedEffective(seg)) dimOk = true;
                     if (s === 'wf_review_marked' && _isWfReviewMarkedEffective(seg)) dimOk = true;
+                    if (_segmentMatchesWfFilterKey(seg, s)) dimOk = true;
                 }
                 if (!dimOk) { statusMatch = false; break; }
             }
@@ -19283,6 +19706,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             wfTransConfirmedBy: seg.wfTransConfirmedBy ?? null,
             wfReviewConfirmedAt: seg.wfReviewConfirmedAt ?? null,
             wfReviewConfirmedBy: seg.wfReviewConfirmedBy ?? null,
+            wfReviewRestoreSnapshot: seg.wfReviewRestoreSnapshot ? { ...seg.wfReviewRestoreSnapshot } : null,
+            wfReviewRevokedPending: !!seg.wfReviewRevokedPending,
         };
     }
 
@@ -19298,6 +19723,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         seg.wfTransConfirmedBy = snap.wfTransConfirmedBy ?? null;
         seg.wfReviewConfirmedAt = snap.wfReviewConfirmedAt ?? null;
         seg.wfReviewConfirmedBy = snap.wfReviewConfirmedBy ?? null;
+        seg.wfReviewRestoreSnapshot = snap.wfReviewRestoreSnapshot ? { ...snap.wfReviewRestoreSnapshot } : null;
+        seg.wfReviewRevokedPending = !!snap.wfReviewRevokedPending;
     }
 
     async function persistSegStateToDb(seg) {
@@ -19908,14 +20335,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function unconfirmSegmentVisualAfterReplace(seg, segIdx) {
-        applyWorkflowConfirmToSegment(seg, false);
+        applyWorkflowRevokeOnTargetEdit(seg);
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const row = rows[segIdx];
         if (row) {
             syncRowConfirmedStateClass(row, seg);
             refreshStatusIconForRow(row, seg);
         }
-        DBService.updateSegmentStatus(seg.id, 'unconfirmed', buildWorkflowStatusExtra(seg)).catch(console.error);
+        DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg)).catch(console.error);
     }
 
     const AFTER_CONFIRM_NAV_KEY = 'catToolAfterConfirmNav';
@@ -20587,6 +21014,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function ensureWorkspaceNoteLeaveResolved() {
         const prepOk = await _ensurePmEditorPrepLeaveAllowed();
         if (!prepOk) return false;
+        const restoreOk = await maybePromptReviewRestoreBeforeLeave();
+        if (!restoreOk) return false;
         await autoSaveAllNotes();
         return await ensureNotesSharingResolved();
     }
@@ -20618,16 +21047,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             for (const i of indices) {
                 const seg = currentSegmentsList[i];
-                if (seg.status !== 'confirmed') {
-                    applyWorkflowConfirmToSegment(seg, true);
-                }
+                const row = gRows[i];
+                await onCtrlEnterConfirm(seg, row, i);
             }
             indices.forEach((i) => applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: false }));
             const dbWaits = [];
             touchAll.forEach((idx) => {
                 const seg = currentSegmentsList[idx];
                 const bs = beforeSnapshots[seg.id];
-                if (bs && bs.status !== 'confirmed' && seg.status === 'confirmed') {
+                if (bs && JSON.stringify(bs) !== JSON.stringify(snapshotSegForUndo(seg))) {
                     dbWaits.push(DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg)));
                 }
             });
@@ -22121,7 +22549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                         const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
                         const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
-                        if (oldVal !== latest && seg.status === 'confirmed') {
+                        if (oldVal !== latest && (seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg))) {
                             const typeSegIdx = currentSegmentsList.findIndex(s => s.id === seg.id);
                             if (typeSegIdx >= 0) unconfirmSegmentVisualAfterReplace(seg, typeSegIdx);
                         }
@@ -22204,7 +22632,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
                     markEmptySegUserEdited(seg.id);
+                    const prevValForWf = editorUndoEditStart[seg.id] ?? seg.targetText ?? '';
                     const newVal = extractTextFromEditor(targetInput);
+                    if (!aiModeActive && newVal !== prevValForWf) void _maybePmPrepFirstEditWarn();
                     seg.targetText = newVal;
                     refreshSegCharCount(targetInput);
                     emitCollabEdit('typing', seg, newVal);
@@ -22240,8 +22670,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     
                     // Unconfirm immediately if edited and was confirmed
-                    if (seg.status === 'confirmed') {
-                        applyWorkflowConfirmToSegment(seg, false);
+                    const prevConfirmedText = editorUndoEditStart[seg.id] ?? seg.targetText ?? '';
+                    if (newVal !== prevConfirmedText && (seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg))) {
+                        applyWorkflowRevokeOnTargetEdit(seg);
                         refreshStatusIconForRow(row, seg);
                         syncRowConfirmedStateClass(row, seg);
                         await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
@@ -22807,33 +23238,34 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const latestTarget = rebuildTargetEditorFromExtractedPlain(targetInput, seg, row);
                             seg.targetText = latestTarget;
 
-                            // ── 方案 B：立刻更新 UI 並跳行，DB 寫入全放後台 ──
                             const touch = collectConfirmTouchIndices(i);
                             const beforeSnapshots = {};
                             touch.forEach(idx => {
                                 const s = currentSegmentsList[idx];
                                 beforeSnapshots[s.id] = snapshotSegForUndo(s);
                             });
-                            const wasUnconfirmed = seg.status !== 'confirmed';
+                            const dispBefore = resolveSegmentConfirmDisplayState(seg);
                             const tmU = [];
                             const tmR = [];
-                            if (seg.status !== 'confirmed') {
-                                applyWorkflowConfirmToSegment(seg, true);
-                                refreshStatusIconForRow(row, seg);
-                                if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
-                                updateProgress();
-                            }
-                            if (seg.status === 'confirmed') {
+                            const ceResult = await onCtrlEnterConfirm(seg, row, i);
+                            if (ceResult.confirmed || ceResult.upgraded || ceResult.restored) {
                                 applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
+                            }
+                            if (ceResult.tmOnly || ceResult.confirmed || ceResult.upgraded) {
+                                if (seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg)) {
+                                    /* TM 於 side effects */
+                                }
                             }
                             isConfirming = true;
                             ++targetWriteGeneration;
-                            const nextFocus = getAfterConfirmFocusIndex(i);
-                            focusTargetEditorAtSegmentIndex(nextFocus);
+                            if (ceResult.focusNext !== false) {
+                                const nextFocus = getAfterConfirmFocusIndex(i);
+                                focusTargetEditorAtSegmentIndex(nextFocus);
+                            }
                             maybeSwitchRightPanelToCatAfterConfirm();
                             isConfirming = false;
                             _qaIncrementalRefreshAfterConfirm([seg.id]);
-                            if (wasUnconfirmed) {
+                            if (ceResult.confirmed && (dispBefore === 'unconfirmed' || dispBefore === 'orig_confirmed' || dispBefore === 'review_revoked_editing')) {
                                 await _maybeShowAiReviewModal(seg, i, {
                                     onClearAiFlags: async () => {
                                         ++targetWriteGeneration;
@@ -22866,7 +23298,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             enqueueConfirmSideEffects(async () => {
                                 try {
                                     await awaitPendingSegmentTargetWritesForSeg(seg.id);
-                                    // 先寫譯文（含衝突偵測），失敗時樂觀還原 UI
                                     try {
                                         await applyUpdateSegmentTarget(seg, latestTarget);
                                         emitCollabEdit('commit', seg, latestTarget);
@@ -22879,14 +23310,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         }
                                         return;
                                     }
-                                    if (wasUnconfirmed) {
-                                        await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
-                                        updateProgress();
-                                    }
-                                    if (seg.status === 'confirmed') {
+                                    await _persistSegmentWfState(seg);
+                                    updateProgress();
+                                    if (ceResult.tmOnly || ceResult.confirmed || ceResult.upgraded || ceResult.restored) {
                                         mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
                                     }
-                                    if (seg.repetitionType) {
+                                    if (seg.repetitionType && (ceResult.confirmed || ceResult.upgraded || ceResult.restored)) {
                                         mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
                                     }
                                     if (ctrlEnterConfirmUndoEntry) {
@@ -22956,125 +23385,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 }
 
-                // Click icon to toggle
+                // B-7g：狀態圖示左鍵（與 Ctrl+Enter 分離）
                 const statusCol = row.querySelector('.col-status');
                 if (statusCol) statusCol.addEventListener('click', () => {
-                    const willConfirm = seg.status !== 'confirmed';
-                    if (willConfirm) {
-                        void (async () => {
-                            const targetTa = row.querySelector('.grid-textarea');
-                            const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa || targetInput);
-                            if (!conflictOk) {
-                                queueMicrotask(() => (targetTa || targetInput).focus());
-                                return;
-                            }
-                            if (targetDebounceTimer) {
-                                clearTimeout(targetDebounceTimer);
-                                targetDebounceTimer = null;
-                            }
-                            const latestTarget = targetTa ? rebuildTargetEditorFromExtractedPlain(targetTa, seg, row) : seg.targetText;
-                            seg.targetText = latestTarget;
-
-                            // ── 方案 B：立刻更新 UI 並跳行，DB 寫入全放後台 ──
-                            const touch = collectConfirmTouchIndices(i);
-                            const beforeSnapshots = {};
-                            touch.forEach(idx => {
-                                const s = currentSegmentsList[idx];
-                                beforeSnapshots[s.id] = snapshotSegForUndo(s);
-                            });
-                            const wasUnconfirmed = seg.status !== 'confirmed';
-                            const tmU = [];
-                            const tmR = [];
-                            applyWorkflowConfirmToSegment(seg, true);
-                            refreshStatusIconForRow(row, seg);
-                            if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
-                            updateProgress();
-                            applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
-                            isConfirming = true;
-                            ++targetWriteGeneration;
-                            const nextFocus = getAfterConfirmFocusIndex(i);
-                            focusTargetEditorAtSegmentIndex(nextFocus);
-                            maybeSwitchRightPanelToCatAfterConfirm();
-                            isConfirming = false;
-                            _qaIncrementalRefreshAfterConfirm([seg.id]);
-                            await _maybeShowAiReviewModal(seg, i, {
-                                onClearAiFlags: async () => {
-                                    ++targetWriteGeneration;
-                                    await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
-                                }
-                            });
-                            let iconConfirmUndoEntry = null;
-                            {
-                                const afterSnap = {};
-                                touch.forEach((idx) => {
-                                    const s = currentSegmentsList[idx];
-                                    afterSnap[s.id] = snapshotSegForUndo(s);
-                                });
-                                let changedSync = false;
-                                for (const id of Object.keys(beforeSnapshots)) {
-                                    if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnap[id])) changedSync = true;
-                                }
-                                if (changedSync) {
-                                    iconConfirmUndoEntry = {
-                                        kind: 'confirmOp',
-                                        beforeSnapshots,
-                                        afterSnapshots: afterSnap,
-                                        tmUndo: [],
-                                        tmRedo: []
-                                    };
-                                    pushUndoEntry(iconConfirmUndoEntry);
-                                }
-                            }
-                            enqueueConfirmSideEffects(async () => {
-                                try {
-                                    await awaitPendingSegmentTargetWritesForSeg(seg.id);
-                                    try {
-                                        await applyUpdateSegmentTarget(seg, latestTarget);
-                                        emitCollabEdit('commit', seg, latestTarget);
-                                    } catch (err) {
-                                        if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                            _revertConfirmAndToast(seg, row, null, effectiveLocked, 'revision');
-                                        } else {
-                                            console.error('[狀態圖示確認寫庫失敗]', err, seg.id);
-                                            _revertConfirmAndToast(seg, row, null, effectiveLocked, 'other');
-                                        }
-                                        return;
-                                    }
-                                    if (wasUnconfirmed) {
-                                        await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
-                                        updateProgress();
-                                    }
-                                    mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                                    if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
-                                    if (iconConfirmUndoEntry) {
-                                        iconConfirmUndoEntry.tmUndo = tmU;
-                                        iconConfirmUndoEntry.tmRedo = tmR;
-                                        touch.forEach((idx) => {
-                                            const s = currentSegmentsList[idx];
-                                            iconConfirmUndoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
-                                        });
-                                    }
-                                    const qaTouchIdsIcon = [];
-                                    touch.forEach((idx) => {
-                                        const s = currentSegmentsList[idx];
-                                        if (s && s.id != null) qaTouchIdsIcon.push(s.id);
-                                    });
-                                    _qaIncrementalRefreshAfterConfirm(qaTouchIdsIcon);
-                                } catch (err) { console.error(err); }
-                            });
-                        })();
-                    } else {
-                        const beforeSnap = snapshotSegForUndo(seg);
-                        applyWorkflowConfirmToSegment(seg, false);
-                        refreshStatusIconForRow(row, seg);
-                        syncRowConfirmedStateClass(row, seg);
-                        const afterSnap = snapshotSegForUndo(seg);
-                        pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
-                        enqueueConfirmSideEffects(async () => {
-                    await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
-                        });
-                    updateProgress();
-                    }
+                    void (async () => {
+                        const targetTa = row.querySelector('.grid-textarea');
+                        const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa || targetInput);
+                        if (!conflictOk) {
+                            queueMicrotask(() => (targetTa || targetInput).focus());
+                            return;
+                        }
+                        if (targetDebounceTimer) {
+                            clearTimeout(targetDebounceTimer);
+                            targetDebounceTimer = null;
+                        }
+                        const latestTarget = targetTa ? rebuildTargetEditorFromExtractedPlain(targetTa, seg, row) : seg.targetText;
+                        seg.targetText = latestTarget;
+                        await onStatusIconClick(seg, row, i);
+                        _qaIncrementalRefreshAfterConfirm([seg.id]);
+                    })();
                 });
             } else {
                 const activateLockedRowInteraction = (e) => {
@@ -24048,6 +24377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         document.getElementById('ctxBatchConfirm').addEventListener('click', () => {
+            void (async () => {
             const rawIds = Array.from(selectedRowIds);
             const skippedSystemLocked = collectSystemLockedSkipsFromSelectedIds(rawIds);
             const ids = filterBatchIdsToVisible(rawIds);
@@ -24062,11 +24392,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const s = currentSegmentsList[idx];
                 beforeSnapshots[s.id] = snapshotSegForUndo(s);
             });
-            for (let s of toUpdate) {
-                s.status = 'confirmed';
-                if (currentFileFormat === 'mqxliff') {
-                    s.confirmationRole = resolveConfirmationRole(s);
-                }
+            const allRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+            for (const s of toUpdate) {
+                const idx = currentSegmentsList.indexOf(s);
+                const row = allRows[idx];
+                await onCtrlEnterConfirm(s, row, idx);
             }
             const indices = toUpdate.map(s => currentSegmentsList.indexOf(s)).filter((ix) => ix >= 0).sort((a, b) => a - b);
             indices.forEach((ix) => applyOptimisticRepetitionAfterPrimaryConfirm(ix, { updateDom: false }));
@@ -24074,10 +24404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dbWaits = [];
             touchAll.forEach((idx) => {
                 const s = currentSegmentsList[idx];
-                const bs = beforeSnapshots[s.id];
-                if (bs && bs.status !== 'confirmed' && s.status === 'confirmed') {
-                    dbWaits.push(DBService.updateSegmentStatus(s.id, s.status, currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {}));
-                }
+                dbWaits.push(DBService.updateSegmentStatus(s.id, s.status, buildWorkflowStatusExtra(s)));
             });
             const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
             _pendingFocusSegIdxAfterRender = focusIdx;
@@ -24131,6 +24458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } catch (err) { console.error(err); }
             });
             notifySkippedSystemLockedSegs(skippedSystemLocked);
+            })();
         });
 
         document.getElementById('ctxBatchUnconfirm').addEventListener('click', () => {
@@ -24142,8 +24470,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dbWaits = [];
             for (let s of toUpdate) {
                 const beforeSnap = snapshotSegForUndo(s);
-                s.status = 'unconfirmed';
-                dbWaits.push(DBService.updateSegmentStatus(s.id, 'unconfirmed'));
+                applyWorkflowConfirmToSegment(s, false);
+                dbWaits.push(DBService.updateSegmentStatus(s.id, s.status, buildWorkflowStatusExtra(s)));
                 items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
             }
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
@@ -24208,8 +24536,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function _computeWfProgressFromSegments(sessionValid, wordBySegId) {
         const totalSegs = sessionValid.length;
-        const transSegs = sessionValid.filter((s) => _isWfTransMarkedEffective(s)).length;
-        const reviewSegs = sessionValid.filter((s) => _isWfReviewMarkedEffective(s)).length;
+        const transSegs = sessionValid.filter((s) => _isWfTransProgressCounted(s)).length;
+        const reviewSegs = sessionValid.filter((s) => _isWfReviewProgressCounted(s)).length;
         let totalWords = 0;
         let transWords = 0;
         let reviewWords = 0;
@@ -24218,8 +24546,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? wordBySegId.get(String(s.id))
                 : 0;
             totalWords += w;
-            if (_isWfTransMarkedEffective(s)) transWords += w;
-            if (_isWfReviewMarkedEffective(s)) reviewWords += w;
+            if (_isWfTransProgressCounted(s)) transWords += w;
+            if (_isWfReviewProgressCounted(s)) reviewWords += w;
         });
         const transPct = totalSegs ? Math.round((transSegs / totalSegs) * 100) : 0;
         const reviewPct = totalSegs ? Math.round((reviewSegs / totalSegs) * 100) : 0;
