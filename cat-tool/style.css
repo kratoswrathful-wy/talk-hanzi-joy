@@ -1580,31 +1580,35 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 }
 /* 審稿後譯者再編輯：虛線外環 + 綠符號 */
 .status-icon-stack.wf-review-revoked {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
 }
 .status-icon-stack.wf-review-revoked::before {
     content: '';
     position: absolute;
-    inset: -3px;
+    width: 22px;
+    height: 22px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     border-radius: 50%;
     border: 2px dashed var(--success-color);
     box-sizing: border-box;
     pointer-events: none;
 }
-/* 審稿後譯者再確認：虛線外環 + 實心內圓 */
+/* 審稿後譯者再編輯並確認：虛線外環 + 實心內圓（幾何對齊審稿確認） */
 .status-icon-stack.wf-post-review-trans .status-wf-core {
     background: var(--success-color);
     border-color: var(--success-color);
 }
-.status-icon-stack.wf-post-review-trans {
-    width: 14px;
-    height: 14px;
-}
 .status-icon-stack.wf-post-review-trans::before {
     content: '';
     position: absolute;
-    inset: -3px;
+    width: 22px;
+    height: 22px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     border-radius: 50%;
     border: 2px dashed var(--success-color);
     box-sizing: border-box;

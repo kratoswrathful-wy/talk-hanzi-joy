@@ -6360,11 +6360,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const WF_DISPLAY_STATE_LABELS = {
         unconfirmed: '未確認',
-        orig_confirmed: '未確認',
+        orig_confirmed: '原檔確認，系統內未確認',
         trans_confirmed: '翻譯確認',
         review_confirmed: '審稿確認',
         review_revoked_editing: '審稿確認後譯者再編輯',
-        post_review_trans: '審稿確認後譯者再確認',
+        post_review_trans: '審稿後譯者再編輯並確認',
     };
 
     function _wfDisplayStateLabel(seg) {
@@ -6569,7 +6569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncRowConfirmedStateClass(row, seg);
         }
         await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
-        showCatToast('取消審稿確認後未實質編輯內容，恢復審稿確認狀態', 'info');
+        showCatToast('審稿已確認，未實質編輯內容', 'info');
         updateProgress();
         return true;
     }
@@ -6636,12 +6636,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             return { focusNext: true, restored: true };
         }
         const disp = resolveSegmentConfirmDisplayState(seg);
-        const dispIsReviewLevel = disp === 'review_confirmed' || disp === 'post_review_trans';
+        const dispIsReviewLevel = disp === 'review_confirmed';
         const dispIsTransLevel = disp === 'trans_confirmed';
         const sameStage = (dispIsReviewLevel && _isActingAsReviewer())
             || (dispIsTransLevel && _isActingAsTranslator());
 
         if (disp === 'unconfirmed' || disp === 'orig_confirmed' || disp === 'review_revoked_editing') {
+            if (disp === 'review_revoked_editing' && _isActingAsTranslator() && _targetMatchesReviewSnapshot(seg)) {
+                _applyReviewRestoreSnapshot(seg);
+                refreshStatusIconForRow(row, seg);
+                if (row) syncRowConfirmedStateClass(row, seg);
+                await _persistSegmentWfState(seg);
+                showCatToast('審稿已確認，未實質編輯內容', 'info');
+                updateProgress();
+                return { focusNext: true, restored: true };
+            }
             const kinds = _isActingAsReviewer() ? ['review'] : ['translate'];
             applyWorkflowConfirmToSegment(seg, true, { kinds });
             refreshStatusIconForRow(row, seg);
@@ -6655,12 +6664,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             return { focusNext: true, tmOnly: true };
         }
 
-        if ((disp === 'review_confirmed' || disp === 'post_review_trans') && _isActingAsTranslator()) {
+        if (disp === 'review_confirmed' && _isActingAsTranslator()) {
             showCatToast('審稿已確認，未實質編輯內容', 'info');
             return { focusNext: false, tmOnly: true };
         }
 
         if (disp === 'trans_confirmed' && _isActingAsReviewer()) {
+            applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
+            refreshStatusIconForRow(row, seg);
+            if (row) syncRowConfirmedStateClass(row, seg);
+            updateProgress();
+            await _persistSegmentWfState(seg);
+            return { focusNext: true, upgraded: true };
+        }
+
+        if (disp === 'post_review_trans' && _isActingAsReviewer()) {
             applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
             refreshStatusIconForRow(row, seg);
             if (row) syncRowConfirmedStateClass(row, seg);
