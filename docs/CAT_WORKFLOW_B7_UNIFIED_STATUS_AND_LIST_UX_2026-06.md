@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS public.cat_user_ui_prefs (
 | **B-7d** | §11：`CAT_ASSIGN_FILE` 同步 `cat_stage_assignments`、句段集內列號快取 | **已實作** |
 | **B-7e** | §12：匯入已確認句段對話框、狀態欄外環視覺、全格式 `orig-confirmed` | **已實作** |
 | **B-7f** | `cat_user_ui_prefs` migration `20260618130000`、「隱藏已完成」雲端持久化、預設勾選、`db.getUserUiPref`／`db.setUserUiPref` | **已實作**（`574f11d`） |
-| **B-7g** | 確認狀態五態、點圖示／Ctrl+Enter 分離、審稿回溯、篩選進度、PM 切換鈕；見 [`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md) | **實作中** |
+| **B-7g** | 確認狀態五態、點圖示／Ctrl+Enter 分離、審稿回溯、篩選進度、PM 切換鈕；見 [`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md) §13 開發紀錄 | **已驗收**（`c503f9d`） |
 
 每波次：`npm run sync:cat`、更新本文件狀態欄。
 

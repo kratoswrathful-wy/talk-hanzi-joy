@@ -1,7 +1,8 @@
-# CAT Workflow 確認狀態 UX（B-7f）
+# CAT Workflow 確認狀態 UX（B-7g）
 
-> **狀態**：第三波已落地（待驗收）  
-> **關聯**：[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §15、[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §6、[`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md)
+> **狀態**：**已驗收**（2026-06-19；mqxliff Workflow 樣本）  
+> **關聯**：[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §15、[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §6、[`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md)  
+> **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)（`resolveSegmentConfirmDisplayState`、`onStatusIconClick`、`onCtrlEnterConfirm`、`applyWorkflowRevokeOnTargetEdit`、`maybeRestoreReviewFromSnapshot`）、[`cat-tool/style.css`](../cat-tool/style.css)（`.status-icon-stack` 五態）、migration [`20260619120000_cat_segments_review_restore.sql`](../supabase/migrations/20260619120000_cat_segments_review_restore.sql)
 
 ---
 
@@ -236,7 +237,9 @@
 | **B-7f-3** | `handleTargetContentChanged`、五態 CSS、`orig-confirmed` 無內圓 |
 | **B-7f-4** | 篩選三項、進度、toast／離開 modal |
 | **B-7f-5** | PM 切換鈕、prep tooltip、PM 首次編輯警告 |
-| **B-7g-3** | 文案、快照還原穩定化、審稿人 post_review_trans 升級、post_review_trans CSS 對齊 |
+| **B-7g-1** | 第一波修正：虛線外環、快照、sameStage、T/R 鈕、移除「已標」篩選（`24ccdcd`） |
+| **B-7g-2** | 第二波：保留 review 時間戳、`_enterReviewRevokedEditing`、`orig-confirmed` 純外圈（`479460d`） |
+| **B-7g-3** | 第三波：文案、快照還原穩定化、審稿人升級、post_review_trans CSS 對齊（`c503f9d`） |
 
 ### 驗收清單（白話）
 
@@ -252,6 +255,8 @@
 10. 審稿人對 post_review_trans 按 Ctrl+Enter → 審稿確認 + 審稿進度上升  
 11. post_review_trans 圖示：內圓置中，外環與審稿確認同尺寸、僅改虛線  
 
+**2026-06-19 驗收紀錄**：以上 1～11 項於 mqxliff Workflow 檔（含 MSH Sell-Through Survey 樣本句段）通過；PM 以 T/R 切換器測試譯者／審稿路徑。
+
 ---
 
 ## 12. 修訂紀錄
@@ -259,7 +264,122 @@
 | 日期 | 內容 |
 |------|------|
 | 2026-06-19 | 初稿：本對話定案（A1 甲、點圖示／Ctrl+Enter 分離、五態、審稿回溯、篩選進度、PM UX、禁止編輯用字） |
+| 2026-06-19 | **初版實作**（commit `ed56586`）：五態引擎、圖示／Ctrl+Enter 分離、快照欄位、migration、五態 CSS、篩選三項、PM T/R 鈕 |
 | 2026-06-19 | **B-7g 第一波**（commit `24ccdcd`）：CSS 虛線外環改 `inset:-3px`、移除快照覆寫錯誤行、`sameStage` 改以顯示狀態比對身分、T/R 切換鈕移至 ¬ 下方、移除「翻譯已標／審稿已標」篩選項 |
-| 2026-06-19 | **B-7g 第二波（規格修訂）**：§4 更正不應清除 `wfReviewConfirmedAt`；§5 補充圖示左鍵不清除 review 時間戳；§6 補充審稿確認＋譯者三種 Ctrl+Enter 路徑；§3 `orig-confirmed` 改純外圈（18px／2px，待實作） |
-| 2026-06-19 | **B-7g 第二波（實作）**：`_enterReviewRevokedEditing`、Ctrl+Enter 審稿確認＋譯者 no-op toast、`orig-confirmed` CSS 純外圈 |
-| 2026-06-19 | **B-7g 第三波（規格 + 實作）**：orig tooltip、post_review_trans 文案、快照還原穩定化、審稿人 post_review_trans 升級、虛線外環 CSS 對齊 |
+| 2026-06-19 | **B-7g 第二波（規格修訂）**（commit `c70723b`）：§4 更正不應清除 `wfReviewConfirmedAt`；§5／§6 補充互動路徑 |
+| 2026-06-19 | **B-7g 第二波（實作）**（commit `479460d`）：`_enterReviewRevokedEditing`、Ctrl+Enter 審稿確認＋譯者 no-op toast、`orig-confirmed` CSS 純外圈 |
+| 2026-06-19 | **B-7g 第三波**（commit `c503f9d`）：orig tooltip、post_review_trans 文案、快照還原穩定化、審稿人 post_review_trans 升級、虛線外環 CSS 對齊 |
+| 2026-06-19 | **驗收通過**：§13 開發紀錄補齊；狀態改為已驗收 |
+
+---
+
+## 13. 開發與修正紀錄（詳述）
+
+本節記錄 B-7g 從規格定案到三波修正的設計意圖、實作範圍、回報問題與根因，供日後維護對照。**行為以 §2～§10 為準**；本節不重複全文規格。
+
+### 13.1 設計總覽
+
+**要解決的問題**：Workflow 模式下，句段確認不再只是「已確認／未確認」二元，而需區分翻譯確認、審稿確認、原檔匯入確認、以及「審稿後譯者再動過譯文」的中間態與再確認態；且**點狀態圖示**與 **Ctrl+Enter** 必須分離（圖示可取消／升級自己階段，Ctrl+Enter 不取消、可跨階段升級或寫 TM）。
+
+**核心決策**：
+
+| 決策 | 選擇 | 理由 |
+|------|------|------|
+| A1 審稿確認時是否保留翻譯時間戳 | **保留** `wfTransConfirmedAt` | 進度與篩選需同時知道兩層確認 |
+| A2 審稿後譯者再確認 | **`wfTransConfirmedAt > wfReviewConfirmedAt`** | 不新增第四時間欄位 |
+| 審稿回溯 | **`wfReviewRestoreSnapshot`** + `normalizeTargetForCompare` | 譯者改回審稿版 A 時可恢復審稿確認，無須人工重審 |
+| 再編輯中間態 | **`wfReviewRevokedPending`** 優先於時間戳比對 | 編輯中顯示虛線外環，不誤判為審稿確認 |
+
+**顯示狀態優先序**（`resolveSegmentConfirmDisplayState`）：`orig_confirmed` → `post_review_trans`（需 `wfTrans > wfReview` 且非 pending）→ `review_revoked_editing`（pending）→ `review_confirmed` → `trans_confirmed` → `unconfirmed`。
+
+### 13.2 初版實作（`ed56586`）
+
+| 區塊 | 內容 |
+|------|------|
+| 資料 | Dexie／Supabase 新增 `wfReviewRestoreSnapshot`、`wfReviewRevokedPending`；RPC 映射 |
+| 引擎 | `resolveSegmentConfirmDisplayState`、`normalizeTargetForCompare`、`_captureReviewRestoreSnapshot` |
+| 互動 | `onStatusIconClick`／`onCtrlEnterConfirm` 分離；`handleTargetContentChanged` → `applyWorkflowRevokeOnTargetEdit` |
+| UI | 五態 CSS、`buildStatusCellHtml`；進階篩選三項；PM `#btnPmActingRole`；離開 modal `#reviewRestoreLeaveModal` |
+| 進度 | `_isWfTransProgressCounted`／`_isWfReviewProgressCounted` 依顯示狀態計算 |
+
+初版上線後產品回報多項與規格不符，分三波修正（§13.3～§13.5）。
+
+### 13.3 第一波修正（`24ccdcd`）— 驗收前五項
+
+| # | 現象 | 根因 | 修正 |
+|---|------|------|------|
+| 1 | 審稿後再編輯態虛線畫在**內圈** | `.wf-review-revoked::before` 用 `inset:0` + `box-shadow` | 改 `inset:-3px` 純虛線外環 |
+| 2 | 改回審稿版 A 無法恢復審稿確認 | `applyWorkflowRevokeOnTargetEdit` 在編輯後**重拍快照**，覆蓋正確 A | 移除該處 `_captureReviewRestoreSnapshot` |
+| 3 | 審稿身分 Ctrl+Enter 在翻譯確認句無反應 | `sameStage` 比對 session kind 與身分，永遠 true | 改比對**句段確認層級**與操作身分 |
+| 4 | PM 切換鈕位置／文案錯 | 放在 `#sfCellModeRow2`、顯示「翻譯／審稿」 | 移至 ¬ 下方；文案 **T／R** |
+| 5 | 篩選出現「翻譯已標／審稿已標」 | 內部 progress 函式誤暴露為 UI 選項 | 移除 checkbox 與 `evaluateSegment` 維度；內部函式保留 |
+
+### 13.4 第二波（規格 `c70723b` + 實作 `479460d`）
+
+**規格更正（§4）**：曾審稿確認句段被編輯時，**不得清除** `wfReviewConfirmedAt`；僅設 `wfReviewRevokedPending=true`。若清除 review 時間戳，譯者再確認只會得到 `trans_confirmed`，無法得到 `post_review_trans`。
+
+| 項目 | 實作 |
+|------|------|
+| `_enterReviewRevokedEditing(seg)` | 只設 pending + `status='unconfirmed'`，保留 review 時間戳與快照 |
+| 圖示左鍵（譯者取消審稿確認） | 改走 `_enterReviewRevokedEditing`，不再 `applyWorkflowConfirmToSegment(false)` |
+| Ctrl+Enter（譯者 + 審稿確認、未編輯） | toast「審稿已確認，未實質編輯內容」、不移焦 |
+| `orig-confirmed` CSS | `inset:-2px` + `border:2px solid`，無內圓、無 box-shadow |
+
+### 13.5 第三波（`c503f9d`）— 驗收後精修
+
+產品第二輪回報與樣本驗收（mqxliff 句段 1 等）：
+
+| # | 現象 | 根因 | 修正 |
+|---|------|------|------|
+| 1 | 原檔已確認 tooltip 顯示「未確認」 | `WF_DISPLAY_STATE_LABELS.orig_confirmed` 未更新 | 改「**原檔確認，系統內未確認**」 |
+| 2 | 狀態名稱不符產品用語 | 舊稱「審稿確認後譯者再確認」 | 改「**審稿後譯者再編輯並確認**」（含篩選 label） |
+| 3 | 改回 A 後仍卡 **post_review_trans** + 錯誤 toast | `post_review_trans` 被納入譯者 no-op 分支；`maybeRestore` 失敗時誤走 no-op | no-op **僅** `review_confirmed`；`post_review_trans` + 譯文=A 走還原；`review_revoked_editing` 確認前加快照兜底 |
+| 4 | 審稿人對 post_review_trans Ctrl+Enter 無升級 | `sameStage` 把 post_review_trans 當審稿同階段 | 排除 post_review_trans；新增審稿人 `kinds:['review']` 升級路徑 |
+| 5 | post_review_trans 內圓偏左、外環尺寸不對 | 容器覆寫 14px、內圓 14px 填滿、`inset:-3px` 與審稿確認幾何不一致 | 沿用 18px 容器 + 14px 置中內圓；`::before` **22×22px 置中虛線**（與審稿外環外徑一致） |
+| 6 | 還原 toast 文案不一致 | 單句用長句「取消審稿確認後…」 | 統一「**審稿已確認，未實質編輯內容**」；§7.3 離開 modal **維持長句** |
+
+**Ctrl+Enter 決策流程（第三波定案）**：
+
+```
+Ctrl+Enter
+  → maybeRestoreReviewFromSnapshot（譯文 = 快照 A）
+  → review_revoked_editing + 譯者 + 譯文=A → 兜底還原
+  → 未確認／orig／review_revoked_editing（譯文≠A）→ 依身分確認
+  → sameStage → 僅 TM
+  → review_confirmed + 譯者 → no-op toast
+  → trans_confirmed + 審稿 → 升級審稿
+  → post_review_trans + 審稿 → 升級審稿 + 進度
+```
+
+### 13.6 程式對照表
+
+| 函式／模組 | 職責 |
+|------------|------|
+| `resolveSegmentConfirmDisplayState` | 五態 + orig 解析（§2.3 優先序） |
+| `applyWorkflowConfirmToSegment` | 寫入 wf 時間戳；審稿確認時 `_captureReviewRestoreSnapshot` |
+| `applyWorkflowRevokeOnTargetEdit` | 譯文變更 → 全清或 `_enterReviewRevokedEditing` |
+| `_enterReviewRevokedEditing` | 保留 review 時間戳，設 pending |
+| `onStatusIconClick` | §5 左鍵表；不走 Ctrl+Enter |
+| `onCtrlEnterConfirm` | §6；先還原再確認／升級 |
+| `maybeRestoreReviewFromSnapshot` | 譯文 = A → 還原快照 wf 欄位 |
+| `buildStatusCellHtml` | 組 CSS class + mq 符號 overlay |
+| `style.css` `.status-icon-stack.*` | 五態視覺（§3） |
+
+### 13.7 已知邊界與後續
+
+| 項目 | 說明 |
+|------|------|
+| Tag 比對 | `normalizeTargetForCompare` **不**正規化 inline tag；tag 變更視為有實質編輯（§7.1）。若 mqxliff 仍偶發比對失敗，需另案調查 editor plain text 與快照一致性 |
+| 離開 modal 文案 | 刻意保留「取消審稿確認後未實質編輯…」長句，與單句 Ctrl+Enter toast 區分 |
+| 舊資料 | 卡在錯誤 post_review_trans 的句段，修正後需使用者再按一次 Ctrl+Enter（或改回 A 再確認）才會還原 |
+| 內部 progress | `_isWfTransMarkedEffective`／`_isWfReviewMarkedEffective` 僅供進度 fallback，**不**出現在 UI 篩選 |
+
+### 13.8 Git 提交索引
+
+| Commit | 摘要 |
+|--------|------|
+| `ed56586` | 初版 B-7g 五態 UX |
+| `24ccdcd` | 第一波五項 bug |
+| `c70723b` | 第二波規格文件 |
+| `479460d` | 第二波程式 |
+| `c503f9d` | 第三波文案／還原／CSS |
