@@ -1,6 +1,6 @@
 # CAT Workflow 確認狀態 UX（B-7f）
 
-> **狀態**：規格修訂中；第二波實作待執行  
+> **狀態**：規格定案；第二波已落地（待驗收）  
 > **關聯**：[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §15、[`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §6、[`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md)
 
 ---
@@ -76,7 +76,7 @@
 
 **mqxliff 符號顏色**：實心綠內圓上為**白色**；僅外環／虛線外環無內點時為**綠色**符號。
 
-**`orig-confirmed` CSS（第二波待實作）**：`.status-icon-stack.orig-confirmed::before` 使用 `inset: -2px; border: 2px solid var(--success-color); background: transparent`（不繪製內圓、不使用 box-shadow）。
+**`orig-confirmed` CSS**：`.status-icon-stack.orig-confirmed::before` 使用 `inset: -2px; border: 2px solid var(--success-color); background: transparent`（不繪製內圓、不使用 box-shadow）。
 
 ---
 
@@ -252,3 +252,4 @@
 | 2026-06-19 | 初稿：本對話定案（A1 甲、點圖示／Ctrl+Enter 分離、五態、審稿回溯、篩選進度、PM UX、禁止編輯用字） |
 | 2026-06-19 | **B-7g 第一波**（commit `24ccdcd`）：CSS 虛線外環改 `inset:-3px`、移除快照覆寫錯誤行、`sameStage` 改以顯示狀態比對身分、T/R 切換鈕移至 ¬ 下方、移除「翻譯已標／審稿已標」篩選項 |
 | 2026-06-19 | **B-7g 第二波（規格修訂）**：§4 更正不應清除 `wfReviewConfirmedAt`；§5 補充圖示左鍵不清除 review 時間戳；§6 補充審稿確認＋譯者三種 Ctrl+Enter 路徑；§3 `orig-confirmed` 改純外圈（18px／2px，待實作） |
+| 2026-06-19 | **B-7g 第二波（實作）**：`_enterReviewRevokedEditing`、Ctrl+Enter 審稿確認＋譯者 no-op toast、`orig-confirmed` CSS 純外圈 |

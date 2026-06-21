@@ -1571,9 +1571,10 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .status-icon-stack.orig-confirmed::before {
     content: '';
     position: absolute;
-    inset: 0;
+    inset: -2px;
     border-radius: 50%;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--success-color);
+    border: 2px solid var(--success-color);
+    background: transparent;
     box-sizing: border-box;
     pointer-events: none;
 }

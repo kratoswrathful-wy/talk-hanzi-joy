@@ -6523,15 +6523,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
     }
 
+    /** 審稿確認後譯者再編輯：保留 review 時間戳與快照，僅標記中間態 */
+    function _enterReviewRevokedEditing(seg) {
+        if (!seg) return;
+        seg.wfReviewRevokedPending = true;
+        seg.status = 'unconfirmed';
+    }
+
     /** 譯文變更：曾審稿確認 → 中間態；僅翻譯確認 → 全清 */
     function applyWorkflowRevokeOnTargetEdit(seg) {
         if (!seg) return;
         const st = resolveSegmentConfirmDisplayState(seg);
         if (st === 'review_confirmed' || st === 'post_review_trans') {
-            seg.wfReviewConfirmedAt = null;
-            seg.wfReviewConfirmedBy = null;
-            seg.wfReviewRevokedPending = true;
-            seg.status = seg.wfTransConfirmedAt ? 'confirmed' : 'unconfirmed';
+            _enterReviewRevokedEditing(seg);
         } else if (st === 'trans_confirmed') {
             applyWorkflowConfirmToSegment(seg, false);
         } else if (st !== 'review_revoked_editing' && st !== 'unconfirmed') {
@@ -6595,8 +6599,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (disp === 'review_confirmed') {
             if (asTranslator) {
                 if (!(await _maybeWarnTranslatorReviewCancel())) return;
-                applyWorkflowConfirmToSegment(seg, false, { keepReviewRestore: true });
-                seg.wfReviewRevokedPending = true;
+                _enterReviewRevokedEditing(seg);
             } else {
                 applyWorkflowConfirmToSegment(seg, false);
             }
@@ -6609,8 +6612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } else if (disp === 'post_review_trans') {
             if (asTranslator) {
-                applyWorkflowConfirmToSegment(seg, false, { keepReviewRestore: true });
-                seg.wfReviewRevokedPending = true;
+                _enterReviewRevokedEditing(seg);
             } else {
                 applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
             }
@@ -6653,16 +6655,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             return { focusNext: true, tmOnly: true };
         }
 
+        if ((disp === 'review_confirmed' || disp === 'post_review_trans') && _isActingAsTranslator()) {
+            showCatToast('審稿已確認，未實質編輯內容', 'info');
+            return { focusNext: false, tmOnly: true };
+        }
+
         if (disp === 'trans_confirmed' && _isActingAsReviewer()) {
             applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
-            refreshStatusIconForRow(row, seg);
-            if (row) syncRowConfirmedStateClass(row, seg);
-            updateProgress();
-            await _persistSegmentWfState(seg);
-            return { focusNext: true, upgraded: true };
-        }
-        if ((disp === 'review_confirmed' || disp === 'post_review_trans') && _isActingAsTranslator()) {
-            applyWorkflowConfirmToSegment(seg, true, { kinds: ['translate'] });
             refreshStatusIconForRow(row, seg);
             if (row) syncRowConfirmedStateClass(row, seg);
             updateProgress();
