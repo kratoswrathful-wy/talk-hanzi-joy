@@ -1,6 +1,6 @@
 # Phase C — 追蹤修訂（Revision Tracking）
 
-**狀態**：**Slice C-1／C-2 已落地，初步驗收通過；C-1.1 修正排程中**（2026-06-22）  
+**狀態**：**C-1／C-2／C-1.1 已落地並驗收；下一階段 C-3 匯出規劃中**（2026-06-22）  
 **上層計畫**：[`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.3  
 **前置**：B-6 `enqueueStageSnapshot` hook（已落地 stub）、B-7g 確認狀態 UX（已驗收）
 
@@ -196,7 +196,7 @@ Dexie **v26**：`stageSnapshots`、`segmentAnnotations`、`annotationOptions`
 |-------|------|------|
 | **C-1** | 快照表 + RPC + Dexie + `enqueueStageSnapshot` + 追蹤修訂檢視 UI | **已落地（初步驗收）** `8d5b696` |
 | **C-2** | 評註表 + 評註 UI + 修訂管理 + Slack | **已落地（初步驗收）** `8d5b696` |
-| **C-1.1** | 刪除修訂標記修正 + 新增改藍色 | **排程中** |
+| **C-1.1** | 刪除修訂標記修正 + 新增改藍色 + B-7g 虛線圈文案 | **已驗收** `e787441` |
 | **C-3** | Excel／htm 匯出 | 規劃中 |
 
 ---
@@ -222,6 +222,7 @@ Dexie **v26**：`stageSnapshots`、`segmentAnnotations`、`annotationOptions`
 |------|------|
 | 2026-06-21 | 初稿：產品決策、資料模型、UI／評註／Slack 規格、Slice C-1～C-3 |
 | 2026-06-22 | C-1／C-2 落地並初步驗收；記錄 `8d5b696`／`a220b3c`；規劃 C-1.1（刪除標記、新增藍色）與 B-7g 虛線圈文案修正 |
+| 2026-06-22 | C-1.1 驗收通過：刪除紅刪除線、新增藍底線、虛線圈 tooltip「審稿確認後再編輯」（`e787441`） |
 
 ---
 
@@ -235,6 +236,7 @@ Dexie **v26**：`stageSnapshots`、`segmentAnnotations`、`annotationOptions`
 | C-1 落地 | migration `20260621120000`、Dexie v26、`stage-snapshot.js`、`rev-track.js`／`rev-track-diff.js`、檔案清單／編輯器入口 | `8d5b696` |
 | C-2 落地 | migration `20260621130000`、評註 UI、修訂管理 tab、`cat.notifyRevAnnotationSlack` | `8d5b696` |
 | 部署修復 | `cat-cloud-rpc.ts` Supabase 查 stage 的 TS 型別（Vercel build） | `a220b3c` |
+| C-1.1 落地 | `renderDiffTokens` 刪除從舊文渲染、`.rev-diff-ins` 藍色、`review_revoked_editing` 文案 | `e787441` |
 
 ### 12.2 初步驗收（2026-06-22）
 
@@ -246,13 +248,13 @@ Dexie **v26**：`stageSnapshots`、`segmentAnnotations`、`annotationOptions`
 | 評註新增、譯者確認／回應、修訂管理 | 通過 |
 | 右側工具列預設隱藏 | 通過 |
 
-### 12.3 待修正（C-1.1）
+### 12.3 C-1.1 修正（已完成）
 
-| 項目 | 根因／說明 | 修正 |
+| 項目 | 根因／說明 | 結果 |
 |------|------------|------|
-| 較後階段**刪除**文字未標紅刪除線 | `renderDiffTokens` 從 `newTokens` 取 `del` 片段 | 改從舊文渲染 `.rev-diff-del` |
-| **新增**文字為綠色 | §2 初稿色票 | `.rev-diff-ins` 改藍色 |
-| `review_revoked_editing` tooltip | 文案過長 | 改為「審稿確認後再編輯」（見 B-7g 規格 §14） |
+| 較後階段**刪除**文字未標紅刪除線 | `renderDiffTokens` 從 `newTokens` 取 `del` 片段 | **通過**（`e787441`） |
+| **新增**文字為綠色 | §2 初稿色票 | **通過**（改藍色） |
+| `review_revoked_editing` tooltip | 文案過長 | **通過**（「審稿確認後再編輯」） |
 
 ### 12.4 Diff 渲染要點（C-1.1 定案）
 
@@ -261,3 +263,13 @@ Dexie **v26**：`stageSnapshots`、`segmentAnnotations`、`annotationOptions`
 - **`ins`**：輸出新側新增文字，藍字 + 底線。
 - **`same`**：正常顯示新側文字。
 - 無 tag 時可直接用 `renderDiffHtml`；有 tag 時 token 級別對齊，刪除 tag pill 從舊側渲染。
+
+### 12.5 C-1.1 驗收（2026-06-22）
+
+| 項目 | 結果 |
+|------|------|
+| 右欄刪除文字顯示紅刪除線 | 通過 |
+| 新增文字藍色底線 | 通過 |
+| 虛線外圈 tooltip「審稿確認後再編輯」 | 通過 |
+
+**下一階段**：C-3 Excel／htm 匯出（規格 §13 待補）。

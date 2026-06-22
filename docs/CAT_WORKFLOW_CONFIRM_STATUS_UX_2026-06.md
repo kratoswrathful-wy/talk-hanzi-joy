@@ -395,3 +395,5 @@ Ctrl+Enter
 **不變**：`post_review_trans`（虛線外圈 + 實心內圓）仍為「審稿後譯者再編輯並確認」。
 
 **程式觸點**：`WF_DISPLAY_STATE_LABELS.review_revoked_editing`（[`cat-tool/app.js`](../cat-tool/app.js)）。
+
+**驗收**：`e787441` 已推送；使用者 2026-06-22 驗收通過。

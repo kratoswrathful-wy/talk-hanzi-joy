@@ -51,7 +51,8 @@
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
 - [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 匯入選填連結 LMS 案件（一般＋GS；`49db7c2` 起）
-- [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A／**Phase B 已落地**；**B-6 已實作**；**B-7 已落地**；Phase C 規劃中）
+- [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A／**Phase B 已落地**；**B-6 已實作**；**B-7 已落地**；**Phase C C-1.1 已驗收**；C-3 匯出規劃中）
+- [`docs/CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](docs/CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md) — **Phase C 追蹤修訂**規格與 §12 開發／驗收紀錄（C-1～C-1.1 已驗收；C-3 規劃中）
 - [`docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — **Phase B Workflow** 完整規格（**已落地並驗收** `e4a6205`～`d7232ab`：v5 migration／檔案清單逐行、LMS 雙向、開檔熱修 §11.7、更新檔 Modal §11.8、任務完成按下驗證 §11.9；**B-6 延伸** §12 已實作；**B-7** §13）
 - [`docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — **Phase B-6** 檔案準備閘門 + 審稿任務完成（**已實作** `fd67332`、migration 已 push；prep 僅 PM 可編、派出閘門、審稿任務完成；審稿暫不 Slack；舊檔 backfill）
 - [`docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — **Phase B-7** 統一顯示狀態 + 檔案清單／儀表板 UX（**B-7a～g**；§12 匯入已確認句段；§14 批次審稿完成作業）

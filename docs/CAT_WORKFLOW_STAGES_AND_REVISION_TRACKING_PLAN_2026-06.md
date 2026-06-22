@@ -50,13 +50,13 @@
 | 2-iv | **B-6** 審稿人員任務完成；PM 調整狀態可設「審稿完成」 | 高 | 中 | **已實作**（2026-06-16；migration 已 push；審稿完成**暫不** Slack／**暫不**單人多檔 LMS 聚合） |
 | 2-v | **B-7** 統一顯示狀態；檔案清單「指派對象」；儀表板改版；指派／列號／狀態欄（B-7d／e） | 高 | 中～高 | **B-7a～f 已實作**（[`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md)） |
 | 2-vi | 批次設所有檔案為審稿完成；LMS 審稿人員比對補齊 | 高 | 中 | **已完成**（2026-06-19；`scripts/bulk-set-review-completed.mjs`；[`CAT_BULK_REVIEW_COMPLETE_2026-06.md`](./CAT_BULK_REVIEW_COMPLETE_2026-06.md)） |
-| 3 | 階段間追蹤修訂檔案 | 高 | **高** | 規劃中 |
-| 3-i | 檔案清單按鈕開啟追蹤修訂檢視 | 高 | 低～中 | 規劃中 |
-| 3-ii | 顯示各階段負責人 + diff 呈現 | 高 | 中高 | 規劃中 |
-| 3-iii | 可切換是否顯示追蹤標記 | 高 | 低 | 規劃中 |
-| 3-iv | 第二階段起：問題類型、嚴重性、備註 | 高 | 中 | 規劃中 |
-| 3-v | 前階段人員回覆後階段評註 | 高 | 低～中 | 規劃中 |
-| 3-vi | 匯出 Excel／htm | 高 | 中～中高 | 規劃中 |
+| 3 | 階段間追蹤修訂檔案 | 高 | **高** | **部分落地**（檢視＋評註＋diff 已驗收；匯出 C-3 規劃中；見 Phase C §12） |
+| 3-i | 檔案清單按鈕開啟追蹤修訂檢視 | 高 | 低～中 | **已落地** `8d5b696` |
+| 3-ii | 顯示各階段負責人 + diff 呈現 | 高 | 中高 | **部分落地**（diff 已驗收 `e787441`；表頭負責人 UI 待補） |
+| 3-iii | 可切換是否顯示追蹤標記 | 高 | 低 | **已落地** `8d5b696` |
+| 3-iv | 第二階段起：問題類型、嚴重性、備註 | 高 | 中 | **已落地** `8d5b696` |
+| 3-v | 前階段人員回覆後階段評註 | 高 | 低～中 | **已落地** `8d5b696` |
+| 3-vi | 匯出 Excel／htm | 高 | 中～中高 | **規劃中**（C-3） |
 | 4 | TMS／CAT 進一步整合 | 高 | 低～中 | **已落地**（Phase A） |
 | 4-i | 匯入時詢問連結案件（可跳過） | 高 | 低 | **已落地** `49db7c2` |
 | 4-ii | LMS 案件頁「1UP CAT」工具區子區塊與深連結 | 高 | 低～中 | **已落地** `7ae0fc5`～`27d0585` |
@@ -77,7 +77,7 @@ flowchart LR
 2. **Phase B — Workflow 框架（步驟定義 + 指派 + 鎖定）** — **已落地**（2026-06-15）
 3. **Phase B-6 — 檔案準備閘門 + 審稿任務完成** — **已實作**（2026-06-16；`fd67332`；migration 已 push）
 4. **Phase B-7 — 統一顯示狀態 + 檔案清單／儀表板 UX** — **已落地**（B-7a～f）
-5. **Phase C — 追蹤修訂（快照、diff、評註、匯出）** — **規格已定、Slice C-1／C-2 實作中**（見 [`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md)）
+5. **Phase C — 追蹤修訂（快照、diff、評註、匯出）** — **C-1／C-2／C-1.1 已驗收**；**C-3 匯出規劃中**（見 [`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md) §12）
 
 ### 4.1 Phase A：TMS 整合（已收尾，2026-06-12）
 
@@ -226,12 +226,12 @@ flowchart LR
 | **B-7e** | 狀態欄匯入 confirmed／外環視覺與匯入對話框；見 [bug-report](./bug-report_workflow-import-confirmed-status-column_2026-06.md) | **已實作** |
 | **B-7f** | `cat_user_ui_prefs` migration `20260618130000`、「隱藏已完成」雲端持久化、預設勾選 | **已實作**（`574f11d`） |
 
-### 4.3 Phase C：追蹤修訂（C-1／C-2 已落地，初步驗收通過）
+### 4.3 Phase C：追蹤修訂（C-1／C-2／C-1.1 已驗收）
 
 > **完整規格與開發紀錄**：[`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md)（§12）  
 > **依賴**：B-6 `enqueueStageSnapshot` hook 已落地；B-7g 確認狀態 UX 已驗收。  
 > **翻譯前基準**：以 **prep 準備完成**（`baseline_before_translate`）為比對起點。  
-> **進行中**：C-1.1（刪除修訂標記、新增藍色）；C-3 匯出規劃中。
+> **下一階段**：**C-3** Excel／htm 匯出（規格 §13 待補）。
 
 #### 核心機制
 
