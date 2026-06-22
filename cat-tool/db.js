@@ -659,6 +659,50 @@ db.version(25).stores({
     stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
 });
 
+// v26：Phase C stageSnapshots / segmentAnnotations / annotationOptions
+db.version(26).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt',
+    workflowTemplates: '++id, projectId, isDefault',
+    workflowTemplateStages: '++id, templateId, stageOrder',
+    fileWorkflowStages: '++id, fileId, stageOrder',
+    stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
+    stageSnapshots: '++id, segmentId, fileId, [segmentId+snapshotReason]',
+    segmentAnnotations: '++id, segmentId, fileId, parentAnnotationId',
+    annotationOptions: '++id, optionType, sortOrder',
+}).upgrade(async (tx) => {
+    const n = await tx.annotationOptions.count();
+    if (n > 0) return;
+    const now = new Date().toISOString();
+    await tx.annotationOptions.bulkAdd([
+        { optionType: 'issue_type', label: '術語錯誤', sortOrder: 1, isActive: true, createdAt: now },
+        { optionType: 'issue_type', label: '語法錯誤', sortOrder: 2, isActive: true, createdAt: now },
+        { optionType: 'issue_type', label: '漏譯', sortOrder: 3, isActive: true, createdAt: now },
+        { optionType: 'issue_type', label: '語感不佳', sortOrder: 4, isActive: true, createdAt: now },
+        { optionType: 'severity', label: '輕微', sortOrder: 1, isActive: true, createdAt: now },
+        { optionType: 'severity', label: '中等', sortOrder: 2, isActive: true, createdAt: now },
+        { optionType: 'severity', label: '嚴重', sortOrder: 3, isActive: true, createdAt: now },
+    ]);
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -949,6 +993,63 @@ const DBService = {
         const now = new Date().toISOString();
         await db.fileWorkflowStages.update(stageId, { status, updatedAt: now });
         return { ...row, status, updatedAt: now };
+    },
+
+    // ---- Phase C: snapshots & annotations (offline) ----
+    async loadFileSnapshots(fileId) {
+        const fid = toDexieLocalId(fileId);
+        return db.stageSnapshots.where('fileId').equals(fid).toArray();
+    },
+
+    async loadAnnotationsByFile(fileId) {
+        const fid = toDexieLocalId(fileId);
+        return db.segmentAnnotations.where('fileId').equals(fid).toArray();
+    },
+
+    async loadAnnotationOptions() {
+        const rows = await db.annotationOptions.toArray();
+        const active = rows.filter((r) => r.isActive !== false);
+        const issue_type = active.filter((r) => r.optionType === 'issue_type').sort((a, b) => a.sortOrder - b.sortOrder);
+        const severity = active.filter((r) => r.optionType === 'severity').sort((a, b) => a.sortOrder - b.sortOrder);
+        return { issue_type, severity };
+    },
+
+    async saveSegmentAnnotationLocal(payload) {
+        const p = payload || {};
+        const fid = toDexieLocalId(p.fileId);
+        const segId = toDexieLocalId(p.segmentId);
+        const now = new Date().toISOString();
+        const row = {
+            segmentId: segId,
+            fileId: fid,
+            parentAnnotationId: p.parentAnnotationId || null,
+            issueType: p.issueType || null,
+            severity: p.severity || null,
+            note: p.note || '',
+            authorUserId: p.authorUserId || 'local-user',
+            responderRole: p.responderRole || 'reviewer',
+            isTranslatorAck: !!p.isTranslatorAck,
+            createdAt: now,
+        };
+        const id = await db.segmentAnnotations.add(row);
+        return { ...row, id };
+    },
+
+    async updateAnnotationTranslatorAckLocal(annotationId, ack) {
+        await db.segmentAnnotations.update(annotationId, { isTranslatorAck: !!ack });
+        return db.segmentAnnotations.get(annotationId);
+    },
+
+    async saveAnnotationOptionLocal(optionType, label, sortOrder) {
+        const now = new Date().toISOString();
+        const id = await db.annotationOptions.add({
+            optionType, label, sortOrder: sortOrder || 0, isActive: true, createdAt: now,
+        });
+        return { id, optionType, label, sortOrder, isActive: true };
+    },
+
+    async deleteAnnotationOptionLocal(id) {
+        await db.annotationOptions.update(id, { isActive: false });
     },
 
     async getProjects() {
@@ -2234,6 +2335,18 @@ const DBService = {
         rpc('db.markStageAssignmentFirstEdited', { assignmentId, assigneeUserId });
     DBService.updateFileWorkflowStageStatus = async (stageId, status) =>
         rpc('db.updateFileWorkflowStageStatus', { stageId, status });
+
+    // Phase C
+    DBService.loadFileSnapshots = async (fileId) => rpc('db.loadFileSnapshots', { fileId });
+    DBService.loadAnnotationsByFile = async (fileId) => rpc('db.loadAnnotationsByFile', { fileId });
+    DBService.loadAnnotationOptions = async () => rpc('db.loadAnnotationOptions', {});
+    DBService.saveSegmentAnnotation = async (payload) => rpc('db.saveSegmentAnnotation', payload);
+    DBService.updateAnnotationTranslatorAck = async (annotationId, ack) =>
+        rpc('db.updateAnnotationTranslatorAck', { annotationId, ack });
+    DBService.notifyRevAnnotationSlack = async (payload) => rpc('cat.notifyRevAnnotationSlack', payload);
+    DBService.saveAnnotationOption = async (optionType, label, sortOrder) =>
+        rpc('db.saveAnnotationOption', { optionType, label, sortOrder });
+    DBService.deleteAnnotationOption = async (id) => rpc('db.deleteAnnotationOption', { id });
 
     // views (句段集)
     DBService.listViews = async (projectId) => rpc('db.listViews', { projectId });

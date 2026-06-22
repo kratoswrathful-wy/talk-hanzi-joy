@@ -77,7 +77,7 @@ flowchart LR
 2. **Phase B — Workflow 框架（步驟定義 + 指派 + 鎖定）** — **已落地**（2026-06-15）
 3. **Phase B-6 — 檔案準備閘門 + 審稿任務完成** — **已實作**（2026-06-16；`fd67332`；migration 已 push）
 4. **Phase B-7 — 統一顯示狀態 + 檔案清單／儀表板 UX** — **已落地**（B-7a～f）
-5. **Phase C — 追蹤修訂（快照、diff、評註、匯出）** — 規劃中
+5. **Phase C — 追蹤修訂（快照、diff、評註、匯出）** — **規格已定、Slice C-1／C-2 實作中**（見 [`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md)）
 
 ### 4.1 Phase A：TMS 整合（已收尾，2026-06-12）
 
@@ -226,10 +226,11 @@ flowchart LR
 | **B-7e** | 狀態欄匯入 confirmed／外環視覺與匯入對話框；見 [bug-report](./bug-report_workflow-import-confirmed-status-column_2026-06.md) | **已實作** |
 | **B-7f** | `cat_user_ui_prefs` migration `20260618130000`、「隱藏已完成」雲端持久化、預設勾選 | **已實作**（`574f11d`） |
 
-### 4.3 Phase C：追蹤修訂（規劃中）
+### 4.3 Phase C：追蹤修訂（規格已定，Slice C-1／C-2 實作中）
 
-> **依賴**：**B-6** 步驟交接時的快照觸發點須先落地（至少 no-op hook），再實作本階段快照與 diff。  
-> **翻譯前基準**：以 **prep 準備完成**（`baseline_before_translate`）為比對起點，用於回答「翻譯階段對 AI／機翻／客戶預譯做了哪些修改」。
+> **完整規格**：[`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md)  
+> **依賴**：B-6 `enqueueStageSnapshot` hook 已落地；B-7g 確認狀態 UX 已驗收。  
+> **翻譯前基準**：以 **prep 準備完成**（`baseline_before_translate`）為比對起點。
 
 #### 核心機制
 
@@ -287,6 +288,7 @@ flowchart LR
 | **Phase B 完整規格** | [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) |
 | **Phase B-6 準備閘門 + 審稿完成** | [`CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](./CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) |
 | **Phase B-7 統一狀態 + 清單／儀表板** | [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) |
+| **Phase C 追蹤修訂** | [`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md) |
 | **B-0 排序與顯示序** | [`CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](./CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) |
 | 匯入連結案件（已落地） | [`CAT_IMPORT_CASE_LINK_2026-06.md`](./CAT_IMPORT_CASE_LINK_2026-06.md) |
 | 批次匯入精靈 | [`CAT_BATCH_IMPORT_WIZARD_SESSION.md`](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) |

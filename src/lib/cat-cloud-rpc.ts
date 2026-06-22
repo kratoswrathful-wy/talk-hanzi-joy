@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from "@/integrations/supabase/client";
+import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 
 type RpcPayload = Record<string, any>;
 
@@ -307,6 +308,40 @@ const mapStageAssignmentRow = (r: any) => ({
   assignedBy: r.assigned_by ?? null,
   assignedAt: r.assigned_at,
   updatedAt: r.updated_at,
+});
+
+const mapStageSnapshotRow = (r: any) => ({
+  id: r.id,
+  segmentId: r.segment_id,
+  fileId: r.file_id,
+  snapshotReason: r.snapshot_reason,
+  targetText: r.target_text ?? "",
+  targetTags: tryParseJson<unknown[]>(r.target_tags, []),
+  confirmedBy: r.confirmed_by ?? null,
+  snapshottedAt: r.snapshotted_at,
+});
+
+const mapSegmentAnnotationRow = (r: any) => ({
+  id: r.id,
+  segmentId: r.segment_id,
+  fileId: r.file_id,
+  parentAnnotationId: r.parent_annotation_id ?? null,
+  issueType: r.issue_type ?? null,
+  severity: r.severity ?? null,
+  note: r.note ?? "",
+  authorUserId: r.author_user_id ?? null,
+  responderRole: r.responder_role,
+  isTranslatorAck: !!r.is_translator_ack,
+  createdAt: r.created_at,
+});
+
+const mapAnnotationOptionRow = (r: any) => ({
+  id: r.id,
+  optionType: r.option_type,
+  label: r.label,
+  sortOrder: r.sort_order ?? 0,
+  isActive: r.is_active !== false,
+  createdAt: r.created_at,
 });
 
 /** 與 cat-tool/db.js 句段排序語意一致：有 globalId 者先依序，否則依列與欄位穩定排序 */
@@ -2339,6 +2374,205 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .single();
       if (error) throw error;
       return mapFileWorkflowStageRow(data);
+    }
+
+    case "db.loadFileSnapshots": {
+      const { data, error } = await supabase
+        .from("cat_segment_stage_snapshots" as any)
+        .select("*")
+        .eq("file_id", payload.fileId)
+        .order("snapshotted_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapStageSnapshotRow);
+    }
+    case "db.upsertSegmentSnapshot": {
+      const { data, error } = await supabase.rpc("cat_upsert_segment_snapshot" as any, {
+        p_segment_id: payload.segmentId,
+        p_file_id: payload.fileId,
+        p_snapshot_reason: payload.snapshotReason,
+        p_target_text: payload.targetText ?? "",
+        p_target_tags: payload.targetTags ?? null,
+        p_confirmed_by: payload.confirmedBy ?? null,
+      } as any);
+      if (error) throw error;
+      return mapStageSnapshotRow(data);
+    }
+    case "db.batchUpsertSegmentSnapshots": {
+      const rows = (payload.rows || []).map((r: any) => ({
+        segment_id: r.segmentId,
+        file_id: r.fileId,
+        snapshot_reason: r.snapshotReason || payload.snapshotReason,
+        target_text: r.targetText ?? "",
+        target_tags: r.targetTags ?? null,
+        confirmed_by: r.confirmedBy ?? null,
+      }));
+      const { data, error } = await supabase.rpc("cat_upsert_segment_snapshots_batch" as any, {
+        p_rows: rows,
+      } as any);
+      if (error) throw error;
+      return data ?? 0;
+    }
+    case "db.catchupSegmentSnapshots": {
+      const rows = (payload.rows || []).map((r: any) => ({
+        segment_id: r.segmentId,
+        target_text: r.targetText ?? "",
+        target_tags: r.targetTags ?? null,
+        confirmed_by: r.confirmedBy ?? null,
+      }));
+      const { data, error } = await supabase.rpc("cat_catchup_segment_snapshots" as any, {
+        p_file_id: payload.fileId,
+        p_snapshot_reason: payload.snapshotReason,
+        p_rows: rows,
+      } as any);
+      if (error) throw error;
+      return data ?? 0;
+    }
+    case "db.loadAnnotationsByFile": {
+      const { data, error } = await supabase
+        .from("cat_segment_annotations" as any)
+        .select("*")
+        .eq("file_id", payload.fileId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapSegmentAnnotationRow);
+    }
+    case "db.saveSegmentAnnotation": {
+      const p = payload || {};
+      const { data, error } = await supabase.rpc("cat_save_segment_annotation" as any, {
+        p_segment_id: p.segmentId,
+        p_file_id: p.fileId,
+        p_parent_annotation_id: p.parentAnnotationId ?? null,
+        p_issue_type: p.issueType ?? null,
+        p_severity: p.severity ?? null,
+        p_note: p.note ?? "",
+        p_responder_role: p.responderRole ?? "reviewer",
+        p_is_translator_ack: !!p.isTranslatorAck,
+      } as any);
+      if (error) throw error;
+      return mapSegmentAnnotationRow(data);
+    }
+    case "db.updateAnnotationTranslatorAck": {
+      const { data, error } = await supabase.rpc("cat_update_annotation_translator_ack" as any, {
+        p_annotation_id: payload.annotationId,
+        p_ack: !!payload.ack,
+      } as any);
+      if (error) throw error;
+      return mapSegmentAnnotationRow(data);
+    }
+    case "db.loadAnnotationOptions": {
+      const { data, error } = await supabase
+        .from("cat_annotation_options" as any)
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []).map(mapAnnotationOptionRow);
+      return {
+        issue_type: rows.filter((r) => r.optionType === "issue_type"),
+        severity: rows.filter((r) => r.optionType === "severity"),
+      };
+    }
+    case "db.saveAnnotationOption": {
+      const { optionType, label, sortOrder } = payload;
+      const { data, error } = await supabase
+        .from("cat_annotation_options" as any)
+        .insert({
+          option_type: optionType,
+          label,
+          sort_order: sortOrder ?? 0,
+          is_active: true,
+        } as any)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return mapAnnotationOptionRow(data);
+    }
+    case "db.deleteAnnotationOption": {
+      const { error } = await supabase
+        .from("cat_annotation_options" as any)
+        .update({ is_active: false } as any)
+        .eq("id", payload.id);
+      if (error) throw error;
+      return { ok: true };
+    }
+    case "cat.notifyRevAnnotationSlack": {
+      const fileId = String(payload.fileId || "");
+      const rootAnnotationId = String(payload.rootAnnotationId || "");
+      if (!fileId) throw new Error("fileId required");
+
+      const { data: fileRow, error: fileErr } = await supabase
+        .from("cat_files" as any)
+        .select("id, name, project_id, related_lms_case_id")
+        .eq("id", fileId)
+        .maybeSingle();
+      if (fileErr) throw fileErr;
+      if (!fileRow) throw new Error("file not found");
+
+      let caseTitle = "";
+      const caseId = (fileRow as any).related_lms_case_id;
+      if (caseId) {
+        const { data: caseRow } = await supabase
+          .from("cases" as any)
+          .select("title")
+          .eq("id", caseId)
+          .maybeSingle();
+        caseTitle = String((caseRow as any)?.title || "").trim();
+      }
+
+      const recipientIds = new Set<string>();
+      if (payload.annotationAuthorUserId) recipientIds.add(String(payload.annotationAuthorUserId));
+
+      const { data: stages } = await supabase
+        .from("cat_file_workflow_stages" as any)
+        .select("id, stage_kind")
+        .eq("file_id", fileId);
+      const reviewStage = (stages || []).find((s: any) => s.stage_kind === "review");
+      if (reviewStage) {
+        const { data: assigns } = await supabase
+          .from("cat_stage_assignments" as any)
+          .select("assignee_user_id")
+          .eq("file_id", fileId)
+          .eq("file_workflow_stage_id", reviewStage.id);
+        (assigns || []).forEach((a: any) => {
+          if (a.assignee_user_id) recipientIds.add(String(a.assignee_user_id));
+        });
+      }
+
+      if (rootAnnotationId) {
+        const { data: rootAnn } = await supabase
+          .from("cat_segment_annotations" as any)
+          .select("author_user_id")
+          .eq("id", rootAnnotationId)
+          .maybeSingle();
+        if ((rootAnn as any)?.author_user_id) recipientIds.add(String((rootAnn as any).author_user_id));
+      }
+
+      recipientIds.delete(userId);
+      const uniqueRecipients = [...recipientIds];
+      if (!uniqueRecipients.length) return { ok: true, skipped: "no_recipients" };
+
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const projectId = (fileRow as any).project_id;
+      const catLink = `${origin}/cat/team/files/${fileId}${projectId ? `?p=${projectId}&revtrack=1` : "?revtrack=1"}`;
+      const fileName = String((fileRow as any).name || "檔案");
+      const caseLabel = caseTitle || "案件";
+      const message = `${caseLabel} 的 ${fileName} 的審稿內容有回應，請前往確認：${catLink}`;
+      const notificationFallback = `${caseLabel} 的 ${fileName} 的審稿內容有回應，請前往確認`;
+
+      const token = await getAccessTokenForEdgeFunctions();
+      if (!token) return { ok: false, error: "no_auth_token" };
+
+      const { data: slackData, error: slackErr } = await supabase.functions.invoke("slack-send-dm", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: {
+          note_reminder_notification: true,
+          recipient_user_ids: uniqueRecipients,
+          message,
+          notification_fallback: notificationFallback,
+        },
+      });
+      if (slackErr) throw slackErr;
+      return slackData ?? { ok: true };
     }
 
     default:

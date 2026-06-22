@@ -776,6 +776,8 @@
                             <div class="split-dropdown" id="wfTaskCompleteDropdown"></div>
                         </div>
                         <button id="exportBtn" class="export-teal-btn btn-sm" data-tip="匯出檔案">匯出檔案</button>
+                        <button type="button" id="btnRevTrackMode" class="secondary-btn btn-sm" data-tip="切換至追蹤修訂模式（唯讀）">追蹤修訂</button>
+                        <button type="button" id="btnRevTrackExit" class="secondary-btn btn-sm" style="display:none;" data-tip="退出追蹤修訂模式">退出追蹤修訂</button>
                         <button id="btnAiMode" class="btn-sm ai-mode-btn" style="display:none;" data-tip="AI 輔助翻譯模式">✨ AI 輔助</button>
                     </div>
                 </header>
@@ -794,6 +796,14 @@
                 <div id="viewReadOnlyBanner" style="display:none; background:#fef9c3; border-bottom:1px solid #fde047; padding:0.5rem 1rem; font-size:0.9rem; color:#713f12; align-items:center; gap:0.5rem;">
                     <span>⚠</span>
                     <span>你尚未受派此句段集，目前以唯讀模式開啟。如需編輯，請聯絡專案管理員。</span>
+                </div>
+                <!-- 追蹤修訂模式列（Phase C） -->
+                <div id="revTrackBar" class="rev-track-bar" style="display:none;">
+                    <label class="rev-track-bar-label"><input type="checkbox" class="rev-track-layer-chk" id="revTrackChkSource" data-layer="source" checked> 原文</label>
+                    <label class="rev-track-bar-label"><input type="checkbox" class="rev-track-layer-chk" id="revTrackChkBaseline" data-layer="baseline" checked> 準備完成時</label>
+                    <label class="rev-track-bar-label"><input type="checkbox" class="rev-track-layer-chk" id="revTrackChkTranslate" data-layer="translate" checked> 翻譯完成時</label>
+                    <label class="rev-track-bar-label"><input type="checkbox" class="rev-track-layer-chk" id="revTrackChkReview" data-layer="review" checked> 審稿完成時</label>
+                    <label class="rev-track-bar-label"><input type="checkbox" class="rev-track-layer-chk" id="revTrackChkMarks" data-layer="marks" checked> 修訂標記</label>
                 </div>
                 <!-- Editor Layout Wrapper -->
                 <div class="editor-layout-wrapper">
@@ -929,6 +939,12 @@
                             <!-- Segments will be injected here as .grid-data-row -->
                             <div class="grid-body" id="gridBody" style="min-width: min-content;"></div>
                         </div>
+                        <div id="revTrackGridWrap" class="rev-track-grid-wrap" style="display:none; flex:1; overflow:auto; min-height:0;">
+                            <table class="rev-track-table">
+                                <thead id="revTrackGridHead"></thead>
+                                <tbody id="revTrackGridBody"></tbody>
+                            </table>
+                        </div>
                         <!-- Notes Panel -->
                         <div id="notesPanel" class="notes-panel">
                             <div id="notesPanelResizer" class="notes-panel-resizer" data-tip="拖曳調整筆記面板高度"><div class="notes-panel-resizer-grip"></div></div>
@@ -937,6 +953,7 @@
                                     <button class="notes-tab-btn active" data-notes-tab="tabPrivateNotes">私人筆記</button>
                                     <button class="notes-tab-btn" data-notes-tab="tabSharedInfo">共用資訊</button>
                                     <button type="button" class="notes-tab-btn ai-translator-ui ai-file-only-notes-tab" data-notes-tab="tabAiReport" style="display:none;" hidden aria-hidden="true">AI 報告</button>
+                                    <button type="button" class="notes-tab-btn" id="tabRevMgmt" data-notes-tab="tabRevMgmt" style="display:none;">修訂管理</button>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:0.4rem;">
                                     <button type="button" id="btnCollapseNotesPanel" class="notes-panel-collapse-btn" data-tip="收合筆記面板">▼</button>
@@ -1019,6 +1036,24 @@
                                         </div>
                                     </div>
                                 </div>
+                                <!-- 修訂管理 Tab（Phase C，PM+，追蹤修訂模式） -->
+                                <div class="notes-tab-content" id="tabRevMgmt">
+                                    <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">管理全公司共用的錯誤類型與嚴重性選項（PM 以上）。</p>
+                                    <div class="shared-info-section">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">錯誤類型</h4>
+                                            <button type="button" class="notes-add-btn" id="btnRevMgmtAddIssue">＋ 新增</button>
+                                        </div>
+                                        <ul id="revMgmtIssueList" class="rev-mgmt-list"></ul>
+                                    </div>
+                                    <div class="shared-info-section" style="margin-top:0.75rem;">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">嚴重性</h4>
+                                            <button type="button" class="notes-add-btn" id="btnRevMgmtAddSeverity">＋ 新增</button>
+                                        </div>
+                                        <ul id="revMgmtSeverityList" class="rev-mgmt-list"></ul>
+                                    </div>
+                                </div>
                                 <!-- AI 報告 Tab -->
                                 <div class="notes-tab-content" id="tabAiReport">
                                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
@@ -1035,6 +1070,7 @@
 
                     <!-- Vertical Resizer for side panel width -->
                     <div id="sidePanelWidthResizer" data-tip="拖曳調整右側欄寬度" role="separator" aria-orientation="vertical"></div>
+                    <button type="button" id="btnRevTrackShowSidePanel" class="rev-track-side-toggle" style="display:none;" data-tip="顯示／隱藏右側工具列" title="顯示右側工具列">▶</button>
 
                     <!-- Right: Panels (TM, TB, QA) -->
                     <aside class="editor-side-panel">
@@ -3362,6 +3398,9 @@
     <script src="js/cat-mutex-dropdown.js"></script>
     <script src="js/cat-fake-caret.js"></script>
     <script src="js/wf-display-status.js"></script>
+    <script src="js/stage-snapshot.js"></script>
+    <script src="js/rev-track-diff.js"></script>
+    <script src="js/rev-track.js"></script>
     <script src="word-count-engine.js"></script>
     <!-- 深連結：在 app.js restore 前隱藏預設儀表板，避免先閃錯頁 -->
     <script>

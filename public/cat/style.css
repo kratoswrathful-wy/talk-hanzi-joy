@@ -4225,3 +4225,152 @@ select.cat-mutex-dd-native-hidden {
 #wcProgressModeTooltip.wc-progress-mode-tooltip.hidden {
     display: none !important;
 }
+
+/* Phase C — 追蹤修訂模式 */
+.rev-track-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 0.5rem 1rem;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.82rem;
+}
+.rev-track-bar-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.rev-track-grid-wrap {
+    background: #fff;
+}
+.rev-track-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.rev-track-table th,
+.rev-track-table td {
+    border: 1px solid #e2e8f0;
+    padding: 0.45rem 0.55rem;
+    vertical-align: top;
+    text-align: left;
+}
+.rev-track-table th {
+    background: #f8fafc;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+.rev-track-num {
+    width: 48px;
+    text-align: center;
+    color: #64748b;
+}
+.rev-track-cell {
+    min-width: 120px;
+    line-height: 1.45;
+    word-break: break-word;
+}
+.rev-track-empty {
+    color: #94a3b8;
+    font-style: italic;
+}
+.rev-diff-del {
+    color: #dc2626;
+    text-decoration: line-through;
+}
+.rev-diff-ins {
+    color: #15803d;
+    text-decoration: underline;
+    text-decoration-color: #22c55e;
+}
+.rev-track-tag-pill {
+    display: inline-block;
+    margin: 0 1px;
+    padding: 0 0.25rem;
+    border-radius: 3px;
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 0.78rem;
+}
+.rev-track-annot-block {
+    padding: 0.5rem 0.75rem;
+    background: #fafafa;
+    border-top: 1px dashed #e2e8f0;
+}
+.rev-track-annot-item {
+    margin-bottom: 0.65rem;
+    padding: 0.5rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+}
+.rev-track-annot-meta {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+.rev-track-annot-note {
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+}
+.rev-track-draft-form,
+.rev-track-reply-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    margin-top: 0.35rem;
+}
+.rev-track-draft-form .form-input,
+.rev-track-reply-form .form-input {
+    flex: 1 1 120px;
+    min-width: 100px;
+}
+.rev-track-reply {
+    margin: 0.35rem 0 0 0.5rem;
+    font-size: 0.82rem;
+    color: #334155;
+}
+.rev-track-reply-label {
+    color: #64748b;
+}
+.rev-track-ack-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.82rem;
+    margin-right: 0.5rem;
+}
+.rev-track-side-toggle {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: 4px 0 0 4px;
+    padding: 0.35rem 0.25rem;
+    cursor: pointer;
+}
+body.rev-track-mode .editor-layout-wrapper {
+    position: relative;
+}
+.rev-mgmt-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.rev-mgmt-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.85rem;
+}

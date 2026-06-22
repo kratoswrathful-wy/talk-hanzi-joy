@@ -2971,11 +2971,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         completed: '已完成',
     };
 
-    /** B-6 / Phase C：步驟交接快照（Phase C 前為 no-op） */
+    /** B-6 / Phase C：步驟交接快照 */
     async function enqueueStageSnapshot(fileId, stageId, reason) {
-        void fileId;
         void stageId;
-        void reason;
+        if (!fileId || !reason || !window.CatStageSnapshot) return;
+        const segs = currentFileId && String(currentFileId) === String(fileId)
+            ? (currentSegmentsList || [])
+            : await DBService.getSegmentsByFile(fileId);
+        if (!Array.isArray(segs) || !segs.length) return;
+        const catchUpOnly = reason === 'post_translate' || reason === 'post_review';
+        await window.CatStageSnapshot.batchUpsertSnapshots(fileId, segs, reason, catchUpOnly);
+    }
+
+    function _upsertSegmentSnapshot(seg, reason) {
+        if (!seg || !currentFileId || !window.CatStageSnapshot) return;
+        window.CatStageSnapshot.fireAndForgetUpsertSegmentSnapshot(seg, currentFileId, reason);
     }
 
     function _prepStageLabel(st) {
@@ -4524,6 +4534,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (inEditor) {
                 const ok = await ensureWorkspaceNoteLeaveResolved();
                 if (!ok) return;
+                if (window.CatRevTrack && window.CatRevTrack.isActive()) {
+                    await window.CatRevTrack.exit();
+                }
                 clearEditorCaretArtifacts();
                 leaveCollabForCurrentFile();
                 currentFileId = null;
@@ -6507,12 +6520,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             seg.wfTransConfirmedAt = now;
             seg.wfTransConfirmedBy = userId;
             seg.wfReviewRevokedPending = false;
+            if (currentFileId) _upsertSegmentSnapshot(seg, 'post_translate');
         }
         if (kinds.includes('review')) {
             seg.wfReviewConfirmedAt = now;
             seg.wfReviewConfirmedBy = userId;
             seg.wfReviewRevokedPending = false;
             _captureReviewRestoreSnapshot(seg);
+            if (currentFileId) _upsertSegmentSnapshot(seg, 'post_review');
         } else if (hadReview && kinds.includes('translate') && !kinds.includes('review')) {
             /* 審稿後譯者再確認：保留 review 時間 */
         }
@@ -8116,7 +8131,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${idx + 1}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}
+                    <div style="margin-top:0.35rem;"><button type="button" class="secondary-btn btn-sm rev-track-list-btn" data-id="${f.id}">追蹤修訂</button></div></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; min-width:5.25rem; width:5.5rem; vertical-align:middle; text-align:left;">${roleTdHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:140px; vertical-align:middle;" title="${assignTitle}">${workflowCellHtml}</td>
@@ -8134,6 +8150,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // local mode: Dexie PK is integer; team mode: string UUID
                 const id = isTeamMode() ? idAttr : parseInt(idAttr);
                 openEditor(id);
+            });
+        });
+        filesListBody.querySelectorAll('.rev-track-list-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const idAttr = btn.getAttribute('data-id');
+                if (!idAttr) return;
+                const id = isTeamMode() ? idAttr : parseInt(idAttr);
+                void openEditor(id, { revTrack: true });
             });
         });
         filesListBody.querySelectorAll('.project-file-case-link').forEach((link) => {
@@ -16666,7 +16691,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncEditorWordCountToolbarBtn();
     }
 
-    async function openEditor(fileId) {
+    let _openEditorRevTrack = false;
+
+    async function openEditor(fileId, opts) {
+        const openOpts = opts || {};
+        _openEditorRevTrack = !!openOpts.revTrack;
         try {
         _abortWcWorkerJob();
         Object.keys(_editorProgressModeByFileId).forEach((k) => delete _editorProgressModeByFileId[k]);
@@ -16711,7 +16740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         await _loadFileWorkflowContext(fileId);
 
-        if (!_fileUnassignedReadOnly) {
+        if (!_fileUnassignedReadOnly && !_openEditorRevTrack) {
             const wfOk = await _maybePromptWfSessionKind();
             if (!wfOk) {
                 currentFileId = null;
@@ -16743,7 +16772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? (file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1'))
             : null;
 
-        if (currentFileFormat === 'mqxliff') {
+        if (currentFileFormat === 'mqxliff' && !_openEditorRevTrack) {
             const rawDefault = file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1');
             if (_fileUnassignedReadOnly) {
                 currentMqConfirmationRole = rawDefault;
@@ -16771,6 +16800,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     file.defaultMqRole = role;
                 }
             }
+        } else if (currentFileFormat === 'mqxliff' && _openEditorRevTrack) {
+            const rawDefault = file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1');
+            currentMqConfirmationRole = rawDefault;
         }
 
         showCatLoadingOverlay('正在載入檔案…');
@@ -16989,6 +17021,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {
             console.warn('[CAT] upsertFileUserAccess', e);
         }
+        if (_openEditorRevTrack && window.CatRevTrack) {
+            _openEditorRevTrack = false;
+            await window.CatRevTrack.enter(fileId);
+        }
+        hideCatLoadingOverlay();
         } catch (e) {
             console.error('[CAT] openEditor failed', e);
             currentFileId = null;
@@ -17029,6 +17066,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnExitEditor.addEventListener('click', async () => {
         const ok = await ensureWorkspaceNoteLeaveResolved();
         if (!ok) return;
+        if (window.CatRevTrack && window.CatRevTrack.isActive()) {
+            await window.CatRevTrack.exit();
+        }
         clearEditorCaretArtifacts();
         leaveCollabForCurrentFile();
         currentFileId = null;
@@ -28161,7 +28201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (isTeamMode()) {
                         await waitForTmsIdentityReady(20000);
                     }
-                    await openEditor(data.fileId);
+                    await openEditor(data.fileId, { revTrack: urlParams.get('revtrack') === '1' });
                 } catch (e) {
                     const msg = String((e && e.message) ? e.message : e || '');
                     const m = msg.toLowerCase();
@@ -34774,5 +34814,189 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (str == null) return '';
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
+
+    // ---- Phase C：追蹤修訂 API 橋接 ----
+    function _revTrackVisibleSegments() {
+        const rows = gridBody ? Array.from(gridBody.querySelectorAll('.grid-data-row')) : [];
+        if (rows.length && sfMode === 'filter') {
+            const ids = new Set(rows.filter((r) => r.style.display !== 'none').map((r) => String(r.getAttribute('data-seg-id') || '')));
+            return (currentSegmentsList || []).filter((s) => ids.has(String(s.id)));
+        }
+        return currentSegmentsList || [];
+    }
+
+    function _isUserTranslateAssigneeForFile() {
+        const uid = String(window._tmsCurrentUserId || '').trim();
+        if (!uid) return false;
+        const stages = window._currentFileWorkflowStages || [];
+        const trStage = stages.find((s) => s.stageKind === 'translate');
+        if (!trStage) return false;
+        const assigns = (window._currentFileStageAssignments || []).filter(
+            (a) => String(a.fileWorkflowStageId) === String(trStage.id) && String(a.assigneeUserId) === uid,
+        );
+        return assigns.length > 0;
+    }
+
+    async function _revTrackLoadAnnotations(fileId) {
+        if (typeof DBService.loadAnnotationsByFile === 'function') {
+            return DBService.loadAnnotationsByFile(fileId);
+        }
+        return [];
+    }
+
+    async function _revTrackLoadAnnotationOptions() {
+        if (typeof DBService.loadAnnotationOptions === 'function') {
+            return DBService.loadAnnotationOptions();
+        }
+        return { issue_type: [], severity: [] };
+    }
+
+    async function _refreshRevMgmtLists() {
+        const opts = await _revTrackLoadAnnotationOptions();
+        const renderList = (el, items, type) => {
+            if (!el) return;
+            el.innerHTML = '';
+            (items || []).forEach((o) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${_esc(o.label)}</span>`;
+                if (_isCatPmOrExecutive()) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'secondary-btn btn-sm';
+                    btn.textContent = '停用';
+                    btn.addEventListener('click', async () => {
+                        if (isTeamMode() && typeof DBService.deleteAnnotationOption === 'function') {
+                            await DBService.deleteAnnotationOption(o.id);
+                        } else if (typeof DBService.deleteAnnotationOptionLocal === 'function') {
+                            await DBService.deleteAnnotationOptionLocal(o.id);
+                        }
+                        await _refreshRevMgmtLists();
+                        if (window.CatRevTrack) await window.CatRevTrack.reload();
+                    });
+                    li.appendChild(btn);
+                }
+                el.appendChild(li);
+            });
+        };
+        renderList(document.getElementById('revMgmtIssueList'), opts.issue_type, 'issue_type');
+        renderList(document.getElementById('revMgmtSeverityList'), opts.severity, 'severity');
+    }
+
+    window.CatRevTrackApi = {
+        getCurrentFileId: () => currentFileId,
+        getSegments: () => currentSegmentsList || [],
+        getVisibleSegments: () => _revTrackVisibleSegments(),
+        isPmOrExecutive: () => _isCatPmOrExecutive(),
+        showToast: (msg, kind) => showCatToast(msg, kind),
+        canAddAnnotation: () => _isActingAsReviewer() || _isCatPmOrExecutive(),
+        canTranslatorAck: () => _isUserTranslateAssigneeForFile(),
+        canReplyAsTranslator: (root, replies) => {
+            if (!_isUserTranslateAssigneeForFile()) return false;
+            const rs = replies || [];
+            if (!rs.length) return true;
+            const last = rs[rs.length - 1];
+            return (last.responderRole || last.responder_role) === 'reviewer';
+        },
+        canReplyAsReviewer: (root, replies) => {
+            if (!_isActingAsReviewer() && !_isCatPmOrExecutive()) return false;
+            const rs = replies || [];
+            if (!rs.length) return false;
+            const last = rs[rs.length - 1];
+            return (last.responderRole || last.responder_role) === 'translator';
+        },
+        loadAnnotations: _revTrackLoadAnnotations,
+        loadAnnotationOptions: _revTrackLoadAnnotationOptions,
+        saveRootAnnotation: async ({ segmentId, issueType, severity, note }) => {
+            const payload = {
+                segmentId,
+                fileId: currentFileId,
+                parentAnnotationId: null,
+                issueType,
+                severity,
+                note,
+                responderRole: 'reviewer',
+            };
+            if (isTeamMode() && typeof DBService.saveSegmentAnnotation === 'function') {
+                return DBService.saveSegmentAnnotation(payload);
+            }
+            return DBService.saveSegmentAnnotationLocal({
+                ...payload,
+                authorUserId: window._tmsCurrentUserId || 'local-user',
+            });
+        },
+        saveReply: async ({ parentAnnotationId, responderRole, note }) => {
+            const all = Object.values(window.CatRevTrack?.state?.annotationsBySeg || {}).flat();
+            const root = all.find((a) => String(a.id) === String(parentAnnotationId))
+                || (await _revTrackLoadAnnotations(currentFileId)).find((a) => String(a.id) === String(parentAnnotationId));
+            const segId = root?.segmentId || root?.segment_id;
+            const payload = {
+                segmentId: segId,
+                fileId: currentFileId,
+                parentAnnotationId,
+                issueType: null,
+                severity: null,
+                note,
+                responderRole,
+            };
+            let saved;
+            if (isTeamMode() && typeof DBService.saveSegmentAnnotation === 'function') {
+                saved = await DBService.saveSegmentAnnotation(payload);
+            } else {
+                saved = await DBService.saveSegmentAnnotationLocal({
+                    ...payload,
+                    authorUserId: window._tmsCurrentUserId || 'local-user',
+                });
+            }
+            if (responderRole === 'translator' && typeof DBService.notifyRevAnnotationSlack === 'function') {
+                void DBService.notifyRevAnnotationSlack({
+                    fileId: currentFileId,
+                    rootAnnotationId: parentAnnotationId,
+                    annotationAuthorUserId: root?.authorUserId || root?.author_user_id || null,
+                }).catch((e) => console.warn('[rev-track] slack', e));
+            }
+            return saved;
+        },
+        updateTranslatorAck: async (annotationId, ack) => {
+            if (isTeamMode() && typeof DBService.updateAnnotationTranslatorAck === 'function') {
+                return DBService.updateAnnotationTranslatorAck(annotationId, ack);
+            }
+            return DBService.updateAnnotationTranslatorAckLocal(annotationId, ack);
+        },
+        onModeChanged: async (active) => {
+            if (active) await _refreshRevMgmtLists();
+        },
+    };
+
+    if (window.CatRevTrack) window.CatRevTrack.init();
+
+    document.getElementById('btnRevMgmtAddIssue')?.addEventListener('click', async () => {
+        if (!_isCatPmOrExecutive()) return;
+        const label = prompt('新增錯誤類型：');
+        if (!label || !label.trim()) return;
+        const opts = await _revTrackLoadAnnotationOptions();
+        const sortOrder = (opts.issue_type?.length || 0) + 1;
+        if (isTeamMode() && typeof DBService.saveAnnotationOption === 'function') {
+            await DBService.saveAnnotationOption('issue_type', label.trim(), sortOrder);
+        } else {
+            await DBService.saveAnnotationOptionLocal('issue_type', label.trim(), sortOrder);
+        }
+        await _refreshRevMgmtLists();
+        if (window.CatRevTrack) await window.CatRevTrack.reload();
+    });
+
+    document.getElementById('btnRevMgmtAddSeverity')?.addEventListener('click', async () => {
+        if (!_isCatPmOrExecutive()) return;
+        const label = prompt('新增嚴重性：');
+        if (!label || !label.trim()) return;
+        const opts = await _revTrackLoadAnnotationOptions();
+        const sortOrder = (opts.severity?.length || 0) + 1;
+        if (isTeamMode() && typeof DBService.saveAnnotationOption === 'function') {
+            await DBService.saveAnnotationOption('severity', label.trim(), sortOrder);
+        } else {
+            await DBService.saveAnnotationOptionLocal('severity', label.trim(), sortOrder);
+        }
+        await _refreshRevMgmtLists();
+        if (window.CatRevTrack) await window.CatRevTrack.reload();
+    });
 
 });
