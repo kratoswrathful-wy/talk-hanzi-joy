@@ -2522,11 +2522,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const recipientIds = new Set<string>();
       if (payload.annotationAuthorUserId) recipientIds.add(String(payload.annotationAuthorUserId));
 
-      const { data: stages } = await supabase
+      const { data: stagesRaw } = await supabase
         .from("cat_file_workflow_stages" as any)
         .select("id, stage_kind")
         .eq("file_id", fileId);
-      const reviewStage = (stages || []).find((s: any) => s.stage_kind === "review");
+      const stages = (stagesRaw || []) as unknown as { id: string; stage_kind: string }[];
+      const reviewStage = stages.find((s) => s.stage_kind === "review");
       if (reviewStage) {
         const { data: assigns } = await supabase
           .from("cat_stage_assignments" as any)
