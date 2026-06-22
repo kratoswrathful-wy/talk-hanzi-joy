@@ -97,39 +97,114 @@
     return `<span class="tag-pill rev-track-tag-pill">${esc}</span>`;
   }
 
+  function renderTokenInner(tok) {
+    if (!tok) return '';
+    return tok.kind === 'tag' ? renderTagPill(tok.value) : escapeHtml(tok.value);
+  }
+
+  /** Walk diff parts: del from old stream, same/ins from new stream */
+  function renderDiffFromCharStreams(oldText, newText) {
+    const parts = computeCharDiff(oldText, newText);
+    let oi = 0;
+    let ni = 0;
+    let html = '';
+    parts.forEach((p) => {
+      const len = p.text.length;
+      if (p.type === 'del') {
+        const chunk = oldText.slice(oi, oi + len);
+        oi += len;
+        html += `<span class="rev-diff-del">${escapeHtml(chunk)}</span>`;
+      } else if (p.type === 'ins') {
+        const chunk = newText.slice(ni, ni + len);
+        ni += len;
+        html += `<span class="rev-diff-ins">${escapeHtml(chunk)}</span>`;
+      } else {
+        const chunk = newText.slice(ni, ni + len);
+        oi += len;
+        ni += len;
+        html += escapeHtml(chunk);
+      }
+    });
+    return html;
+  }
+
   function renderDiffTokens(oldTokens, newTokens, showMarks) {
     const oldPlain = tokensToPlain(oldTokens);
     const newPlain = tokensToPlain(newTokens);
     if (!showMarks || oldPlain === newPlain) {
-      return newTokens.map((t) => (t.kind === 'tag' ? renderTagPill(t.value) : escapeHtml(t.value))).join('');
+      return newTokens.map((t) => renderTokenInner(t)).join('');
     }
-    const oldMap = oldTokens.map((t) => t.value);
-    const newMap = newTokens.map((t) => t.value);
-    const parts = computeCharDiff(oldMap.join('\u0001'), newMap.join('\u0001'));
+    const hasTags = oldTokens.some((t) => t.kind === 'tag') || newTokens.some((t) => t.kind === 'tag');
+    if (!hasTags) {
+      return renderDiffFromCharStreams(oldPlain, newPlain);
+    }
+
+    const SEP = '\u0001';
+    const parts = computeCharDiff(
+      oldTokens.map((t) => t.value).join(SEP),
+      newTokens.map((t) => t.value).join(SEP),
+    );
     const splitParts = [];
     parts.forEach((p) => {
-      const chunks = String(p.text).split('\u0001');
+      const chunks = String(p.text).split(SEP);
       chunks.forEach((c, idx) => {
         if (!c && idx === chunks.length - 1) return;
         splitParts.push({ type: p.type, text: c });
       });
     });
-    let ti = 0;
+
+    let oi = 0;
+    let ni = 0;
+    let oOff = 0;
+    let nOff = 0;
     let html = '';
+
+    const advanceOld = (len) => {
+      const tok = oldTokens[oi];
+      const tlen = tok ? tok.value.length : 0;
+      oOff += len;
+      if (!tok || oOff >= tlen) {
+        oi += 1;
+        oOff = 0;
+      }
+    };
+    const advanceNew = (len) => {
+      const tok = newTokens[ni];
+      const tlen = tok ? tok.value.length : 0;
+      nOff += len;
+      if (!tok || nOff >= tlen) {
+        ni += 1;
+        nOff = 0;
+      }
+    };
+
     splitParts.forEach((p) => {
-      const tok = newTokens[ti];
-      ti += 1;
-      if (!tok) return;
-      const inner = tok.kind === 'tag' ? renderTagPill(tok.value) : escapeHtml(tok.value);
-      if (p.type === 'del') html += `<span class="rev-diff-del">${inner}</span>`;
-      else if (p.type === 'ins') html += `<span class="rev-diff-ins">${inner}</span>`;
-      else html += inner;
+      const len = p.text.length;
+      if (p.type === 'del') {
+        const tok = oldTokens[oi];
+        const inner = tok && tok.kind === 'tag' ? renderTagPill(tok.value) : escapeHtml(p.text);
+        html += `<span class="rev-diff-del">${inner}</span>`;
+        advanceOld(len);
+      } else if (p.type === 'ins') {
+        const tok = newTokens[ni];
+        const inner = tok && tok.kind === 'tag' ? renderTagPill(tok.value) : escapeHtml(p.text);
+        html += `<span class="rev-diff-ins">${inner}</span>`;
+        advanceNew(len);
+      } else {
+        const tok = newTokens[ni];
+        const inner = tok && tok.kind === 'tag' ? renderTagPill(tok.value) : escapeHtml(p.text);
+        html += inner;
+        advanceOld(len);
+        advanceNew(len);
+      }
     });
-    while (ti < newTokens.length) {
-      const tok = newTokens[ti];
-      ti += 1;
-      html += tok.kind === 'tag' ? renderTagPill(tok.value) : escapeHtml(tok.value);
+
+    while (ni < newTokens.length) {
+      html += renderTokenInner(newTokens[ni]);
+      ni += 1;
+      if (oi < oldTokens.length) oi += 1;
     }
+
     return html;
   }
 
@@ -141,7 +216,7 @@
     const tags = snapshot.targetTags ?? snapshot.target_tags ?? [];
     const newTokens = tokenizeWithTags(text, tags);
     if (!leftSnapshot) {
-      return newTokens.map((t) => (t.kind === 'tag' ? renderTagPill(t.value) : escapeHtml(t.value))).join('');
+      return newTokens.map((t) => renderTokenInner(t)).join('');
     }
     const leftText = leftSnapshot.targetText ?? leftSnapshot.target_text ?? '';
     const leftTags = leftSnapshot.targetTags ?? leftSnapshot.target_tags ?? [];

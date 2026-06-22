@@ -4284,9 +4284,9 @@ select.cat-mutex-dd-native-hidden {
     text-decoration: line-through;
 }
 .rev-diff-ins {
-    color: #15803d;
+    color: #1d4ed8;
     text-decoration: underline;
-    text-decoration-color: #22c55e;
+    text-decoration-color: #3b82f6;
 }
 .rev-track-tag-pill {
     display: inline-block;

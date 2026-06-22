@@ -226,11 +226,12 @@ flowchart LR
 | **B-7e** | 狀態欄匯入 confirmed／外環視覺與匯入對話框；見 [bug-report](./bug-report_workflow-import-confirmed-status-column_2026-06.md) | **已實作** |
 | **B-7f** | `cat_user_ui_prefs` migration `20260618130000`、「隱藏已完成」雲端持久化、預設勾選 | **已實作**（`574f11d`） |
 
-### 4.3 Phase C：追蹤修訂（規格已定，Slice C-1／C-2 實作中）
+### 4.3 Phase C：追蹤修訂（C-1／C-2 已落地，初步驗收通過）
 
-> **完整規格**：[`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md)  
+> **完整規格與開發紀錄**：[`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md)（§12）  
 > **依賴**：B-6 `enqueueStageSnapshot` hook 已落地；B-7g 確認狀態 UX 已驗收。  
-> **翻譯前基準**：以 **prep 準備完成**（`baseline_before_translate`）為比對起點。
+> **翻譯前基準**：以 **prep 準備完成**（`baseline_before_translate`）為比對起點。  
+> **進行中**：C-1.1（刪除修訂標記、新增藍色）；C-3 匯出規劃中。
 
 #### 核心機制
 

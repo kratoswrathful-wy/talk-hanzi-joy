@@ -383,3 +383,15 @@ Ctrl+Enter
 | `c70723b` | 第二波規格文件 |
 | `479460d` | 第二波程式 |
 | `c503f9d` | 第三波文案／還原／CSS |
+
+---
+
+## §14 文案修正（2026-06-22）
+
+| 顯示狀態 | CSS | 變更 |
+|----------|-----|------|
+| `review_revoked_editing` | `wf-review-revoked`（僅虛線外圈、無實心內圓） | tooltip：**審稿確認後譯者再編輯** → **審稿確認後再編輯** |
+
+**不變**：`post_review_trans`（虛線外圈 + 實心內圓）仍為「審稿後譯者再編輯並確認」。
+
+**程式觸點**：`WF_DISPLAY_STATE_LABELS.review_revoked_editing`（[`cat-tool/app.js`](../cat-tool/app.js)）。

@@ -6376,7 +6376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         orig_confirmed: '原檔確認，系統內未確認',
         trans_confirmed: '翻譯確認',
         review_confirmed: '審稿確認',
-        review_revoked_editing: '審稿確認後譯者再編輯',
+        review_revoked_editing: '審稿確認後再編輯',
         post_review_trans: '審稿後譯者再編輯並確認',
     };
 
