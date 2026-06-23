@@ -34424,7 +34424,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let guardRetry = 0;
                 while (result.error && result.results.length === 0) {
                     const isRateLimit = String(result.error || '').includes('請求速率超過上限');
-                    if (!isRateLimit || guardRetry >= 2) {
+                    const isParseError = String(result.error || '').includes('回傳格式不正確');
+                    const isContextLong = String(result.error || '').includes('提示內容過長');
+                    const isRetryable = isRateLimit || isParseError || isContextLong;
+                    if (!isRetryable || guardRetry >= 2) {
                         _saveCatAiBatchResume({
                             v: 1,
                             fileId: currentFileId,
@@ -34452,8 +34455,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     guardRetry += 1;
                     dynamicBatchSize = Math.max(AI_BATCH_MIN_SIZE, Math.floor(dynamicBatchSize / 2));
                     dynamicCharLimit = Math.max(500, Math.floor(dynamicCharLimit * 0.75));
-                    const backoffMs = Math.min(12000, 1200 * guardRetry + Math.floor(Math.random() * 400));
-                    _showAiToast(`偵測到速率限制，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
+                    const retryLabel = isRateLimit ? '速率限制' : isParseError ? 'AI 回傳格式問題' : '提示過長';
+                    const backoffMs = isRateLimit
+                        ? Math.min(12000, 1200 * guardRetry + Math.floor(Math.random() * 400))
+                        : Math.min(2000, 400 * guardRetry + Math.floor(Math.random() * 200));
+                    _showAiToast(`偵測到${retryLabel}，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
                     await _aiSleep(backoffMs);
                     batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
                     const retryBatchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
@@ -34473,6 +34479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
                     }
                 }
+                rerenderCurrentSegments();
                 allMissing.push(...result.missing);
                 processed += result.results.length;
                 i += batch.length;
@@ -34710,6 +34717,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const elIntro = document.getElementById('aiBatchIntroduction');
             if (elIntro && document.body.contains(elIntro)) introText = String(elIntro.value || '').trim();
         } catch (_) {}
+        if (!introText && psettings?.batchIntroduction) introText = String(psettings.batchIntroduction || '').trim();
         const baseSys = (pr && pr.translateSystemPrefix) || '';
         const systemPrefix = [introText, baseSys].filter(Boolean).join('\n\n');
         return {

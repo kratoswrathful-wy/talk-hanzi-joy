@@ -1935,9 +1935,10 @@ const DBService = {
             if (!Array.isArray(r.projectGuidelines)) r.projectGuidelines = [];
             if (!Array.isArray(r.specialInstructions)) r.specialInstructions = [];
             if (!Array.isArray(r.projectAiInstructions)) r.projectAiInstructions = [];
+            if (typeof r.batchIntroduction !== 'string') r.batchIntroduction = '';
             return r;
         }
-        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [], projectAiInstructions: [], projectGuidelines: [], batchRefOptions: {} };
+        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [], projectAiInstructions: [], projectGuidelines: [], batchIntroduction: '', batchRefOptions: {} };
     },
     async saveAiProjectSettings(projectId, patch) {
         if (!projectId) return;

@@ -588,6 +588,7 @@ const mapAiProjectSettingsRow = (r: any) => ({
   specialInstructions: Array.isArray(r.special_instructions) ? r.special_instructions : [],
   projectAiInstructions: Array.isArray(r.project_ai_instructions) ? r.project_ai_instructions : [],
   projectGuidelines: Array.isArray(r.project_guidelines) ? r.project_guidelines : [],
+  batchIntroduction: typeof r.batch_introduction === "string" ? r.batch_introduction : "",
   updatedAt: r.updated_at,
 });
 
@@ -2022,6 +2023,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         specialInstructions: [],
         projectAiInstructions: [],
         projectGuidelines: [],
+        batchIntroduction: "",
       };
     }
     case "db.saveAiProjectSettings": {
@@ -2043,6 +2045,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           ? patch.projectAiInstructions
           : (currentAny?.project_ai_instructions ?? []),
         project_guidelines: Array.isArray(patch.projectGuidelines) ? patch.projectGuidelines : (currentAny?.project_guidelines ?? []),
+        batch_introduction: patch.batchIntroduction !== undefined
+          ? String(patch.batchIntroduction ?? "")
+          : (typeof currentAny?.batch_introduction === "string" ? currentAny.batch_introduction : ""),
         updated_at: nowIso(),
         updated_by: userId,
       };
