@@ -95,7 +95,9 @@ stateDiagram-v2
 
 ### 4.3 LMS 派出閘門
 
-| 項目 | 定案 |
+> **2026-06-23 變更**：阻擋式派出閘門已移除，改為 LMS 派出與 CAT prep **解耦**；派出後以非阻擋 toast 提醒尚未準備完成的檔案。完整調查、實作與驗收見 [**CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md**](./CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md)（`d247d9a`）。以下為 **B-6 初版規格留存**。
+
+| 項目 | 定案（B-6 初版；2026-06-23 起已由解耦文件取代阻擋行為） |
 |------|------|
 | 觸發 | [`CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx)「確定指派」／公布後派出（`status` → `dispatched`）**之前** |
 | RPC | `cat_case_all_linked_files_prep_ready(p_case_id uuid) returns boolean` |
@@ -260,7 +262,7 @@ $$;
 | CAT 審稿任務完成 | [`cat-tool/app.js`](../cat-tool/app.js) | `_wfReviewAssignmentsInContext`、`_validateAssignmentForReviewTaskComplete`、`refreshWfTaskCompleteToolbar`、`_pmApplyWholeFileReviewState` |
 | CAT 調整狀態 Modal | [`cat-tool/index.html`](../cat-tool/index.html) | `#wfAdjustStatusModal` |
 | CAT 離線 | [`cat-tool/db.js`](../cat-tool/db.js) | Dexie v24、`ensureFileWorkflowStages` |
-| LMS 派出閘門 | [`src/pages/CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx) | `handleFinalizeAssign`、公布派出前檢查 |
+| LMS 派出（2026-06-23 解耦後） | [`src/pages/CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx) | `showPrepNotReadyWarningIfNeeded`；派出後非阻擋 prep 警示（見 [解耦文件](./CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md)） |
 | Phase C stub | [`cat-tool/app.js`](../cat-tool/app.js) | `enqueueStageSnapshot` |
 | 同步 cat | 專案根目錄 | `npm run sync:cat` |
 
@@ -288,7 +290,7 @@ B-6 **明確不包含**：審稿完成 Slack、單人多檔審稿聚合。
 2. 譯者開該檔 → 可檢視句段，**無法**修改譯文（橘底或 tooltip 說明）。
 3. PM 開同一檔 → **可以**修改譯文。
 4. PM 按「標記準備完成」→ 清單改為「**準備完成**」（B-6 現行；**B-7** 改為翻譯列顯示「**翻譯待開始**」，見 [B-7 §10.1](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md)）。
-5. 案件已連結該檔、尚未準備完成時 → LMS「確定指派」**失敗**並列出檔名。
+5. 案件已連結該檔、尚未準備完成時 → LMS「確定指派」**失敗**並列出檔名。（**2026-06-23 起已改**：可正常派出，改為非阻擋警示 toast；見 [解耦文件](./CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md) §9。）
 6. 全部連結檔準備完成後 → 可正常派出；譯者進入翻譯流程。
 7. **舊案**（B-6 前已派出）→ 不需 PM 再點準備完成。
 
@@ -315,7 +317,7 @@ B-6 **明確不包含**：審稿完成 Slack、單人多檔審稿聚合。
 |------|------|
 | Commit | `fd67332` — `feat(workflow): B-6 檔案準備閘門、審稿任務完成與 CAT 完成 Slack` |
 | 波次 A | [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx) Slack；[`src/lib/cat-wf-lms-sync.ts`](../src/lib/cat-wf-lms-sync.ts) 單人多檔聚合；[`src/pages/CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx) 協作表順序 |
-| 波次 B | [`supabase/migrations/20260616120000_cat_workflow_b6_prep_review.sql`](../supabase/migrations/20260616120000_cat_workflow_b6_prep_review.sql)；[`src/lib/cat-prep-dispatch-gate.ts`](../src/lib/cat-prep-dispatch-gate.ts)；[`cat-tool/app.js`](../cat-tool/app.js) prep／審稿／`enqueueStageSnapshot` stub；Dexie v24；`npm run sync:cat` |
+| 波次 B | [`supabase/migrations/20260616120000_cat_workflow_b6_prep_review.sql`](../supabase/migrations/20260616120000_cat_workflow_b6_prep_review.sql)；~~[`src/lib/cat-prep-dispatch-gate.ts`](../src/lib/cat-prep-dispatch-gate.ts)~~（2026-06-23 已刪，見 [解耦文件](./CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md)）；[`cat-tool/app.js`](../cat-tool/app.js) prep／審稿／`enqueueStageSnapshot` stub；Dexie v24；`npm run sync:cat` |
 
 ### 11.2 雲端 migration
 
