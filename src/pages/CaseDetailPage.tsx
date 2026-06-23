@@ -66,7 +66,6 @@ import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
-import { assertCaseLinkedFilesPrepReady } from "@/lib/cat-prep-dispatch-gate";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import { getUserTimezone } from "@/lib/format-timestamp";
@@ -82,6 +81,39 @@ import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
 import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
+
+type PrepNotReadyRow = { file_id: string; file_name: string };
+
+/** 派出後非阻擋提示：連結 CAT 檔仍在 prep 進行中 */
+function showPrepNotReadyWarningIfNeeded(
+  caseId: string,
+  isPmOrAbove: boolean,
+  toastFn: typeof toast,
+) {
+  if (!caseId) return;
+  void (async () => {
+    try {
+      const { data, error } = await supabase.rpc(
+        "cat_case_linked_files_not_prep_ready" as never,
+        { p_case_id: caseId } as never,
+      );
+      if (error) {
+        console.warn("[CaseDetailPage] prep not ready check skipped:", error.message);
+        return;
+      }
+      const names = ((data as PrepNotReadyRow[] | null) ?? [])
+        .map((r) => String(r.file_name || r.file_id))
+        .filter(Boolean);
+      if (names.length === 0) return;
+      const description = isPmOrAbove
+        ? `以下 CAT 檔案尚未標記準備完成：${names.join("、")}。指派已完成，但譯者開啟後將看到句段鎖定。確認就緒後，請至 CAT 工具標記準備完成。`
+        : "本案 CAT 作業檔尚未準備完成，開啟後句段為鎖定狀態，暫時無法編輯。如有疑問，請通知專案管理人員至 CAT 工具完成標記。";
+      toastFn({ title: "注意：CAT 檔案準備未完成", description });
+    } catch (e) {
+      console.warn("[CaseDetailPage] prep not ready check failed:", e);
+    }
+  })();
+}
 
 /** 客戶案件單連結 field: paste URL → confirm → enter label */
 function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
@@ -1712,20 +1744,10 @@ export default function CaseDetailPage() {
   };
 
   const handleFinalize = () => {
-    void (async () => {
-      if (!caseData?.id) return;
-      const gate = await assertCaseLinkedFilesPrepReady(supabase, caseData.id);
-      if (!gate.ok) {
-        toast({
-          title: "無法確定指派",
-          description: `以下 CAT 檔案尚未標記準備完成：${gate.fileNames.join("、")}`,
-          variant: "destructive",
-        });
-        return;
-      }
-      save({ status: "dispatched" as CaseStatus });
-      toast({ title: "已確定指派" });
-    })();
+    if (!caseData?.id) return;
+    save({ status: "dispatched" as CaseStatus });
+    toast({ title: "已確定指派" });
+    showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
   };
 
   const handleTaskComplete = () => {
@@ -2353,20 +2375,10 @@ export default function CaseDetailPage() {
               updates.translator = collabTranslators;
 
               if (isInquiry && allAccepted) {
-                void (async () => {
-                  const gate = await assertCaseLinkedFilesPrepReady(supabase, caseData.id);
-                  if (!gate.ok) {
-                    toast({
-                      title: "無法更新為已派出",
-                      description: `以下 CAT 檔案尚未標記準備完成：${gate.fileNames.join("、")}`,
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  updates.status = "dispatched" as CaseStatus;
-                  save(updates);
-                  toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
-                })();
+                updates.status = "dispatched" as CaseStatus;
+                save(updates);
+                toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
+                showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
                 return;
               }
               if (isInquiry) {

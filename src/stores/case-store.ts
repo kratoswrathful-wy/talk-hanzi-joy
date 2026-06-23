@@ -388,7 +388,11 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     (shouldSyncCatWorkflowOnStatusRevert ||
       (prev.status !== "dispatched" && partial.status === "dispatched") ||
       ((nextStatus === "dispatched" || nextStatus === "task_completed") &&
-        (partial.collabRows !== undefined || partial.reviewer !== undefined)));
+        (partial.collabRows !== undefined || partial.reviewer !== undefined)) ||
+      (nextStatus === "inquiry" &&
+        partial.collabRows !== undefined &&
+        Array.isArray(partial.collabRows) &&
+        partial.collabRows.some((r) => r.accepted)));
   let merged: Partial<CaseRecord> = partial;
   if (
     prev &&
