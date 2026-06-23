@@ -32747,6 +32747,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const AI_BATCH_COOLDOWN_MS = 450;
     const AI_BATCH_MIN_SIZE = 5;
+    const AI_BATCH_SURROUNDING_CONTEXT_COUNT = 10;
     const CAT_AI_BATCH_RESUME_KEY = 'catAiBatchResumeV1';
 
     function _stableStringifyBatchConfigForResume(config) {
@@ -32853,9 +32854,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ['aiBatchRefKey', 'key'],
         ['aiBatchRefExtra', 'extra'],
         ['aiBatchRefExamples', 'examples'],
-        ['aiBatchRefConfirmed', 'confirmed']
+        ['aiBatchRefConfirmed', 'confirmed'],
+        ['aiBatchRefSurroundingContext', 'surroundingContext']
     ];
-    const AI_BATCH_REF_DEFAULTS = { tm: true, tb: true, tbNote: true, key: true, extra: true, examples: true, confirmed: true };
+    const AI_BATCH_REF_DEFAULTS = { tm: true, tb: true, tbNote: true, key: true, extra: true, examples: true, confirmed: true, surroundingContext: false };
 
     function _readAiBatchRefOptionsFromDom() {
         const out = {};
@@ -33381,6 +33383,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         return [...String(seg?.sourceText || '')].length;
     }
 
+    function _getSurroundingContextSegments(batch, allSegs, count = AI_BATCH_SURROUNDING_CONTEXT_COUNT) {
+        if (!batch?.length || !allSegs?.length) return { before: [], after: [] };
+        const idToIdx = new Map(allSegs.map((s, idx) => [s.id, idx]));
+        let minIdx = Infinity;
+        let maxIdx = -Infinity;
+        for (const seg of batch) {
+            const idx = idToIdx.get(seg.id);
+            if (idx == null) continue;
+            if (idx < minIdx) minIdx = idx;
+            if (idx > maxIdx) maxIdx = idx;
+        }
+        if (!Number.isFinite(minIdx)) return { before: [], after: [] };
+        const lineNo = (seg) => (idToIdx.get(seg.id) ?? 0) + 1;
+        const before = allSegs.slice(Math.max(0, minIdx - count), minIdx);
+        const after = allSegs.slice(maxIdx + 1, maxIdx + 1 + count);
+        return {
+            before: before.map((seg) => ({ seg, lineNo: lineNo(seg) })),
+            after: after.map((seg) => ({ seg, lineNo: lineNo(seg) }))
+        };
+    }
+
+    function _computeSurroundingContextChars(batch, allSegs, count = AI_BATCH_SURROUNDING_CONTEXT_COUNT) {
+        const ctx = _getSurroundingContextSegments(batch, allSegs, count);
+        const overheadPerSeg = 28;
+        let chars = 0;
+        [...ctx.before, ...ctx.after].forEach(({ seg }) => {
+            chars += _charsOfText(seg?.sourceText) + _charsOfText(seg?.targetText || '') + overheadPerSeg;
+        });
+        if (ctx.before.length) chars += 24;
+        if (ctx.after.length) chars += 24;
+        if (batch?.length && (ctx.before.length || ctx.after.length)) chars += 20;
+        return chars;
+    }
+
+    function _applySurroundingContextToBatchOptions(batchOptions, batch, enabled) {
+        if (!enabled || !batch?.length || !currentSegmentsList?.length) return batchOptions;
+        const ctx = _getSurroundingContextSegments(batch, currentSegmentsList, AI_BATCH_SURROUNDING_CONTEXT_COUNT);
+        if (!ctx.before.length && !ctx.after.length) return batchOptions;
+        return { ...batchOptions, surroundingContext: ctx };
+    }
+
     function _nextBatchByRowsAndChars(list, startIdx, rowLimit, charLimit) {
         const out = [];
         let sumChars = 0;
@@ -33413,7 +33456,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             key: !!document.getElementById('aiBatchRefKey')?.checked,
             extra: !!document.getElementById('aiBatchRefExtra')?.checked,
             examples: !!document.getElementById('aiBatchRefExamples')?.checked,
-            confirmed: !!document.getElementById('aiBatchRefConfirmed')?.checked
+            confirmed: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+            surroundingContext: !!document.getElementById('aiBatchRefSurroundingContext')?.checked
         };
         const tmChars = refs.tm ? Math.min(1200, segs.length * 48) : 0;
         let tbChars = 0;
@@ -33435,13 +33479,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             : [];
         const exChars = exRows.reduce((sum, r) => sum + _charsOfText(r.sourceText) + _charsOfText(r.aiDraft) + _charsOfText(r.userFinal), 0);
         const confirmedChars = refs.confirmed ? rangeSegs.filter((s) => s.status === 'confirmed').reduce((sum, s) => sum + _charsOfText(s.sourceText || ''), 0) : 0;
+        const surroundingChars = refs.surroundingContext && segs.length
+            ? _computeSurroundingContextChars(segs, currentSegmentsList || [], AI_BATCH_SURROUNDING_CONTEXT_COUNT)
+            : 0;
         return {
             tm: _estimateTokensByChars(tmChars),
             tb: _estimateTokensByChars(tbChars),
             key: _estimateTokensByChars(keyChars),
             extra: _estimateTokensByChars(extraChars),
             examples: _estimateTokensByChars(exChars),
-            confirmed: _estimateTokensByChars(confirmedChars)
+            confirmed: _estimateTokensByChars(confirmedChars),
+            surroundingContext: _estimateTokensByChars(surroundingChars)
         };
     }
 
@@ -33454,7 +33502,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         setNum('aiBatchRefTokExtra', t.extra);
         setNum('aiBatchRefTokExamples', t.examples);
         setNum('aiBatchRefTokConfirmed', t.confirmed);
-        setNum('aiBatchRefTokTotal', t.tm + t.tb + t.key + t.extra + t.examples + t.confirmed);
+        setNum('aiBatchRefTokSurroundingContext', t.surroundingContext);
+        setNum('aiBatchRefTokTotal', t.tm + t.tb + t.key + t.extra + t.examples + t.confirmed + t.surroundingContext);
         const pickBtn = document.getElementById('btnAiBatchPickExamples');
         if (pickBtn) pickBtn.textContent = `${__aiBatchSelectedExampleIds.size}/15`;
     }
@@ -33721,9 +33770,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
             useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
             useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+            surroundingContext: !!document.getElementById('aiBatchRefSurroundingContext')?.checked,
             selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
         };
-        const options = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
+        let options = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
+        options = _applySurroundingContextToBatchOptions(options, batch, refOptions.surroundingContext);
         if (!window.CatAiTranslate || typeof window.CatAiTranslate.buildTranslatePromptMessages !== 'function') {
             _showAiToast('預覽模組未載入。', true);
             return;
@@ -33910,6 +33961,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
                     useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
                     useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+                    surroundingContext: !!document.getElementById('aiBatchRefSurroundingContext')?.checked,
                     selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
                 },
                 batchStyleExampleCategories: [],
@@ -33991,15 +34043,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
                 useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
                 useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+                surroundingContext: !!document.getElementById('aiBatchRefSurroundingContext')?.checked,
                 selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
             };
-            const options = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
+            let options = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
             // Filter TB to only terms that hit first batch
             if (options.tbTerms && options.tbTerms.length > 0) {
                 options.tbTerms = options.tbTerms.filter((t) =>
                     batchCopy.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags))
                 );
             }
+            options = _applySurroundingContextToBatchOptions(options, batchCopy, refOptions.surroundingContext);
             if (!window.CatAiTranslate || typeof window.CatAiTranslate.buildTranslatePromptMessages !== 'function') return;
             const messages = window.CatAiTranslate.buildTranslatePromptMessages(batchCopy, options);
             const sys = (messages.find((m) => m.role === 'system') || {}).content || '';
@@ -34060,6 +34114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
                 useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
                 useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+                surroundingContext: !!document.getElementById('aiBatchRefSurroundingContext')?.checked,
                 selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
             };
             const baseOptions = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
@@ -34096,7 +34151,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ...baseOptions,
                     tbTerms: baseOptions.tbTerms.filter((t) => batchCopy.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
                 } : baseOptions;
-                const messages = window.CatAiTranslate.buildTranslatePromptMessages(batchCopy, batchOptions);
+                const promptOptions = _applySurroundingContextToBatchOptions(batchOptions, batchCopy, refOptions.surroundingContext);
+                const messages = window.CatAiTranslate.buildTranslatePromptMessages(batchCopy, promptOptions);
                 const sys = (messages.find((m) => m.role === 'system') || {}).content || '';
                 const usr = (messages.find((m) => m.role === 'user') || {}).content || '';
                 const tokSys = _estimateTokensByChars([...sys].length);
@@ -34416,10 +34472,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     progressLabel: `第 ${batchNo} 批（${i + 1}-${Math.min(i + batch.length, finalAiSegs.length)}）`
                 });
                 // Per-batch TB filter: only send terms that hit this batch
-                const batchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
+                let batchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
                     ...options,
                     tbTerms: options.tbTerms.filter((t) => batch.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
                 } : options;
+                batchOptions = _applySurroundingContextToBatchOptions(batchOptions, batch, !!config.refOptions?.surroundingContext);
                 let result = await window.CatAiTranslate.translate(batch, batchOptions);
                 let guardRetry = 0;
                 while (result.error && result.results.length === 0) {
@@ -34462,10 +34519,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     _showAiToast(`偵測到${retryLabel}，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
                     await _aiSleep(backoffMs);
                     batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
-                    const retryBatchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
+                    let retryBatchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
                         ...options,
                         tbTerms: options.tbTerms.filter((t) => batch.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
                     } : options;
+                    retryBatchOptions = _applySurroundingContextToBatchOptions(retryBatchOptions, batch, !!config.refOptions?.surroundingContext);
                     result = await window.CatAiTranslate.translate(batch, retryBatchOptions);
                 }
 

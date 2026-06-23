@@ -49,13 +49,15 @@
 - [`docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md) — 成對 tag **箭頭外框**（方案 B；§8 失敗紀錄、**待 SVG**）；預覽 [`docs/preview-cat-paired-tag-border/index.html`](docs/preview-cat-paired-tag-border/index.html)
 - [`docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md) — **Bug #11** TM 連續 ph 佔位錯位（`fixMqxliffTmPhSequentialPairs`）；與 Bug #10 區分
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
+- [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
 - [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 匯入選填連結 LMS 案件（一般＋GS；`49db7c2` 起）
 - [`docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](docs/CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) — **工作階段／追蹤修訂／TMS 整合大計畫**（Phase A／**Phase B 已落地**；**B-6 已實作**；**B-7 已落地**；**Phase C C-1.1 已驗收**；C-3 匯出規劃中）
 - [`docs/CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](docs/CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md) — **Phase C 追蹤修訂**規格與 §12 開發／驗收紀錄（C-1～C-1.1 已驗收；C-3 規劃中）
 - [`docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) — **Phase B Workflow** 完整規格（**已落地並驗收** `e4a6205`～`d7232ab`：v5 migration／檔案清單逐行、LMS 雙向、開檔熱修 §11.7、更新檔 Modal §11.8、任務完成按下驗證 §11.9；**B-6 延伸** §12 已實作；**B-7** §13）
-- [`docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — **Phase B-6** 檔案準備閘門 + 審稿任務完成（**已實作** `fd67332`、migration 已 push；prep 僅 PM 可編、派出閘門、審稿任務完成；審稿暫不 Slack；舊檔 backfill）
+- [`docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — **Phase B-6** 檔案準備閘門 + 審稿任務完成（**已實作** `fd67332`、migration 已 push；prep 僅 PM 可編、審稿任務完成；審稿暫不 Slack；舊檔 backfill；**派出閘門 2026-06-23 解耦**見下條）
+- [`docs/CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md`](docs/CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md) — **B-6 派出與 prep 解耦**（**已驗收** `d247d9a`：移除阻擋式 prep gate、非阻擋警示 toast、多人即時 CAT 指派 sync、`accepted` SQL 過濾）
 - [`docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — **Phase B-7** 統一顯示狀態 + 檔案清單／儀表板 UX（**B-7a～g**；§12 匯入已確認句段；§14 批次審稿完成作業）
 - [`docs/CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](docs/CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md) — **B-7g** 確認狀態五態、點圖示／Ctrl+Enter、審稿回溯、篩選進度、PM 切換（**已驗收** `c503f9d`；開發紀錄 §13）
 - [`docs/CAT_BULK_REVIEW_COMPLETE_2026-06.md`](docs/CAT_BULK_REVIEW_COMPLETE_2026-06.md) — 批次審稿完成作業執行記錄（2026-06-19；413 個 stage；LMS 審稿指派比對；264 個 `workflow_status` bug 修正；稍後處理清單）

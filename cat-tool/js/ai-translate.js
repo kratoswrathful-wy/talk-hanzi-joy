@@ -77,10 +77,19 @@
 
     // ---- Prompt 建構 ----
 
+    function formatSurroundingContextEntry(seg, lineNo) {
+        if (!seg) return '';
+        const { clean: source } = stripTags(seg.sourceText || '');
+        const { clean: target } = stripTags(seg.targetText || '');
+        let block = `[句段 ${lineNo}]\n原文: ${source}\n`;
+        if (target && String(target).trim()) block += `譯文: ${String(target).trim()}\n`;
+        return block;
+    }
+
     /**
      * 建構送給 OpenAI 的 messages 陣列。
      * @param {Array} segments - [{ idx, source, contextPrev, contextNext, keys, extraValue }]
-     * @param {Object} options - { sourceLang, targetLang, guidelines[], styleExamples[], tbTerms[], batchNote, projectGuidelinesNote }
+     * @param {Object} options - { sourceLang, targetLang, guidelines[], styleExamples[], tbTerms[], batchNote, projectGuidelinesNote, surroundingContext?: { before: [{seg,lineNo}], after: [...] } }
      */
     function buildPrompt(segments, options = {}) {
         const {
@@ -92,7 +101,8 @@
             tbTerms = [],
             batchNote = '',
             projectGuidelinesNote = '',
-            systemPrefix = ''
+            systemPrefix = '',
+            surroundingContext = null
         } = options;
 
         const srcLabel = sourceLang ? sourceLang.toUpperCase() : '原文語言';
@@ -161,6 +171,17 @@
 
         // 使用者訊息：逐句列出原文
         let user = '請翻譯以下句段：\n\n';
+        const ctxBefore = surroundingContext && Array.isArray(surroundingContext.before) ? surroundingContext.before : [];
+        const ctxAfter = surroundingContext && Array.isArray(surroundingContext.after) ? surroundingContext.after : [];
+        if (ctxBefore.length > 0) {
+            user += '【上文脈（僅供參考，請勿翻譯）】\n';
+            ctxBefore.forEach((entry) => {
+                const block = formatSurroundingContextEntry(entry.seg, entry.lineNo);
+                if (block) user += block + '\n';
+            });
+            user += '\n';
+        }
+        user += '【本批待翻譯句段】\n\n';
         segments.forEach(seg => {
             user += `[句段 ${seg.idx}]\n`;
             if (seg.keys && seg.keys.length > 0) user += `Key: ${seg.keys.join(' / ')}\n`;
@@ -171,6 +192,13 @@
             if (seg.tmHint) user += `TM 參考（${seg.tmHint.score}%）：${seg.tmHint.targetText}\n`;
             user += '\n';
         });
+        if (ctxAfter.length > 0) {
+            user += '【下文脈（僅供參考，請勿翻譯）】\n';
+            ctxAfter.forEach((entry) => {
+                const block = formatSurroundingContextEntry(entry.seg, entry.lineNo);
+                if (block) user += block + '\n';
+            });
+        }
 
         return [
             { role: 'system', content: system },
@@ -449,7 +477,8 @@
             tbTerms: options.tbTerms || [],
             batchNote: options.batchNote || '',
             projectGuidelinesNote: options.projectGuidelinesNote || '',
-            systemPrefix: options.systemPrefix || (settings.prompts && settings.prompts.translateSystemPrefix) || ''
+            systemPrefix: options.systemPrefix || (settings.prompts && settings.prompts.translateSystemPrefix) || '',
+            surroundingContext: options.surroundingContext || null
         });
 
         const apiResult = await callApi(messages, settings);
@@ -508,7 +537,8 @@
             tbTerms: options.tbTerms || [],
             batchNote: options.batchNote || '',
             projectGuidelinesNote: options.projectGuidelinesNote || '',
-            systemPrefix: options.systemPrefix || (settings.prompts && settings.prompts.translateSystemPrefix) || ''
+            systemPrefix: options.systemPrefix || (settings.prompts && settings.prompts.translateSystemPrefix) || '',
+            surroundingContext: options.surroundingContext || null
         });
     }
 

@@ -42,6 +42,7 @@
 | 句段 Key | 全範圍加總 | firstBatch 加總 |
 | 句段額外資訊 | 全範圍加總 | firstBatch 加總 |
 | 同檔案已確認句段 | 全範圍已確認 | 不變（每批都是同一份，原本就正確） |
+| 批次上下文（上下各 10 句） | — | firstBatch 依檔案句序取前後各 10 句原文＋譯文（2026-06 新增；見 [`CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md)） |
 
 `_updateBatchStats` 計算 `firstBatch = _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit)`，傳入 `_renderAiBatchRefTokens`。
 
