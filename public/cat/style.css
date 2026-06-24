@@ -504,6 +504,10 @@ button:disabled { cursor: not-allowed; }
     border-radius: 6px 0 0 6px !important;
     border-right: 1px solid rgba(255,255,255,0.35) !important;
 }
+.split-btn-solo {
+    border-radius: 6px !important;
+    border-right: 1px solid var(--border-color) !important;
+}
 .split-btn-arrow {
     border-radius: 0 6px 6px 0 !important;
     padding: 0.4rem 0.5rem !important;

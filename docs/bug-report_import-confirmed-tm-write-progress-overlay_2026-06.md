@@ -1,6 +1,6 @@
 # Bug 調查：匯入原檔已確認句段 — 進度框疊層與 TM 寫入（2026-06）
 
-> **狀態**：Bug A **已修並驗收**（`1ee8cc6`）；Bug B **已修**（`1ee8cc6`，去重鍵改 `sourceText`）；Bug C **已修**（待驗收）。  
+> **狀態**：Bug A **已修並驗收**（`1ee8cc6`）；Bug B **已修並驗收**（`1ee8cc6`）；Bug C **已修並驗收**（`c4e4736`）。  
 > **關聯**：**61e8fc2** 匯入確認持久化見 [`bug-report_workflow-import-confirmed-status-column_2026-06.md`](./bug-report_workflow-import-confirmed-status-column_2026-06.md) §8；B-7e 見 [`CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](./CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) §12。
 
 ---
@@ -69,7 +69,7 @@
 
 [`cat-tool/js/xliff-to-tm.js`](../cat-tool/js/xliff-to-tm.js) 去重鍵改為 `(seg.sourceText || '').trim()`。
 
-### 3.3 Bug C（已實作，待驗收）
+### 3.3 Bug C（已落地 `c4e4736`，已驗收）
 
 1. **`writeImportConfirmedToProjectTms`**：`ActiveWriteTms` 為空時從 `currentProjectId` → `project.writeTms` 解析；回傳 `{ written, skippedReason }`。
 2. **`sourceFileInput` 匯入前**：`window.ActiveWriteTms = project.writeTms.slice()`（雙保險）。
@@ -106,7 +106,7 @@
 
 刪檔重匯後，TM 內多個不同 `Offer Name` 原文皆可找到（去重後略少於 26）。
 
-### Bug C
+### Bug C（已驗收，2026-06-24，Liveops／Top Drives）
 
 1. 專案掛載 Top Drives 為**寫入 TM**。
 2. **刪除舊檔**後重匯 Liveops 樣本，勾寫入 TM。
@@ -121,4 +121,5 @@
 | 日期 | 內容 |
 |------|------|
 | 2026-06-24 | 初稿：Bug A 疊層、Bug B 去重；`1ee8cc6` |
-| 2026-06-24 | 第二輪：Bug C `ActiveWriteTms` 匯入缺口；Bug D 語言過濾備註；Bug C 實作與驗收 |
+| 2026-06-24 | 第二輪：Bug C `ActiveWriteTms` 匯入缺口；Bug D 語言過濾備註；Bug C 實作 `c4e4736` |
+| 2026-06-24 | Bug C **已驗收**（Liveops／Top Drives）：匯入 toast、TM 句段寫入、右欄比對正常 |

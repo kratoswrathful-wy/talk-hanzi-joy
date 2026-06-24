@@ -6267,6 +6267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             group.style.display = 'none';
             closeWfTaskCompleteDropdown();
             _closeWfAdjustStatusModal();
+            _syncWfAdjustSplitBtnSolo(adjust, arrow);
             return;
         }
         const isPm = _isCatPmOrExecutive();
@@ -6274,6 +6275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!isPm && isTeamMode() && !userId) {
             group.style.display = 'none';
             closeWfTaskCompleteDropdown();
+            _syncWfAdjustSplitBtnSolo(adjust, arrow);
             return;
         }
 
@@ -6289,6 +6291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 adjust.setAttribute('data-tip', prepActive ? '標記檔案準備完成' : '調整翻譯步驟與段落指派狀態');
             }
             if (arrow) arrow.style.display = 'none';
+            _syncWfAdjustSplitBtnSolo(adjust, arrow);
             return;
         }
 
@@ -6310,6 +6313,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!hasAnyRole) {
             group.style.display = 'none';
             closeWfTaskCompleteDropdown();
+            _syncWfAdjustSplitBtnSolo(adjust, arrow);
             return;
         }
         group.style.display = '';
@@ -6321,6 +6325,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (adjust) adjust.style.display = 'none';
         if (arrow) arrow.style.display = pending.length > 1 ? '' : 'none';
+        _syncWfAdjustSplitBtnSolo(adjust, arrow);
+    }
+
+    function _syncWfAdjustSplitBtnSolo(adjust, arrow) {
+        if (!adjust) return;
+        const adjustVisible = adjust.style.display !== 'none';
+        const arrowHidden = !arrow || arrow.style.display === 'none';
+        adjust.classList.toggle('split-btn-solo', adjustVisible && arrowHidden);
     }
 
     function _workflowStagesForSegment(seg) {
