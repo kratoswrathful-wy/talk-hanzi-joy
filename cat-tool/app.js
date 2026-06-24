@@ -14178,6 +14178,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const project = currentProjectId ? await DBService.getProject(currentProjectId) : null;
         const projectSrcLangs = (project && project.sourceLangs) ? project.sourceLangs : [];
         const projectTgtLangs = (project && project.targetLangs) ? project.targetLangs : [];
+        if (project && project.writeTms && project.writeTms.length) {
+            window.ActiveWriteTms = project.writeTms.slice();
+        }
 
         if (wizardOverlay) wizardOverlay.classList.add('hidden');
         const langChoice = await showFileLangModal(projectSrcLangs, projectTgtLangs);
@@ -14568,6 +14571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             caseInfo: opts.caseInfo || null,
             showConfirmedSegmentsDialog,
             writeImportConfirmedToProjectTms,
+            showCatToast,
         };
     }
 
@@ -14822,14 +14826,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** B-7e：將原檔已確認句段寫入專案掛載的寫入 TM */
     async function writeImportConfirmedToProjectTms(file, opts) {
         const { tmSourceLang = '', tmTargetLang = '', includeLocked = true } = opts || {};
-        const writeTms = window.ActiveWriteTms || [];
-        if (!writeTms.length || !file) return { written: 0 };
+        let writeTms = (window.ActiveWriteTms && window.ActiveWriteTms.length)
+            ? window.ActiveWriteTms.slice()
+            : [];
+        if (!writeTms.length && currentProjectId) {
+            const project = await DBService.getProject(currentProjectId);
+            writeTms = (project && project.writeTms) ? project.writeTms.slice() : [];
+            if (writeTms.length) window.ActiveWriteTms = writeTms.slice();
+        }
+        if (!writeTms.length || !file) return { written: 0, skippedReason: 'no_write_tm' };
         const ToTm = window.CatToolXliffToTm;
-        if (!ToTm || typeof ToTm.buildTmImportCandidates !== 'function') return { written: 0 };
+        if (!ToTm || typeof ToTm.buildTmImportCandidates !== 'function') {
+            return { written: 0, skippedReason: 'tm_module_missing' };
+        }
 
         let total = 0;
+        const cacheLangs = window.ActiveFileLangs || {
+            sourceLang: tmSourceLang,
+            targetLang: tmTargetLang,
+        };
         for (const rawTmId of writeTms) {
             const tmId = rawTmId;
+            const tmIdStr = String(tmId);
             try {
                 const pack = await ToTm.buildTmImportCandidates(file, {
                     tmId,
@@ -14850,12 +14868,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (rows.length) {
                     await DBService.bulkAddTMSegments(rows);
                     total += rows.length;
+                    let tmName = window._activeTmNames && window._activeTmNames[tmIdStr];
+                    if (!tmName) {
+                        try {
+                            const tmRow = await DBService.getTM(tmId);
+                            tmName = tmRow ? tmRow.name : `TM #${tmId}`;
+                        } catch (_) {
+                            tmName = `TM #${tmId}`;
+                        }
+                        if (!window._activeTmNames) window._activeTmNames = {};
+                        window._activeTmNames[tmIdStr] = tmName;
+                    }
+                    if (window.ActiveTmCache) {
+                        for (const row of rows) {
+                            const cacheRow = { ...row, _tmId: tmId, tmName };
+                            if (!_tmSegLangOk(cacheRow, cacheLangs)) continue;
+                            const dup = window.ActiveTmCache.some(
+                                (t) => String(t._tmId) === tmIdStr && t.sourceText === row.sourceText
+                            );
+                            if (!dup) window.ActiveTmCache.push(cacheRow);
+                        }
+                    }
                 }
             } catch (e) {
                 console.warn('[import] write TM', tmId, e);
             }
         }
-        return { written: total };
+        return {
+            written: total,
+            skippedReason: total > 0 ? null : 'no_confirmed_rows',
+        };
     }
 
     function colLetterToIndex(str) { let r=0; for(let i=0; i<str.length; i++) r = r*26 + str.charCodeAt(i) - 64; return r-1; }
