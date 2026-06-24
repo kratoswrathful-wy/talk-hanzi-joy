@@ -519,12 +519,12 @@
                             <label><input type="checkbox" class="tm-imp-status-cb" value="unlocked"> 未鎖定</label>
                         </div>
                         <div id="tmMqRoleFilterRow" style="display:none; flex-wrap:wrap; gap:0.5rem; margin-top:0.35rem; padding-top:0.35rem; border-top:1px dashed #e2e8f0; font-size:0.88rem; align-items:center;" hidden>
-                            <span style="font-weight:600;color:#475568;white-space:nowrap;">memoQ 確認身分</span>
+                            <span style="font-weight:600;color:#475568;white-space:nowrap;">memoQ 原檔確認</span>
                             <label><input type="checkbox" class="tm-imp-status-cb tm-mq-role-cb" value="mq_t"> T（譯者 &#10003;）</label>
                             <label><input type="checkbox" class="tm-imp-status-cb tm-mq-role-cb" value="mq_r1"> R1（&#10003;<sup style="font-size:0.5em;margin-left:-0.1em">+</sup>）</label>
                             <label><input type="checkbox" class="tm-imp-status-cb tm-mq-role-cb" value="mq_r2"> R2（&#10003;&#10003;）</label>
                         </div>
-                        <p id="tmMqRoleFilterHint" style="display:none; font-size:0.76rem; color:#64748b; margin:0.35rem 0 0 0;" hidden>已確認句段：篩選由誰按下最終確認。未確認句段不受 memoQ 確認身分勾選影響。</p>
+                        <p id="tmMqRoleFilterHint" style="display:none; font-size:0.76rem; color:#64748b; margin:0.35rem 0 0 0;" hidden>僅顯示原檔已確認且身分相符的句段；未確認句段不會列入。</p>
                     </div>
                     <label style="display:flex; align-items:flex-start; gap:0.45rem; margin-bottom:0.75rem; font-size:0.88rem;">
                         <input type="checkbox" id="tmImpRequireSrcNonEmpty" checked style="margin-top:0.15rem;">
@@ -888,12 +888,12 @@
                                         <label><input type="checkbox" class="sf-status-cb" value="unlocked"> 未鎖定</label>
                                     </div>
                                     <div id="sfMqRoleFilterRow" class="sf-adv-grid sf-adv-status-row-mq" style="display:none;" hidden>
-                                        <span class="sf-mq-role-heading" aria-hidden="true">memoQ 確認身分</span>
+                                        <span class="sf-mq-role-heading" aria-hidden="true">memoQ 原檔確認</span>
                                         <label><input type="checkbox" class="sf-status-cb sf-mq-role-cb" value="mq_t"> T（譯者 &#10003;）</label>
                                         <label><input type="checkbox" class="sf-status-cb sf-mq-role-cb" value="mq_r1"> R1（&#10003;<sup style="font-size:0.5em;margin-left:-0.1em">+</sup>）</label>
                                         <label><input type="checkbox" class="sf-status-cb sf-mq-role-cb" value="mq_r2"> R2（&#10003;&#10003;）</label>
                                     </div>
-                                    <p id="sfMqRoleFilterHint" class="sf-mq-role-hint" style="display:none;" hidden>已確認句段：篩選由誰按下最終確認（與格線狀態欄圖示相同）。未確認句段不受 memoQ 確認身分勾選影響。</p>
+                                    <p id="sfMqRoleFilterHint" class="sf-mq-role-hint" style="display:none;" hidden>僅顯示原檔已確認且身分相符的句段；未確認句段不會列入（與格線狀態欄外圈勾選相同）。</p>
                                     <div id="sfWfMarkedFilterRow" class="sf-adv-grid sf-adv-status-row-wf" style="display:none;" hidden>
                                         <span class="sf-wf-marked-heading" aria-hidden="true">內部 Workflow</span>
                                         <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_trans_confirmed"> 翻譯已確認</label>

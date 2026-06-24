@@ -1135,6 +1135,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
             s.confirmationRole != null && String(s.confirmationRole).trim() !== ""
               ? String(s.confirmationRole)
               : null,
+          wf_trans_confirmed_at: s.wfTransConfirmedAt ?? null,
+          wf_trans_confirmed_by: s.wfTransConfirmedBy ?? null,
+          wf_review_confirmed_at: s.wfReviewConfirmedAt ?? null,
+          wf_review_confirmed_by: s.wfReviewConfirmedBy ?? null,
         };
       });
       let totalCount = 0;

@@ -6794,7 +6794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const whiteGlyph = disp === 'trans_confirmed' || disp === 'review_confirmed' || disp === 'post_review_trans';
         let mqHtml = '';
         if (mq && currentFileFormat === 'mqxliff') {
-            const role = seg.confirmationRole || 'T';
+            const role = seg.originalRole || seg.confirmationRole || 'T';
             const glyphClass = whiteGlyph ? 'status-mq-overlay status-mq-overlay--white' : 'status-mq-overlay';
             mqHtml = `<span class="${glyphClass}">${_buildMqSymbolHtml(role)}</span>`;
         }
@@ -18356,10 +18356,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         unconfirmed: '未確認',
         locked: '鎖定',
         unlocked: '未鎖定',
-        mq_t: 'memoQ 確認身分：T（譯者）',
-        mq_r1: 'memoQ 確認身分：R1',
-        mq_r2: 'memoQ 確認身分：R2',
+        mq_t: 'memoQ 原檔確認：T（譯者）',
+        mq_r1: 'memoQ 原檔確認：R1',
+        mq_r2: 'memoQ 原檔確認：R2',
     };
+
+    /** memoQ 進階篩選第四維：比對匯入時原檔確認身分（非編輯器內再確認之身分）。 */
+    function _mqOriginalRoleForFilter(seg) {
+        if (!seg) return null;
+        const r = seg.originalRole ?? seg.confirmationRole;
+        if (r === 'T' || r === 'R1' || r === 'R2') return r;
+        return r || 'T';
+    }
 
     /** mqxliff 進階篩選：顯示／隱藏 memoQ 身分列並清除非 mqxliff 時之勾選 */
     function syncSfMqRoleFilterRowVisibility() {
@@ -18545,16 +18553,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (s === 'locked' && seg.isLocked) dimOk = true;
                     if (s === 'unlocked' && !seg.isLocked) dimOk = true;
                     if (s === 'mq_t') {
-                        if (!isConfirmed) dimOk = true;
-                        else if ((seg.confirmationRole || 'T') === 'T') dimOk = true;
+                        if (isConfirmed && _mqOriginalRoleForFilter(seg) === 'T') dimOk = true;
                     }
                     if (s === 'mq_r1') {
-                        if (!isConfirmed) dimOk = true;
-                        else if (seg.confirmationRole === 'R1') dimOk = true;
+                        if (isConfirmed && _mqOriginalRoleForFilter(seg) === 'R1') dimOk = true;
                     }
                     if (s === 'mq_r2') {
-                        if (!isConfirmed) dimOk = true;
-                        else if (seg.confirmationRole === 'R2') dimOk = true;
+                        if (isConfirmed && _mqOriginalRoleForFilter(seg) === 'R2') dimOk = true;
                     }
                     if (_segmentMatchesWfFilterKey(seg, s)) dimOk = true;
                 }
