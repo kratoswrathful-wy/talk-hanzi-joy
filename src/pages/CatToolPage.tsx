@@ -139,6 +139,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
   const navigate = useNavigate();
   const catStorage = mode === "team" ? "team" : "offline";
   const initialSrcRef = useRef<string | null>(null);
+  const navigatingFromCatRef = useRef(false);
+  const didMountRef = useRef(false);
   if (initialSrcRef.current == null) {
     const modeValue = mode === "team" ? "team" : "offline";
     const catParams = parseCatViewParams(location.pathname, location.search, modeValue);
@@ -628,12 +630,40 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       const nextPath = buildCatPath(modeValue, event.data?.payload ?? {});
       const currentPath = `${location.pathname}${location.search}`;
       if (nextPath === currentPath) return;
-      navigate(nextPath, { replace: true });
+      navigatingFromCatRef.current = true;
+      navigate(nextPath, { replace: false });
     };
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [location.pathname, location.search, mode, navigate]);
+
+  // 上一頁／下一頁或手動改網址時，通知 iframe 切到對應畫面
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    if (navigatingFromCatRef.current) {
+      navigatingFromCatRef.current = false;
+      return;
+    }
+    const modeValue = mode === "team" ? "team" : "offline";
+    const catParams = new URLSearchParams(
+      parseCatViewParams(location.pathname, location.search, modeValue)
+    );
+    const payload = {
+      view: catParams.get("catView") || "viewDashboard",
+      projectId: catParams.get("catProjectId") ?? undefined,
+      fileId: catParams.get("catFileId") ?? undefined,
+      tmId: catParams.get("catTmId") ?? undefined,
+      tbId: catParams.get("catTbId") ?? undefined,
+    };
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "TMS_NAVIGATE_TO", payload },
+      window.location.origin
+    );
+  }, [location.pathname, location.search, mode]);
 
   // CAT iframe：列出綁定案件之既有內部註記（離線／團隊共用 iframe 皆可請求）
   useEffect(() => {

@@ -3682,6 +3682,50 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else if (mode === 'module') {
                 sidebar.classList.remove('collapsed');
             }
+        } else if (event.data.type === 'TMS_NAVIGATE_TO') {
+            if (!catTmsParentRouteSyncReady) return;
+            const p = event.data.payload || {};
+            const view = p.view || 'viewDashboard';
+            const ALLOW = new Set(['viewDashboard', 'viewProjects', 'viewProjectDetail', 'viewTM', 'viewTB', 'viewTmDetail', 'viewTbDetail', 'viewEditor', 'viewAiGuidelines', 'viewAiSettings', 'viewAiExamples']);
+            if (!ALLOW.has(view)) return;
+            (async () => {
+                try {
+                    if (view === 'viewDashboard') {
+                        switchView('viewDashboard');
+                        await loadDashboardData();
+                    } else if (view === 'viewProjects') {
+                        switchView('viewProjects');
+                        await loadProjectsList();
+                    } else if (view === 'viewTM') {
+                        switchView('viewTM');
+                        await loadTMList();
+                    } else if (view === 'viewTB') {
+                        switchView('viewTB');
+                        await loadTBList();
+                    } else if (view === 'viewAiGuidelines') {
+                        switchView('viewAiGuidelines');
+                    } else if (view === 'viewAiSettings') {
+                        switchView('viewAiSettings');
+                    } else if (view === 'viewAiExamples') {
+                        switchView('viewAiExamples');
+                    } else if (view === 'viewProjectDetail' && p.projectId) {
+                        await openProjectDetail(p.projectId);
+                    } else if (view === 'viewTmDetail' && p.tmId) {
+                        await openTmDetail(p.tmId);
+                    } else if (view === 'viewTbDetail' && p.tbId) {
+                        await openTbDetail(p.tbId);
+                    } else if (view === 'viewEditor' && p.fileId) {
+                        if (p.projectId) currentProjectId = p.projectId;
+                        await openEditor(p.fileId);
+                    }
+                } catch (e) {
+                    console.warn('[cat] TMS_NAVIGATE_TO failed', e);
+                    try {
+                        switchView('viewDashboard');
+                        await loadDashboardData();
+                    } catch (_) { /* ignore */ }
+                }
+            })();
         }
     });
 
