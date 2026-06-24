@@ -29,21 +29,21 @@
 | 確認 | `confirmed`, `unconfirmed` |
 | 鎖定 | `locked`, `unlocked` |
 
-**第四維（memoQ 確認身分，本功能新增）**
+**第四維（memoQ 原檔確認，本功能新增）**
 
 | 鍵值 | 意義 |
 |------|------|
-| `mq_t` | 已確認且 `confirmationRole` 為譯者 T（與格線單勾一致；空值視同 T） |
-| `mq_r1` | 已確認且為 R1 |
-| `mq_r2` | 已確認且為 R2 |
+| `mq_t` | 已確認且原檔確認身分為譯者 T（比對 `originalRole`，fallback `confirmationRole`；空值視同 T） |
+| `mq_r1` | 已確認且原檔為 R1 |
+| `mq_r2` | 已確認且原檔為 R2 |
 
-**語意（產品定案）**
+**語意（產品定案；2026-06-24 修正，`61e8fc2`）**
 
-1. **未確認句段**：第四維**一律視為通過**（不因勾選 T／R1／R2 而被排除）。即「未確認列不受 memoQ 確認身分勾選影響」。
-2. **已確認句段**：若第四維有任一勾選，則須滿足 **OR**（所勾身分之一與 `confirmationRole` 相符）；若第四維無勾選，則此維度不參與（與既有維度相同）。
-3. **隱含**：僅勾 `mq_*` 而未勾「已確認」時，仍可篩出「已確認且為該身分」的列；未確認列仍因 (1) 通過第四維，但若亦未勾「未確認」且勾了其他維度則由其他維度決定。
+1. **未確認句段**：第四維**不通過**（勾選 T／R1／R2 時會被隱藏）。UI 文案改為「memoQ **原檔**確認」。
+2. **已確認句段**：若第四維有任一勾選，則須滿足 **OR**（所勾身分之一與 `_mqOriginalRoleForFilter(seg)` 相符）；若第四維無勾選，則此維度不參與。
+3. **隱含**：僅勾 `mq_*` 而未勾「已確認」時，只顯示「已確認且原檔身分相符」的列；未確認列不會因第四維通過而出現。
 
-`confirmationRole` 來源：匯入解析與使用者確認寫入；Team 模式見 `cat-cloud-rpc` 欄位 `confirmation_role`。
+`originalRole`／`confirmationRole` 來源：匯入解析與使用者確認寫入；Team 模式見 `cat-cloud-rpc` 欄位 `original_role`、`confirmation_role`。格線狀態欄外圈勾選優先顯示 `originalRole`。
 
 ### 2.2 資料流（mermaid）
 
@@ -90,9 +90,9 @@ flowchart LR
 - **區塊標題**：維持「句段狀態」。
 - **列 1**（`sf-adv-status-row1`）：六個 `<label>`，class **`sf-status-cb`**，value 同現有 + 鎖定自原 row2 移入。
 - **列 2**（`id="sfMqRoleFilterRow"`**）**：`display` 由 `currentFileFormat === 'mqxliff'` 控制。內含：
-  - 非互動文字「memoQ 確認身分」（勿用 `sf-status-cb`，避免被全選讀取邏輯誤掃）。
+  - 非互動文字「memoQ 原檔確認」（勿用 `sf-status-cb`，避免被全選讀取邏輯誤掃）。
   - 三個 checkbox：`class="sf-status-cb sf-mq-role-cb"`，`value` 分別為 `mq_t`、`mq_r1`、`mq_r2`；標籤文案與格線圖示對齊（T ✓、R1 ✓+、R2 ✓✓）。
-  - 可選一行 `role-note` 說明（已確認句段才套用；未確認列不受影響）。
+  - 可選一行 `role-note` 說明（僅顯示原檔已確認且身分相符的句段；未確認句段不會列入）。
 - **樣式**：[`cat-tool/style.css`](../cat-tool/style.css) — 列 2 與列 1 間虛線分隔；`memoQ` 標籤 `white-space: nowrap`、`align-items: center`。
 
 ---
@@ -137,7 +137,7 @@ flowchart LR
 
 1. mqxliff 開檔：進階篩選列 2 顯示；Excel／XLIFF 等列 2 隱藏且 mq 勾選被清除。  
 2. 列 1 順序：空白、非空白、已確認、未確認、鎖定、未鎖定。  
-3. 僅勾 R1：已確認且 `confirmationRole === 'R1'` 的列通過；未確認列若同時允許「未確認」則仍出現。  
+3. 僅勾 R1：已確認且 `originalRole === 'R1'` 的列通過；未確認列**不**因第四維通過而出現。  
 4. TM mqxliff 匯入對話：列與行為與編輯器一致；非 mqxliff 匯入時列 2 隱藏。  
 5. 篩選群組／常用組合／QA 範圍摘要：出現可讀的 memoQ 身分描述。  
 6. 切換檔案後篩選快照 hash 與實際列一致（無殘留 mq 條件）。
@@ -151,3 +151,4 @@ flowchart LR
 | 2026-05-10 | 初版：整合計畫書、觸點表與 `evaluateSegment` 規格。 |
 | 2026-06-12 | §2.3：Phase B 內部 Workflow 篩選第五維草案（`wf_trans_marked`／`wf_review_marked`）。 |
 | 2026-06-10 | §2.3：**已落地** B-5：`evaluateSegment` 第五維；進階面板「內部 Workflow」列；語意與 `_isWfTransMarkedEffective`／`_isWfReviewMarkedEffective` 一致。 |
+| 2026-06-24 | §2.1 第四維語意修正（`61e8fc2`）：改比對 `originalRole`、未確認句段不通過；UI「memoQ 原檔確認」；Team `addSegments` 持久化 `wf_*_confirmed_*`。匯入疊層／TM 去重見 [`bug-report_import-confirmed-tm-write-progress-overlay_2026-06.md`](./bug-report_import-confirmed-tm-write-progress-overlay_2026-06.md)。 |

@@ -38,7 +38,7 @@
 
         for (let si = 0; si < segments.length; si++) {
             const seg = segments[si];
-            const dedupKey = String(seg.idValue || '').trim() || `_row_${si}`;
+            const dedupKey = (seg.sourceText || '').trim() || `_row_${si}`;
             if (seenKeys.has(dedupKey)) continue;
             seenKeys.add(dedupKey);
 
