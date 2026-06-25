@@ -25,7 +25,7 @@
 | H   | source bpt/ept 對、target ph standalone（TM 模糊匹配；F8 無效） | Bug #10（**已修**；見 §8 邊界） |
 | I   | `mq:rxt` 內層 displaytext pill 顯示（對齊 memoQ 原生） | **已修**（`extractMqRxtDisplayText`） |
 | J   | TM 模糊匹配譯文**連續 ph** → 佔位 `{1}{2}…` 與原文 `{1}{/1}…` 錯位 | Bug #11（**待修**） |
-| K   | `mq:rxt val` 屬性不符（reconcile 短路；F8 無效；QA 不報） | Bug #12（**已實作，待驗收**） |
+| K   | `mq:rxt val` 屬性不符（reconcile 短路；F8 無效；QA 不報） | Bug #12（**已修並驗收** `2a88a48`） |
 
 
 **說明**：不以客戶檔名推斷檔案是否「斷尾」；若需判斷資料是否截斷，應直接檢視該句 `<source>`／`<target>` XML。
@@ -249,7 +249,7 @@ flowchart TD
 
 **樣本**：`36432_zho-TW.mqxliff` — SourceId 32739（編輯器顯示列 203）。
 
-**驗收**：重匯後 `{1}` 為 `{hours:int}`、pill 藍；QA 可掃舊資料 val 不符；Bug #7／#8／#9／#10 迴歸不劣化。專文：[`bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md)。
+**驗收**（2026-06-26 產品端 **通過**）：重匯後 `{1}` 為 `{hours:int}`、pill 藍；QA val 不符偵測可用。commit `2a88a48`。專文：[`bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md)。
 
 ---
 

@@ -48,6 +48,7 @@
 - [`docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](docs/CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md) — 編輯器**標籤顯示三模式**（僅編號／簡短／延長）、`displayFull`、無延遲 tooltip
 - [`docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md) — 成對 tag **箭頭外框**（方案 B；§8 失敗紀錄、**待 SVG**）；預覽 [`docs/preview-cat-paired-tag-border/index.html`](docs/preview-cat-paired-tag-border/index.html)
 - [`docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md) — **Bug #11** TM 連續 ph 佔位錯位（`fixMqxliffTmPhSequentialPairs`）；與 Bug #10 區分
+- [`docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md) — **Bug #12** mq:rxt `val` 屬性不符（reconcile 短路；**已修並驗收** `2a88a48`）；樣本 `36432` 列 203
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
 - [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`

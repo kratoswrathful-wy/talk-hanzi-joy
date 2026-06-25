@@ -241,6 +241,17 @@ sourceTags.push({
 
 **numbering**：memoQ XML 裡存的是 1-based `{1}`；memoQ UI 顯示 0-based `{0}`（自動減 1）。兩者都是正常的，不需要轉換。
 
+### 4.3.1 匯入後 target tag 修正（mqxliff）
+
+[`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) 於 `extractTaggedText` 之後、`reconcileTargetTagsMarkupFromSource` 之前：
+
+| 函式 | 用途 |
+|------|------|
+| `mergePartialTargetTagsFromSource` | Bug #5：依 `targetText` 佔位補齊缺漏 `targetTags` |
+| `fixMqxliffTmPhSequentialPairs` | **Bug #11（待實作）**：TM 模糊匹配譯文**連續 ph** → 佔位錯位；見 [`bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md) |
+| `fixMqxliffBptPhTypeMismatch` | **Bug #10（已修）**：同號 `{N}` 的 ph→bpt；邊界見 [`bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md) §7 |
+| `reconcileTargetTagsMarkupFromSource` | **Bug #7／#8／#9／#12（#12 已修 `2a88a48`）**：同 ph 已存在但 xml 不同時以 source 覆寫；#12 為同 `innerEscapedTagSig` 但 `mq:rxt val` 不同；見 [`bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md) |
+
 ### 4.4 舊資料問題
 
 若 mqxliff 是在上述任何修正加入**之前**匯入的，`sourceTags` 可能為 `null` 或 `undefined`，導致 pill 無法顯示。
@@ -289,6 +300,10 @@ memoQ **遊戲對話** mqxliff 常把 **對話路徑** 放在 `x-mmq-context`（
 **原因**：`targetTags` 已登記錯 xml 時 F8 不覆寫；Ctrl+F8 未清 `targetTags`；`reconcile` 對 standalone `mq:rxt` 曾略過。
 
 **修法**：`upsertTargetTagFromSource`、Ctrl+F8 清目錄、`tagXmlNeedsReconcileFromSource`／全段 xml 比對。詳見 [`bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md`](./bug-report_mqxliff-targettags-xml-mismatch-f8_2026-06.md)。
+
+### 4.8 內部 Workflow 確認與匯出邊界（Phase B 規劃）
+
+Phase B 規劃之**內部 Workflow** 句段標記（`wf_trans_confirmed_*`、`wf_review_confirmed_*`）**不**經 `updateMqxliffStatus` 寫入 mqxliff；匯出仍只反映 `status`／`confirmation_role`／`original_role`。見 [`CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md`](./CAT_WORKFLOW_PHASE_B_SPEC_2026-06.md) §3.1。
 
 ---
 
@@ -379,7 +394,7 @@ function buildTaggedHtml(text, tags, isSource)
 | `display` | 摘要（約 25 字 + `…`） |
 | `displayFull` | 譯者面向完整 displaytext（A）；模式 2 與 tooltip |
 
-編輯器 **三種顯示模式**（`#editorGrid.tag-view-0/1/2`）：僅編號、簡短（`display` + hover 全文）、延長（`displayFull`，溢出才裁切）。規格：[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md)。成對 pill（`.rt-tag-s`／`.rt-tag-e`）箭頭外框與斜角描邊：[`CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md)。
+編輯器 **三種顯示模式**（`#editorGrid.tag-view-0/1/2`）：僅編號、簡短（`display` + hover 全文）、延長（`displayFull`，溢出才裁切）。規格：[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md)。成對 pill 箭頭外框（雙層／drop-shadow 已否決，**待 SVG**）：[`CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md) §4.3、§8。
 
 `buildTaggedHtml` 為每顆 pill 設 `data-tag-full`；`syncTagPillDisplayInEditor` 依模式套用 `data-tip`（沿用 `initGlobalTooltip`）。
 
