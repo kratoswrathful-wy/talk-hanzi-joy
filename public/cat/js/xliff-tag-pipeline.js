@@ -1226,6 +1226,8 @@
             .replace(/^\uFEFF/, '')
             .replace(/\s+rid\s*=\s*"[^"]*"/gi, '')
             .replace(/\s+rid\s*=\s*'[^']*'/gi, '')
+            .replace(/\s+id\s*=\s*"[^"]*"/gi, '')
+            .replace(/\s+id\s*=\s*'[^']*'/gi, '')
             .replace(/\r\n?/g, '\n')
             .replace(/[\s\u00A0\u200B\uFEFF]+/g, ' ')
             .trim();
@@ -1243,13 +1245,14 @@
         }
         const srcInner = innerEscapedTagSig(st.xml);
         const tgtInner = innerEscapedTagSig(tt.xml);
-        if (srcInner && tgtInner) return srcInner !== tgtInner;
+        // Bug #12：innerEscapedTagSig 相同（如 open:mq:rxt）時仍須比較 val 等完整 xml
+        if (srcInner && tgtInner && srcInner !== tgtInner) return true;
         return normalizeTagXmlForReconcile(st.xml) !== normalizeTagXmlForReconcile(tt.xml);
     }
 
     /**
      * mqxliff：同 ph 已存在但 targetTags.xml 與 sourceTags 不同時，以原文條目覆寫。
-     * Bug #7：bpt/ept 內層 g/pt；Bug #8：standalone ph／mq:rxt 全段 xml；Bug #9：bpt/ept 內 mq:rxt href 雙層實體（見 bpt-href-entity-export bug report）。
+     * Bug #7：bpt/ept 內層 g/pt；Bug #8：standalone ph／mq:rxt 全段 xml；Bug #9：bpt/ept 內 mq:rxt href 雙層實體；Bug #12：同 innerEscapedTagSig 但 val 不同。
      */
     function reconcileTargetTagsMarkupFromSource(sourceTags, targetTags) {
         if (!sourceTags || !sourceTags.length || !targetTags || !targetTags.length) return false;

@@ -22,8 +22,10 @@
 | E   | bpt/ept 內層 TM `<pt>` vs 原文 `<g>`（F8／匯出）                    | Bug #7（**已修並驗收** `d1ab161`） |
 | F   | 同 ph、`targetTags` xml 錯（`mq:rxt` displaytext；F8／Ctrl+F8）   | Bug #8（**已修**） |
 | G   | bpt/ept 內 `mq:rxt` 超連結 href 匯出編碼損壞（memoQ 無法重新匯入） | Bug #9（**已修並驗收** `584c707`；Consumer Insights + NGR T1 雙樣本通過） |
-| H   | source bpt/ept 對、target ph standalone（TM 模糊匹配；F8 無效） | Bug #10（**已修**） |
+| H   | source bpt/ept 對、target ph standalone（TM 模糊匹配；F8 無效） | Bug #10（**已修**；見 §8 邊界） |
 | I   | `mq:rxt` 內層 displaytext pill 顯示（對齊 memoQ 原生） | **已修**（`extractMqRxtDisplayText`） |
+| J   | TM 模糊匹配譯文**連續 ph** → 佔位 `{1}{2}…` 與原文 `{1}{/1}…` 錯位 | Bug #11（**待修**） |
+| K   | `mq:rxt val` 屬性不符（reconcile 短路；F8 無效；QA 不報） | Bug #12（**已實作，待驗收**） |
 
 
 **說明**：不以客戶檔名推斷檔案是否「斷尾」；若需判斷資料是否截斷，應直接檢視該句 `<source>`／`<target>` XML。
@@ -209,7 +211,7 @@ flowchart TD
 
 **樣本**：`53905_02_JSON_JadeChampsItemsBatch5B_v1_zh_TW.json_zho-TW.mqxliff` — `trans-unit id="1"`。
 
-**驗收**：匯入後 open `{1}` 藍色、close `{/1}` 缺漏為橙色；F8 可補 close；匯出 memoQ 可讀。專文：[`bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md)。
+**驗收**：同編號 open／close 藍色（TM 全 ph 列須先完成階段 J）；僅缺 close 為橙色；F8 可補 close。專文：[`bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md`](bug-report_mqxliff-bpt-ph-type-mismatch_2026-06.md) §7。
 
 ---
 
@@ -221,6 +223,33 @@ flowchart TD
 | I2 | ph／bpt／ept 分支：無外層 `displaytext`／`equiv-text` 時，以解析結果覆寫 `meaningfulRaw`（僅 `display`，不動 `xml`） | 同上 |
 
 **驗收**：JSON 樣本 pill 顯示 `<titleLeft>` 等，非截斷 XML；匯出行為不變。
+
+---
+
+## 10. 階段 J — Bug #11（TM 連續 ph 佔位錯位）
+
+| 步驟 | 動作 | 檔案 |
+| --- | --- | --- |
+| J1 | 新增 `fixMqxliffTmPhSequentialPairs`：譯文全 standalone ph、原文 bpt/ept 成對時，依 displaytext open/close 與出現順序對齊 source；覆寫 `targetTags` 並同步 `targetText` 佔位 | [`xliff-build-segments.js`](../cat-tool/js/xliff-build-segments.js) |
+| J2 | 於 `mergePartialTargetTagsFromSource` 之後呼叫；與 `fixMqxliffBptPhTypeMismatch` 兩階段串接 | 同上 |
+
+**樣本**：`53905_02_JSON_JadeChampsItemsBatch5B_v1_zh_TW.json_zho-TW.mqxliff` — `trans-unit id="1"`、`id="4"`（全 ph）；`id="2"` 迴歸（bpt/ept）。
+
+**驗收**：重匯後 id=1 譯文 `{1}{/1}{2}{/2}…`、多數 pill 藍；缺 `@SourceName@` 時原文 `{4}` 可仍紅。專文：[`bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md)。
+
+---
+
+## 11. 階段 K — Bug #12（mq:rxt val 不符）
+
+| 步驟 | 動作 | 檔案 |
+| --- | --- | --- |
+| K1 | `tagXmlNeedsReconcileFromSource`：`innerEscapedTagSig` 相同時 fall-through 到 `normalizeTagXmlForReconcile`（不比對時 early return false） | [`xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js) |
+| K2 | `normalizeTagXmlForReconcile`：加入 `id` 屬性移除（防 TM 同 val、不同 ph id 假陽性） | 同上 |
+| K3 | `_qaPushSegmentRuleFindings`：新增 `mq:rxt val` 比對；新增 `_extractMqRxtValFromTagXml` helper | [`app.js`](../cat-tool/app.js) |
+
+**樣本**：`36432_zho-TW.mqxliff` — SourceId 32739（編輯器顯示列 203）。
+
+**驗收**：重匯後 `{1}` 為 `{hours:int}`、pill 藍；QA 可掃舊資料 val 不符；Bug #7／#8／#9／#10 迴歸不劣化。專文：[`bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md)。
 
 ---
 

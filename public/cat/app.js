@@ -25216,6 +25216,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return out;
     }
 
+    /** Bug #12：自 tag xml（含 &quot; 跳脫）取出 mq:rxt 的 val 屬性，供 QA 比對。 */
+    function _extractMqRxtValFromTagXml(xml) {
+        if (xml == null || typeof xml !== 'string') return '';
+        const s = String(xml);
+        if (!/mq:rxt/i.test(s)) return '';
+        const m = s.match(/\bval\s*=\s*(?:&quot;|")([^&"]*?)(?:&quot;|")/i);
+        return m ? m[1].trim() : '';
+    }
+
     /** Tag／術語／數字（不含譯文不一致、不含錯字）— 供 runQaChecks 與確認後增量更新共用 */
     function _qaPushSegmentRuleFindings(results, s, gid, { checkTerms = true, checkTags = true, checkNumbers = true }) {
         if (checkTags) {
@@ -25285,14 +25294,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 if (stack.length) pairMsgs.push(`尚有未關閉之標籤：{${stack.join('}, {')}}`);
 
+                const valMismatchMsgs = [];
+                const tgtByPh = new Map();
+                for (const tt of (s.targetTags || [])) {
+                    if (tt && tt.ph && !tgtByPh.has(tt.ph)) tgtByPh.set(tt.ph, tt);
+                }
+                for (const st of srcTags) {
+                    if (!st || !st.ph) continue;
+                    const tt = tgtByPh.get(st.ph);
+                    if (!tt) continue;
+                    const srcVal = _extractMqRxtValFromTagXml(st.xml);
+                    const tgtVal = _extractMqRxtValFromTagXml(tt.xml);
+                    if (!srcVal || !tgtVal || srcVal === tgtVal) continue;
+                    valMismatchMsgs.push(`tag ${st.ph} 內容與原文不符（譯文 val="${tgtVal}"，原文 val="${srcVal}"）`);
+                }
+
                 const hasMissing = missing.length > 0;
                 const hasExtra = extraAll.length > 0;
-                if (hasMissing || hasExtra || tagOrderMsgs.length || pairMsgs.length) {
+                if (hasMissing || hasExtra || tagOrderMsgs.length || pairMsgs.length || valMismatchMsgs.length) {
                     const parts = [];
                     if (hasMissing) parts.push('缺少 tag：{' + missing.join('}, {') + '}');
                     if (hasExtra) parts.push('多餘 tag：{' + extraAll.join('}, {') + '}');
                     tagOrderMsgs.forEach((x) => { if (x && !parts.includes(x)) parts.push(x); });
                     pairMsgs.forEach((x) => { if (x && !parts.includes(x)) parts.push(x); });
+                    valMismatchMsgs.forEach((x) => { if (x && !parts.includes(x)) parts.push(x); });
                     results.push({ segId: s.id, gid, type: 'Tag 檢查', info: parts.join('；'), key: `${gid}:tag` });
                 }
             }
