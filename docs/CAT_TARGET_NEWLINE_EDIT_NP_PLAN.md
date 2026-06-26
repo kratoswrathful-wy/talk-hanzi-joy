@@ -1,7 +1,7 @@
 # CAT 譯文欄換行編輯補修 — tag 旁刪字與 NP 模式可刪換行
 
 > **建立**：2026-05-27  
-> **狀態**：**P1、P2 均已修復**；Wave 2 手動驗收通過（2026-05-27，專案擁有者確認）  
+> **狀態**：**P1、P2 均已修復**（Wave 2 手動驗收通過，2026-05-27）；**P3 已實作**（Wave 3，2026-06-26，**待手動驗收**）  
 > **前置**：[`bug-report_contenteditable-newline-artifacts.md`](./bug-report_contenteditable-newline-artifacts.md)（2026-05-02，`c4f865d` 幽靈 BR、Shift+Enter、`data-cat-nl`、blur rebuild）  
 > **程式**：[`cat-tool/app.js`](../cat-tool/app.js)；同步 `npm run sync:cat` → `public/cat/`
 
@@ -9,14 +9,16 @@
 
 ## 修正歷程總覽
 
-本議題橫跨三個階段：2026-05-02 的**基礎換行政策**、2026-05-27 **Wave 1**（資料與 NP 刪除）、2026-05-27 **Wave 2**（畫面即時 ↵ 與 DOM 清洗）。下表為時間軸；細節見各節。
+本議題橫跨四個階段：2026-05-02 的**基礎換行政策**、2026-05-27 **Wave 1**（資料與 NP 刪除）、2026-05-27 **Wave 2**（畫面即時 ↵ 與 DOM 清洗）、2026-06-26 **Wave 3**（tag 前／tag 間刪字幽靈 br，**已實作待驗收**）。下表為時間軸；細節見各節。
 
 | 階段 | 日期 | commit | 解決了什麼 | 仍留下的缺口（當時） |
 |------|------|--------|------------|----------------------|
 | **基礎** | 2026-05-02 | `c4f865d` | 幽靈 br 抽取、`data-cat-nl`、Shift+Enter、blur／確認前 rebuild、貼上換行→空格 | tag 旁刪字仍可能誤存 `\n`；¶ 模式 ↵ 難刪 |
 | **Wave 1** | 2026-05-27 | `d8b5cfc` | P2：NP 下可刪語意換行；P1 **extract** 層忽略 tag 後幽靈 br | P1 **畫面**：刪字當下仍閃 ↵（NP 對 DOM 內 br 加裝飾） |
-| **Wave 2** | 2026-05-27 | `21e14ee` | P1 完整：不顯示 ↵、input 當下清 DOM、根層 ghost div 不插虛擬 `\n` | —（驗收通過） |
+| **Wave 2** | 2026-05-27 | `21e14ee` | P1 完整：不顯示 ↵、input 當下清 DOM、根層 ghost div 不插虛擬 `\n` | tag **前**刪光、**兩 tag 相貼**時 br 仍可能誤存（見 Wave 3） |
+| **Wave 3** | 2026-06-26 | `bedb855` | P3：`isGhostBrBeforeRtTag`、tag 間 br（Fix 4A／4B） | 待手動驗收 |
 | **文件** | 2026-05-27 | `bcbfabe` | 實作紀錄 commit 編號、`bug-report` §2.5 交叉引用 | — |
+| **文件** | 2026-06-26 | （本版） | Wave 3／P3 規格與驗收清單 | — |
 
 ```mermaid
 flowchart LR
@@ -34,7 +36,11 @@ flowchart LR
         C2["Fix 3C input canonicalize"]
         C3["Fix 3B isGhostOnlyDiv"]
     end
-    base --> w1 --> w2
+    subgraph w3 ["2026-06-26 Wave 3"]
+        D1["Fix 4A isGhostBrBeforeRtTag"]
+        D2["Fix 4B tag 間 br"]
+    end
+    base --> w1 --> w2 --> w3
 ```
 
 ---
@@ -45,8 +51,9 @@ flowchart LR
 |---|------|----------|----------|
 | **P1** | tag 旁刪最後一字後**多出一個換行**；¶ 開時可見 **↵ 當下閃出** | `{1}d` 刪 `d`；單一或成對 tag 皆可能 | **已修**（Wave 1 extract + Wave 2 畫面／DOM） |
 | **P2** | **↵ 標記**用 Del／Backspace **刪不掉**，或刪了又出現 | ¶ 恆開時對語意換行按刪除鍵 | **已修**（Wave 1） |
+| **P3** | 從左**刪光 tag 前文字**（抵句首或上一顆 tag）後**多換行**；¶ 可見 ↵ | `hello{1}…` 刪 `hello`；`{1}middle{2}` 刪 `middle` | **已實作**（Wave 3，待驗收） |
 
-兩者相關：P1 若只修 extract，資料可能正確但使用者仍見幽靈 ↵；P2 則是 NP 裝飾與語意 `\n` 脫鉤。
+P1 與 P3 不同：P1 是 tag **後**刪最後一字；P3 是 tag **前**刪光或刪到**兩 tag 相貼**。P1 若只修 extract，資料可能正確但使用者仍見幽靈 ↵；P2 則是 NP 裝飾與語意 `\n` 脫鉤。
 
 ---
 
@@ -153,12 +160,86 @@ flowchart TD
 
 ---
 
+## 階段四：Wave 3 — P3（tag 前刪光／tag 間幽靈 br，已實作待驗收）
+
+### 問題摘要（2026-06-26 回報）
+
+| 項目 | 說明 |
+|------|------|
+| **操作** | 用 Delete／Backspace **從左邊吃掉**某 tag **前面**所有文字，直到游標抵**句首**或**上一顆 tag** |
+| **現象** | 未按 Shift+Enter 卻多句內換行；¶ 開啟時可見 **↵**；失焦後 `\n` 可能寫入 `target_text` |
+| **與 P1 差異** | P1 驗收為 `{1}d` **刪 tag 後**最後一字；P3 為 **刪 tag 前**文字或刪到 `{1}{2}` 相鄰 |
+
+### 根因
+
+[`isGhostBrAfterRtTag`](../cat-tool/app.js)（約 21494–21531 行）僅在「br **前**是 `.rt-tag`、br **後**無使用者文字」時視為幽靈。下列 DOM **不**符合，故 `isGhostBr` 回 false → extract 輸出 `\n`：
+
+| DOM 結構 | 典型情境 | Wave 1–2 |
+|----------|----------|----------|
+| `[br][{1}]…` | 刪光 tag 前文字，Blink 在句首插 br | **未涵蓋** |
+| `[{1}][br][{2}]…` | 刪光兩 tag 間文字，br 夾在 tag 之間 | **未涵蓋**（br 後下一節點為 `.rt-tag` → `return false`） |
+| `[{1}][br]` 結尾 | tag 後刪最後一字 | **已涵蓋**（Wave 1） |
+
+### 為何 Wave 2 未根治
+
+Wave 2 的 Fix 3A／3C 皆依 **`isGhostBr` 判定**；Wave 2 **未擴充**判定規則，只強化「已判定為 ghost 時」不顯示 ↵、input 當下 canonicalize。P3 的 br 從未被判為 ghost，故三管線皆不觸發。
+
+```mermaid
+flowchart TD
+    subgraph covered [Wave1-2 已涵蓋]
+        A["tag 後刪最後一字<br/>{1}d 刪 d"]
+    end
+    subgraph gap [P3 未涵蓋]
+        B["句首 br + tag"]
+        C["{1} br {2}"]
+    end
+    gap --> isGhostBrAfterRtTag
+    isGhostBrAfterRtTag -->|"next 是 rt-tag → false"| leak["誤存 \\n / 顯示 ↵"]
+```
+
+### 修正方案（規格，已實作 `bedb855`）
+
+**檔案**：[`cat-tool/app.js`](../cat-tool/app.js)；`npm run sync:cat` → `public/cat/`。
+
+| ID | 符號 | 動作 |
+|----|------|------|
+| **Fix 4A** | `isGhostBrBeforeRtTag(br, root)` | br **前**僅空白／NP overlay／句首；**後**方（略過空白）第一個有效節點為 `.rt-tag` → ghost；併入 `isGhostBr` |
+| **Fix 4B** | 擴充 `isGhostBrAfterRtTag` | br **前**為 `.rt-tag` 且 **後**（略過空白）亦為 `.rt-tag` → ghost（兩 tag 相貼時 Blink 占位 br） |
+
+**不變**：`data-cat-nl="1"` 的 br **永不**視為 ghost；Shift+Enter／Enter 政策不變。
+
+**觸點**（與 Wave 2 相同三管線，無新事件）：
+
+- `extractSubtree`／`extractTextFromEditor` — 經 `isGhostBr` 不輸出 `\n`
+- `applyNonPrintMarkers` — 略過幽靈 br
+- `editorDomHasGhostNewlineArtifacts` + `canonicalizeTargetEditorFromExtractPlain` — input 當下 rebuild
+- `getNpCaretOffset`／`setNpCaretOffset` — 若已走 `isGhostBr` 則自動受益
+
+**迴歸邊界（實作時必測）**
+
+- 使用者在 `{1}` 與 `{2}` **之間**以 **Shift+Enter** 插入的真換行（`data-cat-nl="1"`）**不可**被 Fix 4B 誤判為 ghost。
+- Wave 2 案例 `{1}d` 刪 `d` 仍須通過。
+
+### Wave 3 驗收步驟（待實作後）
+
+| # | 項目 | 預期 |
+|---|------|------|
+| 1 | `hello{1}tail` → 刪光 `hello` | 當下無 ↵；失焦後 `target_text` 無前導 `\n` |
+| 2 | `{1}middle{2}` → 刪光 `middle` | `{1}{2}` 相鄰時無 `\n`／↵ |
+| 3 | 句首 `{1}…` → 刪到僅 tag 開頭 | 同上 |
+| 4 | Shift+Enter 在 tag 間插入換行 | 仍有 ↵，Backspace 可刪（P2 迴歸） |
+| 5 | `{1}d` 刪 `d` | 當下不出 ↵（P1 迴歸） |
+| 6 | 搜尋高亮 | 無「字元索引長度與內文不符」警告 |
+
+---
+
 ## 定案行為（全波次合併）
 
 | 項目 | 行為 |
 |------|------|
 | Shift+Enter 換行 | 唯一鍵盤插入路徑；`data-cat-nl="1"`；¶ 開啟時 **可** Backspace／Delete 刪除（plain 模型） |
 | 幽靈 br（含 tag 後、根層 ghost div） | **不**寫入 `targetText`、**不**顯示 ↵、**input 當下** canonicalize（不必等失焦） |
+| 幽靈 br（tag **前**句首、**兩 tag 相貼**，P3） | Wave 3 已實作；與上列相同（**待手動驗收**） |
 | 單按 Enter | 不插入換行（`c4f865d`） |
 | 純文字貼上換行→空格 | 不變 |
 | blur／確認 | 仍保留 `rebuildTargetEditorFromExtractedPlain` 作最後防線 |
@@ -170,6 +251,7 @@ flowchart TD
 | 符號 | 波次 | 職責 |
 |------|------|------|
 | `isGhostBr` / `isGhostBrAfterRtTag` | 基礎 + W1 | extract／NP offset 判定幽靈 br |
+| `isGhostBrBeforeRtTag` / tag 間 br（Fix 4B） | W3 | tag 前句首、兩 tag 相貼時占位 br |
 | `isGhostOnlyDiv` | W2 | 根層占位 div 不產虛擬 `\n` |
 | `tryDeleteSemanticNewlineAtCaret` | W1 | ¶ 下刪語意 `\n` |
 | `applyNonPrintMarkers` | W2 Fix 3A | 不對幽靈 br 插 ↵ |
@@ -197,12 +279,17 @@ flowchart TD
 3. 失焦後 `target_text` 無多餘 `\n`。  
 4. 搜尋高亮無長度警告。
 
+### Wave 3（P3 — 待手動驗收）
+
+見 **§階段四** 驗收表 6 項；含 P1／P2 迴歸。
+
 ---
 
-## 已知限制與後續（非本輪承諾）
+## 已知限制與後續
 
-- **游標線性化**：`getNpCaretOffset` 與 extract 在極端 DOM 邊界仍可能不完全一致；若再收到回報可改為共用走訪器（見 `bug-report` §2.5）。  
-- **不建議**移除 `isGhostBr` 或恢復「所有 br 皆真換行」——會復發 P1／P2。
+- **P3（Wave 3）**：Fix 4A／4B 已實作（`bedb855`）；手動驗收通過後改標「已修並驗收」。
+- **游標線性化**：`getNpCaretOffset` 與 extract 在極端 DOM 邊界仍可能不完全一致；若 P3 後仍收到回報，可改為與 extract **共用單一走訪器**（見 `bug-report` §2.5）。
+- **不建議**移除 `isGhostBr` 或恢復「所有 br 皆真換行」——會復發 P1／P2／P3。
 
 ---
 
@@ -215,3 +302,5 @@ flowchart TD
 | 2026-05-27 | `21e14ee` | Wave 2：Fix 3A / 3C / 3B |
 | 2026-05-27 | `bcbfabe` | 文件：Wave 2 commit 紀錄交叉引用 |
 | 2026-05-27 | （本版文件） | 補齊三階段歷程、修改過程、Wave 2 驗收通過 |
+| 2026-06-26 | （本版文件） | Wave 3／P3 規格：tag 前／tag 間刪字幽靈 br；Fix 4A／4B；驗收清單 |
+| 2026-06-26 | `bedb855` | Fix 4A `isGhostBrBeforeRtTag` + Fix 4B tag 間 br |
