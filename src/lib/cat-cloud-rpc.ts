@@ -1013,6 +1013,11 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           if (patch.xliffTuId      !== undefined) dbPatch.xliff_tu_id      = patch.xliffTuId;
           if (patch.extraValue     !== undefined) dbPatch.extra_value      = patch.extraValue;
           if (patch.status         !== undefined) dbPatch.status           = patch.status;
+          if (patch.wfTransConfirmedAt !== undefined) dbPatch.wf_trans_confirmed_at = patch.wfTransConfirmedAt;
+          if (patch.wfTransConfirmedBy !== undefined) dbPatch.wf_trans_confirmed_by = patch.wfTransConfirmedBy;
+          if (patch.wfReviewConfirmedAt !== undefined) dbPatch.wf_review_confirmed_at = patch.wfReviewConfirmedAt;
+          if (patch.wfReviewConfirmedBy !== undefined) dbPatch.wf_review_confirmed_by = patch.wfReviewConfirmedBy;
+          if (patch.wfReviewRevokedPending !== undefined) dbPatch.wf_review_revoked_pending = !!patch.wfReviewRevokedPending;
           if (patch.editorNote     !== undefined) dbPatch.editor_note      = patch.editorNote;
           if (patch.isLocked       !== undefined) dbPatch.is_locked        = patch.isLocked;
           if (patch.isLockedUser   !== undefined) dbPatch.is_locked_user   = patch.isLockedUser;
@@ -1195,6 +1200,22 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         last_modified: nowIso(),
       } as any).eq("id", payload.segmentId);
       if (ussErr) throw ussErr;
+      return;
+    }
+    case "db.batchUpdateSegmentStatuses": {
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      if (!items.length) return;
+      await Promise.all(
+        items.map(async (item: { segmentId: string; newStatus: string; extra?: Record<string, unknown> }) => {
+          const ex = segmentExtraCamelToSnake(item.extra);
+          const { error } = await supabase.from("cat_segments").update({
+            status: item.newStatus,
+            ...ex,
+            last_modified: nowIso(),
+          } as any).eq("id", item.segmentId);
+          if (error) throw error;
+        })
+      );
       return;
     }
     case "db.updateSegmentEditorNote": {

@@ -882,8 +882,6 @@
                                     <div class="sf-adv-grid sf-adv-status-row1">
                                         <label><input type="checkbox" class="sf-status-cb" value="empty"> 空白</label>
                                         <label><input type="checkbox" class="sf-status-cb" value="not_empty"> 非空白</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="confirmed"> 已確認</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="unconfirmed"> 未確認</label>
                                         <label><input type="checkbox" class="sf-status-cb" value="locked"> 鎖定</label>
                                         <label><input type="checkbox" class="sf-status-cb" value="unlocked"> 未鎖定</label>
                                     </div>
@@ -893,12 +891,19 @@
                                         <label><input type="checkbox" class="sf-status-cb sf-mq-role-cb" value="mq_r1"> R1（&#10003;<sup style="font-size:0.5em;margin-left:-0.1em">+</sup>）</label>
                                         <label><input type="checkbox" class="sf-status-cb sf-mq-role-cb" value="mq_r2"> R2（&#10003;&#10003;）</label>
                                     </div>
-                                    <p id="sfMqRoleFilterHint" class="sf-mq-role-hint" style="display:none;" hidden>僅顯示原檔已確認且身分相符的句段；未確認句段不會列入（與格線狀態欄外圈勾選相同）。</p>
-                                    <div id="sfWfMarkedFilterRow" class="sf-adv-grid sf-adv-status-row-wf" style="display:none;" hidden>
-                                        <span class="sf-wf-marked-heading" aria-hidden="true">內部 Workflow</span>
-                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_trans_confirmed"> 翻譯已確認</label>
-                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_review_confirmed"> 審稿已確認</label>
+                                    <div id="sfWfMarkedFilterRow" class="sf-adv-grid sf-adv-status-row-wf">
+                                        <span class="sf-wf-marked-heading" aria-hidden="true">內部流程</span>
+                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_unconfirmed"> 未確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_trans_confirmed"> 翻譯確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_review_confirmed"> 審稿確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_review_revoked"> 審稿後再編輯</label>
                                         <label><input type="checkbox" class="sf-status-cb sf-wf-marked-cb" value="wf_post_review_trans"> 審稿後譯者再編輯並確認</label>
+                                    </div>
+                                    <div id="sfRepetitionFilterRow" class="sf-adv-grid sf-adv-status-row-rep">
+                                        <span class="sf-rep-heading" aria-hidden="true">檔內重複</span>
+                                        <label><input type="checkbox" class="sf-status-cb sf-rep-cb" value="repetition_any"> 全部</label>
+                                        <label><input type="checkbox" class="sf-status-cb sf-rep-cb" value="repetition_first"> 首句</label>
+                                        <label><input type="checkbox" class="sf-status-cb sf-rep-cb" value="repetition_dup"> 後續</label>
                                     </div>
                                 </div>
 
@@ -1671,6 +1676,24 @@
                 <div class="panel-footer" style="padding:1rem 1.5rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
                     <button type="button" class="secondary-btn" id="btnRemoteConflictCancel">取消</button>
                     <button type="button" class="primary-btn" id="btnRemoteConflictOk">確定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批次確認：範圍外檔內重複句提示 -->
+        <div class="wizard-overlay hidden" id="outOfRangeRepModal" aria-modal="true" role="dialog">
+            <div class="wizard-modal" style="max-width: min(760px, 96vw);">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.15rem;">範圍外檔內重複句未同步</h3>
+                </div>
+                <div class="wizard-body">
+                    <p style="margin:0 0 0.75rem 0; font-size:0.88rem; color:#64748b; line-height:1.45;">
+                        以下句段的原文在選取範圍外仍有重複句，未隨批次確認自動更新。可逐組套用剛確認的譯文，或稍後手動處理。
+                    </p>
+                    <div id="outOfRangeRepModalBody" class="out-of-range-rep-groups"></div>
+                </div>
+                <div class="panel-footer" style="padding:1rem 1.5rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnOutOfRangeRepClose">關閉</button>
                 </div>
             </div>
         </div>

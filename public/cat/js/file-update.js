@@ -237,6 +237,11 @@
             // 狀態重置：原文有變 OR 譯文有實際改動，且原本是「已確認」
             if ((sourceChanged || targetActuallyChanged) && shouldResetToUnconfirmed(existing)) {
                 patch.status = 'unconfirmed';
+                patch.wfTransConfirmedAt = null;
+                patch.wfTransConfirmedBy = null;
+                patch.wfReviewConfirmedAt = null;
+                patch.wfReviewConfirmedBy = null;
+                patch.wfReviewRevokedPending = false;
             }
 
             // 匯入掃描序：更新作業檔後須與新版檔案一致（供列表／句段集排序）

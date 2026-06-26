@@ -1266,6 +1266,34 @@ const DBService = {
         }
     },
 
+    /**
+     * 批次更新句段確認狀態（Solo：Dexie transaction）。
+     * @param {{ segmentId: string|number, newStatus: string, extra?: object }[]} items
+     */
+    async batchUpdateSegmentStatuses(items) {
+        if (!items || !items.length) return;
+        const now = new Date().toISOString();
+        let touchedFileId = null;
+        await db.transaction('rw', db.segments, db.files, db.projects, async () => {
+            for (const item of items) {
+                const sid = item.segmentId;
+                const patch = { status: item.newStatus, ...(item.extra || {}) };
+                await db.segments.update(sid, patch);
+                if (touchedFileId == null) {
+                    const seg = await db.segments.get(sid);
+                    if (seg && seg.fileId != null) touchedFileId = seg.fileId;
+                }
+            }
+            if (touchedFileId != null) {
+                const file = await db.files.get(touchedFileId);
+                if (file) {
+                    await db.files.update(file.id, { lastModified: now });
+                    await db.projects.update(file.projectId, { lastModified: now });
+                }
+            }
+        });
+    },
+
     async updateSegmentEditorNote(segmentId, editorNote) {
         await db.segments.update(segmentId, { editorNote: editorNote == null ? '' : String(editorNote) });
         const seg = await db.segments.get(segmentId);
@@ -1315,6 +1343,11 @@ const DBService = {
             if (patch.idValue        !== undefined) dbPatch.idValue        = patch.idValue;
             if (patch.extraValue     !== undefined) dbPatch.extraValue     = patch.extraValue;
             if (patch.status         !== undefined) dbPatch.status         = patch.status;
+            if (patch.wfTransConfirmedAt !== undefined) dbPatch.wfTransConfirmedAt = patch.wfTransConfirmedAt;
+            if (patch.wfTransConfirmedBy !== undefined) dbPatch.wfTransConfirmedBy = patch.wfTransConfirmedBy;
+            if (patch.wfReviewConfirmedAt !== undefined) dbPatch.wfReviewConfirmedAt = patch.wfReviewConfirmedAt;
+            if (patch.wfReviewConfirmedBy !== undefined) dbPatch.wfReviewConfirmedBy = patch.wfReviewConfirmedBy;
+            if (patch.wfReviewRevokedPending !== undefined) dbPatch.wfReviewRevokedPending = patch.wfReviewRevokedPending;
             if (patch.isLocked       !== undefined) dbPatch.isLocked       = patch.isLocked;
             if (patch.isLockedUser   !== undefined) dbPatch.isLockedUser   = patch.isLockedUser;
             if (patch.isLockedSystem !== undefined) dbPatch.isLockedSystem = patch.isLockedSystem;
@@ -2210,6 +2243,8 @@ const DBService = {
         });
     DBService.updateSegmentStatus = async (segmentId, newStatus, extra = {}) =>
         rpc('db.updateSegmentStatus', { segmentId, newStatus, extra });
+    DBService.batchUpdateSegmentStatuses = async (items) =>
+        rpc('db.batchUpdateSegmentStatuses', { items });
     DBService.updateSegmentEditorNote = async (segmentId, editorNote) =>
         rpc('db.updateSegmentEditorNote', { segmentId, editorNote });
     DBService.acquireSegmentEditLease = async (fileId, segmentId, sessionId, holderName, ttlSeconds = 20) =>

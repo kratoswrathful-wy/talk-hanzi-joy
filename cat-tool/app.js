@@ -2466,6 +2466,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function applyRemoteTextToSegmentUiAndDb(seg, row, editor, remoteText) {
+        const prevText = seg.targetText || '';
+        const hadWf = seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg);
         seg.targetText = remoteText;
         seg.matchValue = undefined;
         pendingRemoteBySegId.delete(String(seg.id));
@@ -2476,6 +2478,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateTagColors(row, remoteText);
             refreshTagNextHighlight(row);
             applyMatchCellVisual(row, '');
+        }
+        if (hadWf && remoteText !== prevText) {
+            applyWorkflowRevokeOnTargetEdit(seg);
+            if (row) {
+                refreshStatusIconForRow(row, seg);
+                syncRowConfirmedStateClass(row, seg);
+            }
+            updateProgress();
         }
     }
 
@@ -2536,9 +2546,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        const prevText = seg.targetText || '';
+        const hadWfBefore = seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg);
         applyRemoteTextToSegmentUiAndDb(seg, row, editor, remoteText);
         try {
             await applyUpdateSegmentTarget(seg, remoteText, { matchValue: '' });
+            if (hadWfBefore && normalizeCollabTargetPlainTextForCompare(remoteText) !== normalizeCollabTargetPlainTextForCompare(prevText)) {
+                await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
+            }
         } catch (err) {
             console.error('[collab] apply remote commit failed', err);
         }
@@ -6511,9 +6526,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function _segmentMatchesWfFilterKey(seg, key) {
         const st = resolveSegmentConfirmDisplayState(seg);
+        if (key === 'wf_unconfirmed') return st === 'unconfirmed';
         if (key === 'wf_trans_confirmed') return st === 'trans_confirmed';
         if (key === 'wf_review_confirmed') return st === 'review_confirmed';
         if (key === 'wf_post_review_trans') return st === 'post_review_trans';
+        if (key === 'wf_review_revoked') return st === 'review_revoked_editing';
         return false;
     }
 
@@ -7074,6 +7091,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             currentSegmentsList = Array.isArray(segments) ? segments : [];
+            reconcileSegmentWfConsistencyOnLoad(currentSegmentsList);
             if (editorFileName) { editorFileName.textContent = title || '句段集'; editorFileName.title = title || '句段集'; }
 
             currentFileFormat = 'excel';
@@ -16905,6 +16923,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         showCatLoadingOverlay('正在載入檔案…');
         currentSegmentsList = await DBService.getSegmentsByFile(fileId);
+        reconcileSegmentWfConsistencyOnLoad(currentSegmentsList);
 
         // 設定／顯示 mqxliff 作業中身分圖示（篩選圖示正下方，與周遭圖示同大）
         const mqRoleIcon = document.getElementById('mqRoleIcon');
@@ -18406,13 +18425,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const statusNames = {
         empty: '空白',
         not_empty: '非空白',
-        confirmed: '已確認',
-        unconfirmed: '未確認',
         locked: '鎖定',
         unlocked: '未鎖定',
         mq_t: 'memoQ 原檔確認：T（譯者）',
         mq_r1: 'memoQ 原檔確認：R1',
         mq_r2: 'memoQ 原檔確認：R2',
+        wf_unconfirmed: '內部流程：未確認',
+        wf_trans_confirmed: '內部流程：翻譯確認',
+        wf_review_confirmed: '內部流程：審稿確認',
+        wf_review_revoked: '內部流程：審稿後再編輯',
+        wf_post_review_trans: '內部流程：審稿後譯者再編輯並確認',
+        repetition_any: '檔內重複：全部',
+        repetition_first: '檔內重複：首句',
+        repetition_dup: '檔內重複：後續',
     };
 
     /** memoQ 進階篩選第四維：比對匯入時原檔確認身分（非編輯器內再確認之身分）。 */
@@ -18426,7 +18451,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** mqxliff 進階篩選：顯示／隱藏 memoQ 身分列並清除非 mqxliff 時之勾選 */
     function syncSfMqRoleFilterRowVisibility() {
         const row = document.getElementById('sfMqRoleFilterRow');
-        const hint = document.getElementById('sfMqRoleFilterHint');
         const mq = currentFileFormat === 'mqxliff';
         if (row) {
             if (mq) {
@@ -18438,30 +18462,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 row.querySelectorAll('.sf-mq-role-cb').forEach((cb) => { cb.checked = false; });
             }
         }
-        if (hint) {
-            if (mq) {
-                hint.style.display = '';
-                hint.removeAttribute('hidden');
-            } else {
-                hint.style.display = 'none';
-                hint.setAttribute('hidden', 'hidden');
-            }
-        }
     }
 
-    /** 團隊版：顯示／隱藏內部 Workflow 篩選列 */
+    /** 顯示內部流程篩選列（Solo／Team 皆可見） */
     function syncSfWfMarkedFilterRowVisibility() {
         const row = document.getElementById('sfWfMarkedFilterRow');
-        const show = isTeamMode();
         if (!row) return;
-        if (show) {
-            row.style.display = '';
-            row.removeAttribute('hidden');
-        } else {
-            row.style.display = 'none';
-            row.setAttribute('hidden', 'hidden');
-            row.querySelectorAll('.sf-wf-marked-cb').forEach((cb) => { cb.checked = false; });
-        }
+        row.style.display = '';
+        row.removeAttribute('hidden');
     }
 
     /** TM XLIFF 匯入篩選對話：僅 .mqxliff 顯示 memoQ 身分列 */
@@ -18586,14 +18594,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let statusMatch = true;
         if (statuses.length > 0) {
-            const isConfirmed = seg.status === 'confirmed';
             const isEmpty = !seg.targetText || !seg.targetText.trim();
             const contentKeys = ['empty', 'not_empty'];
-            const confirmKeys = ['confirmed', 'unconfirmed'];
             const lockKeys = ['locked', 'unlocked'];
             const mqRoleKeys = ['mq_t', 'mq_r1', 'mq_r2'];
-            const wfConfirmKeys = ['wf_trans_confirmed', 'wf_review_confirmed', 'wf_post_review_trans'];
-            const dims = [contentKeys, confirmKeys, lockKeys, mqRoleKeys, wfConfirmKeys];
+            const wfConfirmKeys = ['wf_unconfirmed', 'wf_trans_confirmed', 'wf_review_confirmed', 'wf_review_revoked', 'wf_post_review_trans'];
+            const repetitionKeys = ['repetition_any', 'repetition_first', 'repetition_dup'];
+            const dims = [contentKeys, lockKeys, mqRoleKeys, wfConfirmKeys, repetitionKeys];
             statusMatch = true;
             for (const keys of dims) {
                 const picked = statuses.filter((s) => keys.includes(s));
@@ -18602,19 +18609,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for (const s of picked) {
                     if (s === 'empty' && isEmpty) dimOk = true;
                     if (s === 'not_empty' && !isEmpty) dimOk = true;
-                    if (s === 'confirmed' && isConfirmed) dimOk = true;
-                    if (s === 'unconfirmed' && !isConfirmed) dimOk = true;
                     if (s === 'locked' && seg.isLocked) dimOk = true;
                     if (s === 'unlocked' && !seg.isLocked) dimOk = true;
                     if (s === 'mq_t') {
-                        if (isConfirmed && _mqOriginalRoleForFilter(seg) === 'T') dimOk = true;
+                        if (seg.status === 'confirmed' && _mqOriginalRoleForFilter(seg) === 'T') dimOk = true;
                     }
                     if (s === 'mq_r1') {
-                        if (isConfirmed && _mqOriginalRoleForFilter(seg) === 'R1') dimOk = true;
+                        if (seg.status === 'confirmed' && _mqOriginalRoleForFilter(seg) === 'R1') dimOk = true;
                     }
                     if (s === 'mq_r2') {
-                        if (isConfirmed && _mqOriginalRoleForFilter(seg) === 'R2') dimOk = true;
+                        if (seg.status === 'confirmed' && _mqOriginalRoleForFilter(seg) === 'R2') dimOk = true;
                     }
+                    if (s === 'repetition_any' && seg.repetitionType) dimOk = true;
+                    if (s === 'repetition_first' && seg.repetitionType === 'first') dimOk = true;
+                    if (s === 'repetition_dup' && seg.repetitionType === 'duplicate') dimOk = true;
                     if (_segmentMatchesWfFilterKey(seg, s)) dimOk = true;
                 }
                 if (!dimOk) { statusMatch = false; break; }
@@ -20510,21 +20518,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 在編輯器右下角顯示短暫的 toast 通知（3 秒自動消失）。
+     * 在編輯器右下角顯示 toast 通知。
      * type: 'error' | 'info'（預設 info）
+     * opts.persistent: true 時不自動消失（需手動關閉）
      */
-    function showCatToast(msg, type = 'info') {
+    function showCatToast(msg, type = 'info', opts) {
+        const persistent = !!(opts && opts.persistent);
         const existing = document.querySelector('.cat-toast');
         if (existing) existing.remove();
         const el = document.createElement('div');
-        el.className = 'cat-toast cat-toast-' + type;
-        el.textContent = msg;
+        el.className = 'cat-toast cat-toast-' + type + (persistent ? ' cat-toast-persistent' : '');
+        const text = document.createElement('span');
+        text.className = 'cat-toast-text';
+        text.textContent = msg;
+        el.appendChild(text);
+        if (persistent) {
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'cat-toast-close';
+            closeBtn.setAttribute('aria-label', '關閉');
+            closeBtn.textContent = '×';
+            closeBtn.addEventListener('click', () => el.remove());
+            el.appendChild(closeBtn);
+        }
         document.body.appendChild(el);
         requestAnimationFrame(() => el.classList.add('cat-toast-show'));
-        setTimeout(() => {
-            el.classList.remove('cat-toast-show');
-            el.addEventListener('transitionend', () => el.remove(), { once: true });
-        }, 3000);
+        if (!persistent) {
+            setTimeout(() => {
+                el.classList.remove('cat-toast-show');
+                el.addEventListener('transitionend', () => el.remove(), { once: true });
+            }, 3000);
+        }
     }
 
     /** 批次操作略過「禁止編輯」句段時，以原生 toast 列出列號。 */
@@ -21063,6 +21087,319 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     loadPresetsSelect();
 
+    /** 開檔後靜默修正 status 與 Workflow 時間戳不一致（僅記憶體，不寫回 DB） */
+    function reconcileSegmentWfConsistencyOnLoad(segments) {
+        if (!Array.isArray(segments)) return;
+        for (const seg of segments) {
+            if (!seg || seg.status !== 'unconfirmed') continue;
+            if (seg.wfReviewRevokedPending) continue;
+            if (seg.wfTransConfirmedAt) {
+                seg.wfTransConfirmedAt = null;
+                seg.wfTransConfirmedBy = null;
+            }
+        }
+    }
+
+    function _segDisplayLineLabel(seg) {
+        if (!seg) return '?';
+        const ln = _segFullListLineNo(seg);
+        if (ln != null && Number.isFinite(ln)) return ln;
+        const gid = seg.globalId != null && Number.isFinite(Number(seg.globalId)) ? Number(seg.globalId) : null;
+        if (gid != null) return gid;
+        return '?';
+    }
+
+    function _batchConfirmKindsForSeg() {
+        return _isActingAsReviewer() ? ['review'] : ['translate'];
+    }
+
+    /** 批次確認：同步更新單一句段記憶體狀態；回傳是否有變更 */
+    function _applyBatchConfirmToSegment(seg) {
+        if (!seg || isDynamicForbidden(seg) || seg.isLockedUser) return false;
+        const disp = resolveSegmentConfirmDisplayState(seg);
+        if (disp === 'review_confirmed' && _isActingAsTranslator()) return false;
+        if ((disp === 'trans_confirmed' && _isActingAsTranslator())
+            || (disp === 'review_confirmed' && _isActingAsReviewer())
+            || (disp === 'post_review_trans' && _isActingAsTranslator())) {
+            return false;
+        }
+        if (disp === 'unconfirmed' || disp === 'orig_confirmed' || disp === 'review_revoked_editing') {
+            applyWorkflowConfirmToSegment(seg, true, { kinds: _batchConfirmKindsForSeg() });
+            return true;
+        }
+        if (disp === 'trans_confirmed' && _isActingAsReviewer()) {
+            applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
+            return true;
+        }
+        if (disp === 'post_review_trans' && _isActingAsReviewer()) {
+            applyWorkflowConfirmToSegment(seg, true, { kinds: ['review'] });
+            return true;
+        }
+        return false;
+    }
+
+    function _buildOutOfRangeRepetitionGroups(confirmedIndices, selectedIndexSet) {
+        const bySource = new Map();
+        for (const idx of confirmedIndices) {
+            const seg = currentSegmentsList[idx];
+            if (!seg || !seg.sourceText || !seg.repetitionType) continue;
+            const src = seg.sourceText;
+            if (!bySource.has(src)) bySource.set(src, []);
+            bySource.get(src).push({ idx, seg });
+        }
+        const groups = [];
+        for (const [sourceText, inRange] of bySource) {
+            const outOfRangeSegs = [];
+            for (let j = 0; j < currentSegmentsList.length; j++) {
+                if (selectedIndexSet.has(j)) continue;
+                const other = currentSegmentsList[j];
+                if (!other || other.sourceText !== sourceText || !other.repetitionType) continue;
+                const st = resolveSegmentConfirmDisplayState(other);
+                const isAlreadyConfirmed = st === 'trans_confirmed' || st === 'review_confirmed' || st === 'post_review_trans';
+                outOfRangeSegs.push({
+                    seg: other,
+                    idx: j,
+                    lineLabel: _segDisplayLineLabel(other),
+                    currentTarget: other.targetText || '',
+                    isAlreadyConfirmed,
+                });
+            }
+            if (!outOfRangeSegs.length) continue;
+            const sorted = inRange.slice().sort((a, b) => {
+                const ga = a.seg.globalId != null ? Number(a.seg.globalId) : -1;
+                const gb = b.seg.globalId != null ? Number(b.seg.globalId) : -1;
+                return gb - ga;
+            });
+            const primary = sorted[0];
+            groups.push({
+                sourceText,
+                confirmedTranslation: primary.seg.targetText || '',
+                confirmedLineLabel: _segDisplayLineLabel(primary.seg),
+                outOfRangeSegs,
+            });
+        }
+        return groups;
+    }
+
+    function _escapeHtmlText(s) {
+        return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function showOutOfRangeRepetitionModal(groups) {
+        const modal = document.getElementById('outOfRangeRepModal');
+        const body = document.getElementById('outOfRangeRepModalBody');
+        const closeBtn = document.getElementById('btnOutOfRangeRepClose');
+        if (!modal || !body) return;
+        body.innerHTML = '';
+        groups.forEach((g, gi) => {
+            const card = document.createElement('div');
+            card.className = 'out-of-range-rep-group';
+            card.dataset.groupIndex = String(gi);
+            let outHtml = '';
+            for (const o of g.outOfRangeSegs) {
+                const warn = o.isAlreadyConfirmed ? ' <span class="out-of-range-rep-warn">（已確認，不在套用範圍）</span>' : '';
+                outHtml += `<li>第 ${_escapeHtmlText(o.lineLabel)} 句 — 目前譯文：「${_escapeHtmlText(o.currentTarget)}」${warn}</li>`;
+            }
+            card.innerHTML = `
+                <div class="out-of-range-rep-source">原文：「${_escapeHtmlText(g.sourceText)}」</div>
+                <div class="out-of-range-rep-confirmed">✓ 剛確認的譯文（第 ${_escapeHtmlText(g.confirmedLineLabel)} 句）：「${_escapeHtmlText(g.confirmedTranslation)}」</div>
+                <div class="out-of-range-rep-out-label">未同步的句段：</div>
+                <ul class="out-of-range-rep-out-list">${outHtml}</ul>
+                <button type="button" class="secondary-btn btn-sm out-of-range-rep-apply-btn" data-group-index="${gi}">套用此譯文至本群組</button>
+            `;
+            body.appendChild(card);
+        });
+        body.querySelectorAll('.out-of-range-rep-apply-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                void (async () => {
+                    const gi = Number(btn.getAttribute('data-group-index'));
+                    const group = groups[gi];
+                    if (!group) return;
+                    const items = [];
+                    const beforeSnapshots = {};
+                    for (const o of group.outOfRangeSegs) {
+                        if (o.isAlreadyConfirmed) continue;
+                        const seg = o.seg;
+                        if (!seg || isDynamicForbidden(seg) || seg.isLockedUser) continue;
+                        beforeSnapshots[seg.id] = snapshotSegForUndo(seg);
+                        seg.targetText = group.confirmedTranslation;
+                        applyWorkflowConfirmToSegment(seg, true, { kinds: _batchConfirmKindsForSeg() });
+                        items.push({
+                            segmentId: seg.id,
+                            newStatus: seg.status,
+                            extra: buildWorkflowStatusExtra(seg),
+                        });
+                    }
+                    if (!items.length) {
+                        showCatToast('此群組無可套用的句段（皆已確認或禁止編輯）', 'info');
+                        return;
+                    }
+                    const afterSnapshots = {};
+                    items.forEach((it) => {
+                        const seg = currentSegmentsList.find((s) => s.id === it.segmentId);
+                        if (seg) afterSnapshots[seg.id] = snapshotSegForUndo(seg);
+                    });
+                    pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: [], tmRedo: [] });
+                    updateProgress();
+                    renderEditorSegments();
+                    runSearchAndFilter();
+                    void DBService.batchUpdateSegmentStatuses(items).catch((e) => console.error(e));
+                    items.forEach((it) => {
+                        const seg = currentSegmentsList.find((s) => s.id === it.segmentId);
+                        if (seg) void applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags });
+                    });
+                    btn.disabled = true;
+                    btn.textContent = '已套用';
+                    const card = btn.closest('.out-of-range-rep-group');
+                    if (card) card.classList.add('out-of-range-rep-group-done');
+                })();
+            });
+        });
+        if (closeBtn) {
+            closeBtn.onclick = () => modal.classList.add('hidden');
+        }
+        modal.classList.remove('hidden');
+    }
+
+    async function _runMapWithConcurrency(limit, items, fn) {
+        const results = new Array(items.length);
+        let next = 0;
+        async function worker() {
+            while (next < items.length) {
+                const cur = next++;
+                try {
+                    results[cur] = { ok: true, value: await fn(items[cur], cur) };
+                } catch (e) {
+                    results[cur] = { ok: false, error: e, item: items[cur] };
+                }
+            }
+        }
+        const n = Math.max(1, Math.min(limit, items.length || 1));
+        await Promise.all(Array.from({ length: n }, () => worker()));
+        return results;
+    }
+
+    /**
+     * 批次確認主流程：UI 瞬間更新、背景 DB／TM、範圍外重複 Modal。
+     * @param {number[]} primaryIndices 直接選取確認的列索引
+     * @param {{ focusIdx?: number|null, skippedSystemLocked?: object[] }} opts
+     */
+    async function executeBatchConfirm(primaryIndices, opts) {
+        const o = opts || {};
+        if (!primaryIndices.length) return;
+        const selectedIndexSet = new Set(primaryIndices);
+        const beforeSnapshots = {};
+        primaryIndices.forEach((idx) => {
+            const s = currentSegmentsList[idx];
+            if (s) beforeSnapshots[s.id] = snapshotSegForUndo(s);
+        });
+        const changedIndices = [];
+        for (const idx of primaryIndices) {
+            const seg = currentSegmentsList[idx];
+            if (_applyBatchConfirmToSegment(seg)) changedIndices.push(idx);
+        }
+        const repGroups = _buildOutOfRangeRepetitionGroups(
+            changedIndices.length ? changedIndices : primaryIndices,
+            selectedIndexSet
+        );
+        const focusIdx = o.focusIdx != null ? o.focusIdx : null;
+        if (focusIdx != null) _pendingFocusSegIdxAfterRender = focusIdx;
+        updateProgress();
+        renderEditorSegments();
+        runSearchAndFilter();
+        if (repGroups.length) showOutOfRangeRepetitionModal(repGroups);
+        notifySkippedSystemLockedSegs(o.skippedSystemLocked || []);
+        const dbItems = changedIndices.map((idx) => {
+            const seg = currentSegmentsList[idx];
+            return {
+                segmentId: seg.id,
+                newStatus: seg.status,
+                extra: buildWorkflowStatusExtra(seg),
+            };
+        });
+        if (dbItems.length) {
+            void DBService.batchUpdateSegmentStatuses(dbItems).catch((e) => console.error('[batch-confirm] db', e));
+        }
+        _qaIncrementalRefreshAfterConfirm(changedIndices.map((idx) => currentSegmentsList[idx]?.id).filter((id) => id != null));
+        let undoEntry = null;
+        if (changedIndices.length) {
+            const afterSnapshots = {};
+            changedIndices.forEach((idx) => {
+                const s = currentSegmentsList[idx];
+                if (s) afterSnapshots[s.id] = snapshotSegForUndo(s);
+            });
+            undoEntry = {
+                kind: 'confirmOp',
+                beforeSnapshots,
+                afterSnapshots,
+                tmUndo: [],
+                tmRedo: [],
+            };
+            pushUndoEntry(undoEntry);
+        }
+        enqueueConfirmSideEffects(async () => {
+            try {
+                const tmU = [];
+                const tmR = [];
+                const tmFailLines = [];
+                const tmJobs = changedIndices.map((i) => ({ i, seg: currentSegmentsList[i] }));
+                const tmResults = await _runMapWithConcurrency(5, tmJobs, async (job) => {
+                    if (!job.seg) return null;
+                    return syncSegmentToWriteTmsOnConfirm(job.seg, job.i);
+                });
+                tmResults.forEach((res, ri) => {
+                    const job = tmJobs[ri];
+                    const seg = job && job.seg;
+                    if (!res || !res.ok) {
+                        if (seg) tmFailLines.push(_segDisplayLineLabel(seg));
+                        return;
+                    }
+                    if (res.value) {
+                        mergeTmPair({ undo: tmU, redo: tmR }, res.value);
+                        if (res.value.tmWriteFailed && seg) tmFailLines.push(_segDisplayLineLabel(seg));
+                    }
+                });
+                if (undoEntry) {
+                    undoEntry.tmUndo = tmU;
+                    undoEntry.tmRedo = tmR;
+                    changedIndices.forEach((idx) => {
+                        const s = currentSegmentsList[idx];
+                        if (s) undoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
+                    });
+                }
+                updateProgress();
+                const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
+                renderEditorSegments();
+                runSearchAndFilter();
+                if (keepId != null) {
+                    const idx2 = currentSegmentsList.findIndex((s) => s.id === keepId);
+                    queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
+                }
+                const ar = document.querySelector('.grid-data-row.active-row');
+                const aid = ar ? parseId(ar.dataset.segId) : null;
+                const activeSeg = aid != null ? currentSegmentsList.find((s) => s.id === aid) : null;
+                if (activeSeg) renderLiveTmMatches(activeSeg);
+                const failSet = new Set(tmFailLines);
+                const okCount = changedIndices.length - failSet.size;
+                if (changedIndices.length && window.ActiveWriteTms && window.ActiveWriteTms.length) {
+                    if (failSet.size) {
+                        showCatToast(
+                            `TM 寫入：成功 ${okCount} 筆，失敗 ${failSet.size} 筆（第 ${[...failSet].join('、')} 句）`,
+                            'error',
+                            { persistent: true }
+                        );
+                    } else if (okCount > 0) {
+                        showCatToast(`TM 寫入完成：${okCount} 筆`, 'info');
+                    }
+                }
+            } catch (err) { console.error(err); }
+        });
+    }
+
     /** 確認／傳播時可能受影響的列索引（含自身與重複句段同原文列） */
     function collectConfirmTouchIndices(segIndex) {
         const set = new Set([segIndex]);
@@ -21175,7 +21512,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return await ensureNotesSharingResolved();
     }
 
-    /** 多選時 Ctrl+Enter：批次確認所選句段（略過鎖定／禁止），並寫入 TM／重複傳播。capture 先於 textarea。 */
+    /** 多選時 Ctrl+Enter：批次確認所選句段（略過鎖定／禁止）；UI 瞬間更新，TM 背景寫入。capture 先於 textarea。 */
     document.addEventListener('keydown', (e) => {
         if (!e.ctrlKey || e.key !== 'Enter' || (!currentFileId && !_currentViewId)) return;
         const viewEditor = document.getElementById('viewEditor');
@@ -21183,7 +21520,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!selectedRowIds || selectedRowIds.size <= 1) return;
         e.preventDefault();
         e.stopPropagation();
-        (async () => {
+        void (async () => {
             const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             const indices = [];
             currentSegmentsList.forEach((s, idx) => {
@@ -21193,91 +21530,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             indices.sort((a, b) => a - b);
             if (indices.length === 0) return;
-            const touchAll = new Set();
-            indices.forEach(i => collectConfirmTouchIndices(i).forEach(x => touchAll.add(x)));
-            const beforeSnapshots = {};
-            touchAll.forEach(idx => {
-                const s = currentSegmentsList[idx];
-                beforeSnapshots[s.id] = snapshotSegForUndo(s);
-            });
-            for (const i of indices) {
-                const seg = currentSegmentsList[i];
-                const row = gRows[i];
-                await onCtrlEnterConfirm(seg, row, i);
-            }
-            indices.forEach((i) => applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: false }));
-            const dbWaits = [];
-            touchAll.forEach((idx) => {
-                const seg = currentSegmentsList[idx];
-                const bs = beforeSnapshots[seg.id];
-                if (bs && JSON.stringify(bs) !== JSON.stringify(snapshotSegForUndo(seg))) {
-                    dbWaits.push(DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg)));
-                }
-            });
             const lastIdx = indices[indices.length - 1];
             const focusIdx = getAfterConfirmFocusIndex(lastIdx);
-            _pendingFocusSegIdxAfterRender = focusIdx;
-            updateProgress();
-            renderEditorSegments();
-            runSearchAndFilter();
-            void Promise.all(dbWaits).catch((e) => console.error(e));
-            // 樂觀第一段：僅本次直接確認的句段（傳播後第二段於 enqueue 尾端以 touchAll 收斂）
-            _qaIncrementalRefreshAfterConfirm(indices.map((idx) => currentSegmentsList[idx]?.id).filter((id) => id != null));
-
-            let toolbarBatchConfirmUndoEntry = null;
-            if (indices.length > 0) {
-                const afterSnap = {};
-                touchAll.forEach((idx) => {
-                    const s = currentSegmentsList[idx];
-                    afterSnap[s.id] = snapshotSegForUndo(s);
-                });
-                toolbarBatchConfirmUndoEntry = {
-                    kind: 'confirmOp',
-                    beforeSnapshots,
-                    afterSnapshots: afterSnap,
-                    tmUndo: [],
-                    tmRedo: []
-                };
-                pushUndoEntry(toolbarBatchConfirmUndoEntry);
-            }
-
-            enqueueConfirmSideEffects(async () => {
-                try {
-                    const tmU = [];
-                    const tmR = [];
-                    for (const i of indices) {
-                        const seg = currentSegmentsList[i];
-                        mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                        if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
-                    }
-                    if (toolbarBatchConfirmUndoEntry) {
-                        toolbarBatchConfirmUndoEntry.tmUndo = tmU;
-                        toolbarBatchConfirmUndoEntry.tmRedo = tmR;
-                        touchAll.forEach((idx) => {
-                            const s = currentSegmentsList[idx];
-                            toolbarBatchConfirmUndoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
-                        });
-                    }
-                    updateProgress();
-                    const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
-                    renderEditorSegments();
-                    runSearchAndFilter();
-                    if (keepId != null) {
-                        const idx2 = currentSegmentsList.findIndex(s => s.id === keepId);
-                        queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
-                    }
-                    const ar = document.querySelector('.grid-data-row.active-row');
-                    const aid = ar ? parseId(ar.dataset.segId) : null;
-                    const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
-                    if (activeSeg) renderLiveTmMatches(activeSeg);
-                    const qaBatchIds = [];
-                    touchAll.forEach((idx) => {
-                        const s = currentSegmentsList[idx];
-                        if (s && s.id != null) qaBatchIds.push(s.id);
-                    });
-                    _qaIncrementalRefreshAfterConfirm(qaBatchIds);
-                } catch (err) { console.error(err); }
-            });
+            await executeBatchConfirm(indices, { focusIdx });
         })();
     }, true);
 
@@ -23670,13 +23925,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function syncSegmentToWriteTmsOnConfirm(seg, rowIdx) {
         const undo = [];
         const redo = [];
-        if (!seg || seg.status !== 'confirmed') return { undo, redo };
-        if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) return { undo, redo };
+        let tmWriteFailed = false;
+        if (!seg || seg.status !== 'confirmed') return { undo, redo, tmWriteFailed };
+        if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) return { undo, redo, tmWriteFailed };
         // 跳過原文或譯文為空的句段，避免寫入無意義的空記錄
-        if (!seg.sourceText || !seg.targetText) return { undo, redo };
+        if (!seg.sourceText || !seg.targetText) return { undo, redo, tmWriteFailed };
         let i = typeof rowIdx === 'number' ? rowIdx : currentSegmentsList.indexOf(seg);
         if (i < 0) i = currentSegmentsList.findIndex(s => s.id === seg.id);
-        if (i < 0) return { undo, redo };
+        if (i < 0) return { undo, redo, tmWriteFailed };
         const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
         const prjEl = document.getElementById('detailProjectName');
         const fEl = document.getElementById('editorFileName');
@@ -23765,6 +24021,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, metaFull);
                 } catch (addErr) {
                     console.error('[TM Write] addTMSegment 失敗:', addErr, { tmId, sourceText: seg.sourceText });
+                    tmWriteFailed = true;
                     continue;
                 }
                 undo.push({ op: 'delete', tmId, id: newId });
@@ -23798,6 +24055,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await DBService.updateTMSegment(match.id, seg.targetText, { changeLog: prevLog });
                 } catch (updErr) {
                     console.error('[TM Write] updateTMSegment 失敗:', updErr, { id: match.id });
+                    tmWriteFailed = true;
                     continue;
                 }
                 window.ActiveTmCache.forEach(tms => {
@@ -23809,7 +24067,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         }
-        return { undo, redo };
+        return { undo, redo, tmWriteFailed };
     }
 
     /** CAT 比對表分頁時：將「當頁列索引」換成 `currentTmMatches` 絕對索引 */
@@ -24583,82 +24841,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const skippedSystemLocked = collectSystemLockedSkipsFromSelectedIds(rawIds);
             const ids = filterBatchIdsToVisible(rawIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
-            const touchAll = new Set();
-            toUpdate.forEach(s => {
-                const idx = currentSegmentsList.indexOf(s);
-                if (idx >= 0) collectConfirmTouchIndices(idx).forEach(x => touchAll.add(x));
-            });
-            const beforeSnapshots = {};
-            touchAll.forEach(idx => {
-                const s = currentSegmentsList[idx];
-                beforeSnapshots[s.id] = snapshotSegForUndo(s);
-            });
-            const allRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-            for (const s of toUpdate) {
-                const idx = currentSegmentsList.indexOf(s);
-                const row = allRows[idx];
-                await onCtrlEnterConfirm(s, row, idx);
-            }
             const indices = toUpdate.map(s => currentSegmentsList.indexOf(s)).filter((ix) => ix >= 0).sort((a, b) => a - b);
-            indices.forEach((ix) => applyOptimisticRepetitionAfterPrimaryConfirm(ix, { updateDom: false }));
             const maxIdx = indices.length ? Math.max(...indices) : -1;
-            const dbWaits = [];
-            touchAll.forEach((idx) => {
-                const s = currentSegmentsList[idx];
-                dbWaits.push(DBService.updateSegmentStatus(s.id, s.status, buildWorkflowStatusExtra(s)));
-            });
             const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
-            _pendingFocusSegIdxAfterRender = focusIdx;
-            updateProgress();
-            renderEditorSegments();
-            runSearchAndFilter();
-            void Promise.all(dbWaits).catch((e) => console.error(e));
-
-            let ctxBatchConfirmUndoEntry = null;
-            if (indices.length > 0) {
-                const afterSnap = {};
-                touchAll.forEach((idx) => {
-                    const s = currentSegmentsList[idx];
-                    afterSnap[s.id] = snapshotSegForUndo(s);
-                });
-                ctxBatchConfirmUndoEntry = {
-                    kind: 'confirmOp',
-                    beforeSnapshots,
-                    afterSnapshots: afterSnap,
-                    tmUndo: [],
-                    tmRedo: []
-                };
-                pushUndoEntry(ctxBatchConfirmUndoEntry);
-            }
-
-            enqueueConfirmSideEffects(async () => {
-                    try {
-                        const tmU = [];
-                        const tmR = [];
-                        for (const i of indices) {
-                            const seg = currentSegmentsList[i];
-                            mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                            if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
-                        }
-                        if (ctxBatchConfirmUndoEntry) {
-                            ctxBatchConfirmUndoEntry.tmUndo = tmU;
-                            ctxBatchConfirmUndoEntry.tmRedo = tmR;
-                            touchAll.forEach((idx) => {
-                                const s = currentSegmentsList[idx];
-                                ctxBatchConfirmUndoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
-                            });
-                        }
-                        updateProgress();
-                        const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
-                        renderEditorSegments();
-                        runSearchAndFilter();
-                        if (keepId != null) {
-                            const idx2 = currentSegmentsList.findIndex(s => s.id === keepId);
-                            queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
-                        }
-                    } catch (err) { console.error(err); }
-            });
-            notifySkippedSystemLockedSegs(skippedSystemLocked);
+            await executeBatchConfirm(indices, { focusIdx, skippedSystemLocked });
             })();
         });
 
