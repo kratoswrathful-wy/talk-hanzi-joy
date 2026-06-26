@@ -6456,6 +6456,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return WF_DISPLAY_STATE_LABELS[st] || '未確認';
     }
 
+    /** Phase 2：列套色是否應為已確認綠底（與 resolveSegmentConfirmDisplayState 一致） */
+    function _segShowsConfirmedRowStyle(seg) {
+        const st = resolveSegmentConfirmDisplayState(seg);
+        return st === 'orig_confirmed'
+            || st === 'trans_confirmed'
+            || st === 'review_confirmed'
+            || st === 'post_review_trans';
+    }
+
+    /** Phase 2：mqxliff 狀態欄是否顯示 memoQ 確認符號 overlay */
+    function _segShowsMqOverlay(seg) {
+        if (!seg || currentFileFormat !== 'mqxliff') return false;
+        return _segShowsConfirmedRowStyle(seg);
+    }
+
     function _captureReviewRestoreSnapshot(seg) {
         if (!seg) return;
         seg.wfReviewRestoreSnapshot = {
@@ -6809,7 +6824,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function buildStatusCellHtml(seg) {
         const disp = resolveSegmentConfirmDisplayState(seg);
-        const mq = seg && seg.status === 'confirmed';
+        const mq = _segShowsMqOverlay(seg);
         const classes = ['status-icon', 'status-icon-stack'];
         const useCore = disp !== 'orig_confirmed' && disp !== 'review_revoked_editing';
         if (disp === 'trans_confirmed' || disp === 'review_confirmed' || disp === 'post_review_trans') {
@@ -19847,7 +19862,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function syncRowConfirmedStateClass(row, seg) {
         if (!row || !seg) return;
         const effectiveLocked = !!(isDynamicForbidden(seg) || seg.isLockedUser);
-        if (seg.status === 'confirmed' && !effectiveLocked) {
+        if (_segShowsConfirmedRowStyle(seg) && !effectiveLocked) {
             row.style.backgroundColor = '#f0fdf4';
             row.classList.add('row-bg-confirmed');
         } else {

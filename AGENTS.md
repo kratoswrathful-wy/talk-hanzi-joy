@@ -61,6 +61,9 @@
 - [`docs/CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md`](docs/CAT_WORKFLOW_PREP_DISPATCH_DECOUPLE_2026-06.md) — **B-6 派出與 prep 解耦**（**已驗收** `d247d9a`：移除阻擋式 prep gate、非阻擋警示 toast、多人即時 CAT 指派 sync、`accepted` SQL 過濾）
 - [`docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md`](docs/CAT_WORKFLOW_B7_UNIFIED_STATUS_AND_LIST_UX_2026-06.md) — **Phase B-7** 統一顯示狀態 + 檔案清單／儀表板 UX（**B-7a～g**；§12 匯入已確認句段；§14 批次審稿完成作業）
 - [`docs/CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](docs/CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md) — **B-7g** 確認狀態五態、點圖示／Ctrl+Enter、審稿回溯、篩選進度、PM 切換（**已驗收** `c503f9d`；開發紀錄 §13）
+- [`docs/CAT_CONFIRM_FILTER_BATCH_IMPROVEMENT_PLAN_2026-06.md`](docs/CAT_CONFIRM_FILTER_BATCH_IMPROVEMENT_PLAN_2026-06.md) — 確認狀態 **Phase 1**：篩選重構、批次確認瞬間 UI、範圍外重複 Modal（**已落地並初步驗收** `9ef343b`）
+- [`docs/bug-report_segment-confirm-status-wf-inconsistency_2026-06.md`](docs/bug-report_segment-confirm-status-wf-inconsistency_2026-06.md) — `status` 與 Workflow 時間戳不一致四症狀、根因與稽核查詢（**已修並初步驗收** `9ef343b`）
+- [`docs/CAT_CONFIRM_STATUS_PHASE2_PLAN_2026-06.md`](docs/CAT_CONFIRM_STATUS_PHASE2_PLAN_2026-06.md) — 確認狀態 **Phase 2**：套色／memoQ 統一、DB backfill、完整驗收
 - [`docs/CAT_BULK_REVIEW_COMPLETE_2026-06.md`](docs/CAT_BULK_REVIEW_COMPLETE_2026-06.md) — 批次審稿完成作業執行記錄（2026-06-19；413 個 stage；LMS 審稿指派比對；264 個 `workflow_status` bug 修正；稍後處理清單）
 - [`docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md`](docs/bug-report_workflow-whole-file-assign-edit-lock_2026-06.md) — Workflow **整檔指派卻句段鎖定**（修復 **B-7d**）
 - [`docs/bug-report_workflow-import-confirmed-status-column_2026-06.md`](docs/bug-report_workflow-import-confirmed-status-column_2026-06.md) — 匯入 XLIFF **已確認 vs 狀態欄**（**B-7e 已實作**；五態互動見 **B-7g**）

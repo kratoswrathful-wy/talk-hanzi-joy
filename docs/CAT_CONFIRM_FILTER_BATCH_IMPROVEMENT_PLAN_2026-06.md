@@ -1,6 +1,6 @@
 # CAT 確認狀態修復、篩選重構與批次確認優化 — 實作規格（2026-06）
 
-> **狀態**：**已落地**（2026-06-26）  
+> **狀態**：**已落地並初步驗收**（`9ef343b`，2026-06-26）  
 > **關聯 bug-report**：[`bug-report_segment-confirm-status-wf-inconsistency_2026-06.md`](./bug-report_segment-confirm-status-wf-inconsistency_2026-06.md)  
 > **關聯 Workflow**：[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md)
 
@@ -172,8 +172,22 @@
 
 ---
 
+## 8. 開發與驗收紀錄
+
+| 欄位 | 內容 |
+|------|------|
+| Commit | `9ef343b` |
+| 驗收日期 | 2026-06-26 |
+| 驗收結論 | **初步驗收通過**（產品端） |
+| 樣本 | `Pulse Localization - For translators.xlsx_zho-TW.mqxliff`（Team；手動修復 165 句矛盾狀態後） |
+| 已驗項目 | 批次確認瞬間 UI；範圍外重複 Modal；內部流程／檔內重複篩選；矛盾狀態不再復現 |
+| 待驗項目 | 更新作業檔 wf 清除；Team 雙人協作；全庫 backfill — 見 Phase 2 |
+
+---
+
 ## 修訂紀錄
 
 | 日期 | 內容 |
 |------|------|
 | 2026-06-26 | 初稿：彙整對話決策與實作規格 |
+| 2026-06-26 | Phase 1 初步驗收紀錄（`9ef343b`）；Phase 2 見 [`CAT_CONFIRM_STATUS_PHASE2_PLAN_2026-06.md`](./CAT_CONFIRM_STATUS_PHASE2_PLAN_2026-06.md) |

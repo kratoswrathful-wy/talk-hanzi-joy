@@ -1,7 +1,8 @@
 # Bug Report：句段確認狀態 `status` 與 Workflow 時間戳不一致（2026-06）
 
 > **建立**：2026-06-26  
-> **狀態**：**已落地**（2026-06-26）  
+> **狀態**：**已修並初步驗收**（`9ef343b`，2026-06-26）  
+> **Phase 2**：[`CAT_CONFIRM_STATUS_PHASE2_PLAN_2026-06.md`](./CAT_CONFIRM_STATUS_PHASE2_PLAN_2026-06.md)  
 > **樣本**：`Pulse Localization - For translators.xlsx_zho-TW.mqxliff`（Team 模式）  
 > **關聯**：[`CAT_CONFIRM_FILTER_BATCH_IMPROVEMENT_PLAN_2026-06.md`](./CAT_CONFIRM_FILTER_BATCH_IMPROVEMENT_PLAN_2026-06.md)、[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md)
 
@@ -101,10 +102,12 @@ WHERE file_id = '<file_uuid>'
 
 ### 2.5 驗收
 
-1. 矛盾狀態句段開檔後顯示一致（無綠點＋無套色分裂，或載入後自動修正）  
-2. 更新作業檔後 `status` 與 Workflow 欄位同步清除  
-3. Team 兩人同時編輯：一人改譯文後，另一人畫面確認狀態跟著撤銷  
-4. 稽核查詢對樣本檔案回傳 0 筆矛盾列（手動修復後）
+| # | 項目 | 狀態 |
+|---|------|------|
+| 1 | 矛盾狀態句段開檔後顯示一致（無綠點＋無套色分裂，或載入後自動修正） | **已驗**（2026-06-26 初步） |
+| 2 | 更新作業檔後 `status` 與 Workflow 欄位同步清除 | **待驗**（Phase 2 §2.3） |
+| 3 | Team 兩人同時編輯：一人改譯文後，另一人確認狀態跟著撤銷 | **待驗**（Phase 2 §2.4） |
+| 4 | 稽核查詢對樣本檔案回傳 0 筆矛盾列（手動修復後） | **已驗**（2026-06-26 初步） |
 
 ---
 
@@ -113,3 +116,4 @@ WHERE file_id = '<file_uuid>'
 | 日期 | 內容 |
 |------|------|
 | 2026-06-26 | 初稿：調查 Pulse mqxliff 四症狀、兩條根因路徑、稽核查詢 |
+| 2026-06-26 | Phase 1 初步驗收（`9ef343b`）；§2.5 已驗／待驗清單 |
