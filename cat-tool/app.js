@@ -21490,6 +21490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /**
      * br 前方（略過空白與 ↵ overlay）是否僅有 .rt-tag，且 br 後方無使用者文字 — Blink 在 tag 旁常插入占位 br。
+     * 亦涵蓋 br 夾在兩 .rt-tag 之間（Fix 4B：{1} br {2}）。
      */
     function isGhostBrAfterRtTag(br, root) {
         if (!br || !root) return false;
@@ -21518,12 +21519,54 @@ document.addEventListener('DOMContentLoaded', async () => {
                         next = next.nextSibling;
                         continue;
                     }
+                    if (next.nodeType === 1 && next.classList && next.classList.contains('rt-tag')) {
+                        return true;
+                    }
                     if (next.nodeType === 1 && next.tagName === 'BR') {
                         next = next.nextSibling;
                         continue;
                     }
                     return false;
                 }
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    /**
+     * br 在句首（或僅空白／NP overlay 前），且後方（略過空白）第一個有效節點為 .rt-tag — 刪光 tag 前文字時 Blink 占位。
+     */
+    function isGhostBrBeforeRtTag(br, root) {
+        if (!br || !root) return false;
+        let prev = br.previousSibling;
+        while (prev) {
+            if (prev.nodeType === 3) {
+                if ((prev.nodeValue || '').trim()) return false;
+                prev = prev.previousSibling;
+                continue;
+            }
+            if (prev.nodeType === 1 && prev.classList && prev.classList.contains('non-print-marker') &&
+                !prev.classList.contains('np-inline-char')) {
+                prev = prev.previousSibling;
+                continue;
+            }
+            return false;
+        }
+        let next = br.nextSibling;
+        while (next) {
+            if (next.nodeType === 3) {
+                if ((next.nodeValue || '').trim()) return false;
+                next = next.nextSibling;
+                continue;
+            }
+            if (next.nodeType === 1 && next.classList && next.classList.contains('non-print-marker') &&
+                !next.classList.contains('np-inline-char')) {
+                next = next.nextSibling;
+                continue;
+            }
+            if (next.nodeType === 1 && next.classList && next.classList.contains('rt-tag')) {
                 return true;
             }
             return false;
@@ -21542,6 +21585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!p) return false;
         if (p === root && p.childNodes.length === 1 && p.firstChild === br) return true;
         if (p.tagName === 'DIV' && p.parentNode === root && p.childNodes.length === 1 && p.firstChild === br) return true;
+        if (isGhostBrBeforeRtTag(br, root)) return true;
         if (isGhostBrAfterRtTag(br, root)) return true;
         return false;
     }
