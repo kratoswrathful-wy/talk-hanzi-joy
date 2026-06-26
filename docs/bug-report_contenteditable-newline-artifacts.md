@@ -165,7 +165,7 @@ flowchart TD
 |------|--------|----------|------|
 | **Wave 1** | `d8b5cfc` | `isGhostBrAfterRtTag`（tag 後幽靈 br 不進 plain）；`tryDeleteSemanticNewlineAtCaret`（¶ 下可刪語意換行） | P2 通過；P1 資料層改善但 **刪字當下仍閃 ↵** |
 | **Wave 2** | `21e14ee` | Fix 3A：`applyNonPrintMarkers` 略過幽靈 br；Fix 3C：`canonicalizeTargetEditorFromExtractPlain`（input 當下 rebuild）；Fix 3B：`isGhostOnlyDiv`（根層 ghost div） | **P1／P2 全項通過**（¶ 恆開手動驗收） |
-| **Wave 3** | `bedb855` | Fix 4A：`isGhostBrBeforeRtTag`（tag **前**句首 br）；Fix 4B：tag **間**相貼 br（擴充 `isGhostBrAfterRtTag`） | **P3 已實作**，待手動驗收（案例 8–10） |
+| **Wave 3** | `bedb855` | Fix 4A：`isGhostBrBeforeRtTag`（tag **前**句首 br）；Fix 4B：tag **間**相貼 br（擴充 `isGhostBrAfterRtTag`） | **P3 全項通過**（2026-06-26 手動驗收；案例 8–10） |
 
 與本文件 `c4f865d` 的關係：基礎政策（Shift+Enter、`data-cat-nl`、blur rebuild）不變；Wave 1／2 補 **tag 後刪字** 與 **NP ↵ 編輯** 兩條殘留路徑；Wave 3 補 **tag 前刪光** 與 **tag 間相貼** 路徑。詳細規格見 [`CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md`](./CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md) **§階段四**。
 
@@ -173,7 +173,7 @@ flowchart TD
    非列印模式仍用 `TreeWalker` 近似計算 offset；若仍存在「僅根層 sibling `div`、中間無真實 `BR`」等邊界，理論上可能與 `extractTextFromEditor` 的虛擬 `\n` 不完全一致。若收到回報，可改為與 extract **共用單一走訪器**計算 caret offset。
 
 2. **擴充幽靈 BR 規則**  
-   **Wave 3（P3）** Fix 4A／4B 已實作（`bedb855`）；若仍收到其他誤判回報，可再擴充 `isGhostBr`。
+   **Wave 3（P3）** Fix 4A／4B 已實作並驗收（`bedb855`，2026-06-26）；若仍收到其他誤判回報，可再擴充 `isGhostBr`。
 
 3. **貼上政策微調**  
    目前為「換行 → 單一空格」。可選：改為**直接刪除換行不留空白**、或對 **HTML 貼上**另做除格式（需產品決策與迴歸測試）。
@@ -197,7 +197,7 @@ flowchart TD
 6. **純文字多行貼上**：應合併為單行（空白取代換行）。  
 7. **搜尋**：`getRtEditorTextSegmentsForHighlightMap` 的 `totalLen` 應與用於比對的扁平字串長度一致（主控台不應出現「字元索引長度與內文不符」之類警告）。
 
-**Wave 3（P3 — 已實作，待手動驗收）**
+**Wave 3（P3 — 已驗收 2026-06-26）**
 
 8. **tag 前刪光**：`hello{1}tail` → 反覆 Backspace 刪光 `hello` → 當下無 ↵；失焦後 `target_text` **無**前導 `\n`。  
 9. **tag 間相貼**：`{1}middle{2}` → 刪光 `middle` → `{1}{2}` 相鄰時**不**插入 `\n`／↵。  
@@ -208,7 +208,7 @@ flowchart TD
 | 內容 | 檔案 | 符號／區塊 |
 |------|------|------------|
 | 語意換行輸出 | `cat-tool/app.js` | `buildTaggedHtml`、`htmlForTmPlainWithPlaceholders` |
-| 幽靈 BR、抽取、重建、Shift+Enter | `cat-tool/app.js` | `isGhostBr`、`extractSubtree`、`extractTextFromEditor`、`rebuildTargetEditorFromExtractedPlain`、`insertCatControlledNewline` |
+| 幽靈 BR、抽取、重建、Shift+Enter | `cat-tool/app.js` | `isGhostBr`、`isGhostBrBeforeRtTag`、`isGhostBrAfterRtTag`、`extractSubtree`、`extractTextFromEditor`、`rebuildTargetEditorFromExtractedPlain`、`insertCatControlledNewline` |
 | 高亮與字數 | `cat-tool/app.js` | `getRtEditorTextSegmentsForHighlightMap`、`countEditorChars`、`applyRtEditorSearchHighlights` |
 | 非列印游標 | `cat-tool/app.js` | `getNpCaretOffset`、`setNpCaretOffset` |
 | 譯文欄事件 | `cat-tool/app.js` | 建立 `.grid-data-row` 時對 `.grid-textarea` 綁定之 `paste`、`blur`、`keydown`（含 Ctrl+Enter） |
@@ -230,5 +230,6 @@ flowchart TD
 | 程式變更（先前回合已推送） | `cat-tool/app.js`、`public/cat/app.js`；commit **`c4f865d`**（`main`）。 |
 | 本文件變更（本回合） | 重寫為「背景 + 已定案行為 + 實作摘要 + 驗收 + 未來工作 + 聊天追溯」；移除與現況矛盾的「尚未實作」「一律禁止換行」敘述。 |
 | `docs/CODEMAP.md` | 新增一列索引至本文件，方便從專案地圖跳轉。 |
+| **Wave 3／P3**（2026-06-26） | 程式 `bedb855`（Fix 4A `isGhostBrBeforeRtTag`、Fix 4B tag 間 br）；文件 `1ac65fe`；**P3 手動驗收通過**（專案擁有者確認）。詳見 [`CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md`](./CAT_TARGET_NEWLINE_EDIT_NP_PLAN.md) §階段四。 |
 
 未在本聊天單獨開列、但與同一主題相關的慣例：**修改 `cat-tool/` 後執行 `npm run sync:cat` 並一併提交 `public/cat/`**（見根目錄 `AGENTS.md`）。
