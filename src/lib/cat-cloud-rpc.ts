@@ -2386,13 +2386,23 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
 
     case "db.loadFileSnapshots": {
-      const { data, error } = await supabase
-        .from("cat_segment_stage_snapshots" as any)
-        .select("*")
-        .eq("file_id", payload.fileId)
-        .order("snapshotted_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []).map(mapStageSnapshotRow);
+      const PAGE = 1000;
+      let allData: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("cat_segment_stage_snapshots" as any)
+          .select("*")
+          .eq("file_id", payload.fileId)
+          .order("snapshotted_at", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return allData.map(mapStageSnapshotRow);
     }
     case "db.upsertSegmentSnapshot": {
       const { data, error } = await supabase.rpc("cat_upsert_segment_snapshot" as any, {

@@ -23405,6 +23405,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const ceResult = await onCtrlEnterConfirm(seg, row, i);
                             if (ceResult.confirmed || ceResult.upgraded || ceResult.restored) {
                                 applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
+                                editorUndoEditStart[seg.id] = latestTarget;
+                                editorUndoStatusStart[seg.id] = seg.status;
                             }
                             if (ceResult.tmOnly || ceResult.confirmed || ceResult.upgraded) {
                                 if (seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg)) {

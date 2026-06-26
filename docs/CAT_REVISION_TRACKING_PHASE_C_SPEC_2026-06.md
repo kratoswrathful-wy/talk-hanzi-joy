@@ -223,6 +223,7 @@ Dexie **v26**：`stageSnapshots`、`segmentAnnotations`、`annotationOptions`
 | 2026-06-21 | 初稿：產品決策、資料模型、UI／評註／Slack 規格、Slice C-1～C-3 |
 | 2026-06-22 | C-1／C-2 落地並初步驗收；記錄 `8d5b696`／`a220b3c`；規劃 C-1.1（刪除標記、新增藍色）與 B-7g 虛線圈文案修正 |
 | 2026-06-22 | C-1.1 驗收通過：刪除紅刪除線、新增藍底線、虛線圈 tooltip「審稿確認後再編輯」（`e787441`） |
+| 2026-06-26 | §12.6：Team 模式 `loadFileSnapshots` PostgREST 1000 筆截斷；分頁讀取修正。關聯審稿確認回退 bug 見 [`bug-report_review-confirm-revoke-race_2026-06.md`](./bug-report_review-confirm-revoke-race_2026-06.md) |
 
 ---
 
@@ -271,5 +272,46 @@ Dexie **v26**：`stageSnapshots`、`segmentAnnotations`、`annotationOptions`
 | 右欄刪除文字顯示紅刪除線 | 通過 |
 | 新增文字藍色底線 | 通過 |
 | 虛線外圈 tooltip「審稿確認後再編輯」 | 通過 |
+
+### 12.6 快照讀取截斷（2026-06-26 調查／修正）
+
+#### 現象
+
+Team 模式開啟追蹤修訂時，大型檔案（例如 `Pulse Localization - For translators.xlsx_zho-TW.mqxliff`，1552 句）出現：
+
+- 「準備完成時譯文」欄：部分句段顯示「無快照紀錄」
+- 「翻譯完成時譯文」欄：幾乎全部「無快照紀錄」
+- 「審稿完成時譯文」欄：部分缺失
+
+使用者已按「準備完成」，且未執行「更新作業檔」。
+
+#### 根因
+
+- **寫入端正常**：`baseline_before_translate` 在準備完成時整檔 upsert；`post_translate`／`post_review` 在 Ctrl+Enter 確認時逐句 upsert（覆寫最新版）。資料庫實測該檔 baseline **1552** 筆、post_translate **1521** 筆、post_review **33** 筆，合計 **3106** 筆，**完整無損**。
+- **讀取端截斷**：`db.loadFileSnapshots`（[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)）單次查詢 `cat_segment_stage_snapshots`，未分頁。Supabase PostgREST 預設 `max_rows` 為 **1000**，超過部分**靜默截斷**、不報錯。
+- 查詢依 `snapshotted_at ASC` 排序；模擬 `LIMIT 1000` 僅回傳 post_review 32 筆 + baseline 968 筆，**post_translate 0 筆**（時間戳較晚，排在截斷線之後）。
+
+| 快照類型 | DB 實際 | 前 1000 筆內 | UI 缺失 |
+|----------|---------|-------------|---------|
+| `baseline_before_translate` | 1552 | 968 | 584 |
+| `post_translate` | 1521 | 0 | 1521 |
+| `post_review` | 33 | 32 | 1 |
+
+#### 修正
+
+`db.loadFileSnapshots` 改為分頁迴圈（`PAGE=1000`，仿 `fetchCatSegmentsByFileIdOrdered`），取完所有列再 `mapStageSnapshotRow`。
+
+**不需**補跑準備完成、不需 migration、不需重拍快照。
+
+#### 驗收
+
+1. Team 模式開啟上述 1552 句 mqxliff 檔的追蹤修訂。
+2. 勾選「準備完成時譯文」「翻譯完成時譯文」「審稿完成時」三欄。
+3. **預期**：已確認句段皆顯示快照譯文；僅真正從未確認過的句段顯示「無快照紀錄」（baseline 應全檔 1552 句皆有）。
+4. 開發者工具 Network：追蹤修訂載入時 `loadFileSnapshots` 相關 RPC 回傳列數 ≥ 3106（或與 DB `COUNT(*)` 一致）。
+
+#### 關聯
+
+- 審稿確認後狀態回退：[`bug-report_review-confirm-revoke-race_2026-06.md`](./bug-report_review-confirm-revoke-race_2026-06.md)
 
 **下一階段**：C-3 Excel／htm 匯出（規格 §13 待補）。
