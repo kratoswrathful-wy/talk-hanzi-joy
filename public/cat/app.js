@@ -33754,8 +33754,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { ok: true, allFile: false, rangeStart: null, rangeEnd: null, rangeExpr: exprRaw, filteredIds: null };
     }
 
-    function _segmentSourceCharCount(seg) {
-        return [...String(seg?.sourceText || '')].length;
+    function _refOptionsToCharCountOpts(refOptions) {
+        const ro = refOptions || {};
+        return {
+            extra: ro.useExtra !== false,
+            key: ro.useKey !== false,
+            tm: ro.useTm !== false
+        };
+    }
+
+    function _readAiBatchCharCountOptsFromDom() {
+        return {
+            extra: !!document.getElementById('aiBatchRefExtra')?.checked,
+            key: !!document.getElementById('aiBatchRefKey')?.checked,
+            tm: !!document.getElementById('aiBatchRefTm')?.checked
+        };
+    }
+
+    function _segmentSourceCharCount(seg, charCountOpts) {
+        let c = [...String(seg?.sourceText || '')].length;
+        const opts = charCountOpts || {};
+        if (opts.extra) c += [...String(seg?.extraValue || '')].length;
+        if (opts.key) c += [...String((seg?.keys || []).join(' / '))].length;
+        if (opts.tm && seg?._tmHint?.targetText) {
+            c += [...String(seg._tmHint.targetText)].length + 16;
+        }
+        return c;
+    }
+
+    function _attachAiBatchTmHints(segments, tmRefThreshold, useTm) {
+        if (!useTm || !(tmRefThreshold > 0) || !segments?.length) return;
+        const tmCache = window.ActiveTmCache || [];
+        const calcSim = window.calculateSimilarity || (() => 0);
+        const penalties = window.ActiveTmPenalties || {};
+        for (const seg of segments) {
+            let bestMatch = null;
+            let bestScore = 0;
+            for (const tm of tmCache) {
+                const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
+                const penalty = penalties[tm._tmId] ?? 0;
+                const score = Math.max(0, rawScore - penalty);
+                if (score > bestScore) { bestScore = score; bestMatch = tm; }
+            }
+            seg._tmHint = (bestScore >= tmRefThreshold && bestMatch)
+                ? { score: Math.round(bestScore), targetText: bestMatch.targetText }
+                : null;
+        }
     }
 
     function _getSurroundingContextSegments(batch, allSegs, count = AI_BATCH_SURROUNDING_CONTEXT_COUNT) {
@@ -33799,12 +33843,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { ...batchOptions, surroundingContext: ctx };
     }
 
-    function _nextBatchByRowsAndChars(list, startIdx, rowLimit, charLimit) {
+    function _nextBatchByRowsAndChars(list, startIdx, rowLimit, charLimit, charCountOpts) {
         const out = [];
         let sumChars = 0;
         for (let i = startIdx; i < list.length; i++) {
             const seg = list[i];
-            const c = _segmentSourceCharCount(seg);
+            const c = _segmentSourceCharCount(seg, charCountOpts);
             const hitRowLimit = out.length >= rowLimit;
             const hitCharLimit = out.length > 0 && (sumChars + c) > charLimit;
             if (hitRowLimit || hitCharLimit) break;
@@ -33812,6 +33856,62 @@ document.addEventListener('DOMContentLoaded', async () => {
             sumChars += c;
         }
         return out;
+    }
+
+    async function _translateAiBatchChunks(segments, baseOptions, chunkParams) {
+        if (!segments?.length) return { results: [], missing: [], error: null };
+        const {
+            rowLimit,
+            charLimit,
+            charCountOpts,
+            surroundingContext = false
+        } = chunkParams || {};
+        let dynamicBatchSize = Math.max(1, rowLimit || 20);
+        let dynamicCharLimit = Math.max(200, charLimit || 2500);
+        const allResults = [];
+        const allMissing = [];
+        let i = 0;
+        while (i < segments.length) {
+            let batch = _nextBatchByRowsAndChars(segments, i, dynamicBatchSize, dynamicCharLimit, charCountOpts);
+            if (!batch.length) break;
+            let batchOptions = baseOptions.tbTerms && baseOptions.tbTerms.length > 0 ? {
+                ...baseOptions,
+                tbTerms: baseOptions.tbTerms.filter((t) => batch.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
+            } : baseOptions;
+            batchOptions = _applySurroundingContextToBatchOptions(batchOptions, batch, surroundingContext);
+            let result = await window.CatAiTranslate.translate(batch, batchOptions);
+            let guardRetry = 0;
+            while (result.error && result.results.length === 0) {
+                const isRateLimit = String(result.error || '').includes('請求速率超過上限');
+                const isParseError = String(result.error || '').includes('回傳格式不正確');
+                const isContextLong = String(result.error || '').includes('提示內容過長');
+                const isRetryable = isRateLimit || isParseError || isContextLong;
+                if (!isRetryable || guardRetry >= 2) {
+                    allMissing.push(...segments.slice(i).map((s) => s.id));
+                    return { results: allResults, missing: allMissing, error: result.error };
+                }
+                guardRetry += 1;
+                dynamicBatchSize = Math.max(AI_BATCH_MIN_SIZE, Math.floor(dynamicBatchSize / 2));
+                dynamicCharLimit = Math.max(500, Math.floor(dynamicCharLimit * 0.75));
+                const retryLabel = isRateLimit ? '速率限制' : isParseError ? 'AI 回傳格式問題' : '提示過長';
+                const backoffMs = isRateLimit
+                    ? Math.min(12000, 1200 * guardRetry + Math.floor(Math.random() * 400))
+                    : Math.min(2000, 400 * guardRetry + Math.floor(Math.random() * 200));
+                _showAiToast(`偵測到${retryLabel}，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
+                await _aiSleep(backoffMs);
+                batch = _nextBatchByRowsAndChars(segments, i, dynamicBatchSize, dynamicCharLimit, charCountOpts);
+                let retryBatchOptions = baseOptions.tbTerms && baseOptions.tbTerms.length > 0 ? {
+                    ...baseOptions,
+                    tbTerms: baseOptions.tbTerms.filter((t) => batch.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
+                } : baseOptions;
+                retryBatchOptions = _applySurroundingContextToBatchOptions(retryBatchOptions, batch, surroundingContext);
+                result = await window.CatAiTranslate.translate(batch, retryBatchOptions);
+            }
+            allResults.push(...result.results);
+            allMissing.push(...result.missing);
+            i += batch.length;
+        }
+        return { results: allResults, missing: allMissing, error: null };
     }
 
     function _estimateTokensByChars(chars) {
@@ -34111,12 +34211,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
         const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+        const charCountOpts = _readAiBatchCharCountOptsFromDom();
         const rangeSegs = _getAiBatchRangeSegs();
         if (!rangeSegs.length) {
             _showAiToast('範圍內無句段可預覽。', true);
             return;
         }
-        const batch = _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit).map((s) => ({ ...s }));
+        const batch = _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit, charCountOpts).map((s) => ({ ...s }));
         const tmRefThreshold = parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10);
         const refTm = !!document.getElementById('aiBatchRefTm')?.checked;
         if (refTm && tmRefThreshold > 0 && batch.length) {
@@ -34353,12 +34454,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const confirmed = rangeSegs.filter(s => s.status === 'confirmed').length;
         const withText = rangeSegs.filter(s => s.status !== 'confirmed' && (s.targetText || '').trim()).length;
         const empty = rangeSegs.length - confirmed - withText;
-        const chars = rangeSegs.reduce((sum, seg) => sum + _segmentSourceCharCount(seg), 0);
         const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
         const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+        const charCountOpts = _readAiBatchCharCountOptsFromDom();
+        const chars = rangeSegs.reduce((sum, seg) => sum + _segmentSourceCharCount(seg, charCountOpts), 0);
         const estBatches = rangeSegs.length > 0 ? Math.max(Math.ceil(rangeSegs.length / rowLimit), Math.ceil(chars / charLimit)) : 0;
         statsEl.textContent = `範圍內共 ${rangeSegs.length} 句（約 ${chars} 字元），已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句；依目前上限預估約 ${estBatches} 批。`;
-        const firstBatch = rangeSegs.length > 0 ? _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit) : [];
+        const firstBatch = rangeSegs.length > 0 ? _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit, charCountOpts) : [];
         _renderAiBatchRefTokens(rangeSegs, firstBatch);
         _debouncedUpdateBatchPerBatchEst();
         void _validateAiBatchRange();
@@ -34386,8 +34488,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rangeSegs = _getAiBatchRangeSegs();
         const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
         const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+        const charCountOpts = _readAiBatchCharCountOptsFromDom();
         if (!rangeSegs.length) { estEl.innerHTML = ''; return; }
-        const firstBatch = _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit);
+        const firstBatch = _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit, charCountOpts);
         if (!firstBatch.length) { estEl.innerHTML = ''; return; }
         // Attach TM hints to first batch copy
         const batchCopy = firstBatch.map((s) => ({ ...s }));
@@ -34495,32 +34598,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             const baseOptions = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
             if (myToken !== _batchBreakdownToken) return;
 
-            const tmCache = window.ActiveTmCache || [];
-            const calcSim = window.calculateSimilarity || (() => 0);
-            const _aiPenalties = window.ActiveTmPenalties || {};
+            const charCountOpts = _refOptionsToCharCountOpts(refOptions);
+            const workingSegs = rangeSegs.map((s) => ({ ...s }));
+            _attachAiBatchTmHints(workingSegs, tmRefThreshold, refTm);
+
             const overhead = 400;
             const results = [];
             let i = 0;
             let batchNo = 1;
             const segIndexMap = new Map(currentSegmentsList.map((s, idx) => [s.id, idx + 1]));
 
-            while (i < rangeSegs.length) {
-                const batch = _nextBatchByRowsAndChars(rangeSegs, i, rowLimit, charLimit);
+            while (i < workingSegs.length) {
+                const batch = _nextBatchByRowsAndChars(workingSegs, i, rowLimit, charLimit, charCountOpts);
                 if (!batch.length) break;
                 const batchCopy = batch.map((s) => ({ ...s }));
-                // TM hints
-                if (refTm && tmRefThreshold > 0) {
-                    for (const seg of batchCopy) {
-                        let bestMatch = null, bestScore = 0;
-                        for (const tm of tmCache) {
-                            const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
-                            const penalty = _aiPenalties[tm._tmId] ?? 0;
-                            const score = Math.max(0, rawScore - penalty);
-                            if (score > bestScore) { bestScore = score; bestMatch = tm; }
-                        }
-                        seg._tmHint = (bestScore >= tmRefThreshold && bestMatch) ? { score: Math.round(bestScore), targetText: bestMatch.targetText } : null;
-                    }
-                }
                 // Per-batch TB filter
                 const batchOptions = (baseOptions.tbTerms && baseOptions.tbTerms.length > 0) ? {
                     ...baseOptions,
@@ -34597,6 +34688,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!_acquireAiFlowLock()) {
             _showAiToast('已有 AI 任務執行中，請稍候目前任務完成。', true);
             return;
+        }
+        if (document.activeElement?.classList.contains('grid-textarea')) {
+            document.activeElement.blur();
         }
         const undoBeforeBySegId = new Map();
         const rememberUndoBefore = (seg) => {
@@ -34737,6 +34831,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Batch-ask for confirmed/unconfirmed segments where asked
         const confirmAskSegs = segsForAi.filter(s => (s.status === 'confirmed' && config.handleConfirmed === 'ask') || ((s.targetText||'').trim() && s.status !== 'confirmed' && config.handleUnconfirmed === 'ask'));
         const finalAiSegs = segsForAi.filter(s => !confirmAskSegs.includes(s));
+
+        const batchRowLimit = Math.max(1, Number(config.batchRowLimit) || (settings.batchSize && settings.batchSize >= 1 ? settings.batchSize : 20));
+        const batchCharLimitBase = Math.max(200, Number(config.batchCharLimit) || (settings.batchChars && settings.batchChars >= 200 ? settings.batchChars : 2500));
+        const charCountOpts = _refOptionsToCharCountOpts(config.refOptions);
+
         _updateAiTaskLog(taskLogId, {
             total: finalAiSegs.length,
             processed: 0,
@@ -34748,7 +34847,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             _updateAiTaskLog(taskLogId, {
                 progressLabel: `詢問確認：${confirmAskSegs.length} 句`
             });
-            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions, config.candidatePool));
+            const askOptions = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions, config.candidatePool);
+            const aiResult = await _translateAiBatchChunks(confirmAskSegs, askOptions, {
+                rowLimit: batchRowLimit,
+                charLimit: batchCharLimitBase,
+                charCountOpts,
+                surroundingContext: !!config.refOptions?.surroundingContext
+            });
+            if (aiResult.error && aiResult.results.length === 0) {
+                _showAiToast(`翻譯失敗：${aiResult.error}`, true);
+                _finishAiTaskLog(taskLogId, {
+                    status: 'failed',
+                    progressLabel: '詢問確認失敗',
+                    errorMessage: String(aiResult.error || '翻譯失敗')
+                });
+                taskLogId = null;
+                return;
+            }
             const aiMap = new Map(aiResult.results.map(r => [r.segId, r.translation]));
             const askItems = confirmAskSegs.map(seg => ({ seg, existingText: seg.targetText, aiText: aiMap.get(seg.id) || '', label: '' }));
             const chosen = await _showBatchAskModal(askItems, '選擇要保留的版本');
@@ -34779,10 +34894,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-            let dynamicBatchSize = Math.max(1, Number(config.batchRowLimit) || (settings.batchSize && settings.batchSize >= 1 ? settings.batchSize : 20));
-            const dynamicCharLimitBase = Math.max(200, Number(config.batchCharLimit) || (settings.batchChars && settings.batchChars >= 200 ? settings.batchChars : 2500));
+            let dynamicBatchSize = batchRowLimit;
+            const dynamicCharLimitBase = batchCharLimitBase;
             let dynamicCharLimit = dynamicCharLimitBase;
-            const roughChars = finalAiSegs.reduce((sum, seg) => sum + _segmentSourceCharCount(seg), 0);
+            const roughChars = finalAiSegs.reduce((sum, seg) => sum + _segmentSourceCharCount(seg, charCountOpts), 0);
             const totalBatchesHint = Math.max(
                 1,
                 Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1)),
@@ -34837,7 +34952,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             while (i < finalAiSegs.length) {
-                let batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
+                let batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit, charCountOpts);
                 _showAiToast(`正在翻譯第 ${batchNo}/${Math.max(batchNo, Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1)))} 批（${i + 1}–${Math.min(i + batch.length, finalAiSegs.length)}）…`);
                 _updateAiTaskLog(taskLogId, {
                     processed,
@@ -34893,7 +35008,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         : Math.min(2000, 400 * guardRetry + Math.floor(Math.random() * 200));
                     _showAiToast(`偵測到${retryLabel}，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
                     await _aiSleep(backoffMs);
-                    batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
+                    batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit, charCountOpts);
                     let retryBatchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
                         ...options,
                         tbTerms: options.tbTerms.filter((t) => batch.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
@@ -34952,7 +35067,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 total: finalAiSegs.length,
                 progressLabel: `重試遺漏句段 ${allMissing.length} 句`
             });
-            const retryResult = await window.CatAiTranslate.retryMissing(allMissing, finalAiSegs, options);
+            const retrySegs = allMissing.map((id) => finalAiSegs.find((s) => s.id === id)).filter(Boolean);
+            const retryResult = await _translateAiBatchChunks(retrySegs, options, {
+                rowLimit: dynamicBatchSize,
+                charLimit: dynamicCharLimit,
+                charCountOpts,
+                surroundingContext: !!config.refOptions?.surroundingContext
+            });
             for (const r of retryResult.results) {
                 const seg = finalAiSegs.find(s => s.id === r.segId);
                 if (seg && r.translation) {

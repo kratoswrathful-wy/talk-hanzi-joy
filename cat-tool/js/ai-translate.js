@@ -167,7 +167,8 @@
 {"translations":[{"idx":0,"translation":"..."},{"idx":1,"translation":"..."},...]}
 - 請確保 translations 陣列中包含每個句段（idx 0 到 ${segments.length - 1}），不得遺漏。
 - 不要在 JSON 以外輸出任何文字。
-- 請確保批次內相同術語的翻譯一致。`;
+- 請確保批次內相同術語的翻譯一致。
+- 只翻譯每句標示為「原文:」的內容；「（備註，請勿翻譯：…）」、前文、後文、TM 參考及上下文區塊均不得寫入 translation。`;
 
         // 使用者訊息：逐句列出原文
         let user = '請翻譯以下句段：\n\n';
@@ -185,9 +186,9 @@
         segments.forEach(seg => {
             user += `[句段 ${seg.idx}]\n`;
             if (seg.keys && seg.keys.length > 0) user += `Key: ${seg.keys.join(' / ')}\n`;
-            if (seg.extraValue) user += `備註: ${seg.extraValue}\n`;
-            if (seg.contextPrev) user += `前文: ${seg.contextPrev}\n`;
             user += `原文: ${seg.source}\n`;
+            if (seg.extraValue) user += `（備註，請勿翻譯：${seg.extraValue}）\n`;
+            if (seg.contextPrev) user += `前文: ${seg.contextPrev}\n`;
             if (seg.contextNext) user += `後文: ${seg.contextNext}\n`;
             if (seg.tmHint) user += `TM 參考（${seg.tmHint.score}%）：${seg.tmHint.targetText}\n`;
             user += '\n';

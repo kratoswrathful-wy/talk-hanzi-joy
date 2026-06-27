@@ -1,7 +1,7 @@
 # CAT AI 批次翻譯 — 穩定修正規劃
 
 > 建立：2026-06-27  
-> 狀態：**規劃中（待實作）**  
+> 狀態：**已實作**（A–D；待驗收）  
 > 相關：[`CAT_AI_BATCH_TOKEN_UX_2026-05.md`](CAT_AI_BATCH_TOKEN_UX_2026-05.md)、[`CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md)、[`bug-report_ai-batch-parse-error-no-retry_2026-06.md`](bug-report_ai-batch-parse-error-no-retry_2026-06.md)
 
 ---
@@ -303,3 +303,4 @@ if (document.activeElement?.classList.contains('grid-textarea')) {
 | 日期 | 說明 |
 |------|------|
 | 2026-06-27 | 建立本規劃：整理問題 A–D、根因、修正規格與驗收步驟（對話調查：長備註誤譯、概算低仍錯、聚焦漏句） |
+| 2026-06-27 | **已實作** A–D：`buildPrompt` 原文優先／備註降格；`_segmentSourceCharCount` + 切批 opts；`_translateAiBatchChunks`（詢問路徑＋遺漏重試）；`runAiBatchTranslate` 開頭 blur |

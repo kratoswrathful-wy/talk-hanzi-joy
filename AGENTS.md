@@ -51,7 +51,7 @@
 - [`docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md) — **Bug #12** mq:rxt `val` 屬性不符（reconcile 短路；**已修並驗收** `2a88a48`）；樣本 `36432` 列 203
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
 - [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）
-- [`docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md`](docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md) — AI 批次 **穩定修正規劃**（備註誤譯 prompt、切批字元含 extra、詢問路徑分批、聚焦漏句 blur；**規劃中**）
+- [`docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md`](docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md) — AI 批次 **穩定修正**（備註誤譯 prompt、切批字元含 extra、詢問路徑分批、聚焦漏句 blur；**已實作，待驗收**）
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
 - [`docs/CAT_IMPORT_CASE_LINK_2026-06.md`](docs/CAT_IMPORT_CASE_LINK_2026-06.md) — 匯入選填連結 LMS 案件（一般＋GS；`49db7c2` 起）
