@@ -65,7 +65,7 @@ flowchart TB
 | **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已實作但有缺陷** `56c3386` |
 | **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作但有殘留缺陷** `c56cadc`（彈回頂部已改善；視窗不推進／跳行空白未解） |
 | **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **已實作但有殘留缺陷** `ffc74ed`（視窗推進已改善；快速捲動後往上飄未解） |
-| **Phase 2.1c** | 捲動 debounce + 保留 savedScrollTop + resize 合批 | **本輪**（見 §Phase 2.1c） |
+| **Phase 2.1c** | 捲動 debounce + 保留 savedScrollTop + resize 合批 | **已實作** `301606d` |
 | **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | 規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
@@ -240,6 +240,8 @@ flowchart TD
 
 ## Phase 2.1c 修正摘要
 
+**Commit**：`301606d`
+
 **觸點**：[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)
 
 | 項目 | 說明 |
@@ -272,7 +274,7 @@ flowchart TD
 
 ## 驗收清單（Riftbound 6333 句）
 
-### Phase 2.1c（本輪）
+### Phase 2.1c（`301606d`，待 Riftbound 驗收）
 
 1. 硬重新整理；開 Riftbound 大檔
 2. **快速滚輪**捲至第 400～600 列 → 停手後 `scrollTop` **不得**持續遞減飄回頂部
