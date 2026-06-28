@@ -1862,7 +1862,8 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     color: #64748b;
     border-bottom: 1px solid var(--border-color);
     background: #f8fafc;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
 }
 .cat-match-info-main {
     display: inline-flex;
@@ -1898,7 +1899,8 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    flex: 0 0 auto;
+    flex: 1 1 100%;
+    justify-content: flex-end;
     white-space: nowrap;
 }
 .cat-match-info-kbd {
@@ -1965,6 +1967,19 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .result-pct-main {
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+}
+.result-pct-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    line-height: 1.15;
+    max-width: 100%;
+}
+.result-pct-label {
+    font-size: 0.72rem;
+    white-space: nowrap;
 }
 
 /* CAT 底部 TM 中繼：三區塊＋上一句/下一句虛線分隔 */

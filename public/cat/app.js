@@ -24257,7 +24257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const idx = catMatchAbsSelectionIndex();
         const m = matches[idx];
         if (!m || (m.type !== 'TM' && m.type !== 'Fragment' && m.type !== 'MqInserted')) {
-            el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">請選取類型為 TM、Frg 或 memoQ 預翻的列以顯示原文對照。</span>';
+            el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">請選取類型為 TM、Frg 或 memoQ 預翻／機翻的列以顯示原文對照。</span>';
             return;
         }
         if (typeof window.buildTmTrackChangeStackHtml === 'function') {
@@ -24285,6 +24285,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!parts.length) return '<span style="color:#94a3b8;">無</span>';
         const sep = '<hr class="cat-footer-divider cat-footer-divider--sub" />';
         return parts.map(p => `<div class="cat-footer-changelog-block">${p}</div>`).join(sep);
+    }
+
+    function isMqInsertedMachineTranslation(tmSource) {
+        return /^MT\s*\//i.test(String(tmSource || '').trim());
+    }
+
+    function resolveMqInsertedDisplayPct(seg, mqEntry) {
+        const mv = seg && seg.matchValue;
+        if (mv != null && mv !== '') {
+            const n = parseInt(String(mv), 10);
+            if (!Number.isNaN(n)) return n;
+        }
+        const r = mqEntry && Number(mqEntry.score);
+        return Number.isFinite(r) ? Math.round(r) : null;
     }
 
     function buildMqInsertedMatchEntry(seg) {
@@ -24549,8 +24563,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         let scoreInner = '';
                         let scoreBg = '';
                         if (isMqInserted) {
-                            scoreInner = '<span class="result-pct-main">memoQ 預翻</span>';
-                            scoreBg = 'background:#dbeafe;';
+                            const isMt = isMqInsertedMachineTranslation(m.tmName);
+                            const label = isMt ? 'memoQ 機翻' : 'memoQ 預翻';
+                            const pct = resolveMqInsertedDisplayPct(seg, m);
+                            const pctHtml = pct != null
+                                ? `<span class="result-pct-main">${pct}%</span>`
+                                : '';
+                            scoreInner = `<span class="result-pct-stack">${pctHtml}<span class="result-pct-label">${label}</span></span>`;
+                            scoreBg = isMt ? 'background:#ffedd5;' : 'background:#dbeafe;';
                         } else if (isTb) {
                             scoreInner = '<span class="result-pct-main">TB</span>';
                             scoreBg = 'background:#fef9c3;';
