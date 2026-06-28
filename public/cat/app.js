@@ -10718,25 +10718,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rt = srcCell ? srcCell.querySelector('.rt-editor') : null;
         if (!srcCell || !rt) return;
 
-        const pageSlice = getCatRightPanelPageSlice(9);
-        const visibleTbList = pageSlice
-            .map((m, i) => ({ m, n: i + 1, offpage: false }))
-            .filter((x) => x.m && x.m.type === 'TB' && x.n >= 1 && x.n <= 9 && x.m.sourceText);
-        const visibleKeys = new Set(
-            visibleTbList.map((x) => {
-                const mf = (x.m && x.m.matchFlags) ? x.m.matchFlags : { caseInsensitive: true, wholeWord: false };
-                return `${x.m.sourceText || ''}||${x.m.targetText || ''}||${mf.caseInsensitive === false ? 0 : 1}||${mf.wholeWord ? 1 : 0}`;
-            })
-        );
-        const allTbList = (window.currentTmMatches || [])
-            .filter((m) => m && m.type === 'TB' && m.sourceText)
-            .map((m) => ({ m, n: null, offpage: true }))
-            .filter((x) => {
-                const mf = (x.m && x.m.matchFlags) ? x.m.matchFlags : { caseInsensitive: true, wholeWord: false };
-                const k = `${x.m.sourceText || ''}||${x.m.targetText || ''}||${mf.caseInsensitive === false ? 0 : 1}||${mf.wholeWord ? 1 : 0}`;
-                return !visibleKeys.has(k);
-            });
-        const tbList = [...visibleTbList, ...allTbList];
+        const CAT_MATCH_PAGE = 9;
+        const pageStart = (window.catMatchPageIndex | 0) * CAT_MATCH_PAGE;
+        const pageEnd = pageStart + CAT_MATCH_PAGE;
+        const matches = window.currentTmMatches || [];
+
+        const visibleTbList = [];
+        const tbList = [];
+        matches.forEach((m, absIdx) => {
+            if (!m || m.type !== 'TB' || !m.sourceText) return;
+            const inPage = absIdx >= pageStart && absIdx < pageEnd;
+            const entry = {
+                m,
+                n: inPage ? (absIdx - pageStart + 1) : null,
+                offpage: !inPage
+            };
+            tbList.push(entry);
+            if (inPage) visibleTbList.push(entry);
+        });
         if (!tbList.length) return;
 
         // Build a quick lookup for subline generation.
@@ -10789,11 +10788,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!node.parentNode) return;
             const text = node.nodeValue || '';
             const all = [];
-        tbList.forEach(({ m, n }) => {
+        tbList.forEach(({ m, n, offpage: entryOffpage }) => {
                 const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
                 const ranges = findTermHitRangesInPlainText(text, m.sourceText || '', mf);
                 const missing = tgtPlain ? (!termMatches(tgtPlain, m.targetText || '', mf)) : false;
-            const offpage = !n;
+            const offpage = !!entryOffpage;
             const pr = offpage ? 1 : 0;
             ranges.forEach((r) => all.push({ ...r, n, offpage, pr, src: m.sourceText, tgt: m.targetText || '', mf, missing }));
             });
@@ -10818,10 +10817,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const picked = [];
             let cursor = -1;
             spans.forEach((s) => {
+                if (!s.items.some((it) => !it.offpage)) return;
                 if (s.start < cursor) return;
                 picked.push(s);
                 cursor = s.end;
             });
+            spans.forEach((s) => {
+                if (s.items.some((it) => !it.offpage)) return;
+                if (picked.some((p) => s.start < p.end && s.end > p.start)) return;
+                picked.push(s);
+            });
+            picked.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
             if (!picked.length) return;
 
             const isWordChar = (ch) => !!ch && /\w/.test(ch);
@@ -18058,8 +18064,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             selectedRowIds.clear();
             const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-            currentSegmentsList.forEach((s, idx) => {
-                if (!isGridDataRowFilterVisible(gRows[idx])) return;
+            currentSegmentsList.forEach((s) => {
+                if (!isSegmentVisibleInEditor(s)) return;
                 selectedRowIds.add(s.id);
             });
             gRows.forEach((r) => {
@@ -19632,8 +19638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function focusTargetEditorStartAtGlobalIndex(gIdx) {
-        const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-        const r = gRows[gIdx];
+        const r = getGridRowAtListIndex(gIdx);
         if (!r || !isGridDataRowFilterVisible(r)) return;
         const ed = r.querySelector('.col-target .grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
@@ -20726,22 +20731,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !isDynamicForbidden(s) && !s.isLockedUser;
     }
 
+    /** 確認後「下一個尚未確認」：五態＋身分，鏡像 _applyBatchConfirmToSegment 之待處理集合 */
+    function segNeedsAfterConfirmNav(seg) {
+        if (!seg || isDynamicForbidden(seg) || seg.isLockedUser) return false;
+        const disp = resolveSegmentConfirmDisplayState(seg);
+        if (disp === 'review_confirmed' && _isActingAsTranslator()) return false;
+        if ((disp === 'trans_confirmed' && _isActingAsTranslator())
+            || (disp === 'review_confirmed' && _isActingAsReviewer())
+            || (disp === 'post_review_trans' && _isActingAsTranslator())) {
+            return false;
+        }
+        if (disp === 'unconfirmed' || disp === 'orig_confirmed' || disp === 'review_revoked_editing') return true;
+        if (disp === 'trans_confirmed' && _isActingAsReviewer()) return true;
+        if (disp === 'post_review_trans' && _isActingAsReviewer()) return true;
+        return false;
+    }
+
+    function isRowVisibleForAfterConfirmNav(segIdx) {
+        const s = currentSegmentsList[segIdx];
+        if (!s) return false;
+        const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
+        if (virtOn || sfMode === 'filter') return isSegmentVisibleInEditor(s);
+        const row = getGridRowAtListIndex(segIdx);
+        return isGridDataRowFilterVisible(row);
+    }
+
     /** @returns {number|null} 下一個焦點句段索引，無則 null */
     function getAfterConfirmFocusIndex(currentIndex) {
         const mode = getAfterConfirmNavMode();
         const n = currentSegmentsList.length;
         if (n === 0) return null;
-        const gRows = (sfMode === 'filter' && gridBody) ? gridBody.querySelectorAll('.grid-data-row') : null;
-        const isVisibleRow = (idx) => !gRows || isGridDataRowFilterVisible(gRows[idx]);
         if (mode === 'nextRow') {
             for (let j = currentIndex + 1; j < n; j++) {
-                if (rowIndexHasEditableTarget(j) && isVisibleRow(j)) return j;
+                if (rowIndexHasEditableTarget(j) && isRowVisibleForAfterConfirmNav(j)) return j;
             }
             return null;
         }
         for (let j = currentIndex + 1; j < n; j++) {
             const s = currentSegmentsList[j];
-            if (s && s.status !== 'confirmed' && rowIndexHasEditableTarget(j) && isVisibleRow(j)) return j;
+            if (s && segNeedsAfterConfirmNav(s) && rowIndexHasEditableTarget(j) && isRowVisibleForAfterConfirmNav(j)) return j;
         }
         return null;
     }
@@ -21534,6 +21562,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
+     * 重複句段連動：更新同組句段之 grid DOM（虛擬捲動以 data-seg-id 查找，不用 DOM 索引）。
+     */
+    function refreshRepetitionSiblingRow(other, tgt) {
+        if (!other) return;
+        const row = getGridRowBySegId(other.id);
+        if (!row) return;
+        const ta = row.querySelector('.grid-textarea');
+        if (ta) {
+            setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(other)));
+            updateTagColors(row, tgt);
+        }
+        refreshStatusIconForRow(row, other);
+        if (!isDynamicForbidden(other) && !other.isLockedUser) syncRowConfirmedStateClass(row, other);
+    }
+
+    /**
      * 重複句段連動：在傳播 await 完成前，先把同原文句段在記憶體（及可選的 grid DOM）套成已確認，
      * 避免「下一個未確認」焦點誤跳到剛被連動的列。
      * @param {number} primaryIndex
@@ -21547,7 +21591,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (mode === 'none') return;
         const src = seg.sourceText;
         const tgt = seg.targetText;
-        const rows = updateDom && gridBody ? gridBody.querySelectorAll('.grid-data-row') : null;
         for (let j = 0; j < currentSegmentsList.length; j++) {
             if (j === primaryIndex) continue;
             const other = currentSegmentsList[j];
@@ -21556,16 +21599,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (mode === 'after' && j <= primaryIndex) continue;
             other.targetText = tgt;
             applyWorkflowConfirmToSegment(other, true);
-            if (updateDom && rows && rows[j]) {
-                const row = rows[j];
-                const ta = row.querySelector('.grid-textarea');
-                if (ta) {
-                    setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(other)));
-                    updateTagColors(row, tgt);
-                }
-                refreshStatusIconForRow(row, other);
-                if (!isDynamicForbidden(other) && !other.isLockedUser) syncRowConfirmedStateClass(row, other);
-            }
+            if (updateDom) refreshRepetitionSiblingRow(other, tgt);
         }
         updateProgress();
     }
@@ -21599,16 +21633,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await DBService.updateSegmentStatus(other.id, other.status, buildWorkflowStatusExtra(other));
             mergeTmPair(accum, await syncSegmentToWriteTmsOnConfirm(other, j));
 
-            const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-            if (rows[j]) {
-                const ta = rows[j].querySelector('.grid-textarea');
-                if (ta) {
-                    setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(other)));
-                    updateTagColors(rows[j], tgt);
-                }
-                refreshStatusIconForRow(rows[j], other);
-                if (!isDynamicForbidden(other) && !other.isLockedUser) syncRowConfirmedStateClass(rows[j], other);
-            }
+            refreshRepetitionSiblingRow(other, tgt);
         }
         updateProgress();
         return accum;
@@ -21635,11 +21660,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         e.stopPropagation();
         void (async () => {
-            const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             const indices = [];
             currentSegmentsList.forEach((s, idx) => {
                 if (!selectedRowIds.has(s.id) || isDynamicForbidden(s) || s.isLockedUser) return;
-                if (!isGridDataRowFilterVisible(gRows[idx])) return;
+                if (!isSegmentVisibleInEditor(s)) return;
                 indices.push(idx);
             });
             indices.sort((a, b) => a - b);
@@ -22858,11 +22882,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
 
+        currentSegmentsList.forEach((seg, i) => { seg.rowIdx = i; });
+
         const fragment = document.createDocumentFragment();
 
         function buildGridDataRow(seg, i) {
-            seg.rowIdx = i; // Ensure old files have rowIdx explicitly attached for evaluateSegment logic
-
             const row = document.createElement('div');
             // Dynamic system-lock for T_DENY_R1 session: R1-confirmed segments become forbidden
             const effectiveLockedSystem = isDynamicForbidden(seg); // isDynamicForbidden incorporates isLockedSystem + role override
@@ -24044,6 +24068,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 gridBody,
                 buildRow: buildGridDataRow,
                 getList: () => currentSegmentsList,
+                getGlobalIndex: (seg) => currentSegmentsList.findIndex((s) => s && s.id === seg.id),
                 isSegVisible: (seg) => isSegmentVisibleInEditor(seg),
                 savedScrollTop,
                 onBeforeRender: () => {
@@ -25063,13 +25088,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.addEventListener('click', closeMenu);
 
         const filterBatchIdsToVisible = (idList) => {
-            const allRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             return idList.filter((id) => {
                 const s = currentSegmentsList.find((x) => x && x.id === id);
                 if (!s || isDynamicForbidden(s) || s.isLockedUser) return false;
-                const idx = currentSegmentsList.indexOf(s);
-                if (idx < 0) return false;
-                return isGridDataRowFilterVisible(allRows[idx]);
+                return isSegmentVisibleInEditor(s);
             });
         };
 

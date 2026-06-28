@@ -281,8 +281,14 @@
             const frag = document.createDocumentFragment();
             for (let i = startIdx; i < endIdx; i++) {
                 const seg = list[i];
-                const rowIdx = seg.rowIdx != null ? seg.rowIdx : i;
-                const row = cfg.buildRow(seg, rowIdx);
+                let globalIdx = i;
+                if (typeof cfg.getGlobalIndex === 'function') {
+                    const gi = cfg.getGlobalIndex(seg);
+                    if (gi >= 0) globalIdx = gi;
+                } else if (seg.rowIdx != null) {
+                    globalIdx = seg.rowIdx;
+                }
+                const row = cfg.buildRow(seg, globalIdx);
                 if (row) {
                     frag.appendChild(row);
                     observeRow(row, seg.id);
