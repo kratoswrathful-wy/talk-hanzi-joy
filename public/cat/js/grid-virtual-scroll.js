@@ -1,12 +1,14 @@
 /**
- * CAT 編輯器虛擬捲動（Phase 2 / 2.1 / 2.1b）：大檔僅渲染可見列 + buffer。
- * Phase 2.1b：視窗頂端錨點 + 列內偏移、scrollTop 推窗、量高後重算 scrollTop。
+ * CAT 編輯器虛擬捲動（Phase 2 / 2.1 / 2.1b / 2.1c）。
+ * Phase 2.1c：捲動 debounce、窗口未變跳過重畫、savedScrollTop 還原、resize 合批。
  */
 (function (global) {
     const THRESHOLD = 800;
     const ESTIMATE_H = 48;
     const BUFFER = 12;
     const WINDOW = 45;
+    const SCROLL_DEBOUNCE_MS = 120;
+    const RESIZE_DEBOUNCE_MS = 80;
 
     let cfg = null;
     let enabled = false;
@@ -14,6 +16,8 @@
     let resizeObserver = null;
     let scrollHandler = null;
     let scrollRaf = null;
+    let scrollDebounceTimer = null;
+    let resizeDebounceTimer = null;
     let topSpacer = null;
     let bottomSpacer = null;
     let _suppressScroll = false;
@@ -21,6 +25,8 @@
     let _anchorSegId = null;
     let _anchorOffsetPx = 0;
     let _restoreFromAnchor = false;
+    let _lastStartIdx = -1;
+    let _lastEndIdx = -1;
 
     function shouldUse(segmentCount) {
         return segmentCount > THRESHOLD;
@@ -108,6 +114,18 @@
         return true;
     }
 
+    function updateSpacerHeights(list, startIdx, endIdx) {
+        if (topSpacer) topSpacer.style.height = sumRange(list, 0, startIdx) + 'px';
+        if (bottomSpacer) bottomSpacer.style.height = sumRange(list, endIdx, list.length) + 'px';
+    }
+
+    function setScrollTopDeferred(scrollEl, targetTop) {
+        scrollEl.scrollTop = targetTop;
+        requestAnimationFrame(() => {
+            _suppressScroll = false;
+        });
+    }
+
     function ensureSpacers() {
         if (!cfg || !cfg.scrollEl || !cfg.gridBody) return;
         const parent = cfg.scrollEl;
@@ -146,6 +164,27 @@
         resizeObserver.observe(row);
     }
 
+    function scheduleResizeRepaint() {
+        if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+        resizeDebounceTimer = setTimeout(() => {
+            resizeDebounceTimer = null;
+            if (!enabled || _rendering) return;
+            const list = getRenderableList();
+            const scrollEl = cfg && cfg.scrollEl;
+            if (!list.length || !scrollEl) return;
+            const savedScrollTop = scrollEl.scrollTop;
+            const startIdx = scrollTopToStartIdx(list, savedScrollTop);
+            const endIdx = Math.min(list.length, startIdx + WINDOW + BUFFER * 2);
+            if (startIdx === _lastStartIdx && endIdx === _lastEndIdx) {
+                updateSpacerHeights(list, startIdx, endIdx);
+                return;
+            }
+            inferAnchorFromDom(list);
+            _restoreFromAnchor = false;
+            renderWindow(null);
+        }, RESIZE_DEBOUNCE_MS);
+    }
+
     function onResizeEntries(entries) {
         let dirty = false;
         for (const entry of entries) {
@@ -162,10 +201,40 @@
             }
         }
         if (dirty && !_rendering) {
-            inferAnchorFromDom(getRenderableList());
-            _restoreFromAnchor = true;
-            renderWindow(null);
+            scheduleResizeRepaint();
         }
+    }
+
+    function computeWindowRange(list, anchorSegId, savedScrollTop, useAnchorRestore) {
+        let startIdx = 0;
+        const explicitAnchor = anchorSegId != null ? String(anchorSegId) : null;
+
+        if (explicitAnchor) {
+            const ai = list.findIndex((s) => String(s.id) === explicitAnchor);
+            if (ai >= 0) {
+                startIdx = Math.max(0, ai - BUFFER);
+                _anchorSegId = explicitAnchor;
+                _anchorOffsetPx = 0;
+            }
+        } else if (useAnchorRestore && _anchorSegId) {
+            const ai = list.findIndex((s) => String(s.id) === String(_anchorSegId));
+            if (ai >= 0) {
+                startIdx = Math.max(0, ai - BUFFER);
+            } else if (cfg.scrollEl) {
+                startIdx = scrollTopToStartIdx(list, savedScrollTop);
+            }
+        } else if (cfg.scrollEl && savedScrollTop > 0) {
+            startIdx = scrollTopToStartIdx(list, savedScrollTop);
+        } else {
+            inferAnchorFromDom(list);
+            if (_anchorSegId) {
+                const ai = list.findIndex((s) => String(s.id) === String(_anchorSegId));
+                if (ai >= 0) startIdx = Math.max(0, ai - BUFFER);
+            }
+        }
+
+        const endIdx = Math.min(list.length, startIdx + WINDOW + BUFFER * 2);
+        return { startIdx, endIdx, explicitAnchor };
     }
 
     function renderWindow(anchorSegId) {
@@ -176,6 +245,7 @@
         const savedScrollTop = scrollEl ? scrollEl.scrollTop : 0;
         const useAnchorRestore = _restoreFromAnchor;
         _restoreFromAnchor = false;
+        let deferSuppress = false;
         try {
             const list = getRenderableList();
             const gridBody = cfg.gridBody;
@@ -187,41 +257,24 @@
                 if (bottomSpacer) bottomSpacer.style.height = '0px';
                 _anchorSegId = null;
                 _anchorOffsetPx = 0;
+                _lastStartIdx = -1;
+                _lastEndIdx = -1;
                 return;
             }
 
-            let startIdx = 0;
-            const explicitAnchor = anchorSegId != null ? String(anchorSegId) : null;
-            const inferredAnchor = _anchorSegId;
-            const inferredOffset = _anchorOffsetPx;
+            const { startIdx, endIdx, explicitAnchor } = computeWindowRange(
+                list, anchorSegId, savedScrollTop, useAnchorRestore
+            );
 
-            if (explicitAnchor) {
-                const ai = list.findIndex((s) => String(s.id) === explicitAnchor);
-                if (ai >= 0) {
-                    startIdx = Math.max(0, ai - BUFFER);
-                    _anchorSegId = explicitAnchor;
-                    _anchorOffsetPx = 0;
-                }
-            } else if (useAnchorRestore && inferredAnchor) {
-                const ai = list.findIndex((s) => String(s.id) === String(inferredAnchor));
-                if (ai >= 0) {
-                    startIdx = Math.max(0, ai - BUFFER);
-                } else if (scrollEl) {
-                    startIdx = scrollTopToStartIdx(list, savedScrollTop);
-                }
-            } else if (scrollEl && savedScrollTop > 0) {
-                startIdx = scrollTopToStartIdx(list, savedScrollTop);
-            } else {
-                inferAnchorFromDom(list);
-                if (_anchorSegId) {
-                    const ai = list.findIndex((s) => String(s.id) === String(_anchorSegId));
-                    if (ai >= 0) startIdx = Math.max(0, ai - BUFFER);
-                }
+            if (!explicitAnchor && !useAnchorRestore &&
+                startIdx === _lastStartIdx && endIdx === _lastEndIdx) {
+                updateSpacerHeights(list, startIdx, endIdx);
+                deferSuppress = true;
+                setScrollTopDeferred(scrollEl, savedScrollTop);
+                return;
             }
 
-            const endIdx = Math.min(list.length, startIdx + WINDOW + BUFFER * 2);
-            if (topSpacer) topSpacer.style.height = sumRange(list, 0, startIdx) + 'px';
-            if (bottomSpacer) bottomSpacer.style.height = sumRange(list, endIdx, list.length) + 'px';
+            updateSpacerHeights(list, startIdx, endIdx);
 
             if (typeof cfg.onBeforeRender === 'function') cfg.onBeforeRender();
 
@@ -237,32 +290,28 @@
                 }
             }
             gridBody.replaceChildren(frag);
+            _lastStartIdx = startIdx;
+            _lastEndIdx = endIdx;
 
             if (typeof cfg.onAfterRender === 'function') cfg.onAfterRender(startIdx, endIdx);
 
             if (scrollEl) {
                 let targetTop;
                 if (explicitAnchor) {
-                    const ai = list.findIndex((s) => String(s.id) === explicitAnchor);
-                    targetTop = ai >= 0 ? scrollTopFromAnchor(list, explicitAnchor, 0) : savedScrollTop;
+                    targetTop = scrollTopFromAnchor(list, explicitAnchor, 0);
                     _anchorSegId = explicitAnchor;
                     _anchorOffsetPx = 0;
-                } else if (useAnchorRestore && inferredAnchor) {
-                    targetTop = scrollTopFromAnchor(list, inferredAnchor, inferredOffset);
-                    _anchorSegId = inferredAnchor;
-                    _anchorOffsetPx = inferredOffset;
-                } else if (inferredAnchor) {
-                    targetTop = scrollTopFromAnchor(list, inferredAnchor, inferredOffset);
-                    _anchorSegId = inferredAnchor;
-                    _anchorOffsetPx = inferredOffset;
                 } else {
                     targetTop = savedScrollTop;
                 }
-                scrollEl.scrollTop = targetTop;
+                deferSuppress = true;
+                setScrollTopDeferred(scrollEl, targetTop);
             }
         } finally {
-            _suppressScroll = false;
             _rendering = false;
+            if (!deferSuppress) {
+                _suppressScroll = false;
+            }
         }
     }
 
@@ -271,8 +320,12 @@
         if (scrollRaf) cancelAnimationFrame(scrollRaf);
         scrollRaf = requestAnimationFrame(() => {
             scrollRaf = null;
-            inferAnchorFromDom(getRenderableList());
-            renderWindow(null);
+            if (scrollDebounceTimer) clearTimeout(scrollDebounceTimer);
+            scrollDebounceTimer = setTimeout(() => {
+                scrollDebounceTimer = null;
+                if (!enabled || _suppressScroll || _rendering) return;
+                renderWindow(null);
+            }, SCROLL_DEBOUNCE_MS);
         });
     }
 
@@ -284,6 +337,8 @@
         _anchorSegId = null;
         _anchorOffsetPx = 0;
         _restoreFromAnchor = false;
+        _lastStartIdx = -1;
+        _lastEndIdx = -1;
         ensureSpacers();
         if (!resizeObserver) {
             resizeObserver = new ResizeObserver(onResizeEntries);
@@ -308,6 +363,16 @@
         _anchorSegId = null;
         _anchorOffsetPx = 0;
         _restoreFromAnchor = false;
+        _lastStartIdx = -1;
+        _lastEndIdx = -1;
+        if (scrollDebounceTimer) {
+            clearTimeout(scrollDebounceTimer);
+            scrollDebounceTimer = null;
+        }
+        if (resizeDebounceTimer) {
+            clearTimeout(resizeDebounceTimer);
+            resizeDebounceTimer = null;
+        }
         if (cfg && cfg.scrollEl && scrollHandler) {
             cfg.scrollEl.removeEventListener('scroll', scrollHandler);
         }
@@ -335,7 +400,9 @@
         if (idx < 0) return null;
         _anchorSegId = String(segId);
         _anchorOffsetPx = 0;
-        _restoreFromAnchor = true;
+        _restoreFromAnchor = false;
+        _lastStartIdx = -1;
+        _lastEndIdx = -1;
         renderWindow(segId);
         return queryRow(segId);
     }
@@ -348,10 +415,11 @@
 
     function invalidateHeights() {
         if (!enabled) return;
-        inferAnchorFromDom(getRenderableList());
         rowHeights.clear();
-        _restoreFromAnchor = true;
-        renderWindow(_anchorSegId);
+        _restoreFromAnchor = false;
+        _lastStartIdx = -1;
+        _lastEndIdx = -1;
+        renderWindow(null);
     }
 
     global.CatVirtGrid = {

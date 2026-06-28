@@ -64,7 +64,8 @@ flowchart TB
 | **Phase 1** | focus 增量更新 active/selected；`scheduleRenderLiveTmMatches` debounce | **已實作** `2d32f1b` |
 | **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已實作但有缺陷** `56c3386` |
 | **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作但有殘留缺陷** `c56cadc`（彈回頂部已改善；視窗不推進／跳行空白未解） |
-| **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **已實作** `ffc74ed` |
+| **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **已實作但有殘留缺陷** `ffc74ed`（視窗推進已改善；快速捲動後往上飄未解） |
+| **Phase 2.1c** | 捲動 debounce + 保留 savedScrollTop + resize 合批 | **本輪**（見 §Phase 2.1c） |
 | **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | 規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
@@ -207,6 +208,49 @@ flowchart TD
 | `ResizeObserver` | 量高後 `inferAnchorFromDom` → 依錨點+偏移重算 `scrollTop` |
 | `scrollToSegId` | 設錨點 `offsetPx = 0`；後續量高重畫仍維持目標列可見 |
 
+**部分驗收（2026-06-28，`ffc74ed` 部署後）**：第 69 列後空白、Ctrl+G 跳行已改善；**快速滾輪捲至四百列後 `scrollTop` 一路遞減飄回第一行**、無法點選編輯 → Phase 2.1c。
+
+---
+
+## Phase 2.1b 殘留缺陷（2026-06-28 驗收）
+
+| 症狀 | 證據 |
+|------|------|
+| 快速捲至 ~400 列後畫面慢慢往上帶 | 主控台 `scrollTop 12496 → 10425 → 8453 → 5856` |
+| 一路飄回第一行 | `scrollTop` 持續遞減至 ≈0 |
+| 無法點選／編輯 | 重畫風暴 + `onBeforeRender` 持續清 DOM |
+
+```mermaid
+flowchart TD
+  scroll[onScroll 每帧 renderWindow]
+  anchorRestore["scrollTopFromAnchor 估算偏低"]
+  decTop["scrollTop 递减"]
+  ro[ResizeObserver 连锁重画]
+  driftUp["正反馈飘回顶部"]
+  scroll --> anchorRestore --> decTop --> ro --> driftUp --> scroll
+```
+
+**根因**：
+
+1. 一般捲動重畫後用 `scrollTopFromAnchor`（未量高列估算偏低）取代 `savedScrollTop`
+2. `onScroll` / `ResizeObserver` 無 debounce，69 列量高連續觸發全量重畫
+3. 設 `scrollTop` 後立即解鎖 `_suppressScroll` → scroll 回饋迴圈
+
+---
+
+## Phase 2.1c 修正摘要
+
+**觸點**：[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)
+
+| 項目 | 說明 |
+|------|------|
+| 捲動 debounce | 120ms 無新 scroll 事件才 `renderWindow` |
+| 窗口未變跳過 | `startIdx`/`endIdx` 相同 → 不 `replaceChildren` |
+| 捲動還原 | 非跳行：`targetTop = savedScrollTop` |
+| Resize 合批 | debounce 80ms；窗口未變只更新 spacer |
+| 跳行 | `scrollToSegId` 仍用 `scrollTopFromAnchor` |
+| suppress | 設 `scrollTop` 後延至下一 frame 解鎖 |
+
 **已知限制（Phase 2.2 前）**：
 
 - 瀏覽器 Ctrl+F 找不到畫面外句段
@@ -228,7 +272,16 @@ flowchart TD
 
 ## 驗收清單（Riftbound 6333 句）
 
-### Phase 2.1b（`ffc74ed`，待 Riftbound 驗收）
+### Phase 2.1c（本輪）
+
+1. 硬重新整理；開 Riftbound 大檔
+2. **快速滚輪**捲至第 400～600 列 → 停手後 `scrollTop` **不得**持續遞減飄回頂部
+3. 停住後可點選譯文並編輯
+4. 主控台監聽：`scrollTop` 在停手後應穩定（不再階梯式往下掉）
+5. **Ctrl+G** `582`、`3000` 仍可跳轉（2.1b regression）
+6. 慢速捲過第 69 列仍須見後續內容（2.1b regression）
+
+### Phase 2.1b（`ffc74ed`，部分通過）
 
 1. 硬重新整理；開檔；`CatVirtGrid.isEnabled()` 為 true
 2. 連續往下捲過第 69 列 → **必須**出現第 70 列以後內容，不得整片白
@@ -266,4 +319,4 @@ console.log({ scrollTop: g.scrollTop, n: rows.length,
 
 ---
 
-*文件建立：2026-06-28。Phase 2.1 章節：2026-06-28。Phase 2.1b 章節：2026-06-28。*
+*文件建立：2026-06-28。Phase 2.1 章節：2026-06-28。Phase 2.1b 章節：2026-06-28。Phase 2.1c 章節：2026-06-28。*
