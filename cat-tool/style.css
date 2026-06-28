@@ -99,6 +99,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 .col-source .tb-inline-subline .tb-inline-item.is-missing .n {
     color: var(--tb-inline-missing-text);
 }
+.col-source .tb-inline-subline .tb-inline-item.is-offpage {
+    opacity: 0.55;
+}
 .col-source .tb-inline-subline .tb-inline-item .n {
     font-weight: 900;
     color: #0f172a;

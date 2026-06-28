@@ -1,7 +1,7 @@
 # Bug：大檔虛擬捲動下確認後不跳行、rowIdx 污染、重複句 DOM 不更新
 
 > 建立：2026-06-28  
-> 狀態：**已修**（待驗收）  
+> 狀態：**已修並驗收**（`51815db`；2026-06-29）  
 > 相關：[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT第四波主記錄.md`](CAT第四波主記錄.md)（`d326666` 篩選跳行）、[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md)（五態）
 
 ---
@@ -60,3 +60,21 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 3. 重複 1/2 確認 → 2/2 即時綠勾，無需重整理。
 4. 小檔 ≤800 句：確認跳行、全選、批次、Ctrl+↑↓ regression。
 5. `orig_confirmed` 句被「下一個尚未確認」模式視為目標。
+
+---
+
+## 5. 驗收記錄（2026-06-29）
+
+**Commit**：`51815db` — `fix(cat): 虛擬捲動確認跳行 rowIdx 與 TB 當頁 offpage 底線`
+
+**環境**：Riftbound 大檔（>800 句，虛擬捲動）；設定「下一個尚未確認的句段」。
+
+| 項目 | 結果 |
+|------|------|
+| 曾篩選再清除 → 確認未確認句 → 焦點跳下一未確認、譯文欄可打字 | **通過** |
+| 篩選仍開：只在篩選結果內找下一未確認 | **通過** |
+| 重複 1/2 確認 → 2/2 即時綠勾 | **通過** |
+| 小檔 ≤800 句：確認跳行、全選、批次、Ctrl+↑↓ | **通過** |
+| `orig_confirmed` 句納入「下一個尚未確認」 | **通過** |
+
+**備註**：TB offpage 灰底線與換頁對調同批落地；副行 offpage 術語（無數字）見後續 commit。

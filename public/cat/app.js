@@ -10912,12 +10912,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             node.parentNode.replaceChild(frag, node);
         });
 
-        // Subline: include only items that actually match the segment source text.
-        visibleTbList.forEach(({ m, n }) => {
+        // Subline: 當頁 TB 有編號；offpage TB 無編號、偏淡（仍列出原文→譯文）。
+        tbList.forEach(({ m, n, offpage }) => {
             const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
             if (!termMatches(srcPlain, m.sourceText || '', mf)) return;
             const missing = tgtPlain ? (!termMatches(tgtPlain, m.targetText || '', mf)) : false;
-            subItems.push({ n, src: m.sourceText || '', tgt: m.targetText || '', missing });
+            subItems.push({ n, src: m.sourceText || '', tgt: m.targetText || '', missing, offpage: !!offpage });
         });
         if (!subItems.length) return;
 
@@ -10928,13 +10928,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         list.className = 'tb-inline-list';
         subItems.forEach((it) => {
             const item = document.createElement('span');
-            item.className = it.missing ? 'tb-inline-item is-missing' : 'tb-inline-item';
-            const nEl = document.createElement('span');
-            nEl.className = 'n';
-            nEl.textContent = String(it.n);
+            let cls = it.offpage ? 'tb-inline-item is-offpage' : 'tb-inline-item';
+            if (it.missing) cls += ' is-missing';
+            item.className = cls;
+            if (!it.offpage) {
+                const nEl = document.createElement('span');
+                nEl.className = 'n';
+                nEl.textContent = String(it.n);
+                item.appendChild(nEl);
+            }
             const pair = document.createElement('span');
             pair.textContent = `${it.src}→${it.tgt}`;
-            item.appendChild(nEl);
             item.appendChild(pair);
             list.appendChild(item);
         });
