@@ -63,7 +63,7 @@ flowchart TB
 |-------|------|------|
 | **Phase 1** | focus 增量更新 active/selected；`scheduleRenderLiveTmMatches` debounce | **已實作** `2d32f1b` |
 | **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已實作但有缺陷** `56c3386` |
-| **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **本輪**（見 §Phase 2.1） |
+| **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作** `c56cadc` |
 | **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | 規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
@@ -127,6 +127,8 @@ flowchart TD
 
 ## Phase 2.1 修正摘要
 
+**Commit**：`c56cadc`
+
 **觸點**：[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)、[`app.js`](../cat-tool/app.js) `_qaJumpToSegment` / `focusTargetEditorAtSegmentIndex`
 
 | 項目 | 說明 |
@@ -134,7 +136,7 @@ flowchart TD
 | `_suppressScroll` | `renderWindow` / `scrollToSegId` 期間忽略 `onScroll` |
 | 錨點 | `_anchorSegId`；重畫前自 DOM 或 scrollTop 推斷 |
 | 重畫順序 | 先更新 spacer → 再 `replaceChildren` → 鎖內還原 `scrollTop` |
-| `ResizeObserver` | 改 `renderWindow(_anchorSegId)` |
+| `ResizeObserver` | 列高變更後 `renderWindow(null)`，保留當前 `scrollTop` |
 | 列高預估 | 快取 ≥3 筆時用中位數 |
 | `scrollToSegId` | 移除 `scrollIntoView`；由 app.js `focus({ preventScroll: true })` |
 | 錯誤訊息 | 篩選隱藏 vs 跳行失敗分開提示 |
@@ -160,7 +162,7 @@ flowchart TD
 
 ## 驗收清單（Riftbound 6333 句）
 
-### Phase 2.1（本輪）
+### Phase 2.1（`c56cadc`，待 Riftbound 驗收）
 
 1. 硬重新整理；開檔；`CatVirtGrid.isEnabled()` 為 true
 2. CAT iframe 主控台監聽 `#editorGrid` scroll；連續往下捲 → **不得**無預警 `scrollTop 0`
