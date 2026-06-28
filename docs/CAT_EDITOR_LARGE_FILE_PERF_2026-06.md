@@ -69,7 +69,7 @@ flowchart TB
 
 ## Phase 1 實作摘要
 
-**Commit**：（本輪推送後補短碼）
+**Commit**：`2d32f1b`
 
 **觸點**（[`cat-tool/app.js`](../cat-tool/app.js)）：
 
