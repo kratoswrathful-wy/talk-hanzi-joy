@@ -64,7 +64,7 @@ flowchart TB
 | **Phase 1** | focus 增量更新 active/selected；`scheduleRenderLiveTmMatches` debounce | **已實作** `2d32f1b` |
 | **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已實作但有缺陷** `56c3386` |
 | **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作但有殘留缺陷** `c56cadc`（彈回頂部已改善；視窗不推進／跳行空白未解） |
-| **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **本輪**（見 §Phase 2.1b） |
+| **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **已實作** `ffc74ed` |
 | **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | 規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
@@ -194,6 +194,8 @@ flowchart TD
 
 ## Phase 2.1b 修正摘要
 
+**Commit**：`ffc74ed`
+
 **觸點**：[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)
 
 | 項目 | 說明 |
@@ -226,7 +228,7 @@ flowchart TD
 
 ## 驗收清單（Riftbound 6333 句）
 
-### Phase 2.1b（本輪）
+### Phase 2.1b（`ffc74ed`，待 Riftbound 驗收）
 
 1. 硬重新整理；開檔；`CatVirtGrid.isEnabled()` 為 true
 2. 連續往下捲過第 69 列 → **必須**出現第 70 列以後內容，不得整片白
