@@ -119,7 +119,7 @@ if (!isNaN(mConf) && mConf > 0) status = 'confirmed';
 |------|------|
 | mqxliff 鎖定句段匯出 | 未實作「跳過覆寫 `mq:status`」；若客戶回報再對齊 mxliff |
 | 大檔 Shift 多選錨點 | 序號欄 Shift 範圍選取可能錯用 `lastEditedRowIdx`（見本檔 §7 與使用者回報） |
-| 虛擬捲動 | 3,381 句全 DOM 渲染，點選體感延遲與效能相關；6333 句 Riftbound 全面遲鈍見 [`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)（Phase 1 focus 優化已做；Phase 2 虛擬捲動規劃中） |
+| 虛擬捲動 | Phase 2 已落地（`56c3386`）；Phase 2.1 修正捲動彈回頂部與 Ctrl+G；見 [`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) |
 
 ---
 
@@ -149,7 +149,7 @@ const anchor = lastEditedRowIdx ?? lastSelectedRowIdx;
 1. 序號欄點擊時同步更新選取錨點（或 Shift 時優先 `lastSelectedRowIdx`）。
 2. `focusin` 在序號多選流程中勿清除 `selectedRowIds`。
 3. 延後／節流 `renderLiveTmMatches`、`renderSegmentComments`（換句時最重的同步工作）。**Phase 1 已落地**（focus 增量 class、`scheduleRenderLiveTmMatches` debounce、預翻面板快取）；見 [`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)。
-4. 大檔虛擬捲動，減少每次 `querySelectorAll('.grid-data-row')` 全表掃描（**Phase 2 規劃**；同上文件）。
+4. 大檔虛擬捲動（**Phase 2 已落地**；Phase 2.1 捲動穩定）；同上文件。
 
 ---
 

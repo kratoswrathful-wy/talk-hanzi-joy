@@ -20746,24 +20746,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (segIdx == null || segIdx < 0) return;
         const seg = currentSegmentsList[segIdx];
         if (!seg) return;
+        const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         let row = getGridRowBySegId(seg.id);
-        if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
+        if (!row && virtOn) {
             row = window.CatVirtGrid.scrollToSegId(seg.id);
         }
         if (!row) return;
         const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
-            const block = getAfterConfirmScrollBlock();
-            const doScroll = () => row.scrollIntoView({ behavior: scrollBehavior, block });
-            try {
-                ed.focus({ preventScroll: true });
-            } catch (_) {
-                ed.focus();
-            }
-            if (block === 'center') {
-                requestAnimationFrame(doScroll);
+            if (!virtOn) {
+                const block = getAfterConfirmScrollBlock();
+                const doScroll = () => row.scrollIntoView({ behavior: scrollBehavior, block });
+                try {
+                    ed.focus({ preventScroll: true });
+                } catch (_) {
+                    ed.focus();
+                }
+                if (block === 'center') {
+                    requestAnimationFrame(doScroll);
+                } else {
+                    doScroll();
+                }
             } else {
-                doScroll();
+                setActiveGridRow(row);
+                try {
+                    ed.focus({ preventScroll: true });
+                } catch (_) {
+                    ed.focus();
+                }
             }
         }
     }
@@ -25524,14 +25534,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     let qaLastRunSummaryHtml = '';
 
     function _qaJumpToSegment(segId) {
+        const seg = currentSegmentsList && currentSegmentsList.find((s) => String(s.id) === String(segId));
+        if (seg && !isSegmentVisibleInEditor(seg)) {
+            alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。');
+            return;
+        }
         let row = getGridRowBySegId(segId);
         if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
             row = window.CatVirtGrid.scrollToSegId(segId);
         }
-        if (!row) { alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。'); return; }
-        row.scrollIntoView({ behavior: 'auto', block: 'center' });
+        if (!row) {
+            alert('無法跳至該句段（捲動定位失敗），請再試一次或重新整理頁面。');
+            return;
+        }
+        setActiveGridRow(row);
         const ta = row.querySelector('.grid-textarea');
-        if (ta) ta.focus();
+        if (ta) {
+            try {
+                ta.focus({ preventScroll: true });
+            } catch (_) {
+                ta.focus();
+            }
+        }
     }
 
     async function openJumpToSegmentPrompt() {

@@ -61,8 +61,10 @@ flowchart TB
 
 | Phase | 範圍 | 狀態 |
 |-------|------|------|
-| **Phase 1** | focus 增量更新 active/selected；`syncSelectedRowAbutmentTopClass` 僅清既有 abut class；`scheduleRenderLiveTmMatches` debounce；預翻面板同句快取 | **已實作**（見下方 §Phase 1） |
-| **Phase 2** | **虛擬捲動**（可見 ~45 列 + buffer；門檻 >800 句） | **已實作**（見下方 §Phase 2） |
+| **Phase 1** | focus 增量更新 active/selected；`scheduleRenderLiveTmMatches` debounce | **已實作** `2d32f1b` |
+| **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已實作但有缺陷** `56c3386` |
+| **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **本輪**（見 §Phase 2.1） |
+| **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | 規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
@@ -71,89 +73,114 @@ flowchart TB
 
 **Commit**：`2d32f1b`
 
-**觸點**（[`cat-tool/app.js`](../cat-tool/app.js)）：
+**觸點**（[`cat-tool/app.js`](../cat-tool/app.js)）：`setActiveGridRow`、`syncSelectedRowClassesFromIds`、`scheduleRenderLiveTmMatches` debounce 等。
 
-| 項目 | 說明 |
-|------|------|
-| `resetGridRowUiTracking` | `renderEditorSegments` 清空 `gridBody` 時重設 active/selected DOM 追蹤 |
-| `setActiveGridRow` | 僅對上一列／新列切換 `active-row`，不掃全表 |
-| `syncSelectedRowClassesFromIds` | 依 `selectedRowIds` 以 `data-seg-id` 查單列更新 class |
-| `syncSelectedRowAbutmentTopClass` | 先 `querySelectorAll('.selected-abut-top')` 清除，再掃可見列（少一次全表 remove） |
-| `scheduleRenderLiveTmMatches` | ~150ms debounce；`renderMqInsertedMatchPanel` 仍即時 |
-| `_mqPanelLastSegId` | 同句 skip 預翻 diff 重算 |
-
-**預期體驗**：大檔點譯文、換句、Ctrl+G 後右欄更新**明顯較順**；**無法**徹底消除 6333 列 DOM 帶來的上限（需 Phase 2）。
-
-**風險控管**：多選／批次路徑仍可用全表或 `syncSelectedRowClassesFromIds`；Shift 多選錨點問題見 [`CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](./CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) §7（與 Phase 1 無關，未修）。
+**預期體驗**：大檔點譯文、換句後右欄更新**明顯較順**；無法徹底消除 6333 列 DOM 上限（需 Phase 2）。
 
 ---
 
-## Phase 2 實作摘要（虛擬捲動）
+## Phase 2 初版實作摘要（虛擬捲動）
+
+**Commit**：`56c3386`
 
 **模組**：[`cat-tool/js/grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)（`CatVirtGrid`）
 
 | 項目 | 說明 |
 |------|------|
 | 啟用門檻 | `currentSegmentsList.length > 800` |
-| DOM | `#gridVirtualSpacerTop` + `#gridBody`（可見列）+ `#gridVirtualSpacerBottom` |
-| 列高 | `ResizeObserver` 快取；預設 48px |
-| `buildGridDataRow` | 自 `renderEditorSegments` 抽出，虛擬／全量共用 |
-| `getGridRowBySegId` | 未掛載時 `CatVirtGrid.ensureRowMounted` |
-| 篩選 | `isSegmentVisibleInEditor`；filter 快照重建時 `invalidateHeights` |
-| 跳行 | Ctrl+G、`_qaJumpToSegment`、`focusTargetEditorAtSegmentIndex` 經 `scrollToSegId` |
-
-**風險控管**：小檔（≤800 句）維持全量 DOM；捲動時僅重繪 window，不每幀跑 `updateProgress`。
+| DOM | `#gridVirtualSpacerTop` + `#gridBody` + `#gridVirtualSpacerBottom` |
+| `buildGridDataRow` | 自 `renderEditorSegments` 抽出 |
 
 ---
 
-## Phase 2 規劃（虛擬捲動）— 原規劃觸點
+## Phase 2 缺陷（2026-06-28 驗證）
 
-### 必驗觸點
+使用者於 Riftbound 6333 句驗證（**非進階篩選**）：
 
-- Ctrl+G／`_qaJumpToSegment`、QA 跳句（[`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)）
-- Shift 多選、批次確認／取代
-- 協作 `emitCollabFocus`、遠端編輯高亮
-- 假游標 [`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)
-- 篩選 `runSearchAndFilter`、`sfRowRenderCache`
-- F8 tag、TB 原文 inline 提示
+| 症狀 | 證據 |
+|------|------|
+| 捲到約二十幾行被彈回頂部 | 主控台 `#editorGrid` `scrollTop` 出現 **`0`** |
+| 捲動不穩定 | `1000 → 515 → 176` 往回跳 |
+| Ctrl+G 無法跳到畫面外句段 | 與 `scrollToSegId` 共用缺陷的 `renderWindow` |
 
-### 風險
+```mermaid
+flowchart TD
+  scroll[使用者捲動 editorGrid]
+  onScroll[onScroll → renderWindow 無 anchor]
+  clear[gridBody.innerHTML 清空]
+  collapse[scrollTop 重置為 0]
+  ro[ResizeObserver 再 renderWindow]
+  est[ESTIMATE_H=48 低估列高]
+  scroll --> onScroll --> clear --> collapse
+  ro --> onScroll
+  est --> onScroll
+```
 
-- 畫面外句段不在 DOM → 瀏覽器 Ctrl+F 找不到（可接受；沿用 CAT 尋找／篩選）
-- 跳行失敗或焦點錯列 → **必測** regression
+**根因**（[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)）：
+
+1. `onScroll` / `ResizeObserver` 觸發**無 anchor** 的 `renderWindow`
+2. `gridBody.innerHTML = ''` 導致捲動容器高度塌陷、`scrollTop` 歸零
+3. `ESTIMATE_H = 48` 與實際列高（tag pill、多行譯文）不符 → spacer 算錯
+4. `scrollToSegId` 內 `scrollIntoView` 加劇 scroll 競態
+
+---
+
+## Phase 2.1 修正摘要
+
+**觸點**：[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)、[`app.js`](../cat-tool/app.js) `_qaJumpToSegment` / `focusTargetEditorAtSegmentIndex`
+
+| 項目 | 說明 |
+|------|------|
+| `_suppressScroll` | `renderWindow` / `scrollToSegId` 期間忽略 `onScroll` |
+| 錨點 | `_anchorSegId`；重畫前自 DOM 或 scrollTop 推斷 |
+| 重畫順序 | 先更新 spacer → 再 `replaceChildren` → 鎖內還原 `scrollTop` |
+| `ResizeObserver` | 改 `renderWindow(_anchorSegId)` |
+| 列高預估 | 快取 ≥3 筆時用中位數 |
+| `scrollToSegId` | 移除 `scrollIntoView`；由 app.js `focus({ preventScroll: true })` |
+| 錯誤訊息 | 篩選隱藏 vs 跳行失敗分開提示 |
+
+**已知限制（Phase 2.2 前）**：
+
+- 瀏覽器 Ctrl+F 找不到畫面外句段
+- 大檔「全部取代」可能漏改或極慢（仍依 DOM 讀寫譯文）
+
+---
+
+## Phase 2.2 規劃（虛擬相容批次）
+
+- `performReplaceAll` / 批次確認改為只讀寫 `seg.targetText`，可見範圍用 `isSegmentVisibleInEditor`
 
 ---
 
 ## Phase 3 規劃（Workflow 與整表重繪）
 
 - `batchUpsertSegmentSnapshots` 改分批（例 200～500 句）+ 進度 toast
-- 盤點 `renderEditorSegments()` 後漏接 `runSearchAndFilter()` 之路徑（見 [`CAT第四波主記錄.md`](./CAT第四波主記錄.md)）
 
 ---
 
 ## 驗收清單（Riftbound 6333 句）
 
-### Phase 1（本輪）
+### Phase 2.1（本輪）
 
-1. 開啟 `54316_...Riftbound...mqxliff`；硬重新整理。
-2. **連點 10 句譯文**：體感明顯快於 Phase 1 前（仍可能不如小檔順）。
-3. **Ctrl+G** 輸入第 82 句編號：可跳轉；**memoQ 預翻記錄**仍正常（`8e187d3`）。
-4. **Shift 多選** 序號欄 5～15 句：外框無明顯錯位（已知 Shift 錨點 bug 另計）。
-5. **準備完成**：仍可能較久 → **非 Phase 1 目標**（Phase 3）。
+1. 硬重新整理；開檔；`CatVirtGrid.isEnabled()` 為 true
+2. CAT iframe 主控台監聽 `#editorGrid` scroll；連續往下捲 → **不得**無預警 `scrollTop 0`
+3. 可捲至約第 500 / 2000 / 5000 句並停留
+4. **Ctrl+G** `82`、`3000` 可跳轉並編輯譯文
+5. memoQ 預翻列仍為比對表第一筆
+6. 小檔 ≤800 句：全量 DOM 不變
 
-### Phase 2（日後）
+### Phase 1（已完成）
 
-- 捲動與點選在 6333 句下接近小檔體感
-- 上述必驗觸點 regression 通過
+- 連點譯文較順；`2d32f1b`
 
 ---
 
 ## 相關文件
 
-- [`CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md`](./CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md) — 預翻顯示（已驗收）
-- [`CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](./CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) §7 — 大檔／虛擬捲動待辦
-- [`bug-report_team-large-file-editor-stuck-loading_2026-05-26.md`](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) — 大檔**開檔**卡住（已修；與本檔**編輯中**卡頓不同）
+- [`CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md`](./CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md) — 預翻比對表整合
+- [`CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](./CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) §7 — 大檔／虛擬捲動
+- [`bug-report_team-large-file-editor-stuck-loading_2026-05-26.md`](./bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) — 大檔**開檔**卡住（與本檔**編輯中**卡頓不同）
 
 ---
 
-*文件建立：2026-06-28。*
+*文件建立：2026-06-28。Phase 2.1 章節：2026-06-28。*
