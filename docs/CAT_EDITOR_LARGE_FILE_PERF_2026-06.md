@@ -1,6 +1,6 @@
 # CAT 編輯器大檔效能問題 — 調查與修正規劃（2026-06）
 
-> 本文件目的：記錄大檔（六千句級）編輯器**全面遲鈍**的症狀、根因、已排除假設、分階修正與驗收。格式對照 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)。
+> 本文件目的：記錄大檔（六千句級）編輯器**全面遲鈍**的症狀、根因、分階修正、**開發時序**與**驗收**。Phase 2 虛擬捲動已於 **2026-06-28** 由專案擁有者驗收通過（Riftbound 6333 句）。格式對照 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)。
 
 ---
 
@@ -61,14 +61,83 @@ flowchart TB
 
 | Phase | 範圍 | 狀態 |
 |-------|------|------|
-| **Phase 1** | focus 增量更新 active/selected；`scheduleRenderLiveTmMatches` debounce | **已實作** `2d32f1b` |
-| **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已實作但有缺陷** `56c3386` |
-| **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作但有殘留缺陷** `c56cadc`（彈回頂部已改善；視窗不推進／跳行空白未解） |
-| **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **已實作但有殘留缺陷** `ffc74ed`（視窗推進已改善；快速捲動後往上飄未解） |
-| **Phase 2.1c** | 捲動 debounce + 保留 savedScrollTop + resize 合批 | **已實作** `301606d` |
-| **Phase 2.1d** | 窗口邊界一變即重畫（捲動跟手） | **已實作** `5658762` |
-| **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | **首批已實作** `5658762`（`performReplaceAll`）；其餘規劃中 |
+| **Phase 1** | focus 增量更新 active/selected；`scheduleRenderLiveTmMatches` debounce | **已驗收** `2d32f1b` |
+| **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已取代**（初版有缺陷 `56c3386`；後續 2.1～2.1d 修正） |
+| **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已納入總驗收** `c56cadc` |
+| **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **已納入總驗收** `ffc74ed` |
+| **Phase 2.1c** | 捲動 debounce + 保留 savedScrollTop + resize 合批 | **已驗收** `301606d` |
+| **Phase 2.1d** | 窗口邊界一變即重畫（捲動跟手） | **已驗收** `5658762` |
+| **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | **首批已驗收** `5658762`（`performReplaceAll`）；其餘規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
+
+---
+
+## 開發與驗收時序總表
+
+以下為 Phase 1～Phase 2.2 首批的**問題發現 → 修正 → 驗收**一表貫穿；詳細 mermaid 與根因見下方各 Phase 附錄。
+
+| 階段 | Commit | 主要症狀 | 根因（一句） | 修正要點 | 驗收 |
+|------|--------|----------|--------------|----------|------|
+| **Phase 1** | `2d32f1b` | 點譯文卡、換句慢 | `focusin` 每次 `querySelectorAll` 掃全表 | 增量 active/selected；TM debounce | **已驗收** |
+| **Phase 2 初版** | `56c3386` | 全面遲鈍（6333 列 DOM） | 全量 `renderEditorSegments` | 虛擬捲動 ~69 列 + spacer | 有缺陷 |
+| **Phase 2.1** | `c56cadc` | `scrollTop` 無預警歸 **0**、往回跳 | 重畫清空 `gridBody`、無 scroll 鎖 | `_suppressScroll`、spacer 先設後清 | 部分 → 2.1b |
+| **Phase 2.1b** | `ffc74ed` | 第 **69** 列後白底；Ctrl+G 空白 | 錨點誤取 `gridBody` **第一列** | `inferAnchorFromDom`、`scrollTopToStartIdx` 推窗 | 部分 → 2.1c |
+| **Phase 2.1c** | `301606d` | 快速捲動後**一路飄回第一行**、無法點選 | `scrollTopFromAnchor` 估算偏低 + 重畫風暴 | `savedScrollTop` 還原、scroll/resize debounce | 部分 → 2.1d |
+| **Phase 2.1d** | `5658762` | 新句段約 **0.12s** 空等 | 120ms scroll debounce | 窗口邊界一變即重畫 | **已驗收** |
+| **Phase 2.2 首批** | `5658762` | F4 全部取代只改 ~69 列 | `performReplaceAll` 依 DOM 列存在與否 | `seg.targetText` + `isSegmentEligibleForReplace` | **已驗收** |
+
+**問題族譜**（虛擬捲動子迭代）：
+
+```mermaid
+flowchart TB
+  p2["Phase 2 初版 56c3386"]
+  p21["2.1 彈回頂部 c56cadc"]
+  p21b["2.1b 69列白 ffc74ed"]
+  p21c["2.1c 飄回頂 301606d"]
+  p21d["2.1d 跟手 5658762"]
+  p22["2.2 全部取代 5658762"]
+  ok["2026-06-28 總驗收通過"]
+  p2 --> p21 --> p21b --> p21c --> p21d --> ok
+  p21d --> p22 --> ok
+```
+
+**驗收環境共通條件**：Riftbound 6333 句 mqxliff；**非進階篩選**（除非該列另有註明）；`CatVirtGrid.isEnabled() === true`；DOM 約 69 列。
+
+---
+
+## Phase 2 虛擬捲動總驗收（2026-06-28）
+
+**結論**：專案擁有者驗收 **通過**。最終可用 commit：`5658762`（含 2.1d 捲動跟手 + 2.2 首批全部取代）。
+
+### 通過項目
+
+| 項目 | 結果 |
+|------|------|
+| 快速滾輪捲動 | 新句段較跟手；停手後 **不**再飄回第一行 |
+| 捲動深度 | 可捲至數百～數千列並編輯 |
+| Ctrl+G 跳行 | 可跳至畫面外句段（如 82、3000、582） |
+| F4 全部取代（無篩選） | 可改到**整檔**含畫面外句段 |
+| F4（進階篩選） | 仍只改篩選內句段 |
+| 2.1 regression | 無預警 `scrollTop 0`；第 69 列後不再整片白 |
+| 其他 | memoQ 預翻列正常；小檔 ≤800 句仍全量 DOM |
+
+### 主控台診斷（驗收時可選）
+
+```js
+const g = document.getElementById('editorGrid');
+const rows = [...document.querySelectorAll('#gridBody .grid-data-row')];
+console.log({ scrollTop: g.scrollTop, n: rows.length,
+  first: rows[0]?.querySelector('.col-id')?.textContent,
+  last: rows.at(-1)?.querySelector('.col-id')?.textContent });
+```
+
+捲動時 `first`／`last` 序號應隨視窗改變；停手後 `scrollTop` 不應階梯式遞減。
+
+### 仍屬已知限制（非驗收失敗）
+
+- 瀏覽器 Ctrl+F 找不到畫面外句段
+- 大檔 F4 全部取代仍逐句寫庫，極大量命中可能需數秒
+- Phase 2.2 **延伸**未做：`runTextOpOnSelection`、批次確認改資料層
 
 ---
 
@@ -83,6 +152,8 @@ flowchart TB
 ---
 
 ## Phase 2 初版實作摘要（虛擬捲動）
+
+> **附錄**：以下 Phase 2～2.2 各節保留**當時缺陷與修正細節**，供維護者追溯；總覽見 §開發與驗收時序總表。
 
 **Commit**：`56c3386`
 
@@ -223,11 +294,11 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  scroll[onScroll 每帧 renderWindow]
+  scroll[onScroll 每一帧 renderWindow]
   anchorRestore["scrollTopFromAnchor 估算偏低"]
-  decTop["scrollTop 递减"]
-  ro[ResizeObserver 连锁重画]
-  driftUp["正反馈飘回顶部"]
+  decTop["scrollTop 遞減"]
+  ro[ResizeObserver 連鎖重畫]
+  driftUp["正回饋飄回頂部"]
   scroll --> anchorRestore --> decTop --> ro --> driftUp --> scroll
 ```
 
@@ -254,7 +325,7 @@ flowchart TD
 | 跳行 | `scrollToSegId` 仍用 `scrollTopFromAnchor` |
 | suppress | 設 `scrollTop` 後延至下一 frame 解鎖 |
 
-**部分驗收（2026-06-28）**：飄回頂部已解；快速捲動後新句段有 **0.12s 空等** → Phase 2.1d。
+**驗收（2026-06-28）**：飄回頂部已解；快速捲動新句段跟手 → **已驗收**（納入 §Phase 2 虛擬捲動總驗收）。
 
 ---
 
@@ -270,7 +341,7 @@ flowchart TD
 | 移除 scroll debounce | 不再等待 120ms |
 | 保留 2.1c | 窗口未變跳過、`savedScrollTop` 還原、resize 合批 80ms |
 
----
+**驗收（2026-06-28）**：捲動跟手、無 0.12s 空等 → **已驗收**。
 
 ## Phase 2.2 首批修正摘要（全部取代虛擬相容）
 
@@ -286,6 +357,8 @@ flowchart TD
 
 **Phase 2.2 延伸（未做）**：`runTextOpOnSelection`、批次確認改資料層
 
+**驗收（2026-06-28）**：F4 全部取代可改整檔（無篩選）→ **已驗收**。
+
 **已知限制**：
 
 - 瀏覽器 Ctrl+F 找不到畫面外句段
@@ -299,51 +372,39 @@ flowchart TD
 
 ---
 
-## 驗收清單（Riftbound 6333 句）
+## 驗收紀錄附錄（各 Phase 逐步驗收）
 
-### Phase 2.1d + 2.2 首批（`5658762`，待 Riftbound 驗收）
+> 總驗收結論見 §Phase 2 虛擬捲動總驗收。以下為開發過程中**各次部署**的逐步紀錄。
 
-1. 快速滚輪捲動 → 新句段較快出現（無明顯 0.12s 空等）
-2. 停手後 `scrollTop` 不持續遞減飄回頂部（2.1c regression）
-3. 無進階篩選時 **F4 全部取代** → 可改到畫面外句段（Ctrl+G 跳至 3000 抽查）
+### Phase 2.1d + 2.2 首批（`5658762`）— **已驗收**
+
+1. 快速滾輪捲動 → 新句段較快出現
+2. 停手後 `scrollTop` 不持續遞減飄回頂部
+3. 無進階篩選時 **F4** 可改整檔（含畫面外句段）
 4. 進階篩選下 F4 仍只改篩選內句段
 
-### Phase 2.1c（`301606d`，部分通過）
+### Phase 2.1c（`301606d`）— 部分通過 → 2.1d 收尾
 
-1. 硬重新整理；開 Riftbound 大檔
-2. **快速滚輪**捲至第 400～600 列 → 停手後 `scrollTop` **不得**持續遞減飄回頂部
-3. 停住後可點選譯文並編輯
-4. 主控台監聽：`scrollTop` 在停手後應穩定（不再階梯式往下掉）
-5. **Ctrl+G** `582`、`3000` 仍可跳轉（2.1b regression）
-6. 慢速捲過第 69 列仍須見後續內容（2.1b regression）
+- 飄回頂部已解；新句段仍有 0.12s 空等 → 由 2.1d 解決
 
-### Phase 2.1b（`ffc74ed`，部分通過）
+### Phase 2.1b（`ffc74ed`）— 部分通過 → 2.1c 收尾
 
-1. 硬重新整理；開檔；`CatVirtGrid.isEnabled()` 為 true
-2. 連續往下捲過第 69 列 → **必須**出現第 70 列以後內容，不得整片白
-3. 可捲至約第 500 / 2000 / 5000 句並停留編輯
-4. 主控台診斷：`#gridBody .grid-data-row` 的 first／last 序號應隨捲動改變
+- 第 69 列後空白、Ctrl+G 已改善；快速捲動飄回頂部 → 由 2.1c 解決
 
-```js
-const g = document.getElementById('editorGrid');
-const rows = [...document.querySelectorAll('#gridBody .grid-data-row')];
-console.log({ scrollTop: g.scrollTop, n: rows.length,
-  first: rows[0]?.querySelector('.col-id')?.textContent,
-  last: rows.at(-1)?.querySelector('.col-id')?.textContent });
-```
+### Phase 2.1（`c56cadc`）— 部分通過 → 2.1b 收尾
 
-5. 從頂部 **Ctrl+G** `82`、`3000` 可跳轉並編輯譯文
-6. 連續往下捲不得無預警 `scrollTop 0`（2.1 regression）
-7. memoQ 預翻列仍為比對表第一筆；小檔 ≤800 句全量 DOM 不變
+- `scrollTop 0` 彈回已改善；視窗不推進／跳行空白 → 由 2.1b 解決
 
-### Phase 2.1（`c56cadc`，部分通過）
+### Phase 1（`2d32f1b`）— **已驗收**
 
-- 無預警 `scrollTop 0` 彈回頂部：已改善
-- 視窗推進／Ctrl+G 空白：待 2.1b
+- 連點譯文、換句右欄更新明顯較順
 
-### Phase 1（已完成）
+### Regression 清單（後續變更時建議重測）
 
-- 連點譯文較順；`2d32f1b`
+1. `CatVirtGrid.isEnabled()` 大檔為 true；`#gridBody .grid-data-row` 遠少於總句數
+2. memoQ 預翻列仍為比對表第一筆
+3. 小檔 ≤800 句：全量 DOM，行為不變
+4. 連續往下捲不得無預警 `scrollTop 0`
 
 ---
 
@@ -355,4 +416,4 @@ console.log({ scrollTop: g.scrollTop, n: rows.length,
 
 ---
 
-*文件建立：2026-06-28。Phase 2.1d／2.2 首批章節：2026-06-28。*
+*文件建立：2026-06-28。Phase 2 虛擬捲動總驗收通過：2026-06-28（`5658762`）。*

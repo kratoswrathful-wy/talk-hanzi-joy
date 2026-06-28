@@ -119,7 +119,7 @@ if (!isNaN(mConf) && mConf > 0) status = 'confirmed';
 |------|------|
 | mqxliff 鎖定句段匯出 | 未實作「跳過覆寫 `mq:status`」；若客戶回報再對齊 mxliff |
 | 大檔 Shift 多選錨點 | 序號欄 Shift 範圍選取可能錯用 `lastEditedRowIdx`（見本檔 §7 與使用者回報） |
-| 虛擬捲動 | Phase 2.1c 已落地（`301606d`）；**Phase 2.1d** 捲動跟手 + **Phase 2.2 首批** 全部取代；見 [`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) |
+| 虛擬捲動 | **已驗收**（`5658762`）；Phase 2.2 延伸（批次操作）待做；見 [`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) §開發與驗收時序 |
 
 ---
 
@@ -149,7 +149,7 @@ const anchor = lastEditedRowIdx ?? lastSelectedRowIdx;
 1. 序號欄點擊時同步更新選取錨點（或 Shift 時優先 `lastSelectedRowIdx`）。
 2. `focusin` 在序號多選流程中勿清除 `selectedRowIds`。
 3. 延後／節流 `renderLiveTmMatches`、`renderSegmentComments`（換句時最重的同步工作）。**Phase 1 已落地**（focus 增量 class、`scheduleRenderLiveTmMatches` debounce、預翻面板快取）；見 [`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)。
-4. 大檔虛擬捲動（Phase 2.1c 穩定；2.1d 跟手 + 2.2 全部取代）；同上文件。
+4. 大檔虛擬捲動（**已驗收** `5658762`）；同上文件 §Phase 2 虛擬捲動總驗收。
 
 ---
 
