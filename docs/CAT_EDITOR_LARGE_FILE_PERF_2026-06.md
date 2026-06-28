@@ -62,7 +62,7 @@ flowchart TB
 | Phase | 範圍 | 狀態 |
 |-------|------|------|
 | **Phase 1** | focus 增量更新 active/selected；`syncSelectedRowAbutmentTopClass` 僅清既有 abut class；`scheduleRenderLiveTmMatches` debounce；預翻面板同句快取 | **已實作**（見下方 §Phase 1） |
-| **Phase 2** | **虛擬捲動**（可見 ~40 列）；跳行／多選／協作／假游標整合 | 規劃中 |
+| **Phase 2** | **虛擬捲動**（可見 ~45 列 + buffer；門檻 >800 句） | **已實作**（見下方 §Phase 2） |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
@@ -88,7 +88,25 @@ flowchart TB
 
 ---
 
-## Phase 2 規劃（虛擬捲動）
+## Phase 2 實作摘要（虛擬捲動）
+
+**模組**：[`cat-tool/js/grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)（`CatVirtGrid`）
+
+| 項目 | 說明 |
+|------|------|
+| 啟用門檻 | `currentSegmentsList.length > 800` |
+| DOM | `#gridVirtualSpacerTop` + `#gridBody`（可見列）+ `#gridVirtualSpacerBottom` |
+| 列高 | `ResizeObserver` 快取；預設 48px |
+| `buildGridDataRow` | 自 `renderEditorSegments` 抽出，虛擬／全量共用 |
+| `getGridRowBySegId` | 未掛載時 `CatVirtGrid.ensureRowMounted` |
+| 篩選 | `isSegmentVisibleInEditor`；filter 快照重建時 `invalidateHeights` |
+| 跳行 | Ctrl+G、`_qaJumpToSegment`、`focusTargetEditorAtSegmentIndex` 經 `scrollToSegId` |
+
+**風險控管**：小檔（≤800 句）維持全量 DOM；捲動時僅重繪 window，不每幀跑 `updateProgress`。
+
+---
+
+## Phase 2 規劃（虛擬捲動）— 原規劃觸點
 
 ### 必驗觸點
 

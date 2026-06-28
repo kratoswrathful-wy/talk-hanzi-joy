@@ -654,6 +654,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(row && row.style && row.style.display !== 'none');
     }
 
+    function isSegmentVisibleInEditor(seg) {
+        if (!seg) return false;
+        if (sfMode !== 'filter') return true;
+        return !!(sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(seg.id));
+    }
+
     /** 篩選下已隱藏列自 selectedRowIds 剔除，並同步 .selected-row 與「取代此範圍」文案。 */
     function syncSelectedRowIdsWithVisibleGrid() {
         if (sfMode !== 'filter' || !gridBody) return;
@@ -680,18 +686,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 大檔 Phase 1：追蹤 active/selected DOM，避免 focus 時 querySelectorAll 全表 */
     let _activeGridRowEl = null;
     const _selectedRowDomEls = new Set();
-    let _mqPanelLastSegId = null;
 
     function resetGridRowUiTracking() {
         _activeGridRowEl = null;
         _selectedRowDomEls.clear();
-        _mqPanelLastSegId = null;
     }
 
-    function getGridRowBySegId(segId) {
+    function getGridRowBySegId(segId, ensureMounted = true) {
         if (segId == null || !gridBody) return null;
         const sid = String(segId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        return gridBody.querySelector(`.grid-data-row[data-seg-id="${sid}"]`);
+        let row = gridBody.querySelector(`.grid-data-row[data-seg-id="${sid}"]`);
+        if (!row && ensureMounted && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
+            row = window.CatVirtGrid.ensureRowMounted(segId);
+        }
+        return row;
+    }
+
+    function getGridRowAtListIndex(segIdx) {
+        const seg = currentSegmentsList[segIdx];
+        if (!seg) return null;
+        return getGridRowBySegId(seg.id);
     }
 
     function setActiveGridRow(row) {
@@ -19105,10 +19119,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         const seenSegIds = new Set();
+        const virtActive = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         currentSegmentsList.forEach((seg, idx) => {
-            const row = rows[idx];
-            if(!row) return;
-            seenSegIds.add(seg.id);
+            const row = virtActive ? getGridRowBySegId(seg.id, false) : (rows[idx] || null);
+            if (!row && !virtActive) return;
+            if (row) seenSegIds.add(seg.id);
 
             const r_liveMatch = computeSegmentRowMatch(seg, idx, criteria);
             const rowCache = sfRowRenderCache.get(seg.id) || { vis: null, highlightSig: '' };
@@ -19117,10 +19132,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             let vis = true;
             if (sfMode === 'filter') {
                 vis = !!(sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(seg.id));
-                if (rowCache.vis !== vis) row.style.display = vis ? '' : 'none';
-            } else {
+                if (row && rowCache.vis !== vis) row.style.display = vis ? '' : 'none';
+            } else if (row) {
                 vis = true;
                 if (rowCache.vis !== vis) row.style.display = '';
+            }
+
+            if (!row) {
+                rowCache.vis = vis;
+                sfRowRenderCache.set(seg.id, rowCache);
+                seenSegIds.add(seg.id);
+                return;
             }
 
             // --- Apply Highlighting ---
@@ -19279,8 +19301,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfLastFocusedMatchSegIdx = null;
 
         if (didRebuildFilterSnapshot && sfMode === 'filter' && lastEditedRowIdx !== null && !isSfSearchControlActive()) {
-            const rowsAfter = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-            const targetRow = rowsAfter[lastEditedRowIdx];
+            const segFocus = currentSegmentsList[lastEditedRowIdx];
+            const targetRow = segFocus ? getGridRowBySegId(segFocus.id) : null;
             if (targetRow && targetRow.style.display !== 'none') {
                 const txt = targetRow.querySelector('.grid-textarea');
                 if (txt && txt.contentEditable !== 'false') {
@@ -19288,6 +19310,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
                 }
             }
+        }
+        if (virtActive && didRebuildFilterSnapshot) {
+            window.CatVirtGrid.invalidateHeights();
         }
         syncSelectedRowAbutmentTopClass();
     }
@@ -19450,7 +19475,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function getSegmentFieldText(seg, segIdx, fieldKey) {
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
-        const row = rows[segIdx];
+        const row = getGridRowAtListIndex(segIdx);
         if (fieldKey === 'target' && row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) return extractTextFromEditor(ta);
@@ -20062,7 +20087,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-                const row = rows[segIdx];
+                const row = getGridRowAtListIndex(segIdx);
                 const ta = row && row.querySelector('.grid-textarea');
                 if (!ta || ta.contentEditable === 'false') return;
                 const maxLen = (extractTextFromEditor(ta) || '').length;
@@ -20093,7 +20118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tags !== undefined) seg.targetTags = tags ? tags.map(t => ({ ...t })) : [];
 
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
-        const row = rows[segIdx];
+        const row = getGridRowAtListIndex(segIdx);
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
@@ -20138,7 +20163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const snap = isUndo ? it.beforeSnap : it.afterSnap;
             applySegSnapshotToModel(seg, snap);
             const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
-            const row = rows[segIdx];
+            const row = getGridRowAtListIndex(segIdx);
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
@@ -20311,7 +20336,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function setSegmentFieldText(seg, segIdx, fieldKey, newText) {
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
-        const row = rows[segIdx];
+        const row = getGridRowAtListIndex(segIdx);
         if (fieldKey === 'target' && isTargetWriteProtected(seg)) return;
         if (fieldKey === 'target') {
             seg.targetText = newText;
@@ -20560,7 +20585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function unconfirmSegmentVisualAfterReplace(seg, segIdx) {
         applyWorkflowRevokeOnTargetEdit(seg);
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-        const row = rows[segIdx];
+        const row = getGridRowAtListIndex(segIdx);
         if (row) {
             syncRowConfirmedStateClass(row, seg);
             refreshStatusIconForRow(row, seg);
@@ -20719,8 +20744,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function focusTargetEditorAtSegmentIndex(segIdx, scrollBehavior = 'auto') {
         if (segIdx == null || segIdx < 0) return;
-        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-        const row = rows[segIdx];
+        const seg = currentSegmentsList[segIdx];
+        if (!seg) return;
+        let row = getGridRowBySegId(seg.id);
+        if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
+            row = window.CatVirtGrid.scrollToSegId(seg.id);
+        }
         if (!row) return;
         const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
         if (ed && ed.contentEditable !== 'false') {
@@ -20744,8 +20773,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (segIdx == null || segIdx < 0) return;
         const seg = currentSegmentsList[segIdx];
         if (seg && isTargetWriteProtected(seg)) return;
-        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-        const row = rows[segIdx];
+        let row = seg ? getGridRowBySegId(seg.id) : null;
+        if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled() && seg) {
+            row = window.CatVirtGrid.scrollToSegId(seg.id);
+        }
         if (!row || !isGridDataRowFilterVisible(row)) return;
         const ed = row.querySelector('.col-target .grid-textarea');
         if (!ed || ed.contentEditable === 'false') return;
@@ -20778,7 +20809,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const skippedSystemLocked = [];
         const pending = [];
         currentSegmentsList.forEach((seg, segIdx) => {
-            const row = rows[segIdx];
+            const row = getGridRowAtListIndex(segIdx);
             if (!isGridDataRowFilterVisible(row)) return;
             if (multiSelection && !selectedRowIds.has(seg.id)) return;
             if (isDynamicForbidden(seg)) {
@@ -22758,7 +22789,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncExecutiveCatDebugApi();
         const gridViewport = document.getElementById('editorGrid');
         const savedScrollTop = gridViewport ? gridViewport.scrollTop : 0;
-        gridBody.innerHTML = '';
+        const useVirtGrid = window.CatVirtGrid && window.CatVirtGrid.shouldUse(currentSegmentsList.length);
+        if (!useVirtGrid) {
+            gridBody.innerHTML = '';
+        }
+        if (useVirtGrid && window.CatVirtGrid.isEnabled()) {
+            window.CatVirtGrid.destroy();
+        }
         resetGridRowUiTracking();
         // 重建 DOM 後列皆為預設可見；若不清快取，runSearchAndFilter 以 rowCache.vis 比對會誤判為「無需更新 display」而留下錯誤可見狀態，篩選亦會失效。
         sfRowRenderCache.clear();
@@ -22800,7 +22837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const fragment = document.createDocumentFragment();
 
-        currentSegmentsList.forEach((seg, i) => {
+        function buildGridDataRow(seg, i) {
             seg.rowIdx = i; // Ensure old files have rowIdx explicitly attached for evaluateSegment logic
 
             const row = document.createElement('div');
@@ -22967,6 +23004,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const gRowsB = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
                         for (let j = start; j <= end; j++) {
                             const s = currentSegmentsList[j];
+                            if (!s) continue;
+                            if (useVirtGrid) {
+                                if (!isSegmentVisibleInEditor(s)) continue;
+                                selectedRowIds.add(s.id);
+                                continue;
+                            }
                             if (!isGridDataRowFilterVisible(gRowsB[j])) continue;
                             selectedRowIds.add(s.id);
                         }
@@ -23948,27 +23991,55 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (targetInput) targetInput.addEventListener('mousedown', activateLockedRowInteraction);
                 if (sourceInput) sourceInput.addEventListener('mousedown', activateLockedRowInteraction);
             }
-            fragment.appendChild(row);
-        });
-
-        gridBody.appendChild(fragment);
-        if (gridViewport) gridViewport.scrollTop = savedScrollTop;
-        updateProgress();
-        applyCollabFocusOutlines();
-        applyCollabEditHardLocks();
-        updateSfReplaceAllButtonLabel();
-        syncSelectedRowAbutmentTopClass();
-        // 非列印字元模式：每次渲染完成後更新標記
-        if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
-            requestAnimationFrame(applyNonPrintMarkersAll);
+            return row;
         }
-        if (_pendingFocusSegIdxAfterRender != null) {
-            const pi = _pendingFocusSegIdxAfterRender;
-            _pendingFocusSegIdxAfterRender = null;
-            queueMicrotask(() => {
-                focusTargetEditorAtSegmentIndex(pi, 'auto');
-                maybeSwitchRightPanelToCatAfterConfirm();
+
+        function finishEditorGridRender() {
+            if (gridViewport && !useVirtGrid) gridViewport.scrollTop = savedScrollTop;
+            updateProgress();
+            applyCollabFocusOutlines();
+            applyCollabEditHardLocks();
+            updateSfReplaceAllButtonLabel();
+            syncSelectedRowAbutmentTopClass();
+            if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                requestAnimationFrame(applyNonPrintMarkersAll);
+            }
+            if (_pendingFocusSegIdxAfterRender != null) {
+                const pi = _pendingFocusSegIdxAfterRender;
+                _pendingFocusSegIdxAfterRender = null;
+                queueMicrotask(() => {
+                    focusTargetEditorAtSegmentIndex(pi, 'auto');
+                    maybeSwitchRightPanelToCatAfterConfirm();
+                });
+            }
+        }
+
+        if (useVirtGrid) {
+            let virtMountFinished = false;
+            window.CatVirtGrid.mount({
+                scrollEl: gridViewport,
+                gridBody,
+                buildRow: buildGridDataRow,
+                getList: () => currentSegmentsList,
+                isSegVisible: (seg) => isSegmentVisibleInEditor(seg),
+                savedScrollTop,
+                onBeforeRender: () => {
+                    resetGridRowUiTracking();
+                },
+                onAfterRender: () => {
+                    syncSelectedRowClassesFromIds();
+                    if (!virtMountFinished) {
+                        virtMountFinished = true;
+                        finishEditorGridRender();
+                    }
+                }
             });
+        } else {
+            currentSegmentsList.forEach((seg, i) => {
+                fragment.appendChild(buildGridDataRow(seg, i));
+            });
+            gridBody.appendChild(fragment);
+            finishEditorGridRender();
         }
     }
 
@@ -24162,8 +24233,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const idx = catMatchAbsSelectionIndex();
         const m = matches[idx];
-        if (!m || (m.type !== 'TM' && m.type !== 'Fragment')) {
-            el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">請選取類型為 TM 或 Frg 的列以顯示原文對照。</span>';
+        if (!m || (m.type !== 'TM' && m.type !== 'Fragment' && m.type !== 'MqInserted')) {
+            el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">請選取類型為 TM、Frg 或 memoQ 預翻的列以顯示原文對照。</span>';
             return;
         }
         if (typeof window.buildTmTrackChangeStackHtml === 'function') {
@@ -24193,13 +24264,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         return parts.map(p => `<div class="cat-footer-changelog-block">${p}</div>`).join(sep);
     }
 
+    function buildMqInsertedMatchEntry(seg) {
+        const mqi = seg && seg.mqInsertedMatch;
+        if (!mqi || !mqi.sourceText) return null;
+        return {
+            type: 'MqInserted',
+            score: Number.isFinite(Number(mqi.rate)) ? Number(mqi.rate) : 0,
+            tmName: mqi.tmSource || '',
+            sourceText: mqi.sourceText || '',
+            targetText: mqi.targetText || '',
+            createdBy: mqi.createdBy || '',
+            createdAt: mqi.createdAt || '',
+            writtenFile: mqi.writtenFile || '',
+            prevSegment: mqi.prevSegment || '',
+            nextSegment: mqi.nextSegment || ''
+        };
+    }
+
+    function prependMqInsertedMatch(matches, seg) {
+        const mq = buildMqInsertedMatchEntry(seg);
+        if (mq) matches.unshift(mq);
+        return matches;
+    }
+
     // --- Live TM Match Rendering ---
     let _liveTmMatchDebounceTimer = null;
     let _liveTmMatchPendingSeg = null;
     const LIVE_TM_MATCH_DEBOUNCE_MS = 150;
 
     function scheduleRenderLiveTmMatches(seg) {
-        renderMqInsertedMatchPanel(seg);
         _liveTmMatchPendingSeg = seg;
         if (_liveTmMatchDebounceTimer != null) clearTimeout(_liveTmMatchDebounceTimer);
         _liveTmMatchDebounceTimer = setTimeout(() => {
@@ -24210,52 +24303,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, LIVE_TM_MATCH_DEBOUNCE_MS);
     }
 
-    function renderMqInsertedMatchPanel(seg) {
-        const mqPanel = document.getElementById('mqInsertedMatchPanel');
-        if (!mqPanel) return;
-        const segId = seg && seg.id != null ? String(seg.id) : '';
-        const mqi = seg && seg.mqInsertedMatch;
-        if (!mqi || !mqi.sourceText) {
-            _mqPanelLastSegId = null;
-            mqPanel.style.display = 'none';
-            mqPanel.innerHTML = '';
-            return;
-        }
-        if (_mqPanelLastSegId === segId && mqPanel.style.display !== 'none' && mqPanel.innerHTML) {
-            return;
-        }
-        const escMqi = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const rate = Number.isFinite(Number(mqi.rate)) ? Number(mqi.rate) : 0;
-        const scoreColor = rate >= 100 ? '#dcfce7' : (rate >= 70 ? '#ffedd5' : '#f1f5f9');
-        const diffHtml = typeof window.buildTmTrackChangeStackHtml === 'function'
-            ? window.buildTmTrackChangeStackHtml(seg.sourceText || '', mqi.sourceText || '')
-            : '';
-        mqPanel.innerHTML = `
-            <div class="mqi-header">
-                <span class="mqi-label">memoQ 預翻記錄</span>
-                <span class="mqi-score" style="background:${scoreColor}">${escMqi(rate)}%</span>
-                ${mqi.tmSource ? `<span class="mqi-tm-source">${escMqi(mqi.tmSource)}</span>` : ''}
-            </div>
-            <div class="mqi-diff">${diffHtml}</div>
-            <div class="mqi-target-label">TM 譯文</div>
-            <div class="mqi-target-text">${htmlForTmPlainWithPlaceholders(mqi.targetText || '')}</div>
-        `;
-        mqPanel.style.display = '';
-        _mqPanelLastSegId = segId;
-    }
-
     async function renderLiveTmMatches(seg) {
         const searchResultsDOM = document.getElementById('tmSearchResults');
         const footerDOM = document.getElementById('liveFooterContent');
         if (!searchResultsDOM || !footerDOM) return;
 
-        renderMqInsertedMatchPanel(seg);
-
+        const mqEntry = buildMqInsertedMatchEntry(seg);
         const hasTm = window.ActiveTmCache && window.ActiveTmCache.length > 0;
         const hasTb = window.ActiveTbTerms && window.ActiveTbTerms.length > 0;
-        if (!isTargetWriteProtected(seg) && (hasTm || hasTb)) {
+        const canSearchTmTb = !isTargetWriteProtected(seg) && (hasTm || hasTb);
+        if (canSearchTmTb || mqEntry) {
             let matches = [];
-            if (hasTm) {
+            if (canSearchTmTb && hasTm) {
                 const rawTm = [];
                 const _activePenalties = window.ActiveTmPenalties || {};
             const segSrcTrim = String(seg.sourceText || '').trim();
@@ -24301,7 +24360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 matches.push(...collapsedTm, ...fragOrNonTm);
             }
-            if (hasTb) {
+            if (canSearchTmTb && hasTb) {
                 const src = (seg.sourceText || '').trim();
                 const tbHits = [];
                 window.ActiveTbTerms.forEach((term) => {
@@ -24332,6 +24391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tbHits.forEach((x) => matches.push(x.entry));
             }
 
+            if (canSearchTmTb) {
             matches.sort((a, b) => {
                 const order = { TM: 0, TB: 1, Fragment: 2 };
                 const oa = order[a.type] ?? 2;
@@ -24366,6 +24426,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     matches = [...top5, ...others, ...rest];
                 }
             } catch (_) { /* ignore */ }
+            }
+
+            prependMqInsertedMatch(matches, seg);
 
             if (matches.length > 0) {
                 window.currentTmMatches = matches;
@@ -24398,6 +24461,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div><strong>建立者：</strong>${byWho}</div>
                             <div><strong>建立時間：</strong>${byAt}</div>
                         </div>
+                        </div>`;
+                    } else if (m.type === 'MqInserted') {
+                        const prevHtml = m.prevSegment ? escFoot(m.prevSegment) : '<span style="color:#94a3b8;">無</span>';
+                        const nextHtml = m.nextSegment ? escFoot(m.nextSegment) : '<span style="color:#94a3b8;">無</span>';
+                        footerHtml += `<div class="cat-footer-section cat-footer-tm-meta">
+                            <div><strong>原 TM 名稱：</strong>${escFoot(m.tmName || '無')}</div>
+                            <div><strong>原作者：</strong>${escFoot(m.createdBy || '無')}</div>
+                            <div><strong>原輸入時間：</strong>${m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : '無'}</div>
+                            <div><strong>原檔案名稱：</strong>${escFoot(m.writtenFile || '無')}</div>
+                        </div>`;
+                        footerHtml += `<div class="cat-footer-section cat-footer-context">
+                            <div class="cat-footer-context-inner">
+                                <div><strong>上一句</strong><br>${prevHtml}</div>
+                                <div><strong>下一句</strong><br>${nextHtml}</div>
+                            </div>
                         </div>`;
                     } else {
                         footerHtml += '<div class="cat-footer-block-wrap">';
@@ -24442,11 +24520,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return pageSlice.map((m, idx) => {
                         const isFragment = m.type === 'Fragment';
                         const isTb = m.type === 'TB';
+                        const isMqInserted = m.type === 'MqInserted';
                         const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
                         const isTbMissing = isTb && segTarget ? !termMatches(segTarget, m.targetText || '', mf) : false;
                         let scoreInner = '';
                         let scoreBg = '';
-                        if (isTb) {
+                        if (isMqInserted) {
+                            scoreInner = '<span class="result-pct-main">memoQ 預翻</span>';
+                            scoreBg = 'background:#dbeafe;';
+                        } else if (isTb) {
                             scoreInner = '<span class="result-pct-main">TB</span>';
                             scoreBg = 'background:#fef9c3;';
                         } else if (isFragment) {
@@ -24635,7 +24717,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const abs = page * 9 + rel;
         if (abs < 0 || abs >= matches.length) return;
         const m = matches[abs];
-        const scoreArg = m.type === 'TM' ? m.score : undefined;
+        const scoreArg = (m.type === 'TM' || m.type === 'MqInserted') ? m.score : undefined;
         await window.handleCatResultApply(item, m.type, m.targetText || '', scoreArg, rel, false);
     };
 
@@ -24687,12 +24769,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!textarea) return;
         }
 
-        const rowIdx = allRows.indexOf(targetRow);
-        if (rowIdx < 0 || !currentSegmentsList[rowIdx]) {
+        const segIdApply = parseId(targetRow.dataset.segId);
+        const seg = currentSegmentsList.find((s) => s.id === segIdApply);
+        const rowIdx = seg ? currentSegmentsList.indexOf(seg) : -1;
+        if (!seg || rowIdx < 0) {
             if (fromKeyboard) showCatToast('找不到對應句段，無法插入內容', 'error');
             return;
         }
-        const seg = currentSegmentsList[rowIdx];
+        // seg 已於上方由 data-seg-id 解析
         if (isTargetWriteProtected(seg)) {
             if (fromKeyboard) showCatToast('目的句段受保護，無法插入內容', 'error');
             return;
@@ -24707,7 +24791,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const oldMatchValue = seg.matchValue;
 
         let newTarget;
-        if (type === 'TM') {
+        if (type === 'TM' || type === 'MqInserted') {
             newTarget = text;
             setEditorHtml(textarea, buildTaggedHtml(text, effectiveTags(seg)));
             updateTagColors(targetRow, text);
@@ -24728,14 +24812,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         seg.targetText = newTarget;
         editorUndoEditStart[seg.id] = newTarget;
         const applyOldStatus = seg.status;
-        const newMatchValue = type === 'TM' && score !== undefined && score !== 'undefined' ? String(score) : seg.matchValue;
+        const newMatchValue = (type === 'TM' || type === 'MqInserted') && score !== undefined && score !== 'undefined' ? String(score) : seg.matchValue;
         pushEditorUndo(seg.id, oldTarget, newTarget, {
             oldMatchValue,
             newMatchValue,
             oldStatus: applyOldStatus,
             newStatus: applyOldStatus === 'confirmed' ? 'unconfirmed' : applyOldStatus
         });
-        const updatePayload = type === 'TM' && score !== undefined && score !== 'undefined'
+        const updatePayload = (type === 'TM' || type === 'MqInserted') && score !== undefined && score !== 'undefined'
             ? { matchValue: String(score) }
             : undefined;
         if (updatePayload) seg.matchValue = updatePayload.matchValue;
@@ -24744,11 +24828,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (applyOldStatus === 'confirmed') {
             unconfirmSegmentVisualAfterReplace(seg, rowIdx);
         }
-        if (type === 'TM' && score !== undefined && score !== 'undefined') {
+        if ((type === 'TM' || type === 'MqInserted') && score !== undefined && score !== 'undefined') {
             applyMatchCellVisual(targetRow, String(score));
         }
 
-        if (type === 'TM') {
+        if (type === 'TM' || type === 'MqInserted') {
             setCaretAtEditorEnd(textarea);
         }
         if (el && el.style) {
@@ -24765,7 +24849,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (abs < 0 || abs >= matches.length) return;
         const m = matches[abs];
         const el = document.querySelector(`#tmSearchResults .result-item[data-index="${relativeIndex}"]`);
-        const scoreArg = m.type === 'TM' ? m.score : undefined;
+        const scoreArg = (m.type === 'TM' || m.type === 'MqInserted') ? m.score : undefined;
         window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, relativeIndex, true);
     };
     
@@ -25440,7 +25524,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     let qaLastRunSummaryHtml = '';
 
     function _qaJumpToSegment(segId) {
-        const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
+        let row = getGridRowBySegId(segId);
+        if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
+            row = window.CatVirtGrid.scrollToSegId(segId);
+        }
         if (!row) { alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。'); return; }
         row.scrollIntoView({ behavior: 'auto', block: 'center' });
         const ta = row.querySelector('.grid-textarea');
@@ -25473,13 +25560,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('找不到該句段編號。');
             return;
         }
-        const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-        const row = gRows[idx];
-        if (!row || !isGridDataRowFilterVisible(row)) {
+        const segJump = currentSegmentsList[idx];
+        if (!segJump || !isSegmentVisibleInEditor(segJump)) {
             alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。');
             return;
         }
-        _qaJumpToSegment(currentSegmentsList[idx].id);
+        _qaJumpToSegment(segJump.id);
     }
 
     /** 表頭儲存格：一般為欄名；# 欄僅顯示欄名（跳至改由工具列圖示與 Ctrl+G）。 */

@@ -284,6 +284,11 @@ const mapSegmentRow = (r: any) => {
       tmSource: string;
       sourceText: string;
       targetText: string;
+      createdBy?: string | null;
+      createdAt?: string | null;
+      writtenFile?: string | null;
+      prevSegment?: string | null;
+      nextSegment?: string | null;
     } | null>(r.mq_inserted_match, null),
   };
 };

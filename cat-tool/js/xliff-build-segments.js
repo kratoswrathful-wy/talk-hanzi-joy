@@ -866,11 +866,20 @@
                             if (imSrcNode && imTgtNode) {
                                 const imSrcResult = Xliff.extractTaggedText(imSrcNode, { transparentG: true });
                                 const imTgtResult = Xliff.extractTaggedText(imTgtNode, { transparentG: true });
+                                const ciEl = Array.from(tu.getElementsByTagName('*'))
+                                    .find(n => n.localName === 'commitinfo');
+                                const ciUser = ciEl ? (ciEl.getAttribute('username') || '') : '';
+                                const ciTs = ciEl ? (ciEl.getAttribute('timestamp') || '') : '';
                                 mqInsertedMatch = {
                                     rate: Number.isNaN(imRate) ? 0 : imRate,
                                     tmSource: imTmSource,
                                     sourceText: imSrcResult.text || '',
-                                    targetText: imTgtResult.text || ''
+                                    targetText: imTgtResult.text || '',
+                                    createdBy: ciUser || null,
+                                    createdAt: ciTs || null,
+                                    writtenFile: null,
+                                    prevSegment: null,
+                                    nextSegment: null
                                 };
                             }
                         }
