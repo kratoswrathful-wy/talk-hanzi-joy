@@ -672,13 +672,51 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         if (!changed) return;
-        gRows.forEach((r) => {
-            const rId = parseId(r.dataset.segId);
-            if (selectedRowIds.has(rId)) r.classList.add('selected-row');
-            else r.classList.remove('selected-row');
-        });
+        syncSelectedRowClassesFromIds();
         updateSfReplaceAllButtonLabel();
         syncSelectedRowAbutmentTopClass();
+    }
+
+    /** 大檔 Phase 1：追蹤 active/selected DOM，避免 focus 時 querySelectorAll 全表 */
+    let _activeGridRowEl = null;
+    const _selectedRowDomEls = new Set();
+    let _mqPanelLastSegId = null;
+
+    function resetGridRowUiTracking() {
+        _activeGridRowEl = null;
+        _selectedRowDomEls.clear();
+        _mqPanelLastSegId = null;
+    }
+
+    function getGridRowBySegId(segId) {
+        if (segId == null || !gridBody) return null;
+        const sid = String(segId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        return gridBody.querySelector(`.grid-data-row[data-seg-id="${sid}"]`);
+    }
+
+    function setActiveGridRow(row) {
+        if (_activeGridRowEl && _activeGridRowEl !== row) {
+            _activeGridRowEl.classList.remove('active-row');
+        }
+        _activeGridRowEl = row || null;
+        if (row) row.classList.add('active-row');
+    }
+
+    function syncSelectedRowClassesFromIds() {
+        if (!gridBody) return;
+        const nextSet = new Set();
+        selectedRowIds.forEach((id) => {
+            const r = getGridRowBySegId(id);
+            if (r) {
+                r.classList.add('selected-row');
+                nextSet.add(r);
+            }
+        });
+        _selectedRowDomEls.forEach((r) => {
+            if (!nextSet.has(r)) r.classList.remove('selected-row');
+        });
+        _selectedRowDomEls.clear();
+        nextSet.forEach((r) => _selectedRowDomEls.add(r));
     }
 
     /**
@@ -687,9 +725,16 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function syncSelectedRowAbutmentTopClass() {
         if (!gridBody) return;
+        gridBody.querySelectorAll('.grid-data-row.selected-abut-top').forEach((r) => {
+            r.classList.remove('selected-abut-top');
+        });
+        if (!selectedRowIds || selectedRowIds.size === 0) return;
         const gRows = gridBody.querySelectorAll('.grid-data-row');
-        gRows.forEach((r) => r.classList.remove('selected-abut-top'));
-        const visible = Array.from(gRows).filter(isGridDataRowFilterVisible);
+        const visible = [];
+        for (let i = 0; i < gRows.length; i++) {
+            const r = gRows[i];
+            if (isGridDataRowFilterVisible(r)) visible.push(r);
+        }
         for (let i = 1; i < visible.length; i++) {
             const row = visible[i];
             if (!row.classList.contains('selected-row')) continue;
@@ -22714,6 +22759,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const gridViewport = document.getElementById('editorGrid');
         const savedScrollTop = gridViewport ? gridViewport.scrollTop : 0;
         gridBody.innerHTML = '';
+        resetGridRowUiTracking();
         // 重建 DOM 後列皆為預設可見；若不清快取，runSearchAndFilter 以 rowCache.vis 比對會誤判為「無需更新 display」而留下錯誤可見狀態，篩選亦會失效。
         sfRowRenderCache.clear();
 
@@ -22775,25 +22821,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Activate row on focus; also update selection to this segment only
             row.addEventListener('focusin', (e) => {
                 if (!isBatchOpInProgress && blockSelectionIfEditedByOthers(seg, e)) return;
-                document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
-                row.classList.add('active-row');
+                setActiveGridRow(row);
                 lastEditedRowIdx = seg.rowIdx;
                 // 選取狀態更新原則：批次操作進行中時不更新選取；
                 // 其餘情況（包含點選多選範圍內的句段）均清除選取並改為只選當前句段
                 if (!isBatchOpInProgress) {
                     selectedRowIds.clear();
                     selectedRowIds.add(seg.id);
-                    document.querySelectorAll('.grid-data-row').forEach(r => {
-                        const rId = parseId(r.dataset.segId);
-                        if (selectedRowIds.has(rId)) r.classList.add('selected-row');
-                        else r.classList.remove('selected-row');
-                    });
+                    syncSelectedRowClassesFromIds();
                     updateSfReplaceAllButtonLabel();
                     syncSelectedRowAbutmentTopClass();
                 }
                 const tabQaEl = document.getElementById('tabQA');
                 if (!tabQaEl || !tabQaEl.classList.contains('active')) {
-                renderLiveTmMatches(seg);
+                scheduleRenderLiveTmMatches(seg);
                 // keep inline TB hints in source cell aligned with right panel page (1~9)
                 try { decorateTbInlineHintsForActiveRow(); } catch (_) { /* ignore */ }
                 }
@@ -22804,7 +22845,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const isConfirmed = seg.status === 'confirmed';
             const isSelected = selectedRowIds.has(seg.id);
-            if (isSelected) row.classList.add('selected-row');
+            if (isSelected) {
+                row.classList.add('selected-row');
+                _selectedRowDomEls.add(row);
+            }
             // 已確認套淡綠底＋`row-bg-confirmed` 全欄，鎖定句段不覆蓋
             if (isConfirmed && !effectiveLocked) syncRowConfirmedStateClass(row, seg);
 
@@ -24150,13 +24194,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // --- Live TM Match Rendering ---
+    let _liveTmMatchDebounceTimer = null;
+    let _liveTmMatchPendingSeg = null;
+    const LIVE_TM_MATCH_DEBOUNCE_MS = 150;
+
+    function scheduleRenderLiveTmMatches(seg) {
+        renderMqInsertedMatchPanel(seg);
+        _liveTmMatchPendingSeg = seg;
+        if (_liveTmMatchDebounceTimer != null) clearTimeout(_liveTmMatchDebounceTimer);
+        _liveTmMatchDebounceTimer = setTimeout(() => {
+            _liveTmMatchDebounceTimer = null;
+            const s = _liveTmMatchPendingSeg;
+            _liveTmMatchPendingSeg = null;
+            if (s) renderLiveTmMatches(s).catch(() => {});
+        }, LIVE_TM_MATCH_DEBOUNCE_MS);
+    }
+
     function renderMqInsertedMatchPanel(seg) {
         const mqPanel = document.getElementById('mqInsertedMatchPanel');
         if (!mqPanel) return;
+        const segId = seg && seg.id != null ? String(seg.id) : '';
         const mqi = seg && seg.mqInsertedMatch;
         if (!mqi || !mqi.sourceText) {
+            _mqPanelLastSegId = null;
             mqPanel.style.display = 'none';
             mqPanel.innerHTML = '';
+            return;
+        }
+        if (_mqPanelLastSegId === segId && mqPanel.style.display !== 'none' && mqPanel.innerHTML) {
             return;
         }
         const escMqi = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -24176,6 +24241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="mqi-target-text">${htmlForTmPlainWithPlaceholders(mqi.targetText || '')}</div>
         `;
         mqPanel.style.display = '';
+        _mqPanelLastSegId = segId;
     }
 
     async function renderLiveTmMatches(seg) {
