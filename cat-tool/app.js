@@ -660,6 +660,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(seg.id));
     }
 
+    /** 取代／批次文字操作：虛擬模式用 isSegmentVisibleInEditor；否則依 DOM 列 display。 */
+    function isSegmentEligibleForReplace(seg, segIdx) {
+        if (!seg) return false;
+        const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
+        if (virtOn) return isSegmentVisibleInEditor(seg);
+        const row = getGridRowAtListIndex(segIdx);
+        return isGridDataRowFilterVisible(row);
+    }
+
     /** 篩選下已隱藏列自 selectedRowIds 剔除，並同步 .selected-row 與「取代此範圍」文案。 */
     function syncSelectedRowIdsWithVisibleGrid() {
         if (sfMode !== 'filter' || !gridBody) return;
@@ -19474,11 +19483,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function getSegmentFieldText(seg, segIdx, fieldKey) {
-        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
         const row = getGridRowAtListIndex(segIdx);
-        if (fieldKey === 'target' && row) {
-            const ta = row.querySelector('.grid-textarea');
-            if (ta) return extractTextFromEditor(ta);
+        if (fieldKey === 'target') {
+            if (row) {
+                const ta = row.querySelector('.grid-textarea');
+                if (ta) return extractTextFromEditor(ta);
+            }
+            return seg.targetText || '';
         }
         if (fieldKey === 'source') return seg.sourceText || '';
         if (fieldKey === 'extra') return seg.extraValue || '';
@@ -20819,8 +20830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const skippedSystemLocked = [];
         const pending = [];
         currentSegmentsList.forEach((seg, segIdx) => {
-            const row = getGridRowAtListIndex(segIdx);
-            if (!isGridDataRowFilterVisible(row)) return;
+            if (!isSegmentEligibleForReplace(seg, segIdx)) return;
             if (multiSelection && !selectedRowIds.has(seg.id)) return;
             if (isDynamicForbidden(seg)) {
                 skippedSystemLocked.push(seg);
@@ -20863,6 +20873,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         runSearchAndFilter({ keepFilterSnapshot: true });
         if (replacedCount > 0) {
             updateProgress();
+            if (replacedCount > 200) {
+                showCatToast(`已全部取代 ${replacedCount} 句譯文`, 'info');
+            }
             if (isReplaceAllRestoreFakeCaretEnabled()) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {

@@ -1,13 +1,13 @@
 /**
  * CAT 編輯器虛擬捲動（Phase 2 / 2.1 / 2.1b / 2.1c）。
  * Phase 2.1c：捲動 debounce、窗口未變跳過重畫、savedScrollTop 還原、resize 合批。
+ * Phase 2.1d：窗口邊界一變即重畫（移除 scroll debounce 等待）。
  */
 (function (global) {
     const THRESHOLD = 800;
     const ESTIMATE_H = 48;
     const BUFFER = 12;
     const WINDOW = 45;
-    const SCROLL_DEBOUNCE_MS = 120;
     const RESIZE_DEBOUNCE_MS = 80;
 
     let cfg = null;
@@ -320,12 +320,18 @@
         if (scrollRaf) cancelAnimationFrame(scrollRaf);
         scrollRaf = requestAnimationFrame(() => {
             scrollRaf = null;
-            if (scrollDebounceTimer) clearTimeout(scrollDebounceTimer);
-            scrollDebounceTimer = setTimeout(() => {
+            if (!enabled || _suppressScroll || _rendering) return;
+            const list = getRenderableList();
+            const scrollEl = cfg && cfg.scrollEl;
+            if (!list.length || !scrollEl) return;
+            const nextStart = scrollTopToStartIdx(list, scrollEl.scrollTop);
+            const nextEnd = Math.min(list.length, nextStart + WINDOW + BUFFER * 2);
+            if (nextStart === _lastStartIdx && nextEnd === _lastEndIdx) return;
+            if (scrollDebounceTimer) {
+                clearTimeout(scrollDebounceTimer);
                 scrollDebounceTimer = null;
-                if (!enabled || _suppressScroll || _rendering) return;
-                renderWindow(null);
-            }, SCROLL_DEBOUNCE_MS);
+            }
+            renderWindow(null);
         });
     }
 

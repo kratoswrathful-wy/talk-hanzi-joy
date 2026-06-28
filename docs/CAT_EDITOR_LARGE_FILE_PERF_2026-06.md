@@ -66,7 +66,8 @@ flowchart TB
 | **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作但有殘留缺陷** `c56cadc`（彈回頂部已改善；視窗不推進／跳行空白未解） |
 | **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **已實作但有殘留缺陷** `ffc74ed`（視窗推進已改善；快速捲動後往上飄未解） |
 | **Phase 2.1c** | 捲動 debounce + 保留 savedScrollTop + resize 合批 | **已實作** `301606d` |
-| **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | 規劃中 |
+| **Phase 2.1d** | 窗口邊界一變即重畫（捲動跟手） | **本輪**（見 §Phase 2.1d） |
+| **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | **首批本輪**（`performReplaceAll`）；其餘規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
@@ -253,16 +254,38 @@ flowchart TD
 | 跳行 | `scrollToSegId` 仍用 `scrollTopFromAnchor` |
 | suppress | 設 `scrollTop` 後延至下一 frame 解鎖 |
 
-**已知限制（Phase 2.2 前）**：
-
-- 瀏覽器 Ctrl+F 找不到畫面外句段
-- 大檔「全部取代」可能漏改或極慢（仍依 DOM 讀寫譯文）
+**部分驗收（2026-06-28）**：飄回頂部已解；快速捲動後新句段有 **0.12s 空等** → Phase 2.1d。
 
 ---
 
-## Phase 2.2 規劃（虛擬相容批次）
+## Phase 2.1d 修正摘要
 
-- `performReplaceAll` / 批次確認改為只讀寫 `seg.targetText`，可見範圍用 `isSegmentVisibleInEditor`
+**觸點**：[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)
+
+| 項目 | 說明 |
+|------|------|
+| 窗口變更即重畫 | `onScroll` RAF 內若 `startIdx`/`endIdx` 變更 → 立即 `renderWindow` |
+| 移除 scroll debounce | 不再等待 120ms |
+| 保留 2.1c | 窗口未變跳過、`savedScrollTop` 還原、resize 合批 80ms |
+
+---
+
+## Phase 2.2 首批修正摘要（全部取代虛擬相容）
+
+**觸點**：[`app.js`](../cat-tool/app.js) `getSegmentFieldText`、`isSegmentEligibleForReplace`、`performReplaceAll`
+
+| 項目 | 說明 |
+|------|------|
+| 譯文讀取 | 無 DOM 列時 fallback `seg.targetText` |
+| 取代範圍 | 虛擬模式用 `isSegmentVisibleInEditor`（非 filter ＝整檔） |
+| 大量取代 | `>200` 句時 toast 提示完成句數 |
+
+**Phase 2.2 延伸（未做）**：`runTextOpOnSelection`、批次確認改資料層
+
+**已知限制**：
+
+- 瀏覽器 Ctrl+F 找不到畫面外句段
+- 大檔全部取代仍逐句寫庫，極大量可能較慢
 
 ---
 
@@ -274,7 +297,14 @@ flowchart TD
 
 ## 驗收清單（Riftbound 6333 句）
 
-### Phase 2.1c（`301606d`，待 Riftbound 驗收）
+### Phase 2.1d + 2.2 首批（本輪）
+
+1. 快速滚輪捲動 → 新句段較快出現（無明顯 0.12s 空等）
+2. 停手後 `scrollTop` 不持續遞減飄回頂部（2.1c regression）
+3. 無進階篩選時 **F4 全部取代** → 可改到畫面外句段（Ctrl+G 跳至 3000 抽查）
+4. 進階篩選下 F4 仍只改篩選內句段
+
+### Phase 2.1c（`301606d`，部分通過）
 
 1. 硬重新整理；開 Riftbound 大檔
 2. **快速滚輪**捲至第 400～600 列 → 停手後 `scrollTop` **不得**持續遞減飄回頂部
@@ -321,4 +351,4 @@ console.log({ scrollTop: g.scrollTop, n: rows.length,
 
 ---
 
-*文件建立：2026-06-28。Phase 2.1 章節：2026-06-28。Phase 2.1b 章節：2026-06-28。Phase 2.1c 章節：2026-06-28。*
+*文件建立：2026-06-28。Phase 2.1d／2.2 首批章節：2026-06-28。*

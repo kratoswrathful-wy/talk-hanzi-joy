@@ -50,7 +50,7 @@
 - [`docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md`](docs/bug-report_mqxliff-tm-ph-sequential-mismatch_2026-06.md) — **Bug #11** TM 連續 ph 佔位錯位（`fixMqxliffTmPhSequentialPairs`）；與 Bug #10 區分
 - [`docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md) — **Bug #12** mq:rxt `val` 屬性不符（reconcile 短路；**已修並驗收** `2a88a48`）；樣本 `36432` 列 203
 - [`docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md`](docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md) — mqxliff **memoQ 預翻記錄**（`<mq:insertedmatch>`）右欄獨立區塊；**已驗收** `8e187d3`；開發／除錯紀錄
-- [`docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) — 編輯器**大檔效能**（6333 句級）；Phase 2.1b 已落地；**Phase 2.1c** 快速捲動飄回頂部修正
+- [`docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) — 編輯器**大檔效能**；Phase 2.1c 已落地；**Phase 2.1d** 捲動跟手 + **Phase 2.2 首批** 全部取代虛擬相容
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
 - [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）
 - [`docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md`](docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md) — AI 批次 **穩定修正**（備註誤譯 prompt、切批字元含 extra、詢問路徑分批、聚焦漏句 blur；**已實作，待驗收**）
