@@ -63,7 +63,8 @@ flowchart TB
 |-------|------|------|
 | **Phase 1** | focus 增量更新 active/selected；`scheduleRenderLiveTmMatches` debounce | **已實作** `2d32f1b` |
 | **Phase 2 初版** | 虛擬捲動（~45 列 + buffer；門檻 >800 句） | **已實作但有缺陷** `56c3386` |
-| **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作** `c56cadc` |
+| **Phase 2.1** | scroll 鎖 + 錨點保留 + 跳行修正 | **已實作但有殘留缺陷** `c56cadc`（彈回頂部已改善；視窗不推進／跳行空白未解） |
+| **Phase 2.1b** | 視窗頂端錨點 + scrollTop 推窗 + 量高後重算 | **本輪**（見 §Phase 2.1b） |
 | **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | 規劃中 |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
@@ -141,6 +142,69 @@ flowchart TD
 | `scrollToSegId` | 移除 `scrollIntoView`；由 app.js `focus({ preventScroll: true })` |
 | 錯誤訊息 | 篩選隱藏 vs 跳行失敗分開提示 |
 
+**部分驗收（2026-06-28，`c56cadc` 部署後）**：無預警 `scrollTop 0` 彈回頂部已改善；**視窗不推進**與 **Ctrl+G 跳行空白** 未解 → Phase 2.1b。
+
+---
+
+## Phase 2.1 殘留缺陷（2026-06-28 驗收）
+
+使用者於 Riftbound 6333 句驗證（**非進階篩選**；`CatVirtGrid.isEnabled() === true`）：
+
+| 症狀 | 說明 |
+|------|------|
+| 手動捲過約第 69 列 | 下方整片白，無後續句段 |
+| Ctrl+G 跳到 82 或更大編號 | 畫面空白，看不到目標句段 |
+| 與 Phase 2 初版差異 | **不再**無預警 `scrollTop 0` 彈回頂部 |
+
+**數字對應**：`WINDOW(45) + BUFFER×2(24) = 69` — 初版視窗大小；卡住後使用者其實在捲 `#gridVirtualSpacerBottom` 空白區。
+
+```mermaid
+flowchart TD
+  mount["mount: 渲染列 0-68"]
+  scroll["使用者往下捲"]
+  onScroll["onScroll → renderWindow"]
+  capFirst["captureAnchorFromDom: 取 gridBody 第一列"]
+  start0["startIdx 永遠約 0"]
+  noAdvance["視窗不往前移"]
+  bottomGap["捲進 bottomSpacer → 白底"]
+  mount --> scroll --> onScroll --> capFirst --> start0 --> noAdvance --> bottomGap
+```
+
+**Ctrl+G 空白**：
+
+```mermaid
+flowchart TD
+  jump["scrollToSegId"]
+  render["renderWindow 明確錨點 + 估算 scrollTop"]
+  ro["ResizeObserver 量到真實列高"]
+  respacer["topSpacer 變大"]
+  staleTop["scrollTop 仍用舊值"]
+  inSpacer["視窗落在 topSpacer 內 → 白底"]
+  jump --> render --> ro --> respacer --> staleTop --> inSpacer
+```
+
+**根因**（[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)）：
+
+1. `captureAnchorFromDom` 取 **`#gridBody` 第一列**，非視窗頂端列 → `startIdx` 不隨捲動前進
+2. `scrollTopToStartIdx` 僅在 `_anchorSegId` 為空時才用，實務上永遠被 `captureAnchorFromDom` 搶先
+3. 原計畫 `_anchorOffsetPx` / `inferAnchorFromDom` 未實作
+4. `ResizeObserver` 重算 spacer 後盲還原舊 `scrollTop`，跳行後視窗落在 spacer 空白區
+
+---
+
+## Phase 2.1b 修正摘要
+
+**觸點**：[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)
+
+| 項目 | 說明 |
+|------|------|
+| `_anchorOffsetPx` | 視窗頂端錨點列頂，距 `#editorGrid` 可視區頂的像素偏移 |
+| `inferAnchorFromDom()` | `getBoundingClientRect` 取最靠近視窗頂且仍可見的列 |
+| `scrollTopFromAnchor()` | `sumRange(0, anchorIdx) - offsetPx` 還原捲動位置 |
+| `renderWindow` 算窗 | 非明確跳行時**優先** `scrollTopToStartIdx`；禁止只用 gridBody 第一列 |
+| `ResizeObserver` | 量高後 `inferAnchorFromDom` → 依錨點+偏移重算 `scrollTop` |
+| `scrollToSegId` | 設錨點 `offsetPx = 0`；後續量高重畫仍維持目標列可見 |
+
 **已知限制（Phase 2.2 前）**：
 
 - 瀏覽器 Ctrl+F 找不到畫面外句段
@@ -162,14 +226,29 @@ flowchart TD
 
 ## 驗收清單（Riftbound 6333 句）
 
-### Phase 2.1（`c56cadc`，待 Riftbound 驗收）
+### Phase 2.1b（本輪）
 
 1. 硬重新整理；開檔；`CatVirtGrid.isEnabled()` 為 true
-2. CAT iframe 主控台監聽 `#editorGrid` scroll；連續往下捲 → **不得**無預警 `scrollTop 0`
-3. 可捲至約第 500 / 2000 / 5000 句並停留
-4. **Ctrl+G** `82`、`3000` 可跳轉並編輯譯文
-5. memoQ 預翻列仍為比對表第一筆
-6. 小檔 ≤800 句：全量 DOM 不變
+2. 連續往下捲過第 69 列 → **必須**出現第 70 列以後內容，不得整片白
+3. 可捲至約第 500 / 2000 / 5000 句並停留編輯
+4. 主控台診斷：`#gridBody .grid-data-row` 的 first／last 序號應隨捲動改變
+
+```js
+const g = document.getElementById('editorGrid');
+const rows = [...document.querySelectorAll('#gridBody .grid-data-row')];
+console.log({ scrollTop: g.scrollTop, n: rows.length,
+  first: rows[0]?.querySelector('.col-id')?.textContent,
+  last: rows.at(-1)?.querySelector('.col-id')?.textContent });
+```
+
+5. 從頂部 **Ctrl+G** `82`、`3000` 可跳轉並編輯譯文
+6. 連續往下捲不得無預警 `scrollTop 0`（2.1 regression）
+7. memoQ 預翻列仍為比對表第一筆；小檔 ≤800 句全量 DOM 不變
+
+### Phase 2.1（`c56cadc`，部分通過）
+
+- 無預警 `scrollTop 0` 彈回頂部：已改善
+- 視窗推進／Ctrl+G 空白：待 2.1b
 
 ### Phase 1（已完成）
 
@@ -185,4 +264,4 @@ flowchart TD
 
 ---
 
-*文件建立：2026-06-28。Phase 2.1 章節：2026-06-28。*
+*文件建立：2026-06-28。Phase 2.1 章節：2026-06-28。Phase 2.1b 章節：2026-06-28。*
