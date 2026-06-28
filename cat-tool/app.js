@@ -24150,10 +24150,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // --- Live TM Match Rendering ---
+    function renderMqInsertedMatchPanel(seg) {
+        const mqPanel = document.getElementById('mqInsertedMatchPanel');
+        if (!mqPanel) return;
+        const mqi = seg && seg.mqInsertedMatch;
+        if (!mqi || !mqi.sourceText) {
+            mqPanel.style.display = 'none';
+            mqPanel.innerHTML = '';
+            return;
+        }
+        const escMqi = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const rate = Number.isFinite(Number(mqi.rate)) ? Number(mqi.rate) : 0;
+        const scoreColor = rate >= 100 ? '#dcfce7' : (rate >= 70 ? '#ffedd5' : '#f1f5f9');
+        const diffHtml = typeof window.buildTmTrackChangeStackHtml === 'function'
+            ? window.buildTmTrackChangeStackHtml(seg.sourceText || '', mqi.sourceText || '')
+            : '';
+        mqPanel.innerHTML = `
+            <div class="mqi-header">
+                <span class="mqi-label">memoQ 預翻記錄</span>
+                <span class="mqi-score" style="background:${scoreColor}">${escMqi(rate)}%</span>
+                ${mqi.tmSource ? `<span class="mqi-tm-source">${escMqi(mqi.tmSource)}</span>` : ''}
+            </div>
+            <div class="mqi-diff">${diffHtml}</div>
+            <div class="mqi-target-label">TM 譯文</div>
+            <div class="mqi-target-text">${htmlForTmPlainWithPlaceholders(mqi.targetText || '')}</div>
+        `;
+        mqPanel.style.display = '';
+    }
+
     async function renderLiveTmMatches(seg) {
         const searchResultsDOM = document.getElementById('tmSearchResults');
         const footerDOM = document.getElementById('liveFooterContent');
         if (!searchResultsDOM || !footerDOM) return;
+
+        renderMqInsertedMatchPanel(seg);
 
         const hasTm = window.ActiveTmCache && window.ActiveTmCache.length > 0;
         const hasTb = window.ActiveTbTerms && window.ActiveTbTerms.length > 0;

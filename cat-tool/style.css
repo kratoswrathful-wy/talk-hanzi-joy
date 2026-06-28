@@ -1761,6 +1761,22 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     background: #cbd5e1;
     border-radius: 1px;
 }
+.mq-inserted-match-panel {
+    flex: 0 0 auto;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.5rem 0.6rem;
+    background: #f8fafc;
+    font-size: 0.82rem;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.mqi-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
+.mqi-label { font-weight: 600; color: #334155; }
+.mqi-score { border-radius: 4px; padding: 0 0.3rem; font-weight: 600; font-size: 0.78rem; }
+.mqi-tm-source { color: #64748b; font-size: 0.75rem; }
+.mqi-diff { margin-bottom: 0.35rem; }
+.mqi-target-label { font-size: 0.75rem; color: #64748b; margin-bottom: 0.2rem; }
+.mqi-target-text { color: #1e293b; }
 .cat-track-change-panel {
     flex: 0 0 auto;
     height: 132px;

@@ -852,6 +852,30 @@
                         }
                     }
 
+                    let mqInsertedMatch = null;
+                    if (isMqxliffFile) {
+                        const imEl = Array.from(tu.getElementsByTagName('*'))
+                            .find(n => n.localName === 'insertedmatch');
+                        if (imEl) {
+                            const imRate = parseInt(imEl.getAttribute('matchrate') || '0', 10);
+                            const imTmSource = imEl.getAttribute('source') || '';
+                            const imSrcNode = Array.from(imEl.childNodes)
+                                .find(n => n.localName === 'source' || n.nodeName === 'source');
+                            const imTgtNode = Array.from(imEl.childNodes)
+                                .find(n => n.localName === 'target' || n.nodeName === 'target');
+                            if (imSrcNode && imTgtNode) {
+                                const imSrcResult = Xliff.extractTaggedText(imSrcNode, { transparentG: true });
+                                const imTgtResult = Xliff.extractTaggedText(imTgtNode, { transparentG: true });
+                                mqInsertedMatch = {
+                                    rate: Number.isNaN(imRate) ? 0 : imRate,
+                                    tmSource: imTmSource,
+                                    sourceText: imSrcResult.text || '',
+                                    targetText: imTgtResult.text || ''
+                                };
+                            }
+                        }
+                    }
+
                     segments.push({
                         sheetName: 'XLIFF',
                         rowIdx: segCounter++,
@@ -876,7 +900,8 @@
                         targetTags,
                         writtenFile,
                         fileSourceLang,
-                        fileTargetLang
+                        fileTargetLang,
+                        mqInsertedMatch
                     });
                 });
 

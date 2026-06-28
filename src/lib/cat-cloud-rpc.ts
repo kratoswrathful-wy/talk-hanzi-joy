@@ -277,6 +277,13 @@ const mapSegmentRow = (r: any) => {
     wfReviewConfirmedBy: r.wf_review_confirmed_by ?? null,
     wfReviewRestoreSnapshot: tryParseJson(r.wf_review_restore_snapshot, null),
     wfReviewRevokedPending: !!r.wf_review_revoked_pending,
+    /** mqxliff：<mq:insertedmatch> 預翻快照（匯入時寫入，之後不更新） */
+    mqInsertedMatch: tryParseJson<{
+      rate: number;
+      tmSource: string;
+      sourceText: string;
+      targetText: string;
+    } | null>(r.mq_inserted_match, null),
   };
 };
 
@@ -1144,6 +1151,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           wf_trans_confirmed_by: s.wfTransConfirmedBy ?? null,
           wf_review_confirmed_at: s.wfReviewConfirmedAt ?? null,
           wf_review_confirmed_by: s.wfReviewConfirmedBy ?? null,
+          mq_inserted_match:
+            s.mqInsertedMatch != null && typeof s.mqInsertedMatch === "object"
+              ? s.mqInsertedMatch
+              : null,
         };
       });
       let totalCount = 0;
