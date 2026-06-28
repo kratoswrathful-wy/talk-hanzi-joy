@@ -72,6 +72,7 @@ function segmentExtraCamelToSnake(extra: Record<string, unknown> | null | undefi
 
 function tryParseJson<T>(v: unknown, fallback: T): T {
   if (Array.isArray(v)) return v as unknown as T;
+  if (v !== null && typeof v === "object" && !Array.isArray(v)) return v as T;
   if (typeof v === "string" && v) {
     try { return JSON.parse(v) as T; } catch { /* ignore */ }
   }
