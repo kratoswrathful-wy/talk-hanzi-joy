@@ -574,6 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let lastTbTerms = [];
     let tbTabFilterSelectedIds = null; // null = 全部
     let currentEditingTermIndex = -1;
+    let _tbTermEditOpenedFromEditor = false;
     // --- 編輯器與翻譯畫面 ---
     const sidePanelWidthResizer = document.getElementById('sidePanelWidthResizer');
     const sidePanel = document.querySelector('.editor-side-panel');
@@ -7239,7 +7240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
                     (full.terms || []).forEach((t) => {
                         if (t && ((t.source || '').trim() || (t.target || '').trim())) {
-                            window.ActiveTbTerms.push({ source: (t.source || '').trim(), target: (t.target || '').trim(), note: (t.note || '').trim(), tbId: full.id, tbName: full.name || `TB #${full.id}`, matchFlags: t.matchFlags || { caseInsensitive: true, wholeWord: false }, createdBy: t.createdBy || '', createdAt: t.createdAt || '' });
+                            window.ActiveTbTerms.push(mapDbTermToActiveTbTerm(t, full));
                         }
                     });
                 }
@@ -10542,6 +10543,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fresh = await DBService.getTB(tbId);
         if (fresh) renderOnlineTabsSection(fresh);
         await loadTbTermsList();
+        await refreshEditorTbUiAfterTermsChange();
 
         const successMsg = document.getElementById('tbTabResultSuccessMsg');
         if (successMsg) successMsg.textContent = `擷取完成，共寫入 ${newTerms.length} 筆術語。`;
@@ -10753,6 +10755,121 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.disabled = n === 0;
         btn.textContent = n > 0 ? `已隱藏的術語 (${n})` : '已隱藏的術語';
     }
+
+    function mapDbTermToActiveTbTerm(t, full) {
+        const _sysDefault = { caseInsensitive: true, wholeWord: false };
+        const _tabMap = Object.fromEntries((full.onlineTabs || []).map((tab) => [tab.id, tab.name]));
+        return {
+            source: (t.source || '').trim(),
+            target: (t.target || '').trim(),
+            note: (t.note || '').trim(),
+            tbId: full.id,
+            tbName: full.name || `TB #${full.id}`,
+            matchFlags: t.matchFlags || _sysDefault,
+            createdBy: t.createdBy || '',
+            createdAt: t.createdAt || '',
+            tabId: t.tabId || '',
+            tabName: t.tabId ? (_tabMap[t.tabId] || '') : '',
+            termNumber: typeof t.termNumber === 'number' ? t.termNumber : undefined,
+        };
+    }
+
+    async function rebuildActiveTbTermsFromProject() {
+        const readTbIds = window.ActiveReadTbIds || [];
+        if (!window.ActiveTbNames) window.ActiveTbNames = {};
+        window.ActiveTbTerms = [];
+        for (const tbId of readTbIds) {
+            const full = await DBService.getTB(tbId);
+            if (!full) continue;
+            window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
+            (full.terms || []).forEach((t) => {
+                if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim()))) {
+                    window.ActiveTbTerms.push(mapDbTermToActiveTbTerm(t, full));
+                }
+            });
+        }
+        const writeTbId = window.ActiveWriteTb;
+        if (writeTbId != null && !readTbIds.includes(writeTbId)) {
+            const wFull = await DBService.getTB(writeTbId);
+            if (wFull) window.ActiveTbNames[writeTbId] = wFull.name || `TB #${writeTbId}`;
+        }
+    }
+
+    async function refreshEditorTbUiAfterTermsChange() {
+        if (!currentFileId) return;
+        await rebuildActiveTbTermsFromProject();
+        refreshTbMatchUiAfterHideChange();
+    }
+
+    function canEditTbEntryInEditor(entry) {
+        if (_viewEditorReadOnly) return false;
+        if (entry == null || entry.tbId == null || window.ActiveWriteTb == null) return false;
+        if (entry.tbId !== window.ActiveWriteTb) return false;
+        return typeof entry.termNumber === 'number';
+    }
+
+    function openTbTermEditModalForTerm(tb, termIndex) {
+        if (!tb || termIndex < 0 || termIndex >= (tb.terms || []).length) return false;
+        const t = tb.terms[termIndex];
+        if (tbTermEditSource) tbTermEditSource.value = t.source || '';
+        if (tbTermEditTarget) tbTermEditTarget.value = t.target || '';
+        if (tbTermEditNote) tbTermEditNote.value = t.note || '';
+        const sysDefault = { caseInsensitive: true, wholeWord: false };
+        const flags = t.matchFlags || sysDefault;
+        const ciCb = document.getElementById('tbTermEditCaseInsensitive');
+        const wwCb = document.getElementById('tbTermEditWholeWord');
+        if (ciCb) ciCb.checked = flags.caseInsensitive === false;
+        if (wwCb) wwCb.checked = !!flags.wholeWord;
+        if (tbTermEditModal) tbTermEditModal.classList.remove('hidden');
+        return true;
+    }
+
+    window.catEditTbTermFromFooter = async function catEditTbTermFromFooter(tbId, termNumber) {
+        const tb = await DBService.getTB(tbId);
+        if (!tb || (tb.sourceType || 'manual') === 'online') return;
+        const terms = tb.terms || [];
+        const idx = terms.findIndex((t) => t.termNumber === termNumber);
+        if (idx < 0) {
+            alert('找不到該術語，請重新整理後再試。');
+            return;
+        }
+        currentTbId = tbId;
+        currentEditingTermIndex = idx;
+        _tbTermEditOpenedFromEditor = true;
+        if (!openTbTermEditModalForTerm(tb, idx)) return;
+    };
+
+    window.catDeleteTbTermFromFooter = async function catDeleteTbTermFromFooter(tbId, termNumber) {
+        const tb = await DBService.getTB(tbId);
+        if (!tb || (tb.sourceType || 'manual') === 'online') return;
+        const terms = tb.terms || [];
+        const idx = terms.findIndex((t) => t.termNumber === termNumber);
+        if (idx < 0) {
+            alert('找不到該術語，請重新整理後再試。');
+            return;
+        }
+        const target = terms[idx];
+        const src = target.source || '';
+        const tgt = target.target || '';
+        if (!(await openCatConfirmModal(`是否確定要刪除術語「${src} → ${tgt}」？`))) return;
+        const next = terms.filter((_, i) => i !== idx);
+        const changeLog = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
+        changeLog.push(makeBaseLogEntry('delete', 'tb-term', {
+            termNumbers: typeof target.termNumber === 'number' ? [target.termNumber] : [],
+            extra: {
+                terms: [{
+                    termNumber: target.termNumber,
+                    source: src,
+                    target: tgt,
+                    note: target.note || '',
+                }],
+            },
+        }));
+        await DBService.updateTB(tbId, { terms: next, changeLog });
+        if (currentTbId === tbId) lastTbTerms = next;
+        await loadTbTermsList();
+        await refreshEditorTbUiAfterTermsChange();
+    };
 
     function refreshTbMatchUiAfterHideChange() {
         const seg = window.currentCatFooterSeg;
@@ -11283,21 +11400,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const idx = parseInt(btn.getAttribute('data-term-index'), 10);
                 if (isNaN(idx) || idx < 0 || idx >= lastTbTerms.length) return;
                 currentEditingTermIndex = idx;
-                const t = lastTbTerms[idx];
-                if (tbTermEditSource) tbTermEditSource.value = t.source || '';
-                if (tbTermEditTarget) tbTermEditTarget.value = t.target || '';
-                if (tbTermEditNote) tbTermEditNote.value = t.note || '';
-                // 術語層級 matchFlags（預設系統值：caseInsensitive: true, wholeWord: false）
-                {
-                    const sysDefault = { caseInsensitive: true, wholeWord: false };
-                    const flags = t.matchFlags || sysDefault;
-                    const ciCb = document.getElementById('tbTermEditCaseInsensitive');
-                    const wwCb = document.getElementById('tbTermEditWholeWord');
-                    // 「區分大小寫」勾選 = caseInsensitive: false
-                    if (ciCb) ciCb.checked = flags.caseInsensitive === false;
-                    if (wwCb) wwCb.checked = !!flags.wholeWord;
-                }
-                if (tbTermEditModal) tbTermEditModal.classList.remove('hidden');
+                _tbTermEditOpenedFromEditor = false;
+                if (!openTbTermEditModalForTerm({ terms: lastTbTerms }, idx)) return;
             });
         });
         updateTbDetailInfoBlock();
@@ -11354,12 +11458,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             await DBService.updateTB(currentTbId, { terms: next, changeLog });
             lastTbTerms = next;
             await loadTbTermsList();
+            await refreshEditorTbUiAfterTermsChange();
         });
     }
 
     function closeTbTermEditModal() {
         if (tbTermEditModal) tbTermEditModal.classList.add('hidden');
         currentEditingTermIndex = -1;
+        _tbTermEditOpenedFromEditor = false;
     }
 
     if (btnCloseTbTermEdit) btnCloseTbTermEdit.addEventListener('click', closeTbTermEditModal);
@@ -11390,9 +11496,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 changeLog.push(makeBaseLogEntry('change', 'tb-term', { termNumbers: typeof termNumber === 'number' ? [termNumber] : [] }));
                 await DBService.updateTB(currentTbId, { terms: updated, changeLog });
             } else { closeTbTermEditModal(); return; }
+            const fromEditor = _tbTermEditOpenedFromEditor;
             lastTbTerms = updated;
             closeTbTermEditModal();
             await loadTbTermsList();
+            await refreshEditorTbUiAfterTermsChange();
+            if (fromEditor) catReturnFocusToEditorAfterTbAction();
         });
     }
 
@@ -12294,6 +12403,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     closeTbExcelModal();
                     alert(doneMsg);
                     await loadTbTermsList();
+                    await refreshEditorTbUiAfterTermsChange();
                     const tbNow = await DBService.getTB(currentTbId);
                     if (tbNow) {
                         applyTbTypeUI(tbNow);
@@ -12582,6 +12692,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const latest = await DBService.getTB(tbId);
         if (latest) renderOnlineTabsSection(latest);
         await loadTbTermsList();
+        await refreshEditorTbUiAfterTermsChange();
     }
     if (btnTbRefreshAllTabs) {
         btnTbRefreshAllTabs.addEventListener('click', () => {
@@ -17273,22 +17384,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 無論術語數量多寡，先記錄 TB 名稱供 UI 顯示
             window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
             const terms = full.terms ? full.terms : [];
-            const _sysDefault = { caseInsensitive: true, wholeWord: false };
-            const _tabMap = Object.fromEntries((full.onlineTabs || []).map(t => [t.id, t.name]));
             terms.forEach(t => {
                 if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim())))
-                    window.ActiveTbTerms.push({
-                        source: (t.source || '').trim(),
-                        target: (t.target || '').trim(),
-                        note: (t.note || '').trim(),
-                        tbId: full.id,
-                        tbName: full.name || `TB #${full.id}`,
-                        matchFlags: t.matchFlags || _sysDefault, // 術語層級優先，fallback 系統預設
-                        createdBy: t.createdBy || '',
-                        createdAt: t.createdAt || '',
-                        tabId: t.tabId || '',
-                        tabName: t.tabId ? (_tabMap[t.tabId] || '') : '',
-                    });
+                    window.ActiveTbTerms.push(mapDbTermToActiveTbTerm(t, full));
             });
         }
         // 若 writeTb 不在 readTbs 中，補抓其名稱供新增術語分頁顯示
@@ -25011,7 +25109,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             score: 100,
                             matchFlags: mf,
                             createdBy: term.createdBy || '',
-                            createdAt: term.createdAt || ''
+                            createdAt: term.createdAt || '',
+                            termNumber: term.termNumber,
                         }
                     });
                 });
@@ -25118,9 +25217,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div><strong>建立者：</strong>${byWho}</div>
                             <div><strong>建立時間：</strong>${byAt}</div>
                         </div>
+                        ${canEditTbEntryInEditor(entry) ? `<div class="cat-footer-tb-actions" style="display:flex; gap:0.35rem; flex-wrap:wrap; margin-top:0.35rem;">
+                            <button type="button" class="secondary-btn btn-sm" onclick="catEditTbTermFromFooter(${entry.tbId}, ${entry.termNumber})">編輯術語</button>
+                            <button type="button" class="danger-btn btn-sm" onclick="catDeleteTbTermFromFooter(${entry.tbId}, ${entry.termNumber})">刪除此術語</button>
+                        </div>` : ''}
                         </div>`;
                         });
-                        footerHtml += `<div class="cat-footer-section cat-footer-tb-hide-wrap">
+                        footerHtml += `<div class="cat-footer-section cat-footer-tb-hide-wrap" style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center;">
                             <button type="button" class="secondary-btn btn-sm cat-tb-hide-btn"
                                 data-tip="隱藏後，此術語在本次開啟檔案期間不會出現在右欄比對與原文提示。關閉編輯器、離開檔案或關閉分頁後會恢復。QA 仍會檢查此術語。"
                                 onclick="catHideTbTermFromFooter()">將此術語隱藏</button>
@@ -27456,6 +27559,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (nameEl) nameEl.textContent = tbName;
     }
 
+    function catReturnFocusToEditorAfterTbAction() {
+        const catTabBtn = document.querySelector('.tab-btn[data-tab="tabCAT"]');
+        if (catTabBtn) catTabBtn.click();
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (restoreSavedCaretIntoEditor()) {
+                    const sel = window.getSelection();
+                    if (sel && !sel.isCollapsed) sel.collapseToEnd();
+                } else {
+                    restoreOrShowFakeCatCaret();
+                }
+            });
+        });
+    }
+
     async function submitNewTermFromForm() {
         const writeTbId = window.ActiveWriteTb;
         if (writeTbId == null) { alert('未設定寫入目標術語庫。'); return; }
@@ -27480,27 +27598,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const changeLog = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
         changeLog.push(makeBaseLogEntry('add', 'tb-term', { termNumbers: [nextNum] }));
         await DBService.updateTB(writeTbId, { terms, nextTermNumber: nextNum + 1, changeLog });
-        window.ActiveTbTerms.push({
-            source: src, target: tgt, note, matchFlags: termMatchFlags, tbId: writeTbId, tbName: tb.name || `TB #${writeTbId}`,
-            createdBy: userName, createdAt: now
-        });
+        await refreshEditorTbUiAfterTermsChange();
         const statusEl = document.getElementById('newTermStatus');
         if (statusEl) { statusEl.textContent = `已新增術語 #${nextNum}`; statusEl.style.display = ''; setTimeout(() => { statusEl.style.display = 'none'; }, 3000); }
         if (document.getElementById('newTermSource')) document.getElementById('newTermSource').value = '';
         if (document.getElementById('newTermTarget')) document.getElementById('newTermTarget').value = '';
         if (document.getElementById('newTermNote')) document.getElementById('newTermNote').value = '';
-        const catTabBtn = document.querySelector('.tab-btn[data-tab="tabCAT"]');
-        if (catTabBtn) catTabBtn.click();
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                if (restoreSavedCaretIntoEditor()) {
-                    const sel = window.getSelection();
-                    if (sel && !sel.isCollapsed) sel.collapseToEnd();
-                } else {
-                    restoreOrShowFakeCatCaret();
-                }
-            });
-        });
+        catReturnFocusToEditorAfterTbAction();
     }
 
     const btnAddNewTerm = document.getElementById('btnAddNewTerm');

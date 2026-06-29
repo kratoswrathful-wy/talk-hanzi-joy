@@ -1,7 +1,7 @@
 # CAT 右欄 TB 比對：子字串壓制、合併、隱藏與復原
 
 **日期**：2026-06  
-**狀態**：已實作，待驗收  
+**狀態**：已驗收（`6261102` 起含 UI 微調；即時同步與編輯器內改刪見 [`CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md`](CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md)）  
 **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)
 
 ## 背景
@@ -55,6 +55,7 @@
 |------|------|------|
 | N 筆命中 | 比對表 TB 列分數欄 | 同原文同譯文合併且 N>1 時，於 TB 標籤上方顯示筆數 |
 | 精確比對 ? | TB footer 精確比對列右側 | hover 顯示無延遲黑色 tooltip（精確比對白話說明） |
+| 編輯術語／刪除此術語 | TB footer 各段 metadata 下方（僅寫入目標 TB） | 編輯器內改刪術語；見 live sync 規劃檔 |
 | 將此術語隱藏 | TB metadata 最下方 | `data-tip` 說明效力；隱藏目前列的原文+譯文 |
 | 已隱藏的術語 (N) | metadata 上方列左側（與收合資訊同一列） | 無隱藏時 disabled；開啟 Modal |
 | 已隱藏的術語 Modal | 全螢幕 overlay | 勾選＝仍隱藏；**取消勾選即復原**；欄：原文／譯文／術語庫 |
@@ -82,6 +83,8 @@ ActiveTbTerms → AI 批次（可選過濾）
 
 ## 驗收步驟（白話）
 
+**狀態**：下列 1～12 項均已驗收（含 2026-06-29 Accelerate 合併列、「N 筆命中」、精確比對 `?` tooltip）。
+
 1. `Base→基地` 與 `Base→根據`：右欄兩列。
 2. 兩個 TB 皆 `Base→基地`：一列；分數欄顯示「2 筆命中」；footer 各 TB 名只出現一次。
 3. `Mark Anthony` 壓制 `Anthony`／`Ant`；句尾獨立 `ant` 不壓制。
@@ -94,6 +97,22 @@ ActiveTbTerms → AI 批次（可選過濾）
 10. **Accelerate 等多 TB 合併**：同原文同譯文兩筆 → 比對表一列、分數欄「2 筆命中」、無黃底附加列；點選 footer 仍兩段 metadata。
 11. **單筆 TB**：分數欄只顯示「TB」，不顯示「1 筆命中」。
 12. **精確比對說明**：footer 無灰色大段文字；游標移上「?」見黑色 tooltip（無精確比對／有精確比對白話說明）。
+
+## 6. 開發與驗收時序
+
+| commit | 內容 |
+|--------|------|
+| `5d96a34` | 子字串壓制、同原文同譯文合併、`_tbDupes` inline 初版 |
+| `c560167` | 合併 key 改原文+譯文、tbId 去重、工作階段隱藏／復原、AI 批次選項 |
+| `1304299` | **除錯**：Card/card 誤壓制 — 壓制須嚴格區分大小寫子字串 |
+| `6261102` | UI：「N 筆命中」堆疊於 TB、精確比對圈問號 tooltip — **使用者驗收通過** |
+
+### 6.1 除錯紀錄：Card／card 誤壓制
+
+- **症狀**：Riftbound `Card→卡牌` 與另一 TB `card→卡牌` 應為兩列，卻只剩一列。
+- **根因**：舊壓制只看 range 涵蓋，未檢查原文是否為**嚴格**（區分大小寫）子字串。
+- **修正**：`isTbSourceStrictSubstring` + `shouldSuppressTbHit` 五條件全滿才壓制（`1304299`）。
+- **驗收**：含 `card` 句段右欄兩列 TB，footer 各一段 metadata。
 
 ## 維護邊界
 
