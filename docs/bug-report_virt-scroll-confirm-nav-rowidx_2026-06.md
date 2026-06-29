@@ -139,3 +139,11 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 **根因**：`#catEditorChromeLayer` `absolute` 隨 virt 內容捲走；`_suspendEditingPreserve` 黏滯 → resize 重畫不 preserve。
 
 **修正**：`syncChromeLayerRect`、fixed 覆蓋層 append `body`；移除 suspend；`isEditingFocusLostAfterVirtRender`。詳見同檔 §2.11。
+
+### 6.6 Phase 2.3i — 離窗不硬抓焦點、篩選置中（2026-06-29）
+
+**症狀**（2.3h `ffe459d` 後）：捲動後真假游標 tip 仍不顯示；篩選進出畫面亂跳。
+
+**根因**：preserve 對已捲出視窗句段仍 `applyEditorFocusAtSegId`；篩選重建快照時 `isSfSearchControlActive()` 跳過置中錨點。
+
+**修正**：未掛載列不還原焦點、改 `refreshAfterVirtRender` 離屏 tip；`didRebuildFilterSnapshot` 一律錨定編輯句（被篩掉則置頂）。詳見 §2.12。

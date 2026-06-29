@@ -4179,7 +4179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let lastWordCountPerUnitResults = null;
     let wordCountSelectedFileIds = [];
     /** 與 WordCountEngine.DEFAULT_DISCOUNTS 一致；TM 95–100%／檔內重複可由分析 Modal 覆寫 */
-    let _wcDiscounts = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00 };
+    let _wcDiscounts = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00, ctx101: 0.00 };
     /** per fileId / viewId / editor fileId — 見 docs/CAT_WORD_COUNT_WORKER_AND_UI.md §6 */
     const _fileProgressModeById = Object.create(null);
     const _viewProgressModeById = Object.create(null);
@@ -4225,8 +4225,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             isLocked: s.isLocked,
             isLockedUser: s.isLockedUser,
             isLockedSystem: s.isLockedSystem,
-            status: s.status
+            status: s.status,
+            mqMatchRate: (s.mqInsertedMatch && s.mqInsertedMatch.rate != null)
+                ? s.mqInsertedMatch.rate
+                : null
         }));
+    }
+
+    /** 拆分預覽：檔內重複優先；否則 eff=max(TM%, memoQ insertedmatch rate%)。 */
+    function _wcBucketKeyForSegment(srcN, seg, seenSrc, tmNormList, tmExact) {
+        if (seenSrc.has(srcN)) return 'repetition';
+        seenSrc.add(srcN);
+        let mqPct = 0;
+        const mqRate = seg && seg.mqInsertedMatch && seg.mqInsertedMatch.rate;
+        if (mqRate != null && Number.isFinite(Number(mqRate)) && Number(mqRate) > 0) {
+            mqPct = Number(mqRate);
+        }
+        let tmPct = 0;
+        const WCE = window.WordCountEngine;
+        if (tmNormList.length && WCE) {
+            if (tmExact.has(srcN)) tmPct = 100;
+            else tmPct = WCE._bestTmSimilarity(srcN, tmNormList) * 100;
+        }
+        const eff = Math.max(tmPct, mqPct);
+        if (eff >= 101) return 'ctx101';
+        if (eff >= 95) return 'tm9599';
+        if (eff >= 85) return 'tm8594';
+        if (eff >= 75) return 'tm7584';
+        if (eff >= 50) return 'tm5074';
+        return 'newWords';
     }
 
     function runWcAnalyzeWorker(payload, onProgress) {
@@ -8369,7 +8396,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function readWcDiscountsFromInputs() {
-        const fallback = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00 };
+        const fallback = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00, ctx101: 0.00 };
         const base = (window.WordCountEngine && WordCountEngine.DEFAULT_DISCOUNTS)
             ? { ...WordCountEngine.DEFAULT_DISCOUNTS }
             : { ...fallback };
@@ -9450,30 +9477,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!includeLocked && isLocked) return;
                 const WCE = window.WordCountEngine;
                 const rawW = (WCE && WCE.weightedUnits) ? WCE.weightedUnits(s.sourceText || '') : 0;
-                let w = rawW;
-                if (useTm && WCE && tmNormList.length) {
-                    const srcN = WCE.normKey(s.sourceText || '');
-                    let bucketKey = 'newWords';
-                    if (seenSrc.has(srcN)) {
-                        bucketKey = 'repetition';
-                    } else {
-                        seenSrc.add(srcN);
-                        if (tmExact.has(srcN)) {
-                            bucketKey = 'tm9599';
-                        } else {
-                            const sim = WCE._bestTmSimilarity(srcN, tmNormList);
-                            if (sim >= 0.95) bucketKey = 'tm9599';
-                            else if (sim >= 0.85) bucketKey = 'tm8594';
-                            else if (sim >= 0.75) bucketKey = 'tm7584';
-                            else if (sim >= 0.50) bucketKey = 'tm5074';
-                            else bucketKey = 'newWords';
-                        }
-                    }
-                    w = rawW * (TM_DISCOUNT[bucketKey] ?? 1.0);
-                } else {
-                    const srcN = WCE ? WCE.normKey(s.sourceText || '') : (s.sourceText || '');
-                    if (!seenSrc.has(srcN)) seenSrc.add(srcN);
-                }
+                const srcN = WCE ? WCE.normKey(s.sourceText || '') : (s.sourceText || '');
+                const bucketKey = _wcBucketKeyForSegment(srcN, s, seenSrc, tmNormList, tmExact);
+                const w = rawW * (TM_DISCOUNT[bucketKey] ?? 1.0);
                 totalW += w;
                 flat.push({ fileName: fr.name, rowInFile: i + 1, weight: w });
             });
@@ -9547,30 +9553,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!includeLocked && isLocked) return;
             const WCE = window.WordCountEngine;
             const rawW = (WCE && WCE.weightedUnits) ? WCE.weightedUnits(s.sourceText || '') : 0;
-            let w = rawW;
-            if (useTm && WCE && tmNormList.length) {
-                const srcN = WCE.normKey(s.sourceText || '');
-                let bucketKey = 'newWords';
-                if (seenSrc.has(srcN)) {
-                    bucketKey = 'repetition';
-                } else {
-                    seenSrc.add(srcN);
-                    if (tmExact.has(srcN)) {
-                        bucketKey = 'tm9599';
-                    } else {
-                        const sim = WCE._bestTmSimilarity(srcN, tmNormList);
-                        if (sim >= 0.95) bucketKey = 'tm9599';
-                        else if (sim >= 0.85) bucketKey = 'tm8594';
-                        else if (sim >= 0.75) bucketKey = 'tm7584';
-                        else if (sim >= 0.50) bucketKey = 'tm5074';
-                        else bucketKey = 'newWords';
-                    }
-                }
-                w = rawW * (TM_DISCOUNT[bucketKey] ?? 1.0);
-            } else {
-                const srcN = WCE ? WCE.normKey(s.sourceText || '') : (s.sourceText || '');
-                if (!seenSrc.has(srcN)) seenSrc.add(srcN);
-            }
+            const srcN = WCE ? WCE.normKey(s.sourceText || '') : (s.sourceText || '');
+            const bucketKey = _wcBucketKeyForSegment(srcN, s, seenSrc, tmNormList, tmExact);
+            const w = rawW * (TM_DISCOUNT[bucketKey] ?? 1.0);
             totalW += w;
             flat.push({ fileName: '句段集', rowInFile: i + 1, weight: w });
         });
@@ -19666,10 +19651,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfLastFocusedMatchSegIdx = null;
 
         let scrollAnchorSegId = null;
-        if (didRebuildFilterSnapshot && !isSfSearchControlActive()) {
+        let scrollAnchorBlock = 'center';
+        if (didRebuildFilterSnapshot) {
             const resolved = resolveFilterScrollAnchor();
             if (resolved.inList && resolved.segId != null) {
                 scrollAnchorSegId = resolved.segId;
+                scrollAnchorBlock = 'center';
                 _filterAnchorGen++;
                 _filterAnchorPending = {
                     segId: resolved.segId,
@@ -19679,12 +19666,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
             } else {
                 _filterAnchorPending = null;
+                const firstVisible = currentSegmentsList.find((s) => s && isSegmentVisibleInEditor(s));
+                if (firstVisible) {
+                    scrollAnchorSegId = firstVisible.id;
+                    scrollAnchorBlock = 'start';
+                }
             }
         }
         if (virtActive && didRebuildFilterSnapshot) {
             window.CatVirtGrid.invalidateHeights(
                 scrollAnchorSegId != null ? scrollAnchorSegId : undefined,
-                scrollAnchorSegId != null ? 'center' : undefined
+                scrollAnchorSegId != null ? scrollAnchorBlock : undefined
             );
         }
         syncSelectedRowAbutmentTopClass();
@@ -21264,6 +21256,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             _preserveEditingAcrossVirtRender = null;
+            const mountedRow = getGridRowBySegId(preserved.segId, false);
+            if (!mountedRow) {
+                if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {
+                    catFakeCaret.refreshAfterVirtRender();
+                }
+                return;
+            }
             applyEditorFocusAtSegId(preserved.segId, {
                 segId: preserved.segId,
                 plainOffset: preserved.plainOffset,

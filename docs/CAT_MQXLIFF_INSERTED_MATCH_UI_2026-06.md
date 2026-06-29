@@ -68,6 +68,17 @@ memoQ 匯出的 `.mqxliff` 在 `<mq:insertedmatch>` 內嵌預翻當下的 TM 原
 - 無 `<mq:insertedmatch>` 時不插入該列。
 - 已移除獨立 `#mqInsertedMatchPanel`。
 
+## 字數加權（Phase 2.3i，2026-06-29）
+
+**規則**（[`cat-tool/word-count-engine.js`](../cat-tool/word-count-engine.js)、拆分預覽 [`app.js`](../cat-tool/app.js) `runSplitHintWeightedPreview*`）：
+
+1. 檔內重複優先 → 重複級距（0 折）。
+2. 否則 `eff = max(我方 TM 相似度%, mqInsertedMatch.rate%)`。
+3. `eff >= 101` → 獨立級距 `ctx101`（0 折）；其餘對應 TM 95–100%／85–94%…／新字。
+4. memoQ `rate` **不受**字數分析 Modal 是否勾選 TM 影響（有預翻資料的句一律納入）。
+
+**觸點**：字數分析 Modal、拆分預覽、清單／編輯器加權進度條（皆走 `WordCountEngine.analyze` 或 `_wcBucketKeyForSegment`）。
+
 ## Migration
 
 - `supabase/migrations/20260628120000_cat_segments_mq_inserted_match.sql`（Team；**已 push**）

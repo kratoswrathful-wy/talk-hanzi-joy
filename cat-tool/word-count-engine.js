@@ -7,6 +7,7 @@
 
     /** 預設折扣（0–1）；可由 analyze(opts.discounts) 覆寫 tm9599、repetition */
     const DEFAULT_DISCOUNTS = {
+        ctx101: 0.00,
         tm9599: 0.10,
         tm8594: 0.25,
         tm7584: 0.50,
@@ -110,6 +111,28 @@
         return out;
     }
 
+    function getMqMatchPct(seg) {
+        const r = seg && seg.mqMatchRate;
+        if (r == null || r === '') return 0;
+        const n = Number(r);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
+    function getTmMatchPct(srcN, tmList, tmExact) {
+        if (tmExact.has(srcN)) return 100;
+        if (!tmList.length) return 0;
+        return bestTmSimilarity(srcN, tmList) * 100;
+    }
+
+    function bucketKeyFromEffectivePct(eff) {
+        if (eff >= 101) return 'ctx101';
+        if (eff >= 95) return 'tm9599';
+        if (eff >= 85) return 'tm8594';
+        if (eff >= 75) return 'tm7584';
+        if (eff >= 50) return 'tm5074';
+        return 'newWords';
+    }
+
     /**
      * @param {object} opts
      * @param {Array<{sourceText?:string,targetText?:string,isLocked?:boolean,isLockedUser?:boolean,isLockedSystem?:boolean}>} opts.segments
@@ -127,6 +150,7 @@
         const buckets = {
             lockedSkipped: { label: '鎖定（略過）', segments: 0, raw: 0, weighted: 0 },
             repetition: { label: '檔內重複', segments: 0, raw: 0, weighted: 0 },
+            ctx101: { label: '101%+（文境／ICE）', segments: 0, raw: 0, weighted: 0 },
             tm9599: { label: 'TM 95–100%', segments: 0, raw: 0, weighted: 0 },
             tm8594: { label: 'TM 85–94%', segments: 0, raw: 0, weighted: 0 },
             tm7584: { label: 'TM 75–84%', segments: 0, raw: 0, weighted: 0 },
@@ -159,18 +183,10 @@
                 bucketKey = 'repetition';
             } else {
                 seenSrc.add(srcN);
-                if (tmExact.has(srcN)) {
-                    bucketKey = 'tm9599';
-                } else if (tmList.length) {
-                    const sim = bestTmSimilarity(srcN, tmList);
-                    if (sim >= 0.95) bucketKey = 'tm9599';
-                    else if (sim >= 0.85) bucketKey = 'tm8594';
-                    else if (sim >= 0.75) bucketKey = 'tm7584';
-                    else if (sim >= 0.50) bucketKey = 'tm5074';
-                    else bucketKey = 'newWords';
-                } else {
-                    bucketKey = 'newWords';
-                }
+                const mqPct = getMqMatchPct(seg);
+                const tmPct = getTmMatchPct(srcN, tmList, tmExact);
+                const eff = Math.max(tmPct, mqPct);
+                bucketKey = bucketKeyFromEffectivePct(eff);
             }
 
             const disc = discounts[bucketKey] != null ? discounts[bucketKey] : 1.0;
@@ -181,7 +197,7 @@
             perSegment.push({ skip: false, rawW, weightedW, bucketKey });
         }
 
-        const order = ['lockedSkipped', 'repetition', 'tm9599', 'tm8594', 'tm7584', 'tm5074', 'newWords'];
+        const order = ['lockedSkipped', 'repetition', 'ctx101', 'tm9599', 'tm8594', 'tm7584', 'tm5074', 'newWords'];
         const rows = order.map((k) => ({
             key: k,
             label: buckets[k].label,
@@ -233,6 +249,7 @@
         const buckets = {
             lockedSkipped: { label: '鎖定（略過）', segments: 0, raw: 0, weighted: 0 },
             repetition: { label: '檔內重複', segments: 0, raw: 0, weighted: 0 },
+            ctx101: { label: '101%+（文境／ICE）', segments: 0, raw: 0, weighted: 0 },
             tm9599: { label: 'TM 95–100%', segments: 0, raw: 0, weighted: 0 },
             tm8594: { label: 'TM 85–94%', segments: 0, raw: 0, weighted: 0 },
             tm7584: { label: 'TM 75–84%', segments: 0, raw: 0, weighted: 0 },
@@ -262,18 +279,10 @@
                     bucketKey = 'repetition';
                 } else {
                     seenSrc.add(srcN);
-                    if (tmExact.has(srcN)) {
-                        bucketKey = 'tm9599';
-                    } else if (tmList.length) {
-                        const sim = bestTmSimilarity(srcN, tmList);
-                        if (sim >= 0.95) bucketKey = 'tm9599';
-                        else if (sim >= 0.85) bucketKey = 'tm8594';
-                        else if (sim >= 0.75) bucketKey = 'tm7584';
-                        else if (sim >= 0.50) bucketKey = 'tm5074';
-                        else bucketKey = 'newWords';
-                    } else {
-                        bucketKey = 'newWords';
-                    }
+                    const mqPct = getMqMatchPct(seg);
+                    const tmPct = getTmMatchPct(srcN, tmList, tmExact);
+                    const eff = Math.max(tmPct, mqPct);
+                    bucketKey = bucketKeyFromEffectivePct(eff);
                 }
 
                 const disc = discounts[bucketKey] != null ? discounts[bucketKey] : 1.0;
@@ -290,7 +299,7 @@
             }
         }
 
-        const order = ['lockedSkipped', 'repetition', 'tm9599', 'tm8594', 'tm7584', 'tm5074', 'newWords'];
+        const order = ['lockedSkipped', 'repetition', 'ctx101', 'tm9599', 'tm8594', 'tm7584', 'tm5074', 'newWords'];
         const rows = order.map((k) => ({
             key: k,
             label: buckets[k].label,

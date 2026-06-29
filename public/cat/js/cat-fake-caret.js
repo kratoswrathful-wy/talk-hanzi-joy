@@ -389,8 +389,8 @@
             if (!saved || saved.segId == null) return;
             if (!syncChromeLayerRect()) return;
             const passiveOpts = { scroll: false };
-            const { editor } = resolveSavedEditor(passiveOpts);
-            if (!editor || editor.contentEditable === 'false') {
+            const { row, editor } = resolveSavedEditor(passiveOpts);
+            if (!row || !editor || editor.contentEditable === 'false') {
                 showOffScreenFakeTip(resolveOffScreenTipAbove(saved.segId));
                 return;
             }
@@ -545,9 +545,19 @@
             return saved;
         }
 
+        function isSavedSegMountedInWindow() {
+            if (!saved || saved.segId == null) return false;
+            const { row, editor } = findRowAndEditorForSegId(saved.segId, { scroll: false });
+            return !!(row && editor);
+        }
+
         function refreshAfterVirtRender() {
             if (!saved || saved.segId == null) return;
             if (!syncChromeLayerRect()) return;
+            if (!isSavedSegMountedInWindow()) {
+                showOffScreenFakeTip(resolveOffScreenTipAbove(saved.segId));
+                return;
+            }
             const active = document.activeElement;
             if (active && active.classList && active.classList.contains('grid-textarea')) {
                 const activeSegId = getEditorSegId(active);

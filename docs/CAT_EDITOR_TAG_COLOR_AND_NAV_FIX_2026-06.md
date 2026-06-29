@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3h 已實作，待驗收**（2026-06-29；2.3g `e84f06d` 三症狀未解 → 2.3h 疊層 fixed 化／移除 suspend／焦點遺失才還原）
+> **狀態**：**Phase 2.3i 已實作，待驗收**（2026-06-29；2.3h `ffe459d` 項 2 通過、3／4／5 未通過 → 2.3i 離窗不硬抓焦點／篩選置中／字數 memoQ 預翻）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
@@ -230,6 +230,23 @@
 | suspend | **移除** `_suspendEditingPreserve`；`capture` 永遠擷取編輯中焦點 |
 | preserve flush | 僅當 `activeElement` 為 `null`／`BODY`（焦點遺失）才還原；焦點在 TM／右欄不搶回 |
 
+### 2.12 Phase 2.3i — 離窗不硬抓焦點／篩選置中（2026-06-29）
+
+**2.3h 產品驗收**（`ffe459d`）：項 2（確認不掉焦）**通過**；項 3／5（捲動後提示卡不顯示）、項 4（篩選進出亂跳）**未通過**。
+
+**根因**：
+
+1. `flushEditorFocusAfterVirtRender` 在焦點遺失時仍對**已捲出虛擬視窗**的句段 `applyEditorFocusAtSegId`（強制掛載＋聚焦）→ 真／假游標離屏判斷誤以為「仍在畫面內」。
+2. `runSearchAndFilter` 篩選快照重建時，`!isSfSearchControlActive()` 擋住置中錨點（焦點在篩選面板時永遠跳過）。
+
+**修正**：
+
+| 項目 | 作法 |
+|------|------|
+| preserve flush | 焦點遺失時僅當 `getGridRowBySegId(segId, false)` **已掛載**才還原焦點；未掛載 → `refreshAfterVirtRender()` 顯示離屏 tip |
+| 假游標 | `refreshAfterVirtRender`／`show`：未掛載列一律 `showOffScreenFakeTip`（`resolveOffScreenTipAbove` 貼頂／底） |
+| 篩選置中 | `didRebuildFilterSnapshot` 時一律 `resolveFilterScrollAnchor()`；編輯句在清單內 → `'center'`；被篩掉 → 第一可見句 `'start'`（置頂） |
+
 ---
 
 ## §3 產品端驗收紀錄（2026-06）
@@ -303,7 +320,16 @@
 | 假游標不繪製 | preserve 搶焦 + `show()` hide；疊層隨內容捲走 |
 | 卡片消失／錯位 | chrome layer `absolute` 在 `overflow:auto` 內，非可視窗口釘定 |
 
-**2.3h 狀態**：**已實作，待驗收**（驗收項 §1.3 之 8～22 + Ctrl+Alt+↓；小檔 ≤800 regression）。
+**2.3h 狀態**：**已推送 `ffe459d`，部分驗收通過**（項 2 通過；3／4／5 未通過；見 §3.8）。
+
+### 3.8 Phase 2.3h 部分驗收 → 2.3i 修正目標（2026-06-29）
+
+| # | 現象 | 根因（一句） |
+|---|------|-------------|
+| 3／5 | 捲動後提示卡不顯示 | 離窗句段被 preserve 硬抓回焦點／掛載，離屏判斷失效 |
+| 4 | 篩選進出亂跳 | `isSfSearchControlActive()` 擋住篩選快照重建時的置中錨點 |
+
+**2.3i 狀態**：**已實作，待驗收**（項 3～5、21～22 regression；篩選被篩掉時置頂）。
 
 ---
 
@@ -318,4 +344,5 @@
 | 2026-06-29 | Phase 2.3e：virt 置中、`centerOnSegId`、preserve 僅 pending；**已推送 `78818d0`，部分驗收未通過** |
 | 2026-06-29 | Phase 2.3f：雙軌 preserve、單次 center、pending gen、onAfterRender 順序；**已推送 `927ceec`，部分驗收未通過** |
 | 2026-06-29 | Phase 2.3g：篩選兩段式置中、`suspendEditingPreserve`、錨點釋放、Ctrl+Alt+↓ 強制 center；**已推送 `e84f06d`，產品驗收未通過** |
-| 2026-06-29 | Phase 2.3h：疊層 fixed 化、移除 suspend、焦點遺失才還原 preserve；**已實作，待驗收** |
+| 2026-06-29 | Phase 2.3h：疊層 fixed 化、移除 suspend、焦點遺失才還原 preserve；**已推送 `ffe459d`，部分驗收通過** |
+| 2026-06-29 | Phase 2.3i：離窗不硬抓焦點、篩選置中／被篩掉置頂；字數 memoQ 預翻 `max(TM%,rate%)`；**已實作，待驗收** |
