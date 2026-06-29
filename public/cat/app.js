@@ -24963,7 +24963,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const fSeg = window.currentCatFooterSeg;
                     let footerHtml = '';
                     if (m.type === 'TB') {
-                        const greyHint = '關閉精確比對時，只要句子裡任何地方出現這串原文就算可能命中。\n開啟精確比對時，這串原文要像是獨立的詞（前後不能緊貼其他英文字母或數字）。';
+                        const exactMatchTip = '無精確比對時，只要句子裡任何地方出現這串原文就算可能命中。有精確比對時，這串原文要像是獨立的詞（前後不能緊貼其他英文字母或數字）。';
+                        const exactMatchTipEsc = exactMatchTip.replace(/"/g, '&quot;');
                         const allTbEntries = [m, ...(m._tbDupes || [])];
                         allTbEntries.forEach((entry, i) => {
                             if (i > 0) footerHtml += '<hr style="border:none;border-top:1px solid #e2e8f0;margin:0.4rem 0;">';
@@ -24981,8 +24982,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <strong>術語庫：</strong>${escFoot(entry.tbName || 'N/A')}${_tabSuffix}<br>
                             ${noteHtml ? `<strong>備註：</strong>${noteHtml}<br>` : ''}
                             <div><strong>區分大小寫：</strong>${caseRow}</div>
-                            <div><strong>精確比對：</strong>${exactRow}</div>
-                            <p style="margin:0.35rem 0 0 0; font-size:0.72rem; color:#94a3b8; line-height:1.45; white-space:pre-line;">${greyHint}</p>
+                            <div style="display:flex; align-items:center; gap:0.25rem; flex-wrap:wrap;"><strong>精確比對：</strong>${exactRow}<span class="cat-field-help-icon" data-tip="${exactMatchTipEsc}" aria-label="精確比對說明" tabindex="0">?</span></div>
                             <div><strong>建立者：</strong>${byWho}</div>
                             <div><strong>建立時間：</strong>${byAt}</div>
                         </div>
@@ -25067,7 +25067,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             scoreInner = `<span class="result-pct-stack">${pctHtml}<span class="result-pct-label">${label}</span></span>`;
                             scoreBg = isMt ? 'background:#ffedd5;' : 'background:#dbeafe;';
                         } else if (isTb) {
-                            scoreInner = '<span class="result-pct-main">TB</span>';
+                            const dupeCount = 1 + (m._tbDupes?.length || 0);
+                            const hitLabel = dupeCount > 1
+                                ? `<span class="result-pct-label">${dupeCount} 筆命中</span>`
+                                : '';
+                            scoreInner = `<span class="result-pct-stack">${hitLabel}<span class="result-pct-main">TB</span></span>`;
                             scoreBg = 'background:#fef9c3;';
                         } else if (isFragment) {
                             scoreInner = '<span class="result-pct-main">Frg</span>';
@@ -25090,15 +25094,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             return `<div class="cat-tm-dupe-line"><strong>${tnm}</strong> · ${tStr}<br>譯文：${tt}</div>`;
                         }).join('')}
                     </div>` : '';
-                        const tbDupesInline = (isTb && m._tbDupes && m._tbDupes.length)
-                            ? `<div class="cat-tb-dupes-inline">${
-                                m._tbDupes.map((d) => {
-                                    const dn = escRow(d.tbName || '');
-                                    const dt = htmlForTmPlainWithPlaceholders(d.targetText || '');
-                                    return `<span class="cat-tb-dupe-chip">${dt}<span class="cat-tb-dupe-chip-tb"> · ${dn}</span></span>`;
-                                }).join('')
-                            }</div>`
-                            : '';
                         const isSelected = idx === window.catPanelSelectedIndex;
                         const missingClass = isTbMissing ? ' result-item--tb-missing' : '';
                         return `
@@ -25112,7 +25107,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="result-cell result-cell--target">${htmlForTmPlainWithPlaceholders(m.targetText)}</div>
                             </div>
                     ${dupPanel}
-                    ${tbDupesInline}
                     </div>
                     `;
                     }).join('');

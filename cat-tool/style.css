@@ -2143,21 +2143,20 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     margin-bottom: 0;
     padding-bottom: 0;
 }
-.cat-tb-dupes-inline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 0.5rem;
-    padding: 0.2rem 0.5rem 0.35rem 2.4rem;
-    background: #fefce8;
-    border-top: 1px solid #fde68a;
-    font-size: 0.78rem;
-    color: #334155;
-}
-.cat-tb-dupe-chip {
-    white-space: nowrap;
-}
-.cat-tb-dupe-chip-tb {
-    color: #94a3b8;
+.cat-field-help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid #94a3b8;
+    border-radius: 50%;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: help;
+    line-height: 1;
+    flex-shrink: 0;
 }
 .cat-footer-toolbar {
     display: flex;

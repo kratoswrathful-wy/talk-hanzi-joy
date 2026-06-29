@@ -31,14 +31,14 @@
 
 - groupBy key：`sourceText + '\x00' + targetText`（**精確字串**）；`Anthony` 與 `anthony` 為兩列；`Base→基地` 與 `Base→根據` 為兩列。
 - 同組內依 `firstStart` 排序；第一筆為主列，其餘經 **tbId 去重** 後放入 `_tbDupes`。
-- 主列顯示第一筆譯文；`_tbDupes` 以 `.cat-tb-dupes-inline` 平鋪於列下方。
+- 主列顯示第一筆譯文；合併多筆時分數欄上方顯示 **`N 筆命中`**（`N > 1` 時），下方為 **TB** 標籤。
 - footer 依序顯示主列 + `_tbDupes` 的 metadata（每 TB 最多一段）。
 
 ### 2.1 同一術語庫名稱只顯示一次
 
 合併組內若同一 `tbId`（fallback `tbName`）有多筆相同原文+譯文重複登錄：
 
-- footer metadata、inline chip、隱藏 Modal 的「術語庫」欄：**該 TB 名稱只顯示一次**。
+- footer metadata、隱藏 Modal 的「術語庫」欄：**該 TB 名稱只顯示一次**。
 - 備註／建立時間不同時：保留排序後第一筆的 metadata。
 
 ### 3. 工作階段隱藏
@@ -53,6 +53,8 @@
 
 | 元素 | 位置 | 行為 |
 |------|------|------|
+| N 筆命中 | 比對表 TB 列分數欄 | 同原文同譯文合併且 N>1 時，於 TB 標籤上方顯示筆數 |
+| 精確比對 ? | TB footer 精確比對列右側 | hover 顯示無延遲黑色 tooltip（精確比對白話說明） |
 | 將此術語隱藏 | TB metadata 最下方 | `data-tip` 說明效力；隱藏目前列的原文+譯文 |
 | 已隱藏的術語 (N) | metadata 上方列左側（與收合資訊同一列） | 無隱藏時 disabled；開啟 Modal |
 | 已隱藏的術語 Modal | 全螢幕 overlay | 勾選＝仍隱藏；**取消勾選即復原**；欄：原文／譯文／術語庫 |
@@ -81,7 +83,7 @@ ActiveTbTerms → AI 批次（可選過濾）
 ## 驗收步驟（白話）
 
 1. `Base→基地` 與 `Base→根據`：右欄兩列。
-2. 兩個 TB 皆 `Base→基地`：一列；footer／inline 各 TB 名只出現一次。
+2. 兩個 TB 皆 `Base→基地`：一列；分數欄顯示「2 筆命中」；footer 各 TB 名只出現一次。
 3. `Mark Anthony` 壓制 `Anthony`／`Ant`；句尾獨立 `ant` 不壓制。
 4. 點「將此術語隱藏」：右欄與原文提示消失；QA 仍報「術語未套用」。
 5. 「已隱藏的術語 (1)」開 Modal；取消勾選後比對恢復。
@@ -89,6 +91,9 @@ ActiveTbTerms → AI 批次（可選過濾）
 7. AI 批次預設含隱藏術語；取消勾選後 prompt 不含。
 8. 關檔重開：隱藏清空。
 9. **Card／card**：Riftbound 有 `Card→卡牌`、另一 TB 有 `card→卡牌`；點含 `card` 句段 → 右欄 **兩列** TB；分別點選，footer 顯示不同術語庫與備註。
+10. **Accelerate 等多 TB 合併**：同原文同譯文兩筆 → 比對表一列、分數欄「2 筆命中」、無黃底附加列；點選 footer 仍兩段 metadata。
+11. **單筆 TB**：分數欄只顯示「TB」，不顯示「1 筆命中」。
+12. **精確比對說明**：footer 無灰色大段文字；游標移上「?」見黑色 tooltip（無精確比對／有精確比對白話說明）。
 
 ## 維護邊界
 
