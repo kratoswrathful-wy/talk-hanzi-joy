@@ -1215,7 +1215,9 @@
                             </div>
                         </div>
                         
-                        <div style="display:flex; justify-content:flex-end; padding:0.35rem 0.5rem 0;">
+                        <div class="cat-footer-toolbar">
+                            <button type="button" id="btnHiddenTbModal" class="secondary-btn btn-sm" disabled
+                                data-tip="檢視並恢復本次編輯工作階段已隱藏的術語比對">已隱藏的術語</button>
                             <button type="button" class="secondary-btn btn-sm" id="btnToggleLiveFooter">收合資訊</button>
                         </div>
                         
@@ -2359,6 +2361,22 @@
         </div>
     </div>
 
+    <!-- 已隱藏術語 Modal -->
+    <div id="hiddenTbModal" class="wizard-overlay hidden">
+        <div class="wizard-modal" style="max-width:min(720px,96vw); width:96vw;">
+            <div class="wizard-header">
+                <h3 style="margin:0; font-size:1.2rem;">已隱藏的術語</h3>
+                <button type="button" class="close-btn" id="btnCloseHiddenTbModal">×</button>
+            </div>
+            <div class="wizard-body" id="hiddenTbModalBody" style="max-height:60vh; overflow:auto;">
+                <p style="margin:0; color:#64748b; font-size:0.88rem;">目前沒有隱藏的術語。</p>
+            </div>
+            <div class="panel-footer" style="padding:1rem; display:flex; justify-content:flex-end; border-top:1px solid #e2e8f0;">
+                <button type="button" id="btnDismissHiddenTbModal" class="secondary-btn btn-sm">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 字數分析 Modal -->
     <div id="wordCountModal" class="wizard-overlay hidden">
         <div class="wizard-modal" style="max-width:min(920px,96vw); width:96vw;">
@@ -2688,10 +2706,11 @@
                             <span><input type="checkbox" id="aiBatchRefTm" checked> TM</span>
                             <span id="aiBatchRefTokTm">0</span>
                         </label>
-                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem;">
-                            <span style="display:flex; align-items:center; gap:0.5rem;">
+                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem; grid-column:1 / -1;">
+                            <span style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
                                 <span><input type="checkbox" id="aiBatchRefTb" checked> TB</span>
                                 <span style="display:flex; align-items:center; gap:0.2rem;"><input type="checkbox" id="aiBatchRefTbNote" checked> 參照註解</span>
+                                <span style="display:flex; align-items:center; gap:0.2rem;"><input type="checkbox" id="aiBatchRefTbIncludeHidden" checked> 包含已隱藏術語</span>
                             </span>
                             <span id="aiBatchRefTokTb">0</span>
                         </label>

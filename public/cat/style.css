@@ -2159,6 +2159,24 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .cat-tb-dupe-chip-tb {
     color: #94a3b8;
 }
+.cat-footer-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem 0;
+}
+.cat-footer-toolbar .secondary-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.cat-footer-tb-hide-wrap {
+    padding: 0.35rem 0 0.15rem 0;
+    border-bottom: none;
+}
+.cat-tb-hide-btn {
+    font-size: 0.78rem;
+}
 .tm-changelog-entry {
     margin: 0;
     padding: 0.35rem 0;

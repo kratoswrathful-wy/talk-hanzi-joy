@@ -4017,6 +4017,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncLiveFooterToggleBtn();
         });
     }
+    const btnHiddenTbModal = document.getElementById('btnHiddenTbModal');
+    const hiddenTbModal = document.getElementById('hiddenTbModal');
+    const btnCloseHiddenTbModal = document.getElementById('btnCloseHiddenTbModal');
+    const btnDismissHiddenTbModal = document.getElementById('btnDismissHiddenTbModal');
+    function closeHiddenTbModal() {
+        if (hiddenTbModal) hiddenTbModal.classList.add('hidden');
+    }
+    if (btnHiddenTbModal) {
+        btnHiddenTbModal.addEventListener('click', () => { openHiddenTbModal(); });
+    }
+    if (btnCloseHiddenTbModal) btnCloseHiddenTbModal.addEventListener('click', closeHiddenTbModal);
+    if (btnDismissHiddenTbModal) btnDismissHiddenTbModal.addEventListener('click', closeHiddenTbModal);
+    if (hiddenTbModal) {
+        hiddenTbModal.addEventListener('click', (e) => { if (e.target === hiddenTbModal) closeHiddenTbModal(); });
+    }
+    syncHiddenTbToolbarBtn();
 
     if (catPanelResizerBottom && livePanelFooter) {
         const endCatBottom = (e) => {
@@ -4674,6 +4690,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (gridBody) gridBody.innerHTML = '';
                 window.ActiveTmCache = [];
                 window.ActiveTbTerms = [];
+                clearSessionHiddenTbPairs();
                 window._activeTmCacheReadyIds = new Set();
                 window._activeTmNames = {};
                 resetEditorTransientUi();
@@ -7197,6 +7214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.ActiveReadTmIds = [];
             window.ActiveReadTbIds = [];
             window.ActiveTbTerms = [];
+            clearSessionHiddenTbPairs();
             window.ActiveTbNames = {};
             window.ActiveTmPenalties = {};
             window._activeTmCacheReadyIds = new Set();
@@ -10645,6 +10663,151 @@ document.addEventListener('DOMContentLoaded', async () => {
             pos = end;
         }
         return ranges;
+    }
+
+    function tbPairKey(source, target) {
+        return `${source}\x00${target}`;
+    }
+
+    function ensureSessionHiddenTbPairs() {
+        if (!window._sessionHiddenTbPairs) window._sessionHiddenTbPairs = new Map();
+        return window._sessionHiddenTbPairs;
+    }
+
+    function isTbPairSessionHidden(source, target) {
+        return ensureSessionHiddenTbPairs().has(tbPairKey(source, target));
+    }
+
+    function clearSessionHiddenTbPairs() {
+        if (window._sessionHiddenTbPairs) window._sessionHiddenTbPairs.clear();
+        syncHiddenTbToolbarBtn();
+    }
+
+    function collectTbNamesForPair(source, target) {
+        const names = [];
+        const seen = new Set();
+        (window.ActiveTbTerms || []).forEach((t) => {
+            if ((t.source || '') !== source || (t.target || '') !== target) return;
+            const n = String(t.tbName || '').trim();
+            const k = String(t.tbId ?? n);
+            if (!k || seen.has(k)) return;
+            seen.add(k);
+            if (n) names.push(n);
+        });
+        return names;
+    }
+
+    function hideTbPairSession(source, target) {
+        const src = String(source ?? '');
+        const tgt = String(target ?? '');
+        ensureSessionHiddenTbPairs().set(tbPairKey(src, tgt), {
+            source: src,
+            target: tgt,
+            tbNames: collectTbNamesForPair(src, tgt)
+        });
+        syncHiddenTbToolbarBtn();
+    }
+
+    function unhideTbPairSession(source, target) {
+        ensureSessionHiddenTbPairs().delete(tbPairKey(source, target));
+        syncHiddenTbToolbarBtn();
+    }
+
+    function dedupeTbEntriesByTbId(entries) {
+        const seen = new Set();
+        return (entries || []).filter((e) => {
+            const k = String(e.tbId ?? e.tbName ?? '');
+            if (!k) return true;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }
+
+    function tbPairKeyFromEntry(entry) {
+        return tbPairKey(entry.sourceText ?? entry.source ?? '', entry.targetText ?? entry.target ?? '');
+    }
+
+    function syncHiddenTbToolbarBtn() {
+        const btn = document.getElementById('btnHiddenTbModal');
+        if (!btn) return;
+        const n = ensureSessionHiddenTbPairs().size;
+        btn.disabled = n === 0;
+        btn.textContent = n > 0 ? `已隱藏的術語 (${n})` : '已隱藏的術語';
+    }
+
+    function refreshTbMatchUiAfterHideChange() {
+        const seg = window.currentCatFooterSeg;
+        if (seg) scheduleRenderLiveTmMatches(seg);
+        try { decorateTbInlineHintsForActiveRow(); } catch (_) { /* ignore */ }
+    }
+
+    window.catHideTbTermFromFooter = function catHideTbTermFromFooter() {
+        const idx = window.catPanelSelectedIndex | 0;
+        const m = window.currentTmMatches && window.currentTmMatches[idx];
+        if (!m || m.type !== 'TB') return;
+        hideTbPairSession(m.sourceText, m.targetText);
+        showCatToast(`已隱藏「${m.sourceText || ''} → ${m.targetText || ''}」`, 'info');
+        refreshTbMatchUiAfterHideChange();
+    };
+
+    function renderHiddenTbModalRows() {
+        const body = document.getElementById('hiddenTbModalBody');
+        if (!body) return;
+        const pairs = Array.from(ensureSessionHiddenTbPairs().values());
+        if (!pairs.length) {
+            body.innerHTML = '<p style="margin:0; color:#64748b; font-size:0.88rem;">目前沒有隱藏的術語。</p>';
+            return;
+        }
+        const esc = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const rows = pairs.map((p, i) => {
+            const tbCell = (p.tbNames && p.tbNames.length)
+                ? esc(p.tbNames.join('、'))
+                : '<span style="color:#94a3b8;">—</span>';
+            return `<tr data-hidden-idx="${i}">
+                <td style="padding:0.4rem 0.5rem; border-bottom:1px solid #e2e8f0; text-align:center;">
+                    <input type="checkbox" class="hidden-tb-row-cb" checked aria-label="隱藏中">
+                </td>
+                <td style="padding:0.4rem 0.5rem; border-bottom:1px solid #e2e8f0;">${esc(p.source)}</td>
+                <td style="padding:0.4rem 0.5rem; border-bottom:1px solid #e2e8f0;">${esc(p.target)}</td>
+                <td style="padding:0.4rem 0.5rem; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.85rem;">${tbCell}</td>
+            </tr>`;
+        }).join('');
+        body.innerHTML = `<table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+            <thead><tr style="background:#f8fafc;">
+                <th style="padding:0.35rem 0.5rem; border-bottom:1px solid #e2e8f0; width:2.5rem;">隱藏</th>
+                <th style="padding:0.35rem 0.5rem; border-bottom:1px solid #e2e8f0; text-align:left;">原文</th>
+                <th style="padding:0.35rem 0.5rem; border-bottom:1px solid #e2e8f0; text-align:left;">譯文</th>
+                <th style="padding:0.35rem 0.5rem; border-bottom:1px solid #e2e8f0; text-align:left;">術語庫</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        <p style="margin:0.65rem 0 0 0; font-size:0.76rem; color:#64748b;">取消勾選後會立即恢復顯示；關閉編輯器或離開檔案後清單會清空。</p>`;
+        body.querySelectorAll('.hidden-tb-row-cb').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const tr = cb.closest('tr');
+                if (!tr || cb.checked) return;
+                const idx = parseInt(tr.getAttribute('data-hidden-idx'), 10);
+                const p = pairs[idx];
+                if (!p) return;
+                unhideTbPairSession(p.source, p.target);
+                refreshTbMatchUiAfterHideChange();
+                const modal = document.getElementById('hiddenTbModal');
+                if (ensureSessionHiddenTbPairs().size === 0) {
+                    if (modal) modal.classList.add('hidden');
+                } else {
+                    renderHiddenTbModalRows();
+                }
+            });
+        });
+    }
+
+    function openHiddenTbModal() {
+        if (ensureSessionHiddenTbPairs().size === 0) return;
+        const modal = document.getElementById('hiddenTbModal');
+        if (!modal) return;
+        renderHiddenTbModalRows();
+        modal.classList.remove('hidden');
     }
 
     // --- TB inline superscript hints in source cells (previewed at docs/preview-tb-in-source/index.html) ---
@@ -17074,6 +17237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // --- LOAD TB TERMS: only TBs listed in project.readTbs (no language fallback) ---
+        clearSessionHiddenTbPairs();
         window.ActiveTbTerms = [];
         let activeWriteTbId = (project && project.writeTb != null) ? project.writeTb : null;
         if (activeWriteTbId != null) {
@@ -24616,6 +24780,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.ActiveTbTerms.forEach((term) => {
                     const termSrc = term.source || '';
                     if (!termSrc) return;
+                    if (isTbPairSessionHidden(term.source, term.target)) return;
                     if (!termMatches(src, termSrc, term.matchFlags)) return;
                     const mf = term.matchFlags || { caseInsensitive: true, wholeWord: false };
                     const ranges = findTermHitRangesInPlainText(src, termSrc, mf);
@@ -24628,6 +24793,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             type: 'TB',
                             sourceText: term.source,
                             targetText: term.target,
+                            tbId: term.tbId,
                             tbName: term.tbName,
                             tabName: term.tabName || '',
                             note: term.note,
@@ -24649,18 +24815,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     else acceptedRanges.push(...hit.ranges);
                 }
                 const remaining = tbHits.filter((h) => !suppressed.has(h));
-                const bySourceKey = new Map();
+                const byPairKey = new Map();
                 for (const hit of remaining) {
-                    const key = hit.entry.sourceText;
-                    if (!bySourceKey.has(key)) bySourceKey.set(key, []);
-                    bySourceKey.get(key).push(hit);
+                    const key = tbPairKeyFromEntry(hit.entry);
+                    if (!byPairKey.has(key)) byPairKey.set(key, []);
+                    byPairKey.get(key).push(hit);
                 }
                 const groupedHits = [];
-                for (const arr of bySourceKey.values()) {
+                for (const arr of byPairKey.values()) {
                     arr.sort((a, b) => (a.firstStart - b.firstStart) || (b.srcLen - a.srcLen));
-                    const primary = arr[0];
-                    if (arr.length > 1) primary.entry._tbDupes = arr.slice(1).map((h) => h.entry);
-                    groupedHits.push(primary);
+                    const deduped = dedupeTbEntriesByTbId(arr.map((h) => h.entry));
+                    const primaryEntry = { ...deduped[0] };
+                    if (deduped.length > 1) primaryEntry._tbDupes = deduped.slice(1);
+                    groupedHits.push({
+                        firstStart: arr[0].firstStart,
+                        srcLen: arr[0].srcLen,
+                        entry: primaryEntry
+                    });
                 }
                 groupedHits.sort((a, b) => (a.firstStart - b.firstStart) || (b.srcLen - a.srcLen));
                 groupedHits.forEach((h) => matches.push(h.entry));
@@ -24741,6 +24912,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                         </div>`;
                         });
+                        footerHtml += `<div class="cat-footer-section cat-footer-tb-hide-wrap">
+                            <button type="button" class="secondary-btn btn-sm cat-tb-hide-btn"
+                                data-tip="隱藏後，此術語在本次開啟檔案期間不會出現在右欄比對與原文提示。關閉編輯器、離開檔案或關閉分頁後會恢復。QA 仍會檢查此術語。"
+                                onclick="catHideTbTermFromFooter()">將此術語隱藏</button>
+                        </div>`;
                     } else if (m.type === 'MqInserted') {
                         const prevHtml = m.prevSegment ? escFoot(m.prevSegment) : '<span style="color:#94a3b8;">無</span>';
                         const nextHtml = m.nextSegment ? escFoot(m.nextSegment) : '<span style="color:#94a3b8;">無</span>';
@@ -26512,6 +26688,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ['preTranslateModal', 'btnCancelPreTranslate'],
             ['aiBatchModal', 'btnCancelAiBatch'],
             ['aiBatchAskModal', 'btnBatchAskCancel'],
+            ['hiddenTbModal', 'btnDismissHiddenTbModal'],
         ];
         for (const [overlayId, btnId] of dismissPairs) {
             const ov = document.getElementById(overlayId);
@@ -26521,6 +26698,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         resetQaScopeInputs();
+
+        clearSessionHiddenTbPairs();
 
         sfFilterGroups.length = 0;
         renderFilterGroups();
@@ -33716,6 +33895,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const el = document.getElementById(elId);
             out[key] = el && typeof el.checked === 'boolean' ? el.checked : !!AI_BATCH_REF_DEFAULTS[key];
         });
+        const elInc = document.getElementById('aiBatchRefTbIncludeHidden');
+        out.tbIncludeHidden = elInc ? elInc.checked : true;
         return out;
     }
 
@@ -33723,16 +33904,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const src = opts && typeof opts === 'object' ? opts : {};
         AI_BATCH_REF_SPECS.forEach(([elId, key]) => {
             const el = document.getElementById(elId);
-            if (el && typeof el.checked === 'boolean') {
-                el.checked = src[key] !== undefined ? !!src[key] : !!AI_BATCH_REF_DEFAULTS[key];
-            }
+            if (!el || typeof el.checked !== 'boolean') return;
+            el.checked = src[key] !== undefined ? !!src[key] : !!AI_BATCH_REF_DEFAULTS[key];
         });
+        const elInc = document.getElementById('aiBatchRefTbIncludeHidden');
+        if (elInc) elInc.checked = true;
     }
 
     async function _saveAiBatchRefOptions() {
         if (!currentProjectId) return;
+        const opts = _readAiBatchRefOptionsFromDom();
+        delete opts.tbIncludeHidden;
         await DBService.saveAiProjectSettings(currentProjectId, {
-            batchRefOptions: _readAiBatchRefOptionsFromDom()
+            batchRefOptions: opts
         }).catch(() => {});
     }
 
@@ -35738,8 +35922,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const styleExamples = useExamples ? await DBService.getAiStyleExamples(styleExFilters).catch(() => []) : [];
         const useTb = refOptions.useTb !== false;
         const useTbNote = refOptions.useTbNote !== false;
+        const tbIncludeHidden = refOptions.tbIncludeHidden !== false;
+        let tbTermsSource = window.ActiveTbTerms || [];
+        if (!tbIncludeHidden) {
+            tbTermsSource = tbTermsSource.filter((t) => !isTbPairSessionHidden(t.source, t.target));
+        }
         const tbTerms = useTb
-            ? (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: useTbNote ? t.note : '', _matchFlags: t.matchFlags }))
+            ? tbTermsSource.map(t => ({ source: t.source, target: t.target, note: useTbNote ? t.note : '', _matchFlags: t.matchFlags }))
             : [];
         const pr = (settings && settings.prompts) ? settings.prompts : {};
         let introText = '';
