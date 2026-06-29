@@ -78,3 +78,18 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 | `orig_confirmed` 句納入「下一個尚未確認」 | **通過** |
 
 **備註**：TB offpage 灰底線與換頁對調同批落地；副行 offpage 術語（無數字）見後續 commit。
+
+---
+
+## 6. Phase 2.3 延伸（2026-06-29）
+
+`51815db` 修 rowIdx／五態搜尋後，產品端仍回報：
+
+- 確認後跳到**翻譯／審稿已確認**句（設定為「下一個尚未確認」）
+- 只**選列**不進譯文格；**置中**無效
+- 後方全已確認時**焦點消失**
+- tag 838 全紅橘；假游標失效；清除篩選跳第一行
+
+**根因（與 51815db 互補）**：virt `focusTargetEditorAtSegmentIndex` 無 scroll／center；假游標綁 DOM；`invalidateHeights` 覆寫捲動；著色 `normalizeXmlForSig` 未略 `id`。
+
+**完整規劃與驗收**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **已實作，待驗收**。

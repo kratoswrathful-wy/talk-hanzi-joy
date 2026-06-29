@@ -119,3 +119,15 @@ flowchart TB
 ## 附錄：與 commit `7c9345c` 的關係
 
 **`7c9345c`** 為 **S1 匯出查找失敗** 之文件補遺（`4fef922`），**不包含**本議題。本 bug 需獨立 commit 與驗收。
+
+---
+
+## 附錄：著色 id 假陽性（Phase 2.3，2026-06-29）
+
+**症狀（與 Bug #8 不同）**：Riftbound 句 838 — pill 肉眼正確，原文全紅、譯文全橘；F8 在佔位已齊時 reconcile 仍跳過（`id` 相同）。
+
+**根因**：`normalizeTagXmlForReconcile` 已 strip `id`，但著色簽名 `normalizeXmlForSig` 未略 `id` → 假陽性全排紅橘。
+
+**修正**：`normalizeXmlForSig` 委派 reconcile 正規化（略 `rid` + `id`）。完整規劃見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md)。
+
+**邊界**：若 838 修正後仍全紅橘，可能為 Word 結構錯位（Bug #10/#11），需另案調查。

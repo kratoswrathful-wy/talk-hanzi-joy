@@ -69,6 +69,7 @@ flowchart TB
 | **Phase 2.1d** | 窗口邊界一變即重畫（捲動跟手） | **已驗收** `5658762` |
 | **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | **首批已驗收** `5658762`（`performReplaceAll`）；其餘規劃中 |
 | **rowIdx 修正** | 確認跳行、重複 DOM、批次可見性 | **已驗收** `51815db`（2026-06-29；見 [`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)） |
+| **Phase 2.3** | tag 著色 id 假陽性、假游標、清除篩選跳頂、確認 focus／置中 | **已實作，待驗收**（見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md)） |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
@@ -87,6 +88,7 @@ flowchart TB
 | **Phase 2.1d** | `5658762` | 新句段約 **0.12s** 空等 | 120ms scroll debounce | 窗口邊界一變即重畫 | **已驗收** |
 | **Phase 2.2 首批** | `5658762` | F4 全部取代只改 ~69 列 | `performReplaceAll` 依 DOM 列存在與否 | `seg.targetText` + `isSegmentEligibleForReplace` | **已驗收** |
 | **rowIdx／確認跳行** | `51815db` | 大檔確認不跳行、重複句不刷新、批次操作 silently 失效 | virt `renderWindow` 用篩選 list 索引污染 `rowIdx`；`getAfterConfirmFocusIndex` 用 `gRows[idx]` | bulk rowIdx、`getGlobalIndex`、五態 helper、`getGridRowBySegId` | **已驗收**（2026-06-29） |
+| **Phase 2.3** | （待 commit） | tag 全紅橘（id 假陽性）、假游標失效、清除篩選跳頂、確認無 scroll／焦點消失 | 著色未略 id；假游標綁 DOM；`rows[idx]` 跳位；virt focus 無 center | 見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) | **待驗收** |
 
 **問題族譜**（虛擬捲動子迭代）：
 

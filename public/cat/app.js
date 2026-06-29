@@ -17560,6 +17560,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedRowIds = new Set(); // Track selected segment IDs
     /** 若設為數字，renderEditorSegments 結束後將焦點移到該句段譯文欄 */
     let _pendingFocusSegIdxAfterRender = null;
+    /** 確認跳行 blur 時略過一次假游標（避免舊列殘留） */
+    let _skipFakeCaretOnBlurOnce = false;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
     let isBatchOpInProgress = false; // 批次操作進行中時，阻止 focusin 清除選取狀態
     
@@ -19319,19 +19321,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfMatchCount.textContent = sfSearchMatches.length > 0 ? `— / ${sfSearchMatches.length}` : `0 / 0`;
         sfLastFocusedMatchSegIdx = null;
 
+        let scrollAnchorSegId = null;
         if (didRebuildFilterSnapshot && sfMode === 'filter' && lastEditedRowIdx !== null && !isSfSearchControlActive()) {
             const segFocus = currentSegmentsList[lastEditedRowIdx];
-            const targetRow = segFocus ? getGridRowBySegId(segFocus.id) : null;
-            if (targetRow && targetRow.style.display !== 'none') {
-                const txt = targetRow.querySelector('.grid-textarea');
-                if (txt && txt.contentEditable !== 'false') {
-                    txt.focus();
-                    targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
-                }
+            scrollAnchorSegId = segFocus ? segFocus.id : null;
+            if (segFocus) {
+                focusSegmentBySegId(segFocus.id);
             }
         }
         if (virtActive && didRebuildFilterSnapshot) {
             window.CatVirtGrid.invalidateHeights();
+            const anchorId = scrollAnchorSegId != null ? scrollAnchorSegId : getScrollAnchorSegId();
+            if (anchorId != null) {
+                queueMicrotask(() => focusSegmentBySegId(anchorId));
+            }
         }
         syncSelectedRowAbutmentTopClass();
     }
@@ -19358,7 +19361,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (catFakeCaret && catFakeCaret.getSaved) {
             const s = catFakeCaret.getSaved();
-            if (s && s.range && s.editor && document.body.contains(s.editor)) return fromRange(s.range);
+            if (s && s.segId != null) {
+                const { editor } = ensureEditorMountedForFakeCaretSegId(s.segId);
+                if (editor && document.body.contains(editor) && s.range) return fromRange(s.range);
+            }
         }
         if (isSfNavAnchorUiActive() && sfActiveMatchIdx >= 0 && sfSearchMatches[sfActiveMatchIdx]) {
             const m = sfSearchMatches[sfActiveMatchIdx];
@@ -19691,7 +19697,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         catFakeCaret = window.CatFakeCaret.create({
             getSegDisplayIndex: getSegDisplayIndexForTip,
             getEditorFromSelection,
-            getEditorSegId
+            getEditorSegId,
+            getPlainCaretOffset: getPlainCaretOffsetViaRangeClone,
+            buildRangeAtPlainOffset: buildCollapsedRangeAtPlainTextOffsetUsingSegments,
+            ensureEditorMountedForSegId: ensureEditorMountedForFakeCaretSegId
         });
         catFakeCaret.installGlobalListeners();
     }
@@ -20786,39 +20795,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function focusTargetEditorAtSegmentIndex(segIdx, scrollBehavior = 'auto') {
-        if (segIdx == null || segIdx < 0) return;
+        if (segIdx == null || segIdx < 0) return false;
         const seg = currentSegmentsList[segIdx];
-        if (!seg) return;
+        if (!seg) return false;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
-        let row = getGridRowBySegId(seg.id);
+        let row = getGridRowBySegId(seg.id, false);
         if (!row && virtOn) {
             row = window.CatVirtGrid.scrollToSegId(seg.id);
         }
-        if (!row) return;
+        if (!row) row = getGridRowBySegId(seg.id, true);
+        if (!row) return false;
         const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
-        if (ed && ed.contentEditable !== 'false') {
-            if (!virtOn) {
-                const block = getAfterConfirmScrollBlock();
-                const doScroll = () => row.scrollIntoView({ behavior: scrollBehavior, block });
-                try {
-                    ed.focus({ preventScroll: true });
-                } catch (_) {
-                    ed.focus();
-                }
-                if (block === 'center') {
-                    requestAnimationFrame(doScroll);
-                } else {
-                    doScroll();
-                }
-            } else {
-                setActiveGridRow(row);
-                try {
-                    ed.focus({ preventScroll: true });
-                } catch (_) {
-                    ed.focus();
-                }
-            }
+        if (!ed || ed.contentEditable === 'false') return false;
+        setActiveGridRow(row);
+        const block = getAfterConfirmScrollBlock();
+        const doScroll = () => {
+            try {
+                row.scrollIntoView({ behavior: scrollBehavior, block });
+            } catch (_) { /* ignore */ }
+        };
+        try {
+            ed.focus({ preventScroll: true });
+        } catch (_) {
+            ed.focus();
         }
+        if (block === 'center') {
+            requestAnimationFrame(doScroll);
+        } else {
+            doScroll();
+        }
+        return true;
+    }
+
+    /** 清除篩選／跳回：優先假游標 segId，其次 lastEditedRowIdx */
+    function getScrollAnchorSegId() {
+        if (catFakeCaret && typeof catFakeCaret.getSaved === 'function') {
+            const s = catFakeCaret.getSaved();
+            if (s && s.segId != null) return s.segId;
+        }
+        if (lastEditedRowIdx != null) {
+            const seg = currentSegmentsList[lastEditedRowIdx];
+            if (seg) return seg.id;
+        }
+        return null;
+    }
+
+    function focusSegmentBySegId(segId, scrollBehavior = 'auto') {
+        if (segId == null) return false;
+        const idx = currentSegmentsList.findIndex((s) => s && s.id === segId);
+        if (idx < 0) return false;
+        return focusTargetEditorAtSegmentIndex(idx, scrollBehavior);
+    }
+
+    function ensureEditorMountedForFakeCaretSegId(segId) {
+        if (segId == null || segId === '') return { row: null, editor: null };
+        let row = getGridRowBySegId(segId, false);
+        if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
+            row = window.CatVirtGrid.scrollToSegId(segId);
+        }
+        if (!row) row = getGridRowBySegId(segId, true);
+        if (!row) return { row: null, editor: null };
+        const editor = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
+        if (!editor || editor.contentEditable === 'false') return { row: null, editor: null };
+        return { row, editor };
     }
 
     /** 譯文尾端暫存假游標（避免 focus/blur 連鎖）。 */
@@ -21207,26 +21246,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnSfClearNav) {
         btnSfClearNav.addEventListener('click', () => {
             if (qaScopeLocksFilterUi) return;
+            const anchorBefore = getScrollAnchorSegId();
             sfFilterGroups = sfFilterGroups.filter((g) => !!g.locked);
             renderFilterGroups();
             clearUIFilters();
             runSearchAndFilter();
-            const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-            let jumpIdx = null;
-            if (sfSearchMatches && sfSearchMatches.length > 0 && sfSearchMatches[0].segIdx != null) {
-                jumpIdx = sfSearchMatches[0].segIdx;
-            } else if (lastEditedRowIdx !== null) {
-                jumpIdx = lastEditedRowIdx;
-            }
-            if (jumpIdx != null && rows[jumpIdx]) {
-                const targetRow = rows[jumpIdx];
-                const txt = targetRow.querySelector('.grid-textarea');
-                if (txt && txt.contentEditable !== 'false') {
-                    txt.focus();
-                    targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
-                } else {
-                    targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
-                }
+            const anchorId = anchorBefore != null ? anchorBefore : getScrollAnchorSegId();
+            if (anchorId != null) {
+                queueMicrotask(() => focusSegmentBySegId(anchorId));
             }
         });
     }
@@ -22129,11 +22156,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function normalizeXmlForSig(xml) {
+        const Xliff = window.CatToolXliffTags;
+        if (Xliff && typeof Xliff.normalizeTagXmlForReconcile === 'function') {
+            return Xliff.normalizeTagXmlForReconcile(xml);
+        }
         return String(xml ?? '')
-            .replace(/^\uFEFF/, '') // strip BOM
-            // memoQ：原文／譯文段各自重新給 rid，比對著色時應忽略（否則同語意 tag 簽名不同）
+            .replace(/^\uFEFF/, '')
             .replace(/\s+rid\s*=\s*"[^"]*"/gi, '')
             .replace(/\s+rid\s*=\s*'[^']*'/gi, '')
+            .replace(/\s+id\s*=\s*"[^"]*"/gi, '')
+            .replace(/\s+id\s*=\s*'[^']*'/gi, '')
             .replace(/\r\n?/g, '\n')
             .replace(/[\s\u00A0\u200B\uFEFF]+/g, ' ')
             .trim();
@@ -23312,7 +23344,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         emitCollabEdit('end', seg, null);
                         requestAnimationFrame(() => {
                             refreshNonPrintMarkers(targetInput);
-                            showCatFakeCaretFromSaved();
+                            if (!_skipFakeCaretOnBlurOnce) {
+                                showCatFakeCaretFromSaved();
+                            } else {
+                                _skipFakeCaretOnBlurOnce = false;
+                            }
                         });
                         return;
                     }
@@ -23869,9 +23905,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                             ++targetWriteGeneration;
                             if (ceResult.focusNext !== false) {
                                 const nextFocus = getAfterConfirmFocusIndex(i);
-                                focusTargetEditorAtSegmentIndex(nextFocus);
+                                _skipFakeCaretOnBlurOnce = true;
+                                if (nextFocus != null) {
+                                    queueMicrotask(() => {
+                                        focusTargetEditorAtSegmentIndex(nextFocus);
+                                        maybeSwitchRightPanelToCatAfterConfirm();
+                                    });
+                                } else {
+                                    showCatToast('後方無待確認句段', 'info');
+                                    moveCaretToEndAndShowFakeInTarget(i);
+                                    maybeSwitchRightPanelToCatAfterConfirm();
+                                }
+                            } else {
+                                maybeSwitchRightPanelToCatAfterConfirm();
                             }
-                            maybeSwitchRightPanelToCatAfterConfirm();
                             isConfirming = false;
                             _qaIncrementalRefreshAfterConfirm([seg.id]);
                             if (ceResult.confirmed && (dispBefore === 'unconfirmed' || dispBefore === 'orig_confirmed' || dispBefore === 'review_revoked_editing')) {
@@ -24080,6 +24127,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 onAfterRender: () => {
                     syncSelectedRowClassesFromIds();
+                    if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {
+                        catFakeCaret.refreshAfterVirtRender();
+                    }
                     if (!virtMountFinished) {
                         virtMountFinished = true;
                         finishEditorGridRender();

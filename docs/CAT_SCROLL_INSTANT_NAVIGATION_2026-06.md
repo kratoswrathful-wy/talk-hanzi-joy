@@ -106,6 +106,7 @@
 ## 延伸與維護邊界
 
 - 日後新增「系統主動跳焦點」路徑時，**預設應使用 `behavior: 'auto'`**；若需置中／nearest，沿用 `getAfterConfirmScrollBlock()`，勿再引入 `smooth`。
+- **大檔虛擬捲動（Phase 2.3）**：確認跳行、清除篩選錨點不可僅 `focus({ preventScroll: true })`；須先 `CatVirtGrid.scrollToSegId`（列未掛載時），再 `scrollIntoView` + center／nearest。見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md)。
 - 與置中修正的關係見 [`CAT_CONFIRM_SCROLL_CENTER_FIX_2026-05.md`](./CAT_CONFIRM_SCROLL_CENTER_FIX_2026-05.md)；與批次確認重建防從頭捲見 2026-05-08 對話紀錄（commit `fb715d1`）。
 
 ---
@@ -118,3 +119,4 @@
 | 2026-06-09 | 規劃並實作：全專案 `scrollIntoView` 系統跳焦點路徑改 `behavior: 'auto'` |
 | 2026-06-09 | 初版開發紀錄與索引（`AGENTS.md`、`CODEMAP.md`、[`CAT_CONFIRM_SCROLL_CENTER_FIX_2026-05.md`](./CAT_CONFIRM_SCROLL_CENTER_FIX_2026-05.md) 交叉引用）— commit `b9ee63c` |
 | 2026-06-10 | 產品端驗收通過；補「驗收紀錄」章節 |
+| 2026-06-29 | Phase 2.3：大檔確認跳行須 `scrollToSegId`，見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) |

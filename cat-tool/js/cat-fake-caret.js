@@ -1,15 +1,19 @@
 /**
  * CAT 內嵌編輯器：暫存游標（假游標）記錄、捲動提示、還原焦點。
  * 假游標／提示掛載於 #editorGrid 內 #catEditorChromeLayer（見 docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md）。
+ * Phase 2.3：segId + plainOffset 持久化，virt 重畫後 resolve 編輯格（見 docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md）。
  */
 (function (global) {
     'use strict';
 
     /**
      * @typedef {Object} CatFakeCaretDeps
-     * @property {(segId: *) => string} getSegDisplayIndex 句段顯示編號（提示用）
+     * @property {(segId: *) => string} getSegDisplayIndex
      * @property {() => HTMLElement | null} getEditorFromSelection
      * @property {(editorEl: HTMLElement) => *} getEditorSegId
+     * @property {(editor: HTMLElement) => number|null} [getPlainCaretOffset]
+     * @property {(editor: HTMLElement, offset: number) => Range|null} [buildRangeAtPlainOffset]
+     * @property {(segId: *) => { row: HTMLElement|null, editor: HTMLElement|null }} [ensureEditorMountedForSegId]
      */
 
     /**
@@ -19,8 +23,11 @@
         const getSegDisplayIndex = deps.getSegDisplayIndex;
         const getEditorFromSelection = deps.getEditorFromSelection;
         const getEditorSegId = deps.getEditorSegId;
+        const getPlainCaretOffset = deps.getPlainCaretOffset || null;
+        const buildRangeAtPlainOffset = deps.buildRangeAtPlainOffset || null;
+        const ensureEditorMountedForSegId = deps.ensureEditorMountedForSegId || null;
 
-        /** @type {{ segId: *, editor: HTMLElement, range: Range } | null} */
+        /** @type {{ segId: *, plainOffset: number|null, editor: HTMLElement|null, range: Range|null } | null} */
         let saved = null;
 
         let fakeEl = null;
@@ -119,10 +126,50 @@
 
         function findRowAndEditorForSegId(segId) {
             if (segId == null || segId === '') return { row: null, editor: null };
+            if (ensureEditorMountedForSegId) {
+                return ensureEditorMountedForSegId(segId);
+            }
             const row = document.querySelector(`.grid-data-row[data-seg-id="${CSS.escape(String(segId))}"]`);
             if (!row) return { row: null, editor: null };
             const editor = row.querySelector('.grid-textarea');
             if (!editor || editor.contentEditable === 'false') return { row: null, editor: null };
+            return { row, editor };
+        }
+
+        function rebuildRangeForSaved(editor) {
+            if (!editor || editor.contentEditable === 'false') return null;
+            if (saved && saved.plainOffset != null && buildRangeAtPlainOffset) {
+                const r = buildRangeAtPlainOffset(editor, saved.plainOffset);
+                if (r) return r;
+            }
+            if (saved && saved.range) {
+                try {
+                    if (saved.editor === editor && document.body.contains(saved.editor)) {
+                        return saved.range.cloneRange();
+                    }
+                } catch (_) { /* ignore */ }
+            }
+            try {
+                const r = document.createRange();
+                r.selectNodeContents(editor);
+                r.collapse(false);
+                return r;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function syncSavedEditorRef(editor) {
+            if (!saved || !editor) return;
+            saved.editor = editor;
+            const r = rebuildRangeForSaved(editor);
+            if (r) saved.range = r;
+        }
+
+        function resolveSavedEditor() {
+            if (!saved || saved.segId == null) return { row: null, editor: null };
+            const { row, editor } = findRowAndEditorForSegId(saved.segId);
+            if (editor) syncSavedEditorRef(editor);
             return { row, editor };
         }
 
@@ -136,7 +183,7 @@
                 saveFromSelection(editor);
             }
 
-            if (saved && saved.editor === editor && String(saved.segId) === String(segId) && saved.range) {
+            if (saved && String(saved.segId) === String(segId)) {
                 const result = restore();
                 hideRealTip();
                 return result !== null;
@@ -152,17 +199,6 @@
             } catch (_) {
                 hideRealTip();
                 return false;
-            }
-
-            if (saved && saved.editor === editor && saved.range) {
-                try {
-                    const range = saved.range.cloneRange();
-                    const sel = window.getSelection();
-                    if (sel) {
-                        sel.removeAllRanges();
-                        sel.addRange(range);
-                    }
-                } catch (_) { /* ignore */ }
             }
 
             hide();
@@ -259,17 +295,18 @@
         }
 
         function show() {
-            if (!saved || !saved.editor || !saved.range) return;
-            const editor = saved.editor;
-            if (!document.body.contains(editor) || editor.contentEditable === 'false') return;
+            if (!saved || saved.segId == null) return;
+            const { editor } = resolveSavedEditor();
+            if (!editor || editor.contentEditable === 'false') return;
             if (document.activeElement === editor) {
                 hide();
                 return;
             }
             const gridRect = getEditorGridRect();
+            const range = rebuildRangeForSaved(editor);
 
             let rect = null;
-            try { rect = getRectForRange(saved.range); } catch (_) { rect = null; }
+            try { rect = getRectForRange(range); } catch (_) { rect = null; }
             if (!rect || (rect.width === 0 && rect.height === 0)) {
                 const edRect = editor.getBoundingClientRect();
                 const st = getComputedStyle(editor);
@@ -323,8 +360,13 @@
             if (!editor || !sel || sel.rangeCount === 0 || editor.contentEditable === 'false') return false;
             const range = sel.getRangeAt(0);
             if (!editor.contains(range.commonAncestorContainer)) return false;
+            let plainOffset = null;
+            if (getPlainCaretOffset) {
+                try { plainOffset = getPlainCaretOffset(editor); } catch (_) { plainOffset = null; }
+            }
             saved = {
                 segId: getEditorSegId(editor),
+                plainOffset,
                 editor,
                 range: range.cloneRange()
             };
@@ -332,10 +374,9 @@
         }
 
         function restore() {
-            if (!saved || !saved.editor || !saved.range) return null;
-            const editor = saved.editor;
-            if (!document.body.contains(editor) || editor.contentEditable === 'false') return null;
-            const row = editor.closest ? editor.closest('.grid-data-row') : null;
+            if (!saved || saved.segId == null) return null;
+            const { row, editor } = resolveSavedEditor();
+            if (!editor || editor.contentEditable === 'false') return null;
             if (row && typeof row.scrollIntoView === 'function') {
                 try {
                     row.scrollIntoView({ behavior: 'auto', block: 'center' });
@@ -343,11 +384,14 @@
             }
             editor.focus();
             try {
-                const range = saved.range.cloneRange();
+                const range = rebuildRangeForSaved(editor);
+                if (!range) return null;
                 const sel = window.getSelection();
                 if (!sel) return null;
                 sel.removeAllRanges();
                 sel.addRange(range);
+                saved.range = range.cloneRange();
+                saved.editor = editor;
                 hide();
                 return editor;
             } catch (_) {
@@ -384,8 +428,13 @@
 
         function setSavedCaret(payload) {
             if (!payload || !payload.editor || !payload.range) return;
+            let plainOffset = payload.plainOffset != null ? payload.plainOffset : null;
+            if (plainOffset == null && getPlainCaretOffset) {
+                try { plainOffset = getPlainCaretOffset(payload.editor); } catch (_) { plainOffset = null; }
+            }
             saved = {
                 segId: payload.segId != null ? payload.segId : getEditorSegId(payload.editor),
+                plainOffset,
                 editor: payload.editor,
                 range: payload.range.cloneRange ? payload.range.cloneRange() : payload.range
             };
@@ -393,6 +442,17 @@
 
         function getSaved() {
             return saved;
+        }
+
+        function refreshAfterVirtRender() {
+            if (!saved || saved.segId == null) return;
+            const active = document.activeElement;
+            const { editor } = resolveSavedEditor();
+            if (editor && active === editor) {
+                hide();
+                return;
+            }
+            show();
         }
 
         function onSelectionChange() {
@@ -426,7 +486,8 @@
             hideRealCaretTip: hideRealTip,
             installGlobalListeners,
             setSavedCaret,
-            getSaved
+            getSaved,
+            refreshAfterVirtRender
         };
     }
 
