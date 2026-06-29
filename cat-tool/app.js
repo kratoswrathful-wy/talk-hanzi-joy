@@ -17801,10 +17801,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!isResizingSide) return;
             isResizingSide = false;
             document.body.style.cursor = '';
+            if (catFakeCaret && typeof catFakeCaret.syncChromeLayerRect === 'function') {
+                catFakeCaret.syncChromeLayerRect();
+            }
         });
-    }
-    if (sidePanel) {
-        sidePanel.addEventListener('mousedown', () => suspendEditingPreserve(), true);
     }
 
     // ADVANCED SEARCH & FILTER ENGINE
@@ -17849,8 +17849,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** Phase 2.3f：使用者滾輪編輯中就地還原（不 scroll） */
     /** @type {{ segId: *, plainOffset?: number|null } | null} */
     let _preserveEditingAcrossVirtRender = null;
-    /** Phase 2.3g：點 TM／blur 離開譯文格時暫停 editing preserve */
-    let _suspendEditingPreserve = false;
     /** Phase 2.3g：使用者手動捲動世代，使過期 pending 失效 */
     let _userScrollGen = 0;
     /** Phase 2.3g：篩選快照重建後兩段式置中 */
@@ -20135,7 +20133,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showCatFakeCaretFromSaved() {
         if (catFakeCaret) catFakeCaret.show();
-        clearSuspendEditingPreserve();
     }
 
     function restoreSavedCaretIntoEditor() {
@@ -21118,12 +21115,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(grid && grid.contains(el));
     }
 
-    function suspendEditingPreserve() {
-        _suspendEditingPreserve = true;
-    }
-
-    function clearSuspendEditingPreserve() {
-        _suspendEditingPreserve = false;
+    function isEditingFocusLostAfterVirtRender() {
+        const active = document.activeElement;
+        if (!active || active === document.body) return true;
+        return false;
     }
 
     function notifyVirtUserScroll() {
@@ -21196,7 +21191,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function captureEditingFocusBeforeVirtRender() {
         if (_pendingEditorFocus) return;
-        if (_suspendEditingPreserve) return;
         const active = document.activeElement;
         if (!isActiveEditorGridTextarea(active)) return;
         const segId = getEditorSegId(active);
@@ -21214,12 +21208,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             if (_pendingEditorFocus) return;
-            if (_suspendEditingPreserve) {
+            const preserved = _preserveEditingAcrossVirtRender;
+            if (!preserved || preserved.segId == null) return;
+            if (!isEditingFocusLostAfterVirtRender()) {
                 _preserveEditingAcrossVirtRender = null;
                 return;
             }
-            const preserved = _preserveEditingAcrossVirtRender;
-            if (!preserved || preserved.segId == null) return;
             _preserveEditingAcrossVirtRender = null;
             applyEditorFocusAtSegId(preserved.segId, {
                 segId: preserved.segId,
@@ -21267,9 +21261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             } catch (_) { /* ignore */ }
-            if (!_suspendEditingPreserve && catFakeCaret && typeof catFakeCaret.hide === 'function') {
-                catFakeCaret.hide();
-            }
+            if (catFakeCaret && typeof catFakeCaret.hide === 'function') catFakeCaret.hide();
         } else if (o.caretAtStart) {
             setCaretAtEditorStart(ed);
         }
@@ -21338,7 +21330,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** Phase 2.3c：大檔排入 pending，onAfterRender 後 flush；小檔立即 focus。 */
     function scheduleEditorFocus(opts) {
         if (!opts || opts.segId == null) return false;
-        if (opts.explicitNav) clearSuspendEditingPreserve();
         _preserveEditingAcrossVirtRender = null;
         _pendingEditorFocusGen++;
         _pendingEditorFocus = {
@@ -23935,7 +23926,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     saveCatCaretFromSelection(targetInput);
                 });
                 targetInput.addEventListener('blur', async () => {
-                    suspendEditingPreserve();
                     const npModeBlur = !!document.getElementById('editorGrid')?.classList.contains('show-non-print');
                     try { saveCatCaretFromSelection(targetInput); } catch (_) { /* ignore */ }
                     scheduleLeaseReleaseTimer(seg);

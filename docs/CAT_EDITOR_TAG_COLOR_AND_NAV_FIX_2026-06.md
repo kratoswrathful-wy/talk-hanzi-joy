@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3g 已實作，待驗收**（2026-06-29；2.3f `927ceec` 部分驗收未通過 → 2.3g 篩選錨定／假游標 suspend／錨點釋放）
+> **狀態**：**Phase 2.3h 已實作，待驗收**（2026-06-29；2.3g `e84f06d` 三症狀未解 → 2.3h 疊層 fixed 化／移除 suspend／焦點遺失才還原）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
@@ -36,9 +36,9 @@
 6. **自由捲動（2.3b）**：大檔往下捲 800+ → **不**持續跳回第一行；有暫存假游標時仍可自由捲動（僅顯示提示，不強制拉回暫存句）。
 7. **Ctrl+G + 假游標（2.3b）**：句 A 編輯 → 點 TM 產生暫存游標 → **Ctrl+G** 跳 838 → 畫面到 838、焦點進譯文格。
 8. **確認可打字（2.3c／2.3f 通過，2.3g regression 必驗）**：大檔 **Ctrl+Enter** 確認跳行 → 下一句**譯文格內可打字**（非僅選列）。
-9. **清除篩選回假游標句（2.3f 未通過，2.3g 目標）**：篩選中編輯 → 清除篩選 → 回到**假游標 segId 那句**；譯文格有焦點。
-10. **Ctrl+Alt+↓ 還原游標（2.3f 部分，2.3g 強制置中）**：捲回暫存句 + **游標在譯文格**（可打字）。
-11. **離屏假游標提示（2.3f 未通過，2.3g 目標）**：點 TM 後捲遠 → 「暫存游標…」提示在視窗**頂或底**可見（依暫存句在視窗上方或下方）。
+9. **清除篩選回假游標句（2.3h 目標）**：篩選中編輯 → 清除篩選 → 回到**假游標 segId 那句**；譯文格有焦點。
+10. **Ctrl+Alt+↓ 還原游標（2.3g 強制置中，2.3h regression）**：捲回暫存句 + **游標在譯文格**（可打字）。
+11. **離屏假游標提示（2.3h 目標）**：點 TM 後捲遠 → 「暫存游標…」提示在編輯區**頂或底**可見、位置正確。
 12. **確認跳行可打字（2.3d／2.3f 通過，2.3g regression 必驗）**：#17 **Ctrl+Enter** → #385 → 譯文格可打字（`activeElement` 含 `grid-textarea`）。
 13. **方向鍵 segId（2.3d／2.3f 通過，2.3g regression 必驗）**：#385 游標在第一行按 **↑** → **#384**，非 #17。
 14. **滾輪保焦（2.3d／2.3f 通過，2.3g regression 必驗）**：譯文格有游標時滾輪捲動 → 仍可打字，焦點不變 `BODY`。
@@ -46,10 +46,12 @@
 16. **確認跳行置中（2.3e／2.3f 通過，2.3g regression 必驗）**：大檔 **Ctrl+Enter** 跳行（設定「置中」）→ 遠距亦**置中**且可打字。
 17. **清除篩選置中（2.3f 未通過，2.3g 目標）**：篩選中編輯 → 清除篩選 → 停在假游標句並**置中**、不亂跳。
 18. **進篩選模式置中（2.3f 未通過，2.3g 目標）**：切換至篩選模式 → 以假游標句**置中**顯示。
-19. **假游標 tip 顯示（2.3f 未通過，2.3g 目標）**：編輯句 A → 點 TM → 捲到遠處 → tip 卡片在視窗**頂或底**可見。
-20. **自由捲動不拉回（2.3f 回歸，2.3g 目標）**：編輯中滾輪捲離 → **不**被拉回暫存句；Ctrl+G 後手動捲動亦不被錨點拉回。
+19. **假游標 tip 顯示（2.3h 目標）**：編輯句 A → 點 TM → 捲到遠處 → tip 卡片在編輯區**頂或底**可見、位置正確。
+20. **自由捲動不拉回（2.3g 目標，2.3h regression）**：編輯中滾輪捲離 → **不**被拉回暫存句；Ctrl+G 後手動捲動亦不被錨點拉回。
+21. **確認後不掉焦（2.3h）**：大檔 **Ctrl+Enter** 確認跳行 → 新句**停留可打字超過 3 秒**（resize 重畫不掉焦）。
+22. **真游標離屏 tip（2.3h）**：譯文格內編輯 → 捲離 → 「游標在第 N 句」卡片在編輯區**頂或底**、位置正確。
 
-**2.3b regression（2.3d～2.3g 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效；**Ctrl+Alt+↓ 一次**還原可打字。
+**2.3b regression（2.3d～2.3h 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效；**Ctrl+Alt+↓ 一次**還原可打字。
 
 ### 1.4 已知邊界
 
@@ -209,6 +211,25 @@
 | **C 錨點** | `releaseVirtNavigationAnchor()` 於 pending flush 成功後；`_userScrollGen` 使過期 pending 失效；`needsScroll` 僅顯式導覽 pending；editing preserve 需未 suspend 且無 pending |
 | **D Ctrl+Alt+↓** | restore 路徑強制 `scrollToSegId(center)`，不依 `isSegIdCentered` 短路 |
 
+### 2.11 Phase 2.3h — 疊層 fixed 化／移除 suspend／焦點遺失才還原（2026-06-29）
+
+**2.3g 產品驗收未通過**（`e84f06d`）：確認後約一秒掉焦；假游標不繪製；捲動後卡片消失／錯位。
+
+**根因**：
+
+1. `#catEditorChromeLayer` 為 `position:absolute` 掛在 `#editorGrid` 內 → 隨虛擬捲動內容捲走，tip 定位錯誤。
+2. `_suspendEditingPreserve` 黏滯（confirm blur 設 true、confirm 路徑不清除）→ resize 重畫不擷取 editing preserve → 約一秒掉焦。
+
+**修正**：
+
+| 項目 | 作法 |
+|------|------|
+| 疊層 | `.cat-editor-chrome-layer` 改 `position:fixed`；append `body`；`syncChromeLayerRect()` 以 `editorGrid.getBoundingClientRect()` 同步 |
+| 監聽 | scroll／resize／`ResizeObserver(editorGrid)`／側欄寬調整後同步並重畫 |
+| 真游標 tip | `showRealCaretTipIfNeeded` 走同一疊層 |
+| suspend | **移除** `_suspendEditingPreserve`；`capture` 永遠擷取編輯中焦點 |
+| preserve flush | 僅當 `activeElement` 為 `null`／`BODY`（焦點遺失）才還原；焦點在 TM／右欄不搶回 |
+
 ---
 
 ## §3 產品端驗收紀錄（2026-06）
@@ -272,7 +293,17 @@
 | 11、19 | 失敗 | preserve 搶焦點；blur 非同步競態 |
 | 20 | 回歸 | `_anchorSegId`／pending `needsScroll` 持續拉回 |
 
-**2.3g 狀態**：**已實作，待驗收**（驗收項 §1.3 之 8～20 + Ctrl+Alt+↓）。
+**2.3g 狀態**：**已推送 `e84f06d`，產品驗收未通過**（確認後掉焦；假游標／tip 不顯示；見 §3.7）。
+
+### 3.7 Phase 2.3g 產品驗收未通過 → 2.3h 修正目標（2026-06-29）
+
+| 症狀 | 根因（一句） |
+|------|-------------|
+| 確認後約一秒掉焦 | `_suspendEditingPreserve` 黏滯 → resize 重畫不 preserve |
+| 假游標不繪製 | preserve 搶焦 + `show()` hide；疊層隨內容捲走 |
+| 卡片消失／錯位 | chrome layer `absolute` 在 `overflow:auto` 內，非可視窗口釘定 |
+
+**2.3h 狀態**：**已實作，待驗收**（驗收項 §1.3 之 8～22 + Ctrl+Alt+↓；小檔 ≤800 regression）。
 
 ---
 
@@ -286,4 +317,5 @@
 | 2026-06-29 | Phase 2.3d：跨重畫還原焦點、方向鍵 segId、`invalidateHeights(anchor)`；**已推送 `42bbd17`，部分驗收通過** |
 | 2026-06-29 | Phase 2.3e：virt 置中、`centerOnSegId`、preserve 僅 pending；**已推送 `78818d0`，部分驗收未通過** |
 | 2026-06-29 | Phase 2.3f：雙軌 preserve、單次 center、pending gen、onAfterRender 順序；**已推送 `927ceec`，部分驗收未通過** |
-| 2026-06-29 | Phase 2.3g：篩選兩段式置中、`suspendEditingPreserve`、錨點釋放、Ctrl+Alt+↓ 強制 center；**已實作，待驗收** |
+| 2026-06-29 | Phase 2.3g：篩選兩段式置中、`suspendEditingPreserve`、錨點釋放、Ctrl+Alt+↓ 強制 center；**已推送 `e84f06d`，產品驗收未通過** |
+| 2026-06-29 | Phase 2.3h：疊層 fixed 化、移除 suspend、焦點遺失才還原 preserve；**已實作，待驗收** |

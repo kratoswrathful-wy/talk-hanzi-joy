@@ -1,7 +1,6 @@
 /**
  * CAT 內嵌編輯器：暫存游標（假游標）記錄、捲動提示、還原焦點。
- * 假游標／提示掛載於 #editorGrid 內 #catEditorChromeLayer（見 docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md）。
- * Phase 2.3：segId + plainOffset 持久化；Phase 2.3b：被動 show 不 scrollToSegId；Phase 2.3c：restore 走 app pending focus。
+ * Phase 2.3h：#catEditorChromeLayer 改 position:fixed 掛 body，syncChromeLayerRect 釘在 #editorGrid 可視區。
  */
 (function (global) {
     'use strict';
@@ -40,33 +39,83 @@
         let fakeTipEl = null;
         let realTipEl = null;
         let listenersInstalled = false;
+        let chromeResizeObserver = null;
 
         function getEditorGridEl() {
             return document.getElementById('editorGrid');
         }
 
+        function isEditorGridVisible() {
+            const editorGrid = getEditorGridEl();
+            if (!editorGrid) return false;
+            const ve = document.getElementById('viewEditor');
+            if (ve && ve.classList.contains('hidden')) return false;
+            const rect = editorGrid.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        }
+
+        /** Phase 2.3h：以 editorGrid 視窗矩形同步 fixed 覆蓋層。 */
+        function syncChromeLayerRect() {
+            const layer = document.getElementById('catEditorChromeLayer');
+            if (!layer) return false;
+            if (!isEditorGridVisible()) {
+                layer.style.display = 'none';
+                return false;
+            }
+            const rect = getEditorGridEl().getBoundingClientRect();
+            layer.style.display = '';
+            layer.style.left = `${rect.left}px`;
+            layer.style.top = `${rect.top}px`;
+            layer.style.width = `${rect.width}px`;
+            layer.style.height = `${rect.height}px`;
+            return true;
+        }
+
+        function observeEditorGridResize() {
+            if (chromeResizeObserver) return;
+            const editorGrid = getEditorGridEl();
+            if (!editorGrid || typeof ResizeObserver === 'undefined') return;
+            chromeResizeObserver = new ResizeObserver(() => {
+                if (syncChromeLayerRect()) repaintChromeOverlays();
+            });
+            chromeResizeObserver.observe(editorGrid);
+        }
+
+        function repaintChromeOverlays() {
+            const active = document.activeElement;
+            if (active && active.classList && active.classList.contains('grid-textarea')) {
+                showRealCaretTipIfNeeded();
+                return;
+            }
+            show();
+        }
+
+        function onScrollOrResize() {
+            if (!syncChromeLayerRect()) return;
+            repaintChromeOverlays();
+        }
+
         function getEditorGridRect() {
+            if (!syncChromeLayerRect()) return null;
             const editorGrid = getEditorGridEl();
             return editorGrid ? editorGrid.getBoundingClientRect() : null;
         }
 
         /** @returns {HTMLElement | null} */
         function ensureEditorChromeLayer() {
-            const editorGrid = getEditorGridEl();
-            if (!editorGrid) return null;
             let layer = document.getElementById('catEditorChromeLayer');
             if (!layer) {
                 layer = document.createElement('div');
                 layer.id = 'catEditorChromeLayer';
                 layer.className = 'cat-editor-chrome-layer';
                 layer.setAttribute('aria-hidden', 'true');
-                const gridBody = document.getElementById('gridBody');
-                if (gridBody && gridBody.parentNode === editorGrid) {
-                    editorGrid.insertBefore(layer, gridBody);
-                } else {
-                    editorGrid.appendChild(layer);
-                }
+                document.body.appendChild(layer);
+                observeEditorGridResize();
+            } else if (layer.parentNode !== document.body) {
+                document.body.appendChild(layer);
+                observeEditorGridResize();
             }
+            syncChromeLayerRect();
             return layer;
         }
 
@@ -193,7 +242,8 @@
         }
 
         function showOffScreenFakeTip(outAbove) {
-            const gridRect = getEditorGridRect();
+            if (!syncChromeLayerRect()) return;
+            const gridRect = getEditorGridEl() ? getEditorGridEl().getBoundingClientRect() : null;
             if (!gridRect || saved.segId == null) return;
             const segNum = getSegDisplayIndex(saved.segId);
             const mark = ensureFakeEl();
@@ -279,7 +329,8 @@
                 hideRealTip();
                 return;
             }
-            const gridRect = getEditorGridRect();
+            if (!syncChromeLayerRect()) { hideRealTip(); return; }
+            const gridRect = getEditorGridEl() ? getEditorGridEl().getBoundingClientRect() : null;
             if (!gridRect) { hideRealTip(); return; }
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) { hideRealTip(); return; }
@@ -336,6 +387,7 @@
 
         function show() {
             if (!saved || saved.segId == null) return;
+            if (!syncChromeLayerRect()) return;
             const passiveOpts = { scroll: false };
             const { editor } = resolveSavedEditor(passiveOpts);
             if (!editor || editor.contentEditable === 'false') {
@@ -346,7 +398,7 @@
                 hide();
                 return;
             }
-            const gridRect = getEditorGridRect();
+            const gridRect = getEditorGridEl() ? getEditorGridEl().getBoundingClientRect() : null;
             const range = rebuildRangeForSaved(editor);
 
             let rect = null;
@@ -495,6 +547,7 @@
 
         function refreshAfterVirtRender() {
             if (!saved || saved.segId == null) return;
+            if (!syncChromeLayerRect()) return;
             const active = document.activeElement;
             if (active && active.classList && active.classList.contains('grid-textarea')) {
                 const activeSegId = getEditorSegId(active);
@@ -518,12 +571,13 @@
             if (listenersInstalled) return;
             listenersInstalled = true;
             document.addEventListener('selectionchange', onSelectionChange);
-            window.addEventListener('scroll', show, true);
-            window.addEventListener('resize', show);
+            window.addEventListener('scroll', onScrollOrResize, true);
+            window.addEventListener('resize', onScrollOrResize);
             const editorGrid = getEditorGridEl();
             if (editorGrid) {
-                editorGrid.addEventListener('scroll', show, { passive: true });
+                editorGrid.addEventListener('scroll', onScrollOrResize, { passive: true });
             }
+            observeEditorGridResize();
         }
 
         return {
@@ -538,7 +592,8 @@
             installGlobalListeners,
             setSavedCaret,
             getSaved,
-            refreshAfterVirtRender
+            refreshAfterVirtRender,
+            syncChromeLayerRect
         };
     }
 

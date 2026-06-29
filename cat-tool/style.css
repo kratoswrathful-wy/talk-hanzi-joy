@@ -4282,10 +4282,9 @@ select.cat-mutex-dd-native-hidden {
     color: #b91c1c;
 }
 
-/* 譯文表 chrome 層：假游標／捲動提示（僅覆蓋 #editorGrid 可視區） */
+/* 譯文表 chrome 層：假游標／捲動提示（Phase 2.3h：position:fixed 釘在 #editorGrid 可視區） */
 .cat-editor-chrome-layer {
-    position: absolute;
-    inset: 0;
+    position: fixed;
     z-index: 25;
     pointer-events: none;
     overflow: hidden;

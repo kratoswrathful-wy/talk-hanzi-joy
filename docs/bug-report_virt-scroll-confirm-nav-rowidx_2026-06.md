@@ -131,3 +131,11 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 - editing preserve 與假游標 `show()`（`activeElement === editor` 則 hide）互斥。
 
 **修正**：`resolveFilterScrollAnchor`、`_filterAnchorPending` 兩段式置中；`releaseVirtNavigationAnchor`、`_userScrollGen`；`_suspendEditingPreserve`。詳見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §2.10。
+
+### 6.5 Phase 2.3h — 疊層 fixed 化、移除 suspend（2026-06-29）
+
+**症狀**（2.3g `e84f06d` 後）：確認後約一秒掉焦；假游標不繪製；捲動後 tip 消失或錯位。
+
+**根因**：`#catEditorChromeLayer` `absolute` 隨 virt 內容捲走；`_suspendEditingPreserve` 黏滯 → resize 重畫不 preserve。
+
+**修正**：`syncChromeLayerRect`、fixed 覆蓋層 append `body`；移除 suspend；`isEditingFocusLostAfterVirtRender`。詳見同檔 §2.11。

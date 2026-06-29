@@ -75,7 +75,8 @@ flowchart TB
 | **Phase 2.3d** | 跨重畫 preserve 焦點；↑ DOM 索引；清除篩選 anchor | **已推送 `42bbd17`**（同檔 §2.7） |
 | **Phase 2.3e** | virt 置中、`centerOnSegId` | **已推送 `78818d0`；部分驗收未通過**（同檔 §3.5） |
 | **Phase 2.3f** | 雙軌 preserve、單次 center、pending gen | **已推送 `927ceec`；部分驗收未通過**（同檔 §2.9／§3.6） |
-| **Phase 2.3g** | 篩選兩段式置中、suspend preserve、錨點釋放 | **已實作，待驗收**（同檔 §2.10） |
+| **Phase 2.3g** | 篩選兩段式置中、suspend preserve、錨點釋放 | **已推送 `e84f06d`；產品驗收未通過**（同檔 §2.10／§3.7） |
+| **Phase 2.3h** | 疊層 fixed 化、移除 suspend、焦點遺失才還原 | **已實作，待驗收**（同檔 §2.11） |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
