@@ -17705,6 +17705,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.body.style.cursor = '';
         });
     }
+    if (sidePanel) {
+        sidePanel.addEventListener('mousedown', () => suspendEditingPreserve(), true);
+    }
 
     // ADVANCED SEARCH & FILTER ENGINE
     // ==========================================
@@ -17748,6 +17751,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** Phase 2.3f：使用者滾輪編輯中就地還原（不 scroll） */
     /** @type {{ segId: *, plainOffset?: number|null } | null} */
     let _preserveEditingAcrossVirtRender = null;
+    /** Phase 2.3g：點 TM／blur 離開譯文格時暫停 editing preserve */
+    let _suspendEditingPreserve = false;
+    /** Phase 2.3g：使用者手動捲動世代，使過期 pending 失效 */
+    let _userScrollGen = 0;
+    /** Phase 2.3g：篩選快照重建後兩段式置中 */
+    /** @type {{ segId: *, plainOffset?: number|null, phase: string, gen: number } | null} */
+    let _filterAnchorPending = null;
+    let _filterAnchorGen = 0;
     /** 確認跳行 blur 時略過一次假游標（避免舊列殘留） */
     let _skipFakeCaretOnBlurOnce = false;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
@@ -19511,24 +19522,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let scrollAnchorSegId = null;
         if (didRebuildFilterSnapshot && !isSfSearchControlActive()) {
-            scrollAnchorSegId = getScrollAnchorSegId();
+            const resolved = resolveFilterScrollAnchor();
+            if (resolved.inList && resolved.segId != null) {
+                scrollAnchorSegId = resolved.segId;
+                _filterAnchorGen++;
+                _filterAnchorPending = {
+                    segId: resolved.segId,
+                    plainOffset: resolved.plainOffset,
+                    phase: 'invalidate',
+                    gen: _filterAnchorGen,
+                };
+            } else {
+                _filterAnchorPending = null;
+            }
         }
         if (virtActive && didRebuildFilterSnapshot) {
-            window.CatVirtGrid.invalidateHeights(scrollAnchorSegId != null ? scrollAnchorSegId : undefined, 'center');
-        }
-        if (scrollAnchorSegId != null && didRebuildFilterSnapshot) {
-            const savedFc = catFakeCaret && typeof catFakeCaret.getSaved === 'function' ? catFakeCaret.getSaved() : null;
-            const plainOffset = (savedFc && String(savedFc.segId) === String(scrollAnchorSegId))
-                ? savedFc.plainOffset
-                : null;
-            scheduleEditorFocus({
-                segId: scrollAnchorSegId,
-                plainOffset,
-                restoreCaret: plainOffset != null,
-                scrollBehavior: 'auto',
-                scrollBlock: 'center',
-                skipVirtScroll: true,
-            });
+            window.CatVirtGrid.invalidateHeights(
+                scrollAnchorSegId != null ? scrollAnchorSegId : undefined,
+                scrollAnchorSegId != null ? 'center' : undefined
+            );
         }
         syncSelectedRowAbutmentTopClass();
     }
@@ -19848,6 +19860,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             segId: seg.id,
             scrollBehavior: 'auto',
             caretAtStart: true,
+            explicitNav: true,
         });
     }
 
@@ -19859,6 +19872,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             segId,
             scrollBehavior: 'auto',
             caretAtStart: !(opts && opts.caretAtEnd),
+            explicitNav: true,
         });
     }
 
@@ -20023,6 +20037,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showCatFakeCaretFromSaved() {
         if (catFakeCaret) catFakeCaret.show();
+        clearSuspendEditingPreserve();
     }
 
     function restoreSavedCaretIntoEditor() {
@@ -21005,8 +21020,85 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(grid && grid.contains(el));
     }
 
+    function suspendEditingPreserve() {
+        _suspendEditingPreserve = true;
+    }
+
+    function clearSuspendEditingPreserve() {
+        _suspendEditingPreserve = false;
+    }
+
+    function notifyVirtUserScroll() {
+        _userScrollGen++;
+        if (_pendingEditorFocus && _pendingEditorFocus.explicitNav) {
+            _pendingEditorFocus = null;
+            _pendingEditorFocusRetry = false;
+        }
+    }
+
+    function releaseVirtNavigationAnchor() {
+        if (window.CatVirtGrid && typeof window.CatVirtGrid.releaseNavigationAnchor === 'function') {
+            window.CatVirtGrid.releaseNavigationAnchor();
+        }
+    }
+
+    /** Phase 2.3g：篩選錨定前驗證 segId 在目前可渲染清單內 */
+    function resolveFilterScrollAnchor() {
+        const trySegId = (segId, plainOffset) => {
+            if (segId == null) return null;
+            const seg = currentSegmentsList.find((s) => s && String(s.id) === String(segId));
+            if (!seg || !isSegmentVisibleInEditor(seg)) return null;
+            return { segId, plainOffset: plainOffset != null ? plainOffset : null, inList: true };
+        };
+        if (catFakeCaret && typeof catFakeCaret.getSaved === 'function') {
+            const s = catFakeCaret.getSaved();
+            if (s && s.segId != null) {
+                const hit = trySegId(s.segId, s.plainOffset);
+                if (hit) return hit;
+            }
+        }
+        if (lastEditedRowIdx != null) {
+            const seg = currentSegmentsList[lastEditedRowIdx];
+            if (seg) {
+                const hit = trySegId(seg.id, null);
+                if (hit) return hit;
+            }
+        }
+        return { segId: null, plainOffset: null, inList: false };
+    }
+
+    function flushFilterAnchorAfterVirtRender() {
+        const p = _filterAnchorPending;
+        if (!p || p.segId == null) return;
+        const seg = currentSegmentsList.find((s) => s && String(s.id) === String(p.segId));
+        if (!seg || !isSegmentVisibleInEditor(seg)) {
+            _filterAnchorPending = null;
+            return;
+        }
+        if (p.phase === 'invalidate') {
+            const segId = p.segId;
+            const plainOffset = p.plainOffset;
+            _filterAnchorPending = null;
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                if (window.CatVirtGrid && typeof window.CatVirtGrid.scrollToSegId === 'function') {
+                    window.CatVirtGrid.scrollToSegId(segId, 'center');
+                }
+                scheduleEditorFocus({
+                    segId,
+                    plainOffset,
+                    restoreCaret: plainOffset != null,
+                    scrollBehavior: 'auto',
+                    scrollBlock: 'center',
+                    skipVirtScroll: true,
+                });
+                releaseVirtNavigationAnchor();
+            }));
+        }
+    }
+
     function captureEditingFocusBeforeVirtRender() {
         if (_pendingEditorFocus) return;
+        if (_suspendEditingPreserve) return;
         const active = document.activeElement;
         if (!isActiveEditorGridTextarea(active)) return;
         const segId = getEditorSegId(active);
@@ -21024,6 +21116,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             if (_pendingEditorFocus) return;
+            if (_suspendEditingPreserve) {
+                _preserveEditingAcrossVirtRender = null;
+                return;
+            }
             const preserved = _preserveEditingAcrossVirtRender;
             if (!preserved || preserved.segId == null) return;
             _preserveEditingAcrossVirtRender = null;
@@ -21073,7 +21169,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             } catch (_) { /* ignore */ }
-            if (catFakeCaret && typeof catFakeCaret.hide === 'function') catFakeCaret.hide();
+            if (!_suspendEditingPreserve && catFakeCaret && typeof catFakeCaret.hide === 'function') {
+                catFakeCaret.hide();
+            }
         } else if (o.caretAtStart) {
             setCaretAtEditorStart(ed);
         }
@@ -21096,6 +21194,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     function flushPendingEditorFocus() {
         const pending = _pendingEditorFocus;
         if (!pending || pending.segId == null) return;
+        if (pending.explicitNav && pending.scrollGenAtSchedule !== _userScrollGen) {
+            _pendingEditorFocus = null;
+            _pendingEditorFocusRetry = false;
+            return;
+        }
         const gen = pending.gen;
         const seg = currentSegmentsList.find((s) => s && String(s.id) === String(pending.segId));
         if (!seg || !isSegmentVisibleInEditor(seg)) {
@@ -21106,10 +21209,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
         let row = getGridRowBySegId(pending.segId, false);
-        if (virtOn && !pending.skipVirtScroll) {
+        if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
             const isCentered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
                 && window.CatVirtGrid.isSegIdCentered(pending.segId);
-            const needsScroll = !row || (scrollBlock === 'center' && !isCentered);
+            const needsScroll = pending.forceVirtScroll
+                || !row
+                || (scrollBlock === 'center' && !isCentered);
             if (needsScroll) {
                 window.CatVirtGrid.scrollToSegId(pending.segId, scrollBlock);
                 row = getGridRowBySegId(pending.segId, false);
@@ -21128,12 +21233,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = false;
+            if (pending.explicitNav) releaseVirtNavigationAnchor();
         }
     }
 
     /** Phase 2.3c：大檔排入 pending，onAfterRender 後 flush；小檔立即 focus。 */
     function scheduleEditorFocus(opts) {
         if (!opts || opts.segId == null) return false;
+        if (opts.explicitNav) clearSuspendEditingPreserve();
         _preserveEditingAcrossVirtRender = null;
         _pendingEditorFocusGen++;
         _pendingEditorFocus = {
@@ -21145,6 +21252,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             afterConfirmPanel: !!opts.afterConfirmPanel,
             caretAtStart: !!opts.caretAtStart,
             skipVirtScroll: !!opts.skipVirtScroll,
+            explicitNav: !!opts.explicitNav,
+            forceVirtScroll: !!opts.forceVirtScroll,
+            scrollGenAtSchedule: _userScrollGen,
             gen: _pendingEditorFocusGen,
         };
         _pendingEditorFocusRetry = false;
@@ -21188,6 +21298,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             restoreCaret: plainOffset != null,
             scrollBehavior: 'auto',
             scrollBlock: 'center',
+            explicitNav: true,
+            forceVirtScroll: true,
         });
     }
 
@@ -21220,6 +21332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             plainOffset,
             restoreCaret: plainOffset != null,
             afterConfirmPanel: !!(opts && opts.afterConfirmPanel),
+            explicitNav: true,
         });
     }
 
@@ -21871,6 +21984,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     scrollBehavior: 'auto',
                     scrollBlock: getAfterConfirmScrollBlock(),
                     afterConfirmPanel: true,
+                    explicitNav: true,
                 });
             }
         }
@@ -21942,7 +22056,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderEditorSegments();
                 runSearchAndFilter();
                 if (keepId != null) {
-                    scheduleEditorFocus({ segId: keepId, scrollBehavior: 'auto' });
+                    scheduleEditorFocus({ segId: keepId, scrollBehavior: 'auto', explicitNav: true });
                 }
                 const ar = document.querySelector('.grid-data-row.active-row');
                 const aid = ar ? parseId(ar.dataset.segId) : null;
@@ -23723,6 +23837,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     saveCatCaretFromSelection(targetInput);
                 });
                 targetInput.addEventListener('blur', async () => {
+                    suspendEditingPreserve();
+                    const npModeBlur = !!document.getElementById('editorGrid')?.classList.contains('show-non-print');
+                    try { saveCatCaretFromSelection(targetInput); } catch (_) { /* ignore */ }
                     scheduleLeaseReleaseTimer(seg);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
                     const wasConfirming = isConfirming;
@@ -24306,6 +24423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                             scrollBehavior: 'auto',
                                             scrollBlock: getAfterConfirmScrollBlock(),
                                             afterConfirmPanel: true,
+                                            explicitNav: true,
                                         });
                                     }
                                 } else {
@@ -24511,9 +24629,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     captureEditingFocusBeforeVirtRender();
                     resetGridRowUiTracking();
                 },
+                onUserScroll: () => {
+                    notifyVirtUserScroll();
+                },
                 onAfterRender: () => {
                     syncSelectedRowClassesFromIds();
                     flushEditorFocusAfterVirtRender();
+                    flushFilterAnchorAfterVirtRender();
                     if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {
                         catFakeCaret.refreshAfterVirtRender();
                     }
@@ -26078,7 +26200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。');
             return;
         }
-        const ok = scheduleEditorFocus({ segId, scrollBehavior: 'auto' });
+        const ok = scheduleEditorFocus({ segId, scrollBehavior: 'auto', explicitNav: true });
         if (!ok) {
             alert('無法跳至該句段（捲動定位失敗），請再試一次或重新整理頁面。');
         }

@@ -74,7 +74,8 @@ flowchart TB
 | **Phase 2.3c** | virt 重畫後 focus 競態；離屏 tip 方向 | **已推送 `0a073ea`；驗收未通過**（同檔 §3.3） |
 | **Phase 2.3d** | 跨重畫 preserve 焦點；↑ DOM 索引；清除篩選 anchor | **已推送 `42bbd17`**（同檔 §2.7） |
 | **Phase 2.3e** | virt 置中、`centerOnSegId` | **已推送 `78818d0`；部分驗收未通過**（同檔 §3.5） |
-| **Phase 2.3f** | 雙軌 preserve、單次 center、pending gen | **已實作，待驗收**（同檔 §2.9） |
+| **Phase 2.3f** | 雙軌 preserve、單次 center、pending gen | **已推送 `927ceec`；部分驗收未通過**（同檔 §2.9／§3.6） |
+| **Phase 2.3g** | 篩選兩段式置中、suspend preserve、錨點釋放 | **已實作，待驗收**（同檔 §2.10） |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---

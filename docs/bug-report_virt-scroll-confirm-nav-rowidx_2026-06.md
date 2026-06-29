@@ -119,3 +119,15 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 **根因**：`centerOnSegId` 雙重捲動；pending 過早清除；preserve 僅 pending；`onAfterRender` 順序錯。
 
 **修正**：`_preserveEditingAcrossVirtRender` 就地還原；`isSegIdCentered`；pending gen。詳見同檔 §2.9。
+
+### 6.4 Phase 2.3g — 篩選 anchor、錨點釋放、假游標競態（2026-06-29）
+
+**症狀**（2.3f `927ceec` 後）：進／清篩選畫面亂跳；假游標／tip 不顯示；Ctrl+G 後手動捲動被拉回錨點。
+
+**根因**：
+
+- 篩選快照重建時 anchor 不在 `getRenderableList()` 仍當 `explicitAnchor` → scrollTop 歸 0。
+- `_anchorSegId` 於 `scrollToSegId` 後持續約束；殘留 pending `needsScroll` 重畫時拉回。
+- editing preserve 與假游標 `show()`（`activeElement === editor` 則 hide）互斥。
+
+**修正**：`resolveFilterScrollAnchor`、`_filterAnchorPending` 兩段式置中；`releaseVirtNavigationAnchor`、`_userScrollGen`；`_suspendEditingPreserve`。詳見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §2.10。

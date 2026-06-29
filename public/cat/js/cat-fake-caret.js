@@ -496,10 +496,12 @@
         function refreshAfterVirtRender() {
             if (!saved || saved.segId == null) return;
             const active = document.activeElement;
-            const { editor } = resolveSavedEditor({ scroll: false });
-            if (editor && active === editor) {
-                hide();
-                return;
+            if (active && active.classList && active.classList.contains('grid-textarea')) {
+                const activeSegId = getEditorSegId(active);
+                if (activeSegId != null && String(activeSegId) === String(saved.segId)) {
+                    hide();
+                    return;
+                }
             }
             show();
         }

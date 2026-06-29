@@ -330,6 +330,7 @@
 
     function onScroll() {
         if (!enabled || _suppressScroll || _rendering) return;
+        if (typeof cfg.onUserScroll === 'function') cfg.onUserScroll();
         if (scrollRaf) cancelAnimationFrame(scrollRaf);
         scrollRaf = requestAnimationFrame(() => {
             scrollRaf = null;
@@ -478,7 +479,19 @@
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
-        renderWindow(anchorSegId != null && anchorSegId !== '' ? anchorSegId : null, block);
+        const list = getRenderableList();
+        let passAnchor = anchorSegId;
+        if (passAnchor != null && passAnchor !== '') {
+            const ai = list.findIndex((s) => String(s.id) === String(passAnchor));
+            if (ai < 0) passAnchor = null;
+        }
+        renderWindow(passAnchor != null ? passAnchor : null, block);
+    }
+
+    /** Phase 2.3g：顯式導覽完成後釋放錨點，避免使用者手動捲動被拉回。 */
+    function releaseNavigationAnchor() {
+        _anchorSegId = null;
+        _anchorOffsetPx = 0;
     }
 
     function getWindowStartIdx() {
@@ -497,6 +510,7 @@
         ensureRowMounted,
         isSegIdCentered,
         centerOnSegId,
-        invalidateHeights
+        invalidateHeights,
+        releaseNavigationAnchor
     };
 })(typeof window !== 'undefined' ? window : globalThis);
