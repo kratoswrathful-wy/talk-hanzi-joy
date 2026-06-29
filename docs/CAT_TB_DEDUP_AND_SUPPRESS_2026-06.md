@@ -17,9 +17,15 @@
 ### 1. 子字串壓制
 
 - 收集每筆 TB hit 時儲存 `ranges`（`findTermHitRangesInPlainText` 回傳值）。
-- 依術語原文長度**由大到小**處理；較長者先佔地。
-- 對較短術語：若**每一個**命中範圍都被更長術語的範圍完整涵蓋 → **壓制**。
-- **不壓制**邊界：短術語在句中另有獨立位置時仍顯示。
+- 依術語原文長度**由大到小**處理候選壓制。
+- 對較短術語 `hit`：僅當**每一個** `hit.ranges[i]` 同時滿足下列條件才**壓制**：
+  1. 存在已接受術語 `acceptedHit`
+  2. `acceptedHit.entry.sourceText !== hit.entry.sourceText`（精確字串不同）
+  3. `acceptedHit.srcLen > hit.srcLen`（嚴格較長）
+  4. `acceptedHit.entry.sourceText.includes(hit.entry.sourceText)`（**區分大小寫**之子字串）
+  5. `acceptedHit` 的某 range 涵蓋該 `r`
+- **僅 ranges 重疊不壓制**：例如 `Card` 與 `card` 在不區分大小寫比對下命中同一位置，但互非嚴格子字串 → **兩列**。
+- **不壓制**邊界：短術語在句中另有獨立位置時仍顯示（且無符合上列條件之較長術語涵蓋該處）。
 
 ### 2. 同原文 + 同譯文合併
 
@@ -82,6 +88,7 @@ ActiveTbTerms → AI 批次（可選過濾）
 6. 無隱藏時按鈕反灰。
 7. AI 批次預設含隱藏術語；取消勾選後 prompt 不含。
 8. 關檔重開：隱藏清空。
+9. **Card／card**：Riftbound 有 `Card→卡牌`、另一 TB 有 `card→卡牌`；點含 `card` 句段 → 右欄 **兩列** TB；分別點選，footer 顯示不同術語庫與備註。
 
 ## 維護邊界
 

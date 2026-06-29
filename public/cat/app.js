@@ -10669,6 +10669,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${source}\x00${target}`;
     }
 
+    function isTbSourceStrictSubstring(shorterSrc, longerSrc) {
+        if (!shorterSrc || !longerSrc || shorterSrc === longerSrc) return false;
+        return longerSrc.includes(shorterSrc);
+    }
+
+    function shouldSuppressTbHit(hit, acceptedHits) {
+        const hSrc = hit.entry.sourceText || '';
+        return hit.ranges.every((r) =>
+            acceptedHits.some((a) => {
+                const aSrc = a.entry.sourceText || '';
+                if (aSrc === hSrc) return false;
+                if (a.srcLen <= hit.srcLen) return false;
+                if (!isTbSourceStrictSubstring(hSrc, aSrc)) return false;
+                return a.ranges.some((ar) => ar.start <= r.start && ar.end >= r.end);
+            })
+        );
+    }
+
     function ensureSessionHiddenTbPairs() {
         if (!window._sessionHiddenTbPairs) window._sessionHiddenTbPairs = new Map();
         return window._sessionHiddenTbPairs;
@@ -24852,14 +24870,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 });
                 const byLen = [...tbHits].sort((a, b) => b.srcLen - a.srcLen);
-                const acceptedRanges = [];
+                const acceptedHits = [];
                 const suppressed = new Set();
                 for (const hit of byLen) {
-                    const allCovered = hit.ranges.every((r) =>
-                        acceptedRanges.some((ar) => ar.start <= r.start && ar.end >= r.end)
-                    );
-                    if (allCovered) suppressed.add(hit);
-                    else acceptedRanges.push(...hit.ranges);
+                    if (shouldSuppressTbHit(hit, acceptedHits)) suppressed.add(hit);
+                    else acceptedHits.push(hit);
                 }
                 const remaining = tbHits.filter((h) => !suppressed.has(h));
                 const byPairKey = new Map();
