@@ -17558,8 +17558,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfPresets = JSON.parse(localStorage.getItem('catToolSfPresets') || '{}');
     let lastEditedRowIdx = null; // Track cursor position
     let selectedRowIds = new Set(); // Track selected segment IDs
-    /** 若設為數字，renderEditorSegments 結束後將焦點移到該句段譯文欄 */
-    let _pendingFocusSegIdxAfterRender = null;
+    /** Phase 2.3c：virt 重畫後再 focus／還原游標（取代 _pendingFocusSegIdxAfterRender） */
+    /** @type {{ segId: *, plainOffset?: number|null, scrollBehavior?: string, restoreCaret?: boolean, afterConfirmPanel?: boolean } | null} */
+    let _pendingEditorFocus = null;
+    let _pendingEditorFocusRetry = false;
     /** 確認跳行 blur 時略過一次假游標（避免舊列殘留） */
     let _skipFakeCaretOnBlurOnce = false;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
@@ -19322,19 +19324,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfLastFocusedMatchSegIdx = null;
 
         let scrollAnchorSegId = null;
-        if (didRebuildFilterSnapshot && sfMode === 'filter' && lastEditedRowIdx !== null && !isSfSearchControlActive()) {
-            const segFocus = currentSegmentsList[lastEditedRowIdx];
-            scrollAnchorSegId = segFocus ? segFocus.id : null;
-            if (segFocus) {
-                focusSegmentBySegId(segFocus.id);
-            }
+        if (didRebuildFilterSnapshot && !isSfSearchControlActive()) {
+            scrollAnchorSegId = getScrollAnchorSegId();
         }
         if (virtActive && didRebuildFilterSnapshot) {
             window.CatVirtGrid.invalidateHeights();
-            const anchorId = scrollAnchorSegId != null ? scrollAnchorSegId : getScrollAnchorSegId();
-            if (anchorId != null) {
-                queueMicrotask(() => focusSegmentBySegId(anchorId));
-            }
+        }
+        if (scrollAnchorSegId != null && didRebuildFilterSnapshot) {
+            const savedFc = catFakeCaret && typeof catFakeCaret.getSaved === 'function' ? catFakeCaret.getSaved() : null;
+            const plainOffset = (savedFc && String(savedFc.segId) === String(scrollAnchorSegId))
+                ? savedFc.plainOffset
+                : null;
+            scheduleEditorFocus({
+                segId: scrollAnchorSegId,
+                plainOffset,
+                restoreCaret: plainOffset != null,
+                scrollBehavior: 'auto',
+            });
         }
         syncSelectedRowAbutmentTopClass();
     }
@@ -19700,7 +19706,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             getEditorSegId,
             getPlainCaretOffset: getPlainCaretOffsetViaRangeClone,
             buildRangeAtPlainOffset: buildCollapsedRangeAtPlainTextOffsetUsingSegments,
-            ensureEditorMountedForSegId: ensureEditorMountedForFakeCaretSegId
+            ensureEditorMountedForSegId: ensureEditorMountedForFakeCaretSegId,
+            getSegListIndex: getSegListIndexForSegId,
+            getVirtWindowStartIndex: getVirtWindowStartIndex,
+            scheduleEditorFocusForSaved: scheduleEditorFocusForSavedCaret,
         });
         catFakeCaret.installGlobalListeners();
     }
@@ -20794,37 +20803,139 @@ document.addEventListener('DOMContentLoaded', async () => {
         return v === 'nearest' ? 'nearest' : 'center';
     }
 
-    function focusTargetEditorAtSegmentIndex(segIdx, scrollBehavior = 'auto') {
-        if (segIdx == null || segIdx < 0) return false;
-        const seg = currentSegmentsList[segIdx];
-        if (!seg) return false;
+    function applyEditorFocusAtSegId(segId, opts) {
+        if (segId == null) return false;
+        const o = opts || {};
+        const scrollBehavior = o.scrollBehavior || 'auto';
+        const seg = currentSegmentsList.find((s) => s && String(s.id) === String(segId));
+        if (!seg || !isSegmentVisibleInEditor(seg)) return false;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
-        let row = getGridRowBySegId(seg.id, false);
+        let row = getGridRowBySegId(segId, false);
         if (!row && virtOn) {
-            row = window.CatVirtGrid.scrollToSegId(seg.id);
+            row = window.CatVirtGrid.scrollToSegId(segId);
         }
-        if (!row) row = getGridRowBySegId(seg.id, true);
+        if (!row) row = getGridRowBySegId(segId, true);
         if (!row) return false;
         const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
         if (!ed || ed.contentEditable === 'false') return false;
         setActiveGridRow(row);
+        try {
+            ed.focus({ preventScroll: true });
+        } catch (_) {
+            ed.focus();
+        }
+        if (o.restoreCaret && o.plainOffset != null) {
+            try {
+                const range = buildCollapsedRangeAtPlainTextOffsetUsingSegments(ed, o.plainOffset);
+                if (range) {
+                    const sel = window.getSelection();
+                    if (sel) {
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                    }
+                    if (catFakeCaret && typeof catFakeCaret.setSavedCaret === 'function') {
+                        catFakeCaret.setSavedCaret({ segId, editor: ed, range, plainOffset: o.plainOffset });
+                    }
+                }
+            } catch (_) { /* ignore */ }
+            if (catFakeCaret && typeof catFakeCaret.hide === 'function') catFakeCaret.hide();
+        }
         const block = getAfterConfirmScrollBlock();
         const doScroll = () => {
             try {
                 row.scrollIntoView({ behavior: scrollBehavior, block });
             } catch (_) { /* ignore */ }
         };
-        try {
-            ed.focus({ preventScroll: true });
-        } catch (_) {
-            ed.focus();
-        }
         if (block === 'center') {
             requestAnimationFrame(doScroll);
         } else {
             doScroll();
         }
-        return true;
+        return document.activeElement === ed;
+    }
+
+    function flushPendingEditorFocus() {
+        const pending = _pendingEditorFocus;
+        if (!pending || pending.segId == null) return;
+        const seg = currentSegmentsList.find((s) => s && String(s.id) === String(pending.segId));
+        if (!seg || !isSegmentVisibleInEditor(seg)) {
+            _pendingEditorFocus = null;
+            _pendingEditorFocusRetry = false;
+            return;
+        }
+        const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
+        let row = getGridRowBySegId(pending.segId, false);
+        if (!row && virtOn) {
+            window.CatVirtGrid.scrollToSegId(pending.segId);
+            row = getGridRowBySegId(pending.segId, false);
+            if (!row) return;
+        }
+        const ok = applyEditorFocusAtSegId(pending.segId, pending);
+        if (!ok && !_pendingEditorFocusRetry) {
+            _pendingEditorFocusRetry = true;
+            requestAnimationFrame(() => flushPendingEditorFocus());
+            return;
+        }
+        if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
+        _pendingEditorFocus = null;
+        _pendingEditorFocusRetry = false;
+    }
+
+    /** Phase 2.3c：大檔排入 pending，onAfterRender 後 flush；小檔立即 focus。 */
+    function scheduleEditorFocus(opts) {
+        if (!opts || opts.segId == null) return false;
+        _pendingEditorFocus = {
+            segId: opts.segId,
+            plainOffset: opts.plainOffset != null ? opts.plainOffset : null,
+            scrollBehavior: opts.scrollBehavior || 'auto',
+            restoreCaret: !!opts.restoreCaret,
+            afterConfirmPanel: !!opts.afterConfirmPanel,
+        };
+        _pendingEditorFocusRetry = false;
+        const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
+        if (virtOn) {
+            requestAnimationFrame(() => requestAnimationFrame(() => flushPendingEditorFocus()));
+            return true;
+        }
+        const pending = _pendingEditorFocus;
+        _pendingEditorFocus = null;
+        const ok = applyEditorFocusAtSegId(pending.segId, pending);
+        if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
+        return ok;
+    }
+
+    function scheduleEditorFocusBySegIdx(segIdx, opts) {
+        if (segIdx == null || segIdx < 0) return false;
+        const seg = currentSegmentsList[segIdx];
+        if (!seg) return false;
+        return scheduleEditorFocus({ ...(opts || {}), segId: seg.id });
+    }
+
+    function getSegListIndexForSegId(segId) {
+        if (segId == null) return null;
+        const idx = currentSegmentsList.findIndex((s) => s && String(s.id) === String(segId));
+        return idx >= 0 ? idx : null;
+    }
+
+    function getVirtWindowStartIndex() {
+        if (window.CatVirtGrid && typeof window.CatVirtGrid.getWindowStartIdx === 'function') {
+            return window.CatVirtGrid.getWindowStartIdx();
+        }
+        return null;
+    }
+
+    function scheduleEditorFocusForSavedCaret(segId, plainOffset) {
+        if (segId == null) return false;
+        return scheduleEditorFocus({
+            segId,
+            plainOffset: plainOffset != null ? plainOffset : null,
+            restoreCaret: plainOffset != null,
+            scrollBehavior: 'auto',
+        });
+    }
+
+    function focusTargetEditorAtSegmentIndex(segIdx, scrollBehavior = 'auto') {
+        return scheduleEditorFocusBySegIdx(segIdx, { scrollBehavior });
     }
 
     /** 清除篩選／跳回：優先假游標 segId，其次 lastEditedRowIdx */
@@ -20840,11 +20951,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
-    function focusSegmentBySegId(segId, scrollBehavior = 'auto') {
+    function focusSegmentBySegId(segId, scrollBehavior = 'auto', opts) {
         if (segId == null) return false;
-        const idx = currentSegmentsList.findIndex((s) => s && s.id === segId);
-        if (idx < 0) return false;
-        return focusTargetEditorAtSegmentIndex(idx, scrollBehavior);
+        const s = catFakeCaret && typeof catFakeCaret.getSaved === 'function' ? catFakeCaret.getSaved() : null;
+        const plainOffset = (opts && opts.plainOffset != null)
+            ? opts.plainOffset
+            : (s && String(s.segId) === String(segId) ? s.plainOffset : null);
+        return scheduleEditorFocus({
+            segId,
+            scrollBehavior,
+            plainOffset,
+            restoreCaret: plainOffset != null,
+            afterConfirmPanel: !!(opts && opts.afterConfirmPanel),
+        });
     }
 
     /** 被動查詢：僅已掛載列，virt 下不 scrollToSegId（假游標 show／F3 錨點）。 */
@@ -21258,15 +21377,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnSfClearNav) {
         btnSfClearNav.addEventListener('click', () => {
             if (qaScopeLocksFilterUi) return;
-            const anchorBefore = getScrollAnchorSegId();
             sfFilterGroups = sfFilterGroups.filter((g) => !!g.locked);
             renderFilterGroups();
             clearUIFilters();
             runSearchAndFilter();
-            const anchorId = anchorBefore != null ? anchorBefore : getScrollAnchorSegId();
-            if (anchorId != null) {
-                queueMicrotask(() => focusSegmentBySegId(anchorId));
-            }
         });
     }
 
@@ -21492,7 +21606,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedIndexSet
         );
         const focusIdx = o.focusIdx != null ? o.focusIdx : null;
-        if (focusIdx != null) _pendingFocusSegIdxAfterRender = focusIdx;
+        if (focusIdx != null) {
+            const focusSeg = currentSegmentsList[focusIdx];
+            if (focusSeg) {
+                scheduleEditorFocus({
+                    segId: focusSeg.id,
+                    scrollBehavior: 'auto',
+                    afterConfirmPanel: true,
+                });
+            }
+        }
         updateProgress();
         renderEditorSegments();
         runSearchAndFilter();
@@ -21561,8 +21684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderEditorSegments();
                 runSearchAndFilter();
                 if (keepId != null) {
-                    const idx2 = currentSegmentsList.findIndex((s) => s.id === keepId);
-                    queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
+                    scheduleEditorFocus({ segId: keepId, scrollBehavior: 'auto' });
                 }
                 const ar = document.querySelector('.grid-data-row.active-row');
                 const aid = ar ? parseId(ar.dataset.segId) : null;
@@ -23919,10 +24041,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 const nextFocus = getAfterConfirmFocusIndex(i);
                                 _skipFakeCaretOnBlurOnce = true;
                                 if (nextFocus != null) {
-                                    queueMicrotask(() => {
-                                        focusTargetEditorAtSegmentIndex(nextFocus);
-                                        maybeSwitchRightPanelToCatAfterConfirm();
-                                    });
+                                    const nextSeg = currentSegmentsList[nextFocus];
+                                    if (nextSeg) {
+                                        scheduleEditorFocus({
+                                            segId: nextSeg.id,
+                                            scrollBehavior: 'auto',
+                                            afterConfirmPanel: true,
+                                        });
+                                    }
                                 } else {
                                     showCatToast('後方無待確認句段', 'info');
                                     moveCaretToEndAndShowFakeInTarget(i);
@@ -24114,13 +24240,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
                 requestAnimationFrame(applyNonPrintMarkersAll);
             }
-            if (_pendingFocusSegIdxAfterRender != null) {
-                const pi = _pendingFocusSegIdxAfterRender;
-                _pendingFocusSegIdxAfterRender = null;
-                queueMicrotask(() => {
-                    focusTargetEditorAtSegmentIndex(pi, 'auto');
-                    maybeSwitchRightPanelToCatAfterConfirm();
-                });
+            if (_pendingEditorFocus != null) {
+                requestAnimationFrame(() => requestAnimationFrame(() => flushPendingEditorFocus()));
             }
         }
 
@@ -24142,6 +24263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {
                         catFakeCaret.refreshAfterVirtRender();
                     }
+                    requestAnimationFrame(() => requestAnimationFrame(() => flushPendingEditorFocus()));
                     if (!virtMountFinished) {
                         virtMountFinished = true;
                         finishEditorGridRender();
@@ -25660,8 +25782,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。');
             return;
         }
-        const idx = currentSegmentsList.findIndex((s) => String(s.id) === String(segId));
-        if (idx < 0 || !focusTargetEditorAtSegmentIndex(idx, 'auto')) {
+        const ok = scheduleEditorFocus({ segId, scrollBehavior: 'auto' });
+        if (!ok) {
             alert('無法跳至該句段（捲動定位失敗），請再試一次或重新整理頁面。');
         }
     }

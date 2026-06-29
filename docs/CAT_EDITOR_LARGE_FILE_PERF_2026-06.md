@@ -70,7 +70,8 @@ flowchart TB
 | **Phase 2.2** | 全部取代／批次操作改資料層（虛擬相容） | **首批已驗收** `5658762`（`performReplaceAll`）；其餘規劃中 |
 | **rowIdx 修正** | 確認跳行、重複 DOM、批次可見性 | **已驗收** `51815db`（2026-06-29；見 [`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)） |
 | **Phase 2.3** | tag 著色 id 假陽性、假游標、清除篩選跳頂、確認 focus／置中 | **已實作** `0670242`（見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md)） |
-| **Phase 2.3b** | 假游標 show 搶 scrollTop；Ctrl+G 與暫存句競態 | **已實作，待驗收**（同檔 §2.2b） |
+| **Phase 2.3b** | 假游標 show 搶 scrollTop；Ctrl+G 與暫存句競態 | **已驗收** `694fa81`（同檔 §2.2b） |
+| **Phase 2.3c** | virt 重畫後 focus 競態；離屏 tip 方向；清除篩選／確認只選列 | **已實作，待驗收**（同檔 §2.6；focus after virt render） |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
@@ -90,7 +91,8 @@ flowchart TB
 | **Phase 2.2 首批** | `5658762` | F4 全部取代只改 ~69 列 | `performReplaceAll` 依 DOM 列存在與否 | `seg.targetText` + `isSegmentEligibleForReplace` | **已驗收** |
 | **rowIdx／確認跳行** | `51815db` | 大檔確認不跳行、重複句不刷新、批次操作 silently 失效 | virt `renderWindow` 用篩選 list 索引污染 `rowIdx`；`getAfterConfirmFocusIndex` 用 `gRows[idx]` | bulk rowIdx、`getGlobalIndex`、五態 helper、`getGridRowBySegId` | **已驗收**（2026-06-29） |
 | **Phase 2.3** | `0670242` | tag 全紅橘（id 假陽性）、假游標失效、清除篩選跳頂、確認無 scroll／焦點消失 | 著色未略 id；假游標綁 DOM；`rows[idx]` 跳位；virt focus 無 center | 見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) | **待驗收** |
-| **Phase 2.3b** | （待 commit） | 往下捲被拉回第一行；Ctrl+G 無效 | 假游標 `show()` 每次 scroll 呼叫 `scrollToSegId(暫存句)` | mount 雙模式；Ctrl+G → `focusTargetEditorAtSegmentIndex` | **待驗收** |
+| **Phase 2.3b** | `694fa81` | 往下捲被拉回第一行；Ctrl+G 無效 | 假游標 `show()` 每次 scroll 呼叫 `scrollToSegId(暫存句)` | mount 雙模式；Ctrl+G → `focusTargetEditorAtSegmentIndex` | **已驗收** |
+| **Phase 2.3c** | （待 commit） | 確認／清除篩選只選列；Ctrl+Alt+↓ 無游標；離屏 tip 不見 | focus 在 virt 重畫前；`onAfterRender` 僅首次 flush | `scheduleEditorFocus` + 每次 `onAfterRender` flush；tip 頂/底 | **待驗收** |
 
 **問題族譜**（虛擬捲動子迭代）：
 

@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3b 已實作，待驗收**（2026-06-29；`0670242` Phase 2.3 + 2.3b scroll 競態修正）
+> **狀態**：**Phase 2.3c 已實作，待驗收**（2026-06-29；`0670242` Phase 2.3 + `694fa81` 2.3b + 2.3c 焦點管線）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
@@ -35,6 +35,12 @@
 5. **小檔 ≤800**：3、4 regression。
 6. **自由捲動（2.3b）**：大檔往下捲 800+ → **不**持續跳回第一行；有暫存假游標時仍可自由捲動（僅顯示提示，不強制拉回暫存句）。
 7. **Ctrl+G + 假游標（2.3b）**：句 A 編輯 → 點 TM 產生暫存游標 → **Ctrl+G** 跳 838 → 畫面到 838、焦點進譯文格。
+8. **確認可打字（2.3c）**：大檔 **Ctrl+Enter** 確認跳行 → 下一句**譯文格內可打字**（非僅選列）。
+9. **清除篩選回假游標句（2.3c）**：篩選中編輯 → 清除篩選 → 回到**假游標 segId 那句**；譯文格有焦點。
+10. **Ctrl+Alt+↓ 還原游標（2.3c）**：捲回暫存句 + **游標在譯文格**（可打字）。
+11. **離屏假游標提示（2.3c）**：點 TM 後捲遠 → 「暫存游標…」提示在視窗**頂或底**可見（依暫存句在視窗上方或下方）。
+
+**2.3b regression（2.3c 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效。
 
 ### 1.4 已知邊界
 
@@ -71,7 +77,7 @@
 | 路徑 | `scrollToSegId` |
 |------|-----------------|
 | `show()`、`refreshAfterVirtRender`、`getSearchNavAnchorCollapsed` | **否** — `queryEditorForSegId` 或 `{ scroll: false }` |
-| `restore()`、`navigateToSegmentBySegId`、Ctrl+Alt+↓、Ctrl+G | **是** — `{ scroll: true }` 或 `focusTargetEditorAtSegmentIndex` |
+| `restore()`、`navigateToSegmentBySegId`、Ctrl+Alt+↓、Ctrl+G | **是** — 經 `scheduleEditorFocus`（Phase 2.3c）；virt 重畫後 flush |
 
 ### 2.3 清除篩選跳位（C）
 
@@ -83,11 +89,57 @@
 
 **根因**：大檔 `focusTargetEditorAtSegmentIndex` 無 scroll／center；單句 Ctrl+Enter 未用 `_pendingFocusSegIdxAfterRender`；`nextFocus === null` 無 fallback。
 
-**修正**：virt 與非 virt 共用 scrollToSegId + scrollIntoView + focus；單句確認設 pending focus；null 時 toast + 留焦／假游標；確認 blur 略過假游標。
+**修正**：virt 與非 virt 共用 scrollToSegId + scrollIntoView + focus；單句／批次確認經 **`scheduleEditorFocus`**（Phase 2.3c）；null 時 toast + 留焦／假游標；確認 blur 略過假游標。
 
 ### 2.5 與 `51815db` 的關係
 
 `51815db` 修 rowIdx／五態搜尋／`getGridRowBySegId`。本輪為 **Phase 2.3 延伸**（focus 路徑、invalidate 順序、tag sig），非 rowIdx 回歸。
+
+### 2.6 Phase 2.3c — 焦點／游標管線（2026-06-29）
+
+**症狀（2.3／2.3b 通過後殘留）**：
+
+1. 移出畫面的假游標提示卡片固定貼頂、體感「不見」
+2. 清除篩選焦點回錯行；Ctrl+Alt+↓ 只選列不進譯文格
+3. 確認跳行只選列、不進譯文格
+
+**根因**：大檔 virt `replaceChildren` 重畫 DOM 時，**focus／Range 在重畫前或重畫中執行**；`onAfterRender` 僅首次 mount 呼叫 `finishEditorGridRender()`，後續 `scrollToSegId` 觸發的重畫**不會** flush pending focus。
+
+**修正**（[`cat-tool/app.js`](../cat-tool/app.js)）：
+
+| API | 語意 |
+|-----|------|
+| `_pendingEditorFocus` | 取代 `_pendingFocusSegIdxAfterRender`（單一來源） |
+| `scheduleEditorFocus(opts)` | 大檔 virt 排入 pending；小檔立即 `applyEditorFocusAtSegId` |
+| `flushPendingEditorFocus()` | 每次 `onAfterRender` 雙 rAF 執行；缺列時 `scrollToSegId` 再等下一輪 |
+| `applyEditorFocusAtSegId` | focus + 可選 plainOffset 還原 + scrollIntoView |
+
+**觸點改接**：Ctrl+Enter 單句確認、批次確認、`runSearchAndFilter`（invalidate 後錨定）、Ctrl+G／`_qaJumpToSegment`、`cat-fake-caret` restore／tip 導覽。
+
+**清除篩選錨點**：`getScrollAnchorSegId()` — **假游標 segId 優先**，其次 `lastEditedRowIdx`。
+
+**與 2.3b 邊界**：被動 `show()`／`refreshAfterVirtRender` 仍 `{ scroll: false }`；僅使用者導覽與 pending flush 才 scroll／focus。
+
+**離屏 tip**（[`cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)）：列未掛載時 `listIdx < windowStart` → 提示貼**頂**；否則貼**底**（`CatVirtGrid.getWindowStartIdx()`）。
+
+---
+
+## §3 產品端驗收紀錄（2026-06）
+
+### 3.1 Phase 2.3／2.3b — 已通過
+
+- Tag 838 著色、自由捲動不拉回第一行、Ctrl+G 838、假游標基本顯示等 — **通過**（`0670242`、`694fa81`）。
+
+### 3.2 Phase 2.3 殘留（2.3c 修正目標）
+
+| # | 現象 | 根因（一句） |
+|---|------|-------------|
+| 1 | 捲遠後「暫存游標」提示不見 | 列未掛載時 tip 固定貼頂 |
+| 2 | 清除篩選焦點錯行 | focus 與 virt invalidate 競態 |
+| 3 | Ctrl+Alt+↓ 只選列 | focus 在 virt 重畫前執行 |
+| 4 | 確認跳行只選列 | `onAfterRender` 未 flush pending focus |
+
+**2.3c 狀態**：**已實作，待驗收**（驗收項 §1.3 之 8～11 + 2.3b regression）。
 
 ---
 
@@ -96,4 +148,5 @@
 | 日期 | 事項 |
 |------|------|
 | 2026-06-29 | 規劃定案；實作 A～D（`0670242`）；**待產品端驗收** |
-| 2026-06-29 | Phase 2.3b：假游標被動 show 不得 scrollToSegId；Ctrl+G 走 `focusTargetEditorAtSegmentIndex`；**待驗收** |
+| 2026-06-29 | Phase 2.3b：假游標被動 show 不得 scrollToSegId；Ctrl+G 走 `focusTargetEditorAtSegmentIndex`；**已通過** `694fa81` |
+| 2026-06-29 | Phase 2.3c：統一 `scheduleEditorFocus` 管線、離屏 tip 頂/底、`onAfterRender` 每次 flush；**已實作，待驗收** |

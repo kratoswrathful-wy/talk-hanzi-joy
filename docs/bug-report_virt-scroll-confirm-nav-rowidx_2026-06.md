@@ -92,4 +92,12 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 
 **根因（與 51815db 互補）**：virt `focusTargetEditorAtSegmentIndex` 無 scroll／center；假游標綁 DOM；`invalidateHeights` 覆寫捲動；著色 `normalizeXmlForSig` 未略 `id`。
 
-**完整規劃與驗收**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — Phase 2.3 **`0670242`**；**Phase 2.3b**（假游標 scroll 競態，非 rowIdx）見同檔 §2.2b — **待驗收**。
+**完整規劃與驗收**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — Phase 2.3 **`0670242`**；**Phase 2.3b**（假游標 scroll 競態，非 rowIdx）**已驗收** `694fa81`；**Phase 2.3c**（focus 競態，非 rowIdx）見同檔 §2.6 — **待驗收**。
+
+### 6.1 Phase 2.3c focus 競態（2026-06-29）
+
+**症狀**：確認跳行、清除篩選、Ctrl+Alt+↓ 只**選列**不進譯文格。
+
+**根因**：virt `replaceChildren` 重畫前執行 focus；`onAfterRender` 僅首次 mount 才 flush pending。**非** rowIdx 污染（`51815db` 已修）。
+
+**修正**：`_pendingEditorFocus` + 每次 `onAfterRender` 雙 rAF `flushPendingEditorFocus()`。詳見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §2.6。

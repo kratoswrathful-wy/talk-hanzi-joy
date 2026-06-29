@@ -434,10 +434,15 @@
         renderWindow(null);
     }
 
+    function getWindowStartIdx() {
+        return _lastStartIdx >= 0 ? _lastStartIdx : 0;
+    }
+
     global.CatVirtGrid = {
         shouldUse,
         isEnabled,
         getAnchorSegId,
+        getWindowStartIdx,
         mount,
         destroy,
         renderWindow,

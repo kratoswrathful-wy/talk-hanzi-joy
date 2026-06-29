@@ -1,7 +1,7 @@
 /**
  * CAT 內嵌編輯器：暫存游標（假游標）記錄、捲動提示、還原焦點。
  * 假游標／提示掛載於 #editorGrid 內 #catEditorChromeLayer（見 docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md）。
- * Phase 2.3：segId + plainOffset 持久化；Phase 2.3b：被動 show 不 scrollToSegId（見 docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md）。
+ * Phase 2.3：segId + plainOffset 持久化；Phase 2.3b：被動 show 不 scrollToSegId；Phase 2.3c：restore 走 app pending focus。
  */
 (function (global) {
     'use strict';
@@ -14,6 +14,9 @@
      * @property {(editor: HTMLElement) => number|null} [getPlainCaretOffset]
      * @property {(editor: HTMLElement, offset: number) => Range|null} [buildRangeAtPlainOffset]
      * @property {(segId: *, opts?: { scroll?: boolean }) => { row: HTMLElement|null, editor: HTMLElement|null }} [ensureEditorMountedForSegId]
+     * @property {(segId: *) => number|null} [getSegListIndex]
+     * @property {() => number|null} [getVirtWindowStartIndex]
+     * @property {(segId: *, plainOffset: number|null) => boolean} [scheduleEditorFocusForSaved]
      */
 
     /**
@@ -26,6 +29,9 @@
         const getPlainCaretOffset = deps.getPlainCaretOffset || null;
         const buildRangeAtPlainOffset = deps.buildRangeAtPlainOffset || null;
         const ensureEditorMountedForSegId = deps.ensureEditorMountedForSegId || null;
+        const getSegListIndex = deps.getSegListIndex || null;
+        const getVirtWindowStartIndex = deps.getVirtWindowStartIndex || null;
+        const scheduleEditorFocusForSaved = deps.scheduleEditorFocusForSaved || null;
 
         /** @type {{ segId: *, plainOffset: number|null, editor: HTMLElement|null, range: Range|null } | null} */
         let saved = null;
@@ -124,6 +130,17 @@
             }
         }
 
+        /** 列未掛載時：listIdx < windowStart → 提示貼頂，否則貼底（Phase 2.3c）。 */
+        function resolveOffScreenTipAbove(segId) {
+            const sid = segId != null ? segId : (saved && saved.segId);
+            if (sid == null) return true;
+            if (typeof getSegListIndex !== 'function' || typeof getVirtWindowStartIndex !== 'function') return true;
+            const listIdx = getSegListIndex(sid);
+            const windowStart = getVirtWindowStartIndex();
+            if (listIdx == null || windowStart == null) return true;
+            return listIdx < windowStart;
+        }
+
         /** @param {{ scroll?: boolean }} [opts] scroll 預設 true（使用者導覽）；false 為被動重畫。 */
         function findRowAndEditorForSegId(segId, opts) {
             if (segId == null || segId === '') return { row: null, editor: null };
@@ -188,25 +205,31 @@
             bindFakeTipNavigation(tip);
             const colTarget = document.querySelector('.col-target');
             const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
-            positionScrollTipInLayer(tip, anchorLeft, gridRect, outAbove !== false);
+            positionScrollTipInLayer(tip, anchorLeft, gridRect, !!outAbove);
         }
 
         /** 真／假游標提示共用：捲至句段列、聚焦譯文格、還原暫存 Range（若有）。 */
         function navigateToSegmentBySegId(segId) {
-            const { row, editor } = findRowAndEditorForSegId(segId, { scroll: true });
-            if (!editor) return false;
-
             const active = document.activeElement;
-            if (active === editor) {
-                saveFromSelection(editor);
+            if (active && active.classList && active.classList.contains('grid-textarea')) {
+                saveFromSelection(active);
             }
 
             if (saved && String(saved.segId) === String(segId)) {
                 const result = restore();
                 hideRealTip();
-                return result !== null;
+                return result != null;
             }
 
+            if (scheduleEditorFocusForSaved) {
+                const ok = scheduleEditorFocusForSaved(segId, null);
+                hide();
+                hideRealTip();
+                return ok;
+            }
+
+            const { row, editor } = findRowAndEditorForSegId(segId, { scroll: true });
+            if (!editor) return false;
             if (row && typeof row.scrollIntoView === 'function') {
                 try {
                     row.scrollIntoView({ behavior: 'auto', block: 'center' });
@@ -218,7 +241,6 @@
                 hideRealTip();
                 return false;
             }
-
             hide();
             hideRealTip();
             return true;
@@ -317,7 +339,7 @@
             const passiveOpts = { scroll: false };
             const { editor } = resolveSavedEditor(passiveOpts);
             if (!editor || editor.contentEditable === 'false') {
-                showOffScreenFakeTip(true);
+                showOffScreenFakeTip(resolveOffScreenTipAbove(saved.segId));
                 return;
             }
             if (document.activeElement === editor) {
@@ -397,6 +419,11 @@
 
         function restore() {
             if (!saved || saved.segId == null) return null;
+            if (scheduleEditorFocusForSaved) {
+                const ok = scheduleEditorFocusForSaved(saved.segId, saved.plainOffset);
+                if (ok) hide();
+                return ok ? saved : null;
+            }
             const { row, editor } = resolveSavedEditor({ scroll: true });
             if (!editor || editor.contentEditable === 'false') return null;
             if (row && typeof row.scrollIntoView === 'function') {
