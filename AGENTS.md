@@ -39,7 +39,7 @@
 - [`docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md`](docs/bug-report_team-large-file-editor-stuck-loading_2026-05-26.md) — 團隊版大檔：開檔卡「載入中」**已修**（`4422dae`）；匯出 signed URL／單檔直接下載 **已修**（`6acf7d9`）；**更新作業檔** orphan path 根因（`refreshFileSegments` 先刪後傳）**已修**（`e37cbf9`）；見 §2.11–§2.12
 - [`docs/bug-report_excel-update-export-position_2026-06.md`](docs/bug-report_excel-update-export-position_2026-06.md) — Excel **更新作業檔**後匯出 F 欄**錯列**（`mergeSegments` keep 短路未同步 `rowIdx`；`globalId`／`status` 假陽性更新統計）；與 [`CAT_EXCEL_EXPORT_COLTGT_STRING_BUG_2026-05.md`](docs/CAT_EXCEL_EXPORT_COLTGT_STRING_BUG_2026-05.md)（寫錯欄）區分
 - [`docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md`](docs/CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md) — 原文格 TB 上標／副行：**§9** 為 2026-05-09 第二波（跨節點錨點、TB 閱讀序、多上標、同範圍合併底線）開發與驗收紀錄；程式對照見 [`docs/CODEMAP.md`](docs/CODEMAP.md)
-- [`docs/CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md`](docs/CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md) — 右欄 TB 比對**子字串壓制**、**同原文同譯文合併**、**工作階段隱藏／復原**、AI 批次可選帶入；待驗收
+- [`docs/CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md`](docs/CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md) — 右欄 TB 比對**子字串壓制**（須嚴格原文子字串；Card／card 不互壓）、**同原文同譯文合併**、**工作階段隱藏／復原**、AI 批次可選帶入；待驗收
 - [`docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md`](docs/CAT_MQXIFF_FILTER_STATUS_IMPLEMENTATION.md) — mqxliff **進階篩選「memoQ 確認身分」** 定案 UI、`evaluateSegment` 第四維、編輯器／TM 匯入／QA 摘要等**全部觸點**與驗收；靜態預覽見 [`docs/preview-mqxliff-filter-status-options/index.html`](docs/preview-mqxliff-filter-status-options/index.html)
 - [`docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md) — 單檔匯出**標籤警告**不被全螢幕 loading 擋住；假游標／捲動提示掛 **`#editorGrid` chrome 層**、modal 開啟隱藏／關閉自動恢復（**已實作**，待驗收）
 - [`docs/CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](docs/CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md) — 系統跳焦點一律即時捲動（`scrollIntoView` `behavior: 'auto'`）；清除篩選／搜尋導覽／確認跳行等**已修並驗收** `5b5aa3d`；與 [`CAT_CONFIRM_SCROLL_CENTER_FIX_2026-05.md`](docs/CAT_CONFIRM_SCROLL_CENTER_FIX_2026-05.md) 置中邏輯互補
@@ -52,7 +52,7 @@
 - [`docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md) — **Bug #12** mq:rxt `val` 屬性不符（reconcile 短路；**已修並驗收** `2a88a48`）；樣本 `36432` 列 203
 - [`docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md`](docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md) — mqxliff **memoQ 預翻／機翻**（`<mq:insertedmatch>`）右欄比對表第一列、百分比與 `MT /` 分色；開發／驗收紀錄
 - [`docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) — 編輯器**大檔效能**；Phase 1～2.2 首批**已驗收**（主紀錄 §開發與驗收時序）
-- [`docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **Phase 2.3**（`0670242`）+ **2.3b** `694fa81` + **2.3c** 焦點管線；**2.3c 待驗收**
+- [`docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **Phase 2.3**（`0670242`）+ **2.3b** `694fa81` + **2.3c** `0a073ea`（驗收未通過）+ **2.3d** 跨重畫焦點；**2.3d 待驗收**
 - [`docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md) — 大檔虛擬捲動 **rowIdx 污染**、確認後不跳行、重複句 DOM；**已修並驗收** `51815db`（Phase 2.3 延伸見上）
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
 - [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）

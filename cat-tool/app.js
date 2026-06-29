@@ -10669,6 +10669,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${source}\x00${target}`;
     }
 
+    function isTbSourceStrictSubstring(shorterSrc, longerSrc) {
+        if (!shorterSrc || !longerSrc || shorterSrc === longerSrc) return false;
+        return longerSrc.includes(shorterSrc);
+    }
+
+    function shouldSuppressTbHit(hit, acceptedHits) {
+        const hSrc = hit.entry.sourceText || '';
+        return hit.ranges.every((r) =>
+            acceptedHits.some((a) => {
+                const aSrc = a.entry.sourceText || '';
+                if (aSrc === hSrc) return false;
+                if (a.srcLen <= hit.srcLen) return false;
+                if (!isTbSourceStrictSubstring(hSrc, aSrc)) return false;
+                return a.ranges.some((ar) => ar.start <= r.start && ar.end >= r.end);
+            })
+        );
+    }
+
     function ensureSessionHiddenTbPairs() {
         if (!window._sessionHiddenTbPairs) window._sessionHiddenTbPairs = new Map();
         return window._sessionHiddenTbPairs;
@@ -17723,9 +17741,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let lastEditedRowIdx = null; // Track cursor position
     let selectedRowIds = new Set(); // Track selected segment IDs
     /** Phase 2.3c：virt 重畫後再 focus／還原游標（取代 _pendingFocusSegIdxAfterRender） */
-    /** @type {{ segId: *, plainOffset?: number|null, scrollBehavior?: string, restoreCaret?: boolean, afterConfirmPanel?: boolean } | null} */
+    /** @type {{ segId: *, plainOffset?: number|null, scrollBehavior?: string, restoreCaret?: boolean, afterConfirmPanel?: boolean, caretAtStart?: boolean } | null} */
     let _pendingEditorFocus = null;
     let _pendingEditorFocusRetry = false;
+    /** Phase 2.3d：一般捲動／重畫前擷取編輯中譯文格，onAfterRender 還原 */
+    /** @type {{ segId: *, plainOffset?: number|null } | null} */
+    let _preserveFocusAcrossVirtRender = null;
     /** 確認跳行 blur 時略過一次假游標（避免舊列殘留） */
     let _skipFakeCaretOnBlurOnce = false;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
@@ -19492,7 +19513,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             scrollAnchorSegId = getScrollAnchorSegId();
         }
         if (virtActive && didRebuildFilterSnapshot) {
-            window.CatVirtGrid.invalidateHeights();
+            window.CatVirtGrid.invalidateHeights(scrollAnchorSegId != null ? scrollAnchorSegId : undefined);
         }
         if (scrollAnchorSegId != null && didRebuildFilterSnapshot) {
             const savedFc = catFakeCaret && typeof catFakeCaret.getSaved === 'function' ? catFakeCaret.getSaved() : null;
@@ -19818,13 +19839,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function focusTargetEditorStartAtGlobalIndex(gIdx) {
-        const r = getGridRowAtListIndex(gIdx);
-        if (!r || !isGridDataRowFilterVisible(r)) return;
-        const ed = r.querySelector('.col-target .grid-textarea');
-        if (ed && ed.contentEditable !== 'false') {
-            r.scrollIntoView({ behavior: 'auto', block: 'center' });
-            setCaretAtEditorStart(ed);
-        }
+        const seg = currentSegmentsList[gIdx];
+        if (!seg || !isSegmentVisibleInEditor(seg)) return;
+        scheduleEditorFocus({
+            segId: seg.id,
+            scrollBehavior: 'auto',
+            caretAtStart: true,
+        });
+    }
+
+    function focusAdjacentTargetRow(adjacentRowEl, opts) {
+        if (!adjacentRowEl) return false;
+        const segId = parseId(adjacentRowEl.dataset.segId);
+        if (segId == null) return false;
+        return scheduleEditorFocus({
+            segId,
+            scrollBehavior: 'auto',
+            caretAtStart: !(opts && opts.caretAtEnd),
+        });
     }
 
     function getGridDataRowForSegNav() {
@@ -19838,21 +19870,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     function moveVisibleTargetRowByCtrlArrow(delta) {
         const row = getGridDataRowForSegNav();
         if (!row || !gridBody) return;
-        const gRows = gridBody.querySelectorAll('.grid-data-row');
         if (delta < 0) {
             let prev = row.previousElementSibling;
             while (prev && !isGridDataRowFilterVisible(prev)) prev = prev.previousElementSibling;
-            if (prev) {
-                const gIdx = Array.prototype.indexOf.call(gRows, prev);
-                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
-            }
+            if (prev) focusAdjacentTargetRow(prev, { caretAtStart: true });
         } else {
             let next = row.nextElementSibling;
             while (next && !isGridDataRowFilterVisible(next)) next = next.nextElementSibling;
-            if (next) {
-                const gIdx = Array.prototype.indexOf.call(gRows, next);
-                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
-            }
+            if (next) focusAdjacentTargetRow(next, { caretAtStart: true });
         }
     }
 
@@ -20967,6 +20992,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         return v === 'nearest' ? 'nearest' : 'center';
     }
 
+    function isActiveEditorGridTextarea(el) {
+        if (!el || !el.classList || !el.classList.contains('grid-textarea')) return false;
+        const grid = document.getElementById('editorGrid');
+        return !!(grid && grid.contains(el));
+    }
+
+    function captureEditingFocusBeforeVirtRender() {
+        if (_pendingEditorFocus) return;
+        const active = document.activeElement;
+        if (!isActiveEditorGridTextarea(active)) return;
+        const segId = getEditorSegId(active);
+        if (segId == null) return;
+        let plainOffset = null;
+        try { plainOffset = getPlainCaretOffsetViaRangeClone(active); } catch (_) { plainOffset = null; }
+        _preserveFocusAcrossVirtRender = { segId, plainOffset };
+    }
+
+    function flushEditorFocusAfterVirtRender() {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            flushPendingEditorFocus();
+            if (isActiveEditorGridTextarea(document.activeElement)) {
+                _preserveFocusAcrossVirtRender = null;
+                return;
+            }
+            const preserved = _preserveFocusAcrossVirtRender;
+            if (!preserved || preserved.segId == null) return;
+            if (_pendingEditorFocus) return;
+            _preserveFocusAcrossVirtRender = null;
+            scheduleEditorFocus({
+                segId: preserved.segId,
+                plainOffset: preserved.plainOffset,
+                restoreCaret: preserved.plainOffset != null,
+                caretAtStart: preserved.plainOffset == null,
+                scrollBehavior: 'auto',
+            });
+        }));
+    }
+
     function applyEditorFocusAtSegId(segId, opts) {
         if (segId == null) return false;
         const o = opts || {};
@@ -21003,17 +21066,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } catch (_) { /* ignore */ }
             if (catFakeCaret && typeof catFakeCaret.hide === 'function') catFakeCaret.hide();
+        } else if (o.caretAtStart) {
+            setCaretAtEditorStart(ed);
         }
-        const block = getAfterConfirmScrollBlock();
-        const doScroll = () => {
-            try {
-                row.scrollIntoView({ behavior: scrollBehavior, block });
-            } catch (_) { /* ignore */ }
-        };
-        if (block === 'center') {
-            requestAnimationFrame(doScroll);
-        } else {
-            doScroll();
+        if (!virtOn) {
+            const block = getAfterConfirmScrollBlock();
+            const doScroll = () => {
+                try {
+                    row.scrollIntoView({ behavior: scrollBehavior, block });
+                } catch (_) { /* ignore */ }
+            };
+            if (block === 'center') {
+                requestAnimationFrame(doScroll);
+            } else {
+                doScroll();
+            }
         }
         return document.activeElement === ed;
     }
@@ -21035,9 +21102,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!row) return;
         }
         const ok = applyEditorFocusAtSegId(pending.segId, pending);
-        if (!ok && !_pendingEditorFocusRetry) {
-            _pendingEditorFocusRetry = true;
-            requestAnimationFrame(() => flushPendingEditorFocus());
+        if (!ok) {
+            if (!_pendingEditorFocusRetry) {
+                _pendingEditorFocusRetry = true;
+                requestAnimationFrame(() => flushPendingEditorFocus());
+            }
             return;
         }
         if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
@@ -21048,12 +21117,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** Phase 2.3c：大檔排入 pending，onAfterRender 後 flush；小檔立即 focus。 */
     function scheduleEditorFocus(opts) {
         if (!opts || opts.segId == null) return false;
+        _preserveFocusAcrossVirtRender = null;
         _pendingEditorFocus = {
             segId: opts.segId,
             plainOffset: opts.plainOffset != null ? opts.plainOffset : null,
             scrollBehavior: opts.scrollBehavior || 'auto',
             restoreCaret: !!opts.restoreCaret,
             afterConfirmPanel: !!opts.afterConfirmPanel,
+            caretAtStart: !!opts.caretAtStart,
         };
         _pendingEditorFocusRetry = false;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
@@ -24297,23 +24368,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const s = window.getSelection();
                         if (s && s.rangeCount && s.isCollapsed) {
                             const r0 = s.getRangeAt(0);
-                            const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
                             if (e.key === 'ArrowUp' && targetTextareaOnFirstLine(targetInput, r0)) {
                                 e.preventDefault();
                                 let prevRow = row.previousElementSibling;
                                 while (prevRow && !isGridDataRowFilterVisible(prevRow)) prevRow = prevRow.previousElementSibling;
-                                if (prevRow) {
-                                    const gIdx = Array.prototype.indexOf.call(gRows, prevRow);
-                                    if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
-                                }
+                                if (prevRow) focusAdjacentTargetRow(prevRow, { caretAtStart: true });
                             } else if (e.key === 'ArrowDown' && targetTextareaOnLastLine(targetInput, r0)) {
                                 e.preventDefault();
                                 let nextRow = row.nextElementSibling;
                                 while (nextRow && !isGridDataRowFilterVisible(nextRow)) nextRow = nextRow.nextElementSibling;
-                                if (nextRow) {
-                                    const gIdx = Array.prototype.indexOf.call(gRows, nextRow);
-                                    if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
-                                }
+                                if (nextRow) focusAdjacentTargetRow(nextRow, { caretAtStart: true });
                             }
                         }
                     } else if (e.ctrlKey && !e.altKey && e.key >= '1' && e.key <= '9') {
@@ -24420,6 +24484,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 isSegVisible: (seg) => isSegmentVisibleInEditor(seg),
                 savedScrollTop,
                 onBeforeRender: () => {
+                    captureEditingFocusBeforeVirtRender();
                     resetGridRowUiTracking();
                 },
                 onAfterRender: () => {
@@ -24427,7 +24492,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {
                         catFakeCaret.refreshAfterVirtRender();
                     }
-                    requestAnimationFrame(() => requestAnimationFrame(() => flushPendingEditorFocus()));
+                    flushEditorFocusAfterVirtRender();
                     if (!virtMountFinished) {
                         virtMountFinished = true;
                         finishEditorGridRender();
@@ -24805,14 +24870,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 });
                 const byLen = [...tbHits].sort((a, b) => b.srcLen - a.srcLen);
-                const acceptedRanges = [];
+                const acceptedHits = [];
                 const suppressed = new Set();
                 for (const hit of byLen) {
-                    const allCovered = hit.ranges.every((r) =>
-                        acceptedRanges.some((ar) => ar.start <= r.start && ar.end >= r.end)
-                    );
-                    if (allCovered) suppressed.add(hit);
-                    else acceptedRanges.push(...hit.ranges);
+                    if (shouldSuppressTbHit(hit, acceptedHits)) suppressed.add(hit);
+                    else acceptedHits.push(hit);
                 }
                 const remaining = tbHits.filter((h) => !suppressed.has(h));
                 const byPairKey = new Map();

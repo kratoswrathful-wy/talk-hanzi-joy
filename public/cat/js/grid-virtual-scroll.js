@@ -425,13 +425,13 @@
         return scrollToSegId(segId);
     }
 
-    function invalidateHeights() {
+    function invalidateHeights(anchorSegId) {
         if (!enabled) return;
         rowHeights.clear();
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
-        renderWindow(null);
+        renderWindow(anchorSegId != null && anchorSegId !== '' ? anchorSegId : null);
     }
 
     function getWindowStartIdx() {

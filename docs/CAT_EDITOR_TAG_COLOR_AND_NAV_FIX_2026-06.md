@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3c 已實作，待驗收**（2026-06-29；`0670242` Phase 2.3 + `694fa81` 2.3b + 2.3c 焦點管線）
+> **狀態**：**Phase 2.3d 已實作，待驗收**（2026-06-29；2.3c `0a073ea` 驗收未通過 → 2.3d 跨重畫還原焦點／方向鍵 segId／清除篩選錨定）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
@@ -39,8 +39,12 @@
 9. **清除篩選回假游標句（2.3c）**：篩選中編輯 → 清除篩選 → 回到**假游標 segId 那句**；譯文格有焦點。
 10. **Ctrl+Alt+↓ 還原游標（2.3c）**：捲回暫存句 + **游標在譯文格**（可打字）。
 11. **離屏假游標提示（2.3c）**：點 TM 後捲遠 → 「暫存游標…」提示在視窗**頂或底**可見（依暫存句在視窗上方或下方）。
+12. **確認跳行可打字（2.3d）**：#17 **Ctrl+Enter** → #385 → 譯文格可打字（`activeElement` 含 `grid-textarea`）。
+13. **方向鍵 segId（2.3d）**：#385 游標在第一行按 **↑** → **#384**，非 #17。
+14. **滾輪保焦（2.3d）**：譯文格有游標時滾輪捲動 → 仍可打字，焦點不變 `BODY`。
+15. **清除篩選不空白（2.3d）**：篩選中編輯 → 清除篩選 → 畫面不空白；停假游標句 + 譯文格可編輯。
 
-**2.3b regression（2.3c 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效。
+**2.3b regression（2.3d 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效。
 
 ### 1.4 已知邊界
 
@@ -122,6 +126,28 @@
 
 **離屏 tip**（[`cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)）：列未掛載時 `listIdx < windowStart` → 提示貼**頂**；否則貼**底**（`CatVirtGrid.getWindowStartIdx()`）。
 
+### 2.7 Phase 2.3d — 跨 virt 重畫焦點還原 + 方向鍵 + 清除篩選（2026-06-29）
+
+**2.3c 驗收未通過**（`0a073ea`）：確認跳行只選列；#385 按 ↑ 回 #17；滾輪／手動點譯文格焦點退出；清除篩選空白。
+
+**根因（與 2.3c 互補）**：
+
+1. virt 下 `applyEditorFocusAtSegId` 仍 `row.scrollIntoView`（置中延遲 rAF）→ 第二次重畫吃掉焦點；pending 過早清除
+2. 一般捲動重畫無「還原正在編輯那句」邏輯
+3. ↑／↓ 用 DOM `indexOf` 誤當全檔索引（#385 DOM 17 → #17）
+4. `invalidateHeights()` 無 anchor → 列高清空後 scrollTop 錯位空白
+
+**修正**（[`cat-tool/app.js`](../cat-tool/app.js)、[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)）：
+
+| 項目 | 作法 |
+|------|------|
+| `_preserveFocusAcrossVirtRender` | `onBeforeRender` 擷取譯文格 `segId`+`plainOffset`；`onAfterRender` 無焦點時還原 |
+| virt focus | 禁止 `row.scrollIntoView`；捲動僅 `scrollToSegId`；pending 僅 focus 成功後清除 |
+| 方向鍵 | `focusAdjacentTargetRow` 讀 `data-seg-id` → `scheduleEditorFocus` |
+| 清除篩選 | `invalidateHeights(anchorSegId)` 先錨定再重算 |
+
+**優先序**：顯式 `_pendingEditorFocus` 優於 preserve；`scheduleEditorFocus` 會清除 preserve。
+
 ---
 
 ## §3 產品端驗收紀錄（2026-06）
@@ -139,7 +165,19 @@
 | 3 | Ctrl+Alt+↓ 只選列 | focus 在 virt 重畫前執行 |
 | 4 | 確認跳行只選列 | `onAfterRender` 未 flush pending focus |
 
-**2.3c 狀態**：**已實作，待驗收**（驗收項 §1.3 之 8～11 + 2.3b regression）。
+**2.3c 狀態**：**已推送 `0a073ea`，產品驗收未通過**（見 §3.3）。
+
+### 3.3 Phase 2.3c 驗收失敗 → 2.3d 修正目標（2026-06-29）
+
+| # | 現象 | 診斷摘要 |
+|---|------|----------|
+| 1 | 確認跳行只選列 | #385 時 `document.activeElement` 為 `BODY` |
+| 2 | #385 按 ↑ 回 #17 | DOM 位置 17 被誤當全檔索引 16 |
+| 3 | 手動點譯文格焦點退出 | virt `replaceChildren` 後未還原 |
+| 4 | 滾輪捲動掉焦點 | scroll → 重畫 → 譯文格 DOM 被拆 |
+| 5 | 清除篩選畫面空白 | `invalidateHeights` 無 anchor + scrollTop 錯位 |
+
+**2.3d 狀態**：**已實作，待驗收**（驗收項 §1.3 之 8～15 + 2.3b regression）。
 
 ---
 
@@ -149,4 +187,5 @@
 |------|------|
 | 2026-06-29 | 規劃定案；實作 A～D（`0670242`）；**待產品端驗收** |
 | 2026-06-29 | Phase 2.3b：假游標被動 show 不得 scrollToSegId；Ctrl+G 走 `focusTargetEditorAtSegmentIndex`；**已通過** `694fa81` |
-| 2026-06-29 | Phase 2.3c：統一 `scheduleEditorFocus` 管線、離屏 tip 頂/底、`onAfterRender` 每次 flush；**已實作，待驗收** |
+| 2026-06-29 | Phase 2.3c：統一 `scheduleEditorFocus` 管線、離屏 tip 頂/底；**已推送 `0a073ea`，驗收未通過** |
+| 2026-06-29 | Phase 2.3d：跨重畫還原焦點、方向鍵 segId、`invalidateHeights(anchor)`；**已實作，待驗收** |

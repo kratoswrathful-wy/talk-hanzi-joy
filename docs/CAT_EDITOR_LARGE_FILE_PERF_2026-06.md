@@ -71,7 +71,9 @@ flowchart TB
 | **rowIdx 修正** | 確認跳行、重複 DOM、批次可見性 | **已驗收** `51815db`（2026-06-29；見 [`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)） |
 | **Phase 2.3** | tag 著色 id 假陽性、假游標、清除篩選跳頂、確認 focus／置中 | **已實作** `0670242`（見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md)） |
 | **Phase 2.3b** | 假游標 show 搶 scrollTop；Ctrl+G 與暫存句競態 | **已驗收** `694fa81`（同檔 §2.2b） |
-| **Phase 2.3c** | virt 重畫後 focus 競態；離屏 tip 方向；清除篩選／確認只選列 | **已實作，待驗收**（同檔 §2.6；focus after virt render） |
+| **Phase 2.3c** | virt 重畫後 focus 競態；離屏 tip 方向 | **已推送 `0a073ea`；驗收未通過**（同檔 §3.3） |
+| **Phase 2.3d** | 跨重畫 preserve 焦點；↑ DOM 索引；清除篩選 anchor | **已實作，待驗收**（同檔 §2.7） |
+| **Phase 2.3d** | 跨重畫 preserve 焦點；↑ DOM 索引誤導覽；清除篩選空白 | **已實作，待驗收**（同檔 §2.7） |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
@@ -92,7 +94,8 @@ flowchart TB
 | **rowIdx／確認跳行** | `51815db` | 大檔確認不跳行、重複句不刷新、批次操作 silently 失效 | virt `renderWindow` 用篩選 list 索引污染 `rowIdx`；`getAfterConfirmFocusIndex` 用 `gRows[idx]` | bulk rowIdx、`getGlobalIndex`、五態 helper、`getGridRowBySegId` | **已驗收**（2026-06-29） |
 | **Phase 2.3** | `0670242` | tag 全紅橘（id 假陽性）、假游標失效、清除篩選跳頂、確認無 scroll／焦點消失 | 著色未略 id；假游標綁 DOM；`rows[idx]` 跳位；virt focus 無 center | 見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) | **待驗收** |
 | **Phase 2.3b** | `694fa81` | 往下捲被拉回第一行；Ctrl+G 無效 | 假游標 `show()` 每次 scroll 呼叫 `scrollToSegId(暫存句)` | mount 雙模式；Ctrl+G → `focusTargetEditorAtSegmentIndex` | **已驗收** |
-| **Phase 2.3c** | （待 commit） | 確認／清除篩選只選列；Ctrl+Alt+↓ 無游標；離屏 tip 不見 | focus 在 virt 重畫前；`onAfterRender` 僅首次 flush | `scheduleEditorFocus` + 每次 `onAfterRender` flush；tip 頂/底 | **待驗收** |
+| **Phase 2.3c** | `0a073ea` | 確認／清除篩選只選列 | focus 後 scrollIntoView 再吃焦點 | `scheduleEditorFocus` + onAfterRender flush | **驗收未通過** |
+| **Phase 2.3d** | （待 commit） | 滾輪／手動點譯文格掉焦點；↑ 誤跳 #17；清除篩選空白 | 無 preserve；DOM indexOf；invalidate 無 anchor | `_preserveFocusAcrossVirtRender`；`focusAdjacentTargetRow`；`invalidateHeights(anchor)` | **待驗收** |
 
 **問題族譜**（虛擬捲動子迭代）：
 
