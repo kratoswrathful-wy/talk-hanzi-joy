@@ -24619,10 +24619,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!termMatches(src, termSrc, term.matchFlags)) return;
                     const mf = term.matchFlags || { caseInsensitive: true, wholeWord: false };
                     const ranges = findTermHitRangesInPlainText(src, termSrc, mf);
-                    const firstStart = ranges.length ? ranges[0].start : Infinity;
+                    if (!ranges.length) return;
                     tbHits.push({
-                        firstStart,
+                        firstStart: ranges[0].start,
                         srcLen: termSrc.length,
+                        ranges,
                         entry: {
                             type: 'TB',
                             sourceText: term.source,
@@ -24637,8 +24638,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     });
                 });
-                tbHits.sort((a, b) => (a.firstStart - b.firstStart) || (b.srcLen - a.srcLen));
-                tbHits.forEach((x) => matches.push(x.entry));
+                const byLen = [...tbHits].sort((a, b) => b.srcLen - a.srcLen);
+                const acceptedRanges = [];
+                const suppressed = new Set();
+                for (const hit of byLen) {
+                    const allCovered = hit.ranges.every((r) =>
+                        acceptedRanges.some((ar) => ar.start <= r.start && ar.end >= r.end)
+                    );
+                    if (allCovered) suppressed.add(hit);
+                    else acceptedRanges.push(...hit.ranges);
+                }
+                const remaining = tbHits.filter((h) => !suppressed.has(h));
+                const bySourceKey = new Map();
+                for (const hit of remaining) {
+                    const key = hit.entry.sourceText;
+                    if (!bySourceKey.has(key)) bySourceKey.set(key, []);
+                    bySourceKey.get(key).push(hit);
+                }
+                const groupedHits = [];
+                for (const arr of bySourceKey.values()) {
+                    arr.sort((a, b) => (a.firstStart - b.firstStart) || (b.srcLen - a.srcLen));
+                    const primary = arr[0];
+                    if (arr.length > 1) primary.entry._tbDupes = arr.slice(1).map((h) => h.entry);
+                    groupedHits.push(primary);
+                }
+                groupedHits.sort((a, b) => (a.firstStart - b.firstStart) || (b.srcLen - a.srcLen));
+                groupedHits.forEach((h) => matches.push(h.entry));
             }
 
             if (canSearchTmTb) {
@@ -24691,19 +24716,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const fSeg = window.currentCatFooterSeg;
                     let footerHtml = '';
                     if (m.type === 'TB') {
-                        const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
-                        const caseRow = mf.caseInsensitive === false ? '是' : '否';
-                        const exactRow = mf.wholeWord ? '是' : '否';
                         const greyHint = '關閉精確比對時，只要句子裡任何地方出現這串原文就算可能命中。\n開啟精確比對時，這串原文要像是獨立的詞（前後不能緊貼其他英文字母或數字）。';
-                        const byAt = (m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A');
-                        const byWho = escFoot(m.createdBy || 'N/A');
-                        const _tbBaseName = String(m.tbName || '').replace(TB_ONLINE_NAME_SUFFIX, '').trim();
-                        const _tabSuffix = (m.tabName && m.tabName !== _tbBaseName)
-                            ? '〔' + escFoot(m.tabName) + '〕' : '';
-                        const noteHtml = m.note ? renderNoteWithLinksHtml(m.note) : '';
-                        footerHtml += `<div class="cat-footer-section">
+                        const allTbEntries = [m, ...(m._tbDupes || [])];
+                        allTbEntries.forEach((entry, i) => {
+                            if (i > 0) footerHtml += '<hr style="border:none;border-top:1px solid #e2e8f0;margin:0.4rem 0;">';
+                            const mf = entry.matchFlags || { caseInsensitive: true, wholeWord: false };
+                            const caseRow = mf.caseInsensitive === false ? '是' : '否';
+                            const exactRow = mf.wholeWord ? '是' : '否';
+                            const byAt = (entry.createdAt ? escFoot(new Date(entry.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A');
+                            const byWho = escFoot(entry.createdBy || 'N/A');
+                            const _tbBaseName = String(entry.tbName || '').replace(TB_ONLINE_NAME_SUFFIX, '').trim();
+                            const _tabSuffix = (entry.tabName && entry.tabName !== _tbBaseName)
+                                ? '〔' + escFoot(entry.tabName) + '〕' : '';
+                            const noteHtml = entry.note ? renderNoteWithLinksHtml(entry.note) : '';
+                            footerHtml += `<div class="cat-footer-section">
                             <div style="font-size:0.8rem;">
-                            <strong>術語庫：</strong>${escFoot(m.tbName || 'N/A')}${_tabSuffix}<br>
+                            <strong>術語庫：</strong>${escFoot(entry.tbName || 'N/A')}${_tabSuffix}<br>
                             ${noteHtml ? `<strong>備註：</strong>${noteHtml}<br>` : ''}
                             <div><strong>區分大小寫：</strong>${caseRow}</div>
                             <div><strong>精確比對：</strong>${exactRow}</div>
@@ -24712,6 +24740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div><strong>建立時間：</strong>${byAt}</div>
                         </div>
                         </div>`;
+                        });
                     } else if (m.type === 'MqInserted') {
                         const prevHtml = m.prevSegment ? escFoot(m.prevSegment) : '<span style="color:#94a3b8;">無</span>';
                         const nextHtml = m.nextSegment ? escFoot(m.nextSegment) : '<span style="color:#94a3b8;">無</span>';
@@ -24767,6 +24796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 function buildCatMatchRowsHtml(pageSlice) {
                     const seg = window.currentCatFooterSeg;
                     const segTarget = seg ? String(seg.targetText || '').trim() : '';
+                    const escRow = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     return pageSlice.map((m, idx) => {
                         const isFragment = m.type === 'Fragment';
                         const isTb = m.type === 'TB';
@@ -24808,6 +24838,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                             return `<div class="cat-tm-dupe-line"><strong>${tnm}</strong> · ${tStr}<br>譯文：${tt}</div>`;
                         }).join('')}
                     </div>` : '';
+                        const tbDupesInline = (isTb && m._tbDupes && m._tbDupes.length)
+                            ? `<div class="cat-tb-dupes-inline">${
+                                m._tbDupes.map((d) => {
+                                    const dn = escRow(d.tbName || '');
+                                    const dt = htmlForTmPlainWithPlaceholders(d.targetText || '');
+                                    return `<span class="cat-tb-dupe-chip">${dt}<span class="cat-tb-dupe-chip-tb"> · ${dn}</span></span>`;
+                                }).join('')
+                            }</div>`
+                            : '';
                         const isSelected = idx === window.catPanelSelectedIndex;
                         const missingClass = isTbMissing ? ' result-item--tb-missing' : '';
                         return `
@@ -24821,6 +24860,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="result-cell result-cell--target">${htmlForTmPlainWithPlaceholders(m.targetText)}</div>
                             </div>
                     ${dupPanel}
+                    ${tbDupesInline}
                     </div>
                     `;
                     }).join('');
