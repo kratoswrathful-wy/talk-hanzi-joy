@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3d 已實作，待驗收**（2026-06-29；2.3c `0a073ea` 驗收未通過 → 2.3d 跨重畫還原焦點／方向鍵 segId／清除篩選錨定）
+> **狀態**：**Phase 2.3e 規劃中／實作待驗收**（2026-06-29；2.3d `42bbd17` 部分驗收通過 → 2.3e virt 置中／preserve 修正／篩選置中）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
@@ -43,8 +43,13 @@
 13. **方向鍵 segId（2.3d）**：#385 游標在第一行按 **↑** → **#384**，非 #17。
 14. **滾輪保焦（2.3d）**：譯文格有游標時滾輪捲動 → 仍可打字，焦點不變 `BODY`。
 15. **清除篩選不空白（2.3d）**：篩選中編輯 → 清除篩選 → 畫面不空白；停假游標句 + 譯文格可編輯。
+16. **確認跳行置中（2.3e）**：大檔 **Ctrl+Enter** 跳行（設定「置中」）→ 目標句段在視窗**中央**（非頂端、非不動）。
+17. **清除篩選置中（2.3e）**：篩選中編輯 → 清除篩選 → 停在假游標句並**置中**。
+18. **進篩選模式置中（2.3e）**：切換至篩選模式 → 以假游標句**置中**顯示（畫面不跑掉）。
+19. **假游標 tip 顯示（2.3e）**：編輯句 A → 點 TM → 捲到遠處 → tip 卡片在視窗**頂或底**可見。
+20. **自由捲動不拉回（2.3e regression）**：編輯中滾輪捲離 → **不**被拉回暫存句；假游標 tip 出現。
 
-**2.3b regression（2.3d 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效。
+**2.3b regression（2.3d～2.3e 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效。
 
 ### 1.4 已知邊界
 
@@ -148,6 +153,27 @@
 
 **優先序**：顯式 `_pendingEditorFocus` 優於 preserve；`scheduleEditorFocus` 會清除 preserve。
 
+### 2.8 Phase 2.3e — virt 置中 + preserve 修正 + 篩選置中（2026-06-29）
+
+**2.3d 部分驗收未通過**（`42bbd17`）：確認跳行置中失效（置頂或不動）；假游標視覺／tip 不顯示；清除篩選與進篩選模式畫面跑掉。
+
+**根因**：
+
+1. virt `scrollToSegId`／`invalidateHeights` 固定 `scrollTopFromAnchor(offsetPx=0)` → **置頂**
+2. `_preserveFocusAcrossVirtRender` 邏輯反向：自由捲動也擷取 → `flushEditorFocusAfterVirtRender` 拉回 → `selectionchange` 隱藏假游標
+3. 進篩選／清除篩選錨定同 (1)，未置中
+
+**修正**：
+
+| 項目 | 作法 |
+|------|------|
+| virt 置中 | `renderWindow`／`scrollToSegId`／`invalidateHeights` 加 `block`（`'center'`／`'start'`）；新增 `centerOnSegId`（row 已在 DOM 時輕量置中） |
+| preserve | `captureEditingFocusBeforeVirtRender` 改為 **僅** `_pendingEditorFocus` 存在時擷取 |
+| pending scroll | `scheduleEditorFocus` 加 `scrollBlock`（預設 `'center'`）；`flushPendingEditorFocus` 傳 block + focus 後 `centerOnSegId` |
+| 篩選 | `runSearchAndFilter` → `invalidateHeights(anchor, 'center')` |
+
+**與 2.3b 邊界**：被動 `show()`／`refreshAfterVirtRender` 仍 `{ scroll: false }`；自由捲動不觸發 preserve。
+
 ---
 
 ## §3 產品端驗收紀錄（2026-06）
@@ -177,7 +203,17 @@
 | 4 | 滾輪捲動掉焦點 | scroll → 重畫 → 譯文格 DOM 被拆 |
 | 5 | 清除篩選畫面空白 | `invalidateHeights` 無 anchor + scrollTop 錯位 |
 
-**2.3d 狀態**：**已實作，待驗收**（驗收項 §1.3 之 8～15 + 2.3b regression）。
+**2.3d 狀態**：**已推送 `42bbd17`，部分驗收通過**（焦點／方向鍵／不空白）；置中／假游標 tip／篩選跑位見 §3.4。
+
+### 3.4 Phase 2.3d 部分驗收 → 2.3e 修正目標（2026-06-29）
+
+| # | 現象 | 根因（一句） |
+|---|------|-------------|
+| 1 | 確認跳行置中失效 | virt `scrollToSegId` 固定置頂；row 已在 DOM 時不捲動 |
+| 2 | 假游標／tip 不顯示 | preserve 在自由捲動時擷取並拉回，focus 吃掉假游標 |
+| 3 | 清除篩選／進篩選畫面跑掉 | `invalidateHeights(anchor)` 置頂非置中 |
+
+**2.3e 狀態**：**規劃中／實作待驗收**（驗收項 §1.3 之 8～20 + 2.3b regression）。
 
 ---
 
@@ -188,4 +224,5 @@
 | 2026-06-29 | 規劃定案；實作 A～D（`0670242`）；**待產品端驗收** |
 | 2026-06-29 | Phase 2.3b：假游標被動 show 不得 scrollToSegId；Ctrl+G 走 `focusTargetEditorAtSegmentIndex`；**已通過** `694fa81` |
 | 2026-06-29 | Phase 2.3c：統一 `scheduleEditorFocus` 管線、離屏 tip 頂/底；**已推送 `0a073ea`，驗收未通過** |
-| 2026-06-29 | Phase 2.3d：跨重畫還原焦點、方向鍵 segId、`invalidateHeights(anchor)`；**已實作，待驗收** |
+| 2026-06-29 | Phase 2.3d：跨重畫還原焦點、方向鍵 segId、`invalidateHeights(anchor)`；**已推送 `42bbd17`，部分驗收通過** |
+| 2026-06-29 | Phase 2.3e：virt 置中、`centerOnSegId`、preserve 僅 pending、篩選置中；**規劃中／實作待驗收** |

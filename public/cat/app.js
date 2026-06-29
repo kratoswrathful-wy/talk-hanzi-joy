@@ -19513,7 +19513,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             scrollAnchorSegId = getScrollAnchorSegId();
         }
         if (virtActive && didRebuildFilterSnapshot) {
-            window.CatVirtGrid.invalidateHeights(scrollAnchorSegId != null ? scrollAnchorSegId : undefined);
+            window.CatVirtGrid.invalidateHeights(scrollAnchorSegId != null ? scrollAnchorSegId : undefined, 'center');
         }
         if (scrollAnchorSegId != null && didRebuildFilterSnapshot) {
             const savedFc = catFakeCaret && typeof catFakeCaret.getSaved === 'function' ? catFakeCaret.getSaved() : null;
@@ -19525,6 +19525,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 plainOffset,
                 restoreCaret: plainOffset != null,
                 scrollBehavior: 'auto',
+                scrollBlock: 'center',
             });
         }
         syncSelectedRowAbutmentTopClass();
@@ -20992,6 +20993,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return v === 'nearest' ? 'nearest' : 'center';
     }
 
+    function virtScrollBlockFromPending(block) {
+        return block === 'center' ? 'center' : 'start';
+    }
+
     function isActiveEditorGridTextarea(el) {
         if (!el || !el.classList || !el.classList.contains('grid-textarea')) return false;
         const grid = document.getElementById('editorGrid');
@@ -20999,7 +21004,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function captureEditingFocusBeforeVirtRender() {
-        if (_pendingEditorFocus) return;
+        if (!_pendingEditorFocus) return;
         const active = document.activeElement;
         if (!isActiveEditorGridTextarea(active)) return;
         const segId = getEditorSegId(active);
@@ -21037,9 +21042,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const seg = currentSegmentsList.find((s) => s && String(s.id) === String(segId));
         if (!seg || !isSegmentVisibleInEditor(seg)) return false;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
+        const scrollBlock = virtScrollBlockFromPending(o.scrollBlock || getAfterConfirmScrollBlock());
         let row = getGridRowBySegId(segId, false);
         if (!row && virtOn) {
-            row = window.CatVirtGrid.scrollToSegId(segId);
+            row = window.CatVirtGrid.scrollToSegId(segId, scrollBlock);
         }
         if (!row) row = getGridRowBySegId(segId, true);
         if (!row) return false;
@@ -21095,9 +21101,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
+        const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
         let row = getGridRowBySegId(pending.segId, false);
         if (!row && virtOn) {
-            window.CatVirtGrid.scrollToSegId(pending.segId);
+            window.CatVirtGrid.scrollToSegId(pending.segId, scrollBlock);
             row = getGridRowBySegId(pending.segId, false);
             if (!row) return;
         }
@@ -21108,6 +21115,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 requestAnimationFrame(() => flushPendingEditorFocus());
             }
             return;
+        }
+        if (ok && virtOn && scrollBlock === 'center' && typeof window.CatVirtGrid.centerOnSegId === 'function') {
+            window.CatVirtGrid.centerOnSegId(pending.segId);
         }
         if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
         _pendingEditorFocus = null;
@@ -21122,6 +21132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             segId: opts.segId,
             plainOffset: opts.plainOffset != null ? opts.plainOffset : null,
             scrollBehavior: opts.scrollBehavior || 'auto',
+            scrollBlock: opts.scrollBlock != null ? opts.scrollBlock : 'center',
             restoreCaret: !!opts.restoreCaret,
             afterConfirmPanel: !!opts.afterConfirmPanel,
             caretAtStart: !!opts.caretAtStart,
@@ -21166,6 +21177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             plainOffset: plainOffset != null ? plainOffset : null,
             restoreCaret: plainOffset != null,
             scrollBehavior: 'auto',
+            scrollBlock: 'center',
         });
     }
 
@@ -21847,6 +21859,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 scheduleEditorFocus({
                     segId: focusSeg.id,
                     scrollBehavior: 'auto',
+                    scrollBlock: getAfterConfirmScrollBlock(),
                     afterConfirmPanel: true,
                 });
             }
@@ -24281,6 +24294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         scheduleEditorFocus({
                                             segId: nextSeg.id,
                                             scrollBehavior: 'auto',
+                                            scrollBlock: getAfterConfirmScrollBlock(),
                                             afterConfirmPanel: true,
                                         });
                                     }

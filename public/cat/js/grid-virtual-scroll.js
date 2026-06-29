@@ -237,8 +237,9 @@
         return { startIdx, endIdx, explicitAnchor };
     }
 
-    function renderWindow(anchorSegId) {
+    function renderWindow(anchorSegId, block) {
         if (!enabled || !cfg || _rendering) return;
+        const scrollBlock = block === 'center' ? 'center' : 'start';
         _rendering = true;
         _suppressScroll = true;
         const scrollEl = cfg.scrollEl;
@@ -304,9 +305,15 @@
             if (scrollEl) {
                 let targetTop;
                 if (explicitAnchor) {
-                    targetTop = scrollTopFromAnchor(list, explicitAnchor, 0);
+                    if (scrollBlock === 'center') {
+                        const vh = scrollEl.clientHeight;
+                        const h = heightOf(explicitAnchor);
+                        targetTop = scrollTopFromAnchor(list, explicitAnchor, vh / 2 - h / 2);
+                    } else {
+                        targetTop = scrollTopFromAnchor(list, explicitAnchor, 0);
+                    }
                     _anchorSegId = explicitAnchor;
-                    _anchorOffsetPx = 0;
+                    _anchorOffsetPx = scrollBlock === 'center' ? scrollEl.clientHeight / 2 - heightOf(explicitAnchor) / 2 : 0;
                 } else {
                     targetTop = savedScrollTop;
                 }
@@ -405,7 +412,7 @@
         return cfg.gridBody.querySelector(`.grid-data-row[data-seg-id="${sid}"]`);
     }
 
-    function scrollToSegId(segId) {
+    function scrollToSegId(segId, block) {
         if (!enabled || !cfg || segId == null) return null;
         const list = getRenderableList();
         const idx = list.findIndex((s) => String(s.id) === String(segId));
@@ -415,7 +422,7 @@
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
-        renderWindow(segId);
+        renderWindow(segId, block);
         return queryRow(segId);
     }
 
@@ -425,13 +432,34 @@
         return scrollToSegId(segId);
     }
 
-    function invalidateHeights(anchorSegId) {
+    function centerOnSegId(segId) {
+        if (!enabled || !cfg || !cfg.scrollEl || segId == null) return false;
+        const list = getRenderableList();
+        const ai = list.findIndex((s) => String(s.id) === String(segId));
+        if (ai < 0) return false;
+        const scrollEl = cfg.scrollEl;
+        const vh = scrollEl.clientHeight;
+        const h = heightOf(String(segId));
+        _suppressScroll = true;
+        try {
+            scrollEl.scrollTop = Math.max(0, sumRange(list, 0, ai) - vh / 2 + h / 2);
+            _anchorSegId = String(segId);
+            _anchorOffsetPx = vh / 2 - h / 2;
+        } finally {
+            requestAnimationFrame(() => {
+                _suppressScroll = false;
+            });
+        }
+        return true;
+    }
+
+    function invalidateHeights(anchorSegId, block) {
         if (!enabled) return;
         rowHeights.clear();
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
-        renderWindow(anchorSegId != null && anchorSegId !== '' ? anchorSegId : null);
+        renderWindow(anchorSegId != null && anchorSegId !== '' ? anchorSegId : null, block);
     }
 
     function getWindowStartIdx() {
@@ -448,6 +476,7 @@
         renderWindow,
         scrollToSegId,
         ensureRowMounted,
+        centerOnSegId,
         invalidateHeights
     };
 })(typeof window !== 'undefined' ? window : globalThis);
