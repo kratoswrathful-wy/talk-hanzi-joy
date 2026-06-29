@@ -383,16 +383,16 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     partial.status !== undefined &&
     partial.status !== prev.status &&
     (revertWorkflowStatuses as readonly string[]).includes(partial.status);
+  // 派案重構：過度同步策略——任一派案相關欄位變動即重跑（同步函式冪等，寧可多跑不漏跑）。
+  void shouldSyncCatWorkflowOnStatusRevert;
+  void nextStatus;
   const shouldSyncCatWorkflowAssignments =
     !!prev &&
-    (shouldSyncCatWorkflowOnStatusRevert ||
-      (prev.status !== "dispatched" && partial.status === "dispatched") ||
-      ((nextStatus === "dispatched" || nextStatus === "task_completed") &&
-        (partial.collabRows !== undefined || partial.reviewer !== undefined)) ||
-      (nextStatus === "inquiry" &&
-        partial.collabRows !== undefined &&
-        Array.isArray(partial.collabRows) &&
-        partial.collabRows.some((r) => r.accepted)));
+    (partial.collabRows !== undefined ||
+      partial.reviewer !== undefined ||
+      partial.translator !== undefined ||
+      partial.multiCollab !== undefined ||
+      (partial.status !== undefined && partial.status !== prev.status));
   let merged: Partial<CaseRecord> = partial;
   if (
     prev &&

@@ -3673,6 +3673,221 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // ───────── 協作式指派（連結 LMS 多人案件的檔案；寫回 collab_rows ＝單一來源）─────────
+    const catCollabAssignModal = document.getElementById('catCollabAssignModal');
+    const catCollabAssignBody = document.getElementById('catCollabAssignBody');
+    const catCollabAssignTitle = document.getElementById('catCollabAssignTitle');
+    const catCollabAssignHint = document.getElementById('catCollabAssignHint');
+    const catCollabAssignReviewer = document.getElementById('catCollabAssignReviewer');
+    let _catCollabState = null; // { caseId, fileId, fileName, rows:[...完整], reviewer, status }
+
+    function _catCollabEsc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function _catCloudCall(action, payload) {
+        try {
+            const ctx = window.CatDataProviderContext;
+            if (!ctx || !ctx.cloudRpc) return Promise.reject(new Error('no cloud rpc'));
+            return ctx.cloudRpc.call(action, payload || {});
+        } catch (e) { return Promise.reject(e); }
+    }
+
+    function _catCollabPersonOptions(selectedName) {
+        const members = window._tmsAssignableUsers || [];
+        const opts = ['<option value="">—</option>'];
+        let matched = false;
+        members.forEach((m) => {
+            const name = (m.displayName || m.email || '').trim();
+            if (!name) return;
+            const sel = name === selectedName ? ' selected' : '';
+            if (sel) matched = true;
+            opts.push('<option value="' + _catCollabEsc(name) + '" data-uid="' + _catCollabEsc(m.id || '') + '"' + sel + '>' + _catCollabEsc(name) + '</option>');
+        });
+        if (selectedName && !matched) {
+            opts.push('<option value="' + _catCollabEsc(selectedName) + '" selected>' + _catCollabEsc(selectedName) + '（清單外）</option>');
+        }
+        return opts.join('');
+    }
+
+    function _catCollabResolveUid(name) {
+        const members = window._tmsAssignableUsers || [];
+        const target = String(name || '').trim();
+        const hit = members.find((m) => (m.displayName || m.email || '').trim() === target);
+        return hit ? (hit.id || null) : null;
+    }
+
+    function _catCollabCommitInputsToState() {
+        if (!catCollabAssignBody || !_catCollabState) return;
+        catCollabAssignBody.querySelectorAll('tr[data-row-idx]').forEach((tr) => {
+            const idx = Number(tr.getAttribute('data-row-idx'));
+            const row = _catCollabState.rows[idx];
+            if (!row) return;
+            const personSel = tr.querySelector('.cat-collab-person');
+            const rangeInp = tr.querySelector('.cat-collab-range');
+            const dlInp = tr.querySelector('.cat-collab-deadline');
+            const name = personSel ? personSel.value.trim() : '';
+            row.translator = name;
+            row.translatorUserId = _catCollabResolveUid(name);
+            const range = rangeInp ? rangeInp.value.trim() : '';
+            row.lineRange = range || null;
+            const dl = dlInp ? dlInp.value.trim() : '';
+            row.translationDeadline = dl || null;
+        });
+    }
+
+    function _catCollabRenderRows() {
+        if (!catCollabAssignBody || !_catCollabState) return;
+        const fileId = String(_catCollabState.fileId);
+        const fileRows = _catCollabState.rows
+            .map((r, idx) => ({ r, idx }))
+            .filter(({ r }) => String(r.linkedCatFileId || '') === fileId);
+        if (!fileRows.length) {
+            catCollabAssignBody.innerHTML = '<tr><td colspan="4" style="padding:0.6rem; color:#94a3b8; font-size:0.83rem;">尚無指派列，請按「新增一列」或「拆分均分並預填」。</td></tr>';
+            return;
+        }
+        catCollabAssignBody.innerHTML = fileRows.map(({ r, idx }) => {
+            const range = r.lineRange != null ? String(r.lineRange) : '';
+            const dl = r.translationDeadline ? String(r.translationDeadline).slice(0, 10) : '';
+            return '<tr data-row-idx="' + idx + '">' +
+                '<td style="padding:0.35rem 0.5rem;"><select class="form-input cat-collab-person" style="height:32px;">' + _catCollabPersonOptions(r.translator || '') + '</select></td>' +
+                '<td style="padding:0.35rem 0.5rem;"><input type="text" class="form-input cat-collab-range" value="' + _catCollabEsc(range) + '" placeholder="整檔" style="height:32px;"></td>' +
+                '<td style="padding:0.35rem 0.5rem;"><input type="date" class="form-input cat-collab-deadline" value="' + _catCollabEsc(dl) + '" style="height:32px;"></td>' +
+                '<td style="padding:0.35rem 0.5rem; text-align:center;"><button type="button" class="secondary-btn btn-sm cat-collab-del" data-row-idx="' + idx + '" title="刪除此列">✕</button></td>' +
+                '</tr>';
+        }).join('');
+        catCollabAssignBody.querySelectorAll('.cat-collab-del').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                _catCollabCommitInputsToState();
+                const idx = Number(btn.getAttribute('data-row-idx'));
+                if (Number.isFinite(idx)) {
+                    _catCollabState.rows.splice(idx, 1);
+                    _catCollabRenderRows();
+                }
+            });
+        });
+    }
+
+    function _catCollabNewRowId(suffix) {
+        return 'cr_' + Date.now().toString(36) + (suffix != null ? suffix : '') + Math.random().toString(36).slice(2, 6);
+    }
+
+    function _catCollabAddRow() {
+        if (!_catCollabState) return;
+        _catCollabCommitInputsToState();
+        _catCollabState.rows.push({
+            id: _catCollabNewRowId(),
+            segment: '', lineRange: null, translator: '', translatorUserId: null,
+            reviewer: '', accepted: false, taskCompleted: false,
+            linkedCatFileId: String(_catCollabState.fileId),
+            linkedCatFileName: _catCollabState.fileName || '',
+        });
+        _catCollabRenderRows();
+    }
+
+    function _catCollabSplitPrefill() {
+        if (!_catCollabState) return;
+        const totalStr = prompt('請輸入此檔總列數（句段數）：', '');
+        if (totalStr == null) return;
+        const total = parseInt(String(totalStr).trim(), 10);
+        if (!Number.isFinite(total) || total <= 0) { showCatToast('總列數須為正整數', 'error'); return; }
+        const partsStr = prompt('要平均分成幾份？', '2');
+        if (partsStr == null) return;
+        const parts = parseInt(String(partsStr).trim(), 10);
+        if (!Number.isFinite(parts) || parts <= 0) { showCatToast('份數須為正整數', 'error'); return; }
+        _catCollabCommitInputsToState();
+        const fileId = String(_catCollabState.fileId);
+        _catCollabState.rows = _catCollabState.rows.filter((r) => String(r.linkedCatFileId || '') !== fileId);
+        const per = Math.ceil(total / parts);
+        for (let i = 0; i < parts; i++) {
+            const start = i * per + 1;
+            if (start > total) break;
+            const end = Math.min((i + 1) * per, total);
+            _catCollabState.rows.push({
+                id: _catCollabNewRowId(i), segment: '', lineRange: start + '-' + end,
+                translator: '', translatorUserId: null, reviewer: '', accepted: false, taskCompleted: false,
+                linkedCatFileId: fileId, linkedCatFileName: _catCollabState.fileName || '',
+            });
+        }
+        _catCollabRenderRows();
+        showCatToast('已預填範圍，請指定各列譯者', 'info');
+    }
+
+    function closeCatCollabAssignModal() {
+        if (catCollabAssignModal) catCollabAssignModal.classList.add('hidden');
+        _catCollabState = null;
+    }
+
+    /** 嘗試開協作式指派 modal；成功回 true，非多人連結檔回 false（呼叫端改走原清單） */
+    async function openCatCollabAssignModal(fileId, fileName) {
+        if (!catCollabAssignModal || !catCollabAssignBody) return false;
+        const mode = (window.CatDataProviderContext && window.CatDataProviderContext.getMode && window.CatDataProviderContext.getMode()) || 'offline';
+        if (mode !== 'team') return false;
+        if (!window._tmsCanAssign) return false;
+        let info = null;
+        try {
+            info = await _catCloudCall('lms.getCaseCollabForFile', { fileId: String(fileId) });
+        } catch (e) {
+            console.warn('[collab-assign] getCaseCollabForFile', e);
+            return false;
+        }
+        if (!info || !info.linked || !info.multiCollab) return false;
+        _catCollabState = {
+            caseId: info.caseId,
+            fileId: String(info.fileId || fileId),
+            fileName: info.fileName || fileName || '',
+            rows: Array.isArray(info.collabRows) ? info.collabRows.map((r) => Object.assign({}, r)) : [],
+            reviewer: info.reviewer || '',
+            status: info.caseStatus || '',
+        };
+        if (catCollabAssignTitle) catCollabAssignTitle.textContent = '指派翻譯：' + (_catCollabState.fileName || fileId);
+        if (catCollabAssignHint) catCollabAssignHint.innerHTML = '此檔已連結 LMS 案件「' + _catCollabEsc(info.caseTitle || '') + '」。以下變更將同步回該案<strong>多人協作表格</strong>，並更新 CAT 段落指派。';
+        if (catCollabAssignReviewer) catCollabAssignReviewer.textContent = _catCollabState.reviewer ? ('審稿人員（案件層級）：' + _catCollabState.reviewer) : '尚未設定審稿人員（於 LMS 設定）。';
+        _catCollabRenderRows();
+        catCollabAssignModal.classList.remove('hidden');
+        return true;
+    }
+
+    async function _catCollabSave() {
+        if (!_catCollabState) return;
+        _catCollabCommitInputsToState();
+        const fileId = String(_catCollabState.fileId);
+        const fileRows = _catCollabState.rows.filter((r) => String(r.linkedCatFileId || '') === fileId);
+        if (!fileRows.length) { showCatToast('請至少新增一列指派', 'error'); return; }
+        const blank = fileRows.find((r) => !String(r.translator || '').trim());
+        if (blank) { showCatToast('每列都需選擇譯者（或刪除空白列）', 'error'); return; }
+        const btn = document.getElementById('btnSaveCatCollabAssign');
+        if (btn) { btn.disabled = true; btn.textContent = '同步中…'; }
+        try {
+            const res = await _catCloudCall('lms.updateCaseCollab', { caseId: _catCollabState.caseId, collabRows: _catCollabState.rows });
+            if (!res || !res.ok) { showCatToast('儲存失敗：' + ((res && res.error) || '未知錯誤'), 'error'); return; }
+            const rep = res.report;
+            if (rep && Array.isArray(rep.unresolvedTranslators) && rep.unresolvedTranslators.length) {
+                showCatToast('已儲存，但下列譯者無法對應系統帳號、未建立指派：' + rep.unresolvedTranslators.join('、'), 'error');
+            } else {
+                showCatToast('已儲存並同步指派', 'success');
+            }
+            closeCatCollabAssignModal();
+            await loadFilesList();
+        } catch (e) {
+            console.error('[collab-assign] save', e);
+            showCatToast('儲存失敗：' + (e && e.message ? e.message : e), 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '儲存並同步'; }
+        }
+    }
+
+    (function bindCatCollabAssignEvents() {
+        const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+        bind('btnCloseCatCollabAssign', closeCatCollabAssignModal);
+        bind('btnCancelCatCollabAssign', closeCatCollabAssignModal);
+        bind('btnCatCollabAddRow', _catCollabAddRow);
+        bind('btnCatCollabSplitPrefill', _catCollabSplitPrefill);
+        bind('btnSaveCatCollabAssign', _catCollabSave);
+        if (catCollabAssignModal) catCollabAssignModal.addEventListener('click', (e) => { if (e.target === catCollabAssignModal) closeCatCollabAssignModal(); });
+    })();
+
     // postMessage 接收器：接收來自 TMS（父框架）的身分與指派資訊
     window.addEventListener('message', (event) => {
         if (event.source !== window.parent) return;
@@ -9641,6 +9856,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 names.push(name || id);
             });
             if (!ids.length) return;
+            if (ids.length === 1) {
+                const opened = await openCatCollabAssignModal(ids[0], names[0]);
+                if (opened) return;
+            }
             await openFileAssignModal(ids, names);
         });
     }

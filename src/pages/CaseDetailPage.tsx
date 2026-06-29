@@ -79,6 +79,7 @@ import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
 import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
+import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -112,6 +113,23 @@ function showPrepNotReadyWarningIfNeeded(
     } catch (e) {
       console.warn("[CaseDetailPage] prep not ready check failed:", e);
     }
+  })();
+}
+
+/** 派案後檢查：有譯者配不到系統帳號 → 非阻擋提示 PM（指派不會建立，譯者將無法編輯） */
+function warnUnresolvedTranslatorsIfNeeded(
+  caseId: string,
+  toastFn: typeof toast,
+) {
+  if (!caseId) return;
+  void (async () => {
+    const report = await syncCatWorkflowAssignmentsForCase(supabase, caseId);
+    if (!report || report.unresolvedTranslators.length === 0) return;
+    toastFn({
+      title: "注意：部分譯者未建立 CAT 指派",
+      description: `以下譯者無法對應到系統帳號，CAT 指派未建立（譯者開檔將無法編輯）：${report.unresolvedTranslators.join("、")}。請確認其顯示名稱與系統帳號一致。`,
+      variant: "destructive",
+    });
   })();
 }
 
@@ -1748,6 +1766,7 @@ export default function CaseDetailPage() {
     save({ status: "dispatched" as CaseStatus });
     toast({ title: "已確定指派" });
     showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
+    warnUnresolvedTranslatorsIfNeeded(caseData.id, toast);
   };
 
   const handleTaskComplete = () => {
@@ -2379,6 +2398,7 @@ export default function CaseDetailPage() {
                 save(updates);
                 toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
                 showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
+                warnUnresolvedTranslatorsIfNeeded(caseData.id, toast);
                 return;
               }
               if (isInquiry) {

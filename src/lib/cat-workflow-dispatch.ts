@@ -1,17 +1,35 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** 案件派出／協作列變更 → CAT cat_stage_assignments 同步（B-4） */
+export type CatWorkflowSyncReport = {
+  found: boolean;
+  unresolvedTranslators: string[];
+  rowsWithoutFile: number;
+  written: number;
+};
+
+/** 案件派出／協作列變更 → CAT cat_stage_assignments 同步（B-4）；回傳失敗報告供 PM 提示 */
 export async function syncCatWorkflowAssignmentsForCase(
   supabase: SupabaseClient,
   caseId: string,
-): Promise<void> {
-  if (!caseId) return;
+): Promise<CatWorkflowSyncReport | null> {
+  if (!caseId) return null;
   try {
-    await (supabase as SupabaseClient).rpc("sync_cat_workflow_assignments_for_case" as never, {
-      p_case_id: caseId,
-    } as never);
+    const { data } = await (supabase as SupabaseClient).rpc(
+      "sync_cat_workflow_assignments_for_case" as never,
+      { p_case_id: caseId } as never,
+    );
+    const r = (data ?? {}) as Record<string, unknown>;
+    return {
+      found: r.found !== false,
+      unresolvedTranslators: Array.isArray(r.unresolvedTranslators)
+        ? (r.unresolvedTranslators as string[])
+        : [],
+      rowsWithoutFile: typeof r.rowsWithoutFile === "number" ? r.rowsWithoutFile : 0,
+      written: typeof r.written === "number" ? r.written : 0,
+    };
   } catch (e) {
     console.warn("[cat-workflow-dispatch] sync skipped:", e);
+    return null;
   }
 }
 

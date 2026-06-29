@@ -1,0 +1,4212 @@
+{
+  "cases": [
+    {
+      "id": "0393b173-7dba-4e5e-9f86-ac3d758589f6",
+      "title": "7 Days To Think About It 260421",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "memoQ",
+          "fields": [
+            {
+              "id": "tf-1773019967717-k1y",
+              "type": "text",
+              "label": "伺服器位址"
+            },
+            {
+              "id": "tf-1773019983872-z4u",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1773020063542-zed",
+              "type": "text",
+              "label": "檔案名稱"
+            },
+            {
+              "id": "tf-1773597666184-rzp",
+              "type": "text",
+              "label": "交件方式"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1773019967717-k1y": "agm-loc.memoqworld.com",
+            "tf-1773019983872-z4u": "7 Days To Think About It (7 Langs.)",
+            "tf-1773020063542-zed": "Achievements.xlsx\nDialogues Demo_0414.xlsx\nDialogues Full Game_0414.xlsx\nSteam Descriptions.xlsx\nSteam Descriptions.xlsx\nSteam Rich Presence.xlsx",
+            "tf-1773597666184-rzp": "上述資訊僅供派案人員交件，譯者請使用自研工具"
+          }
+        },
+        {
+          "id": "te-1776839709482",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "7 Days To Think About It",
+            "tf-1776578044252-hvd": "檔案 #1-5"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "289adadf-d46b-4f27-b3d3-912b3211cd27",
+      "title": "Atari 260424",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "EULA"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "4bd0f5dd-2633-4692-a3c7-54896b094318",
+      "title": "Reign of Hades 260413",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Reigh of Hades",
+            "tf-1776578044252-hvd": "HOW TO PLAY BOOK 280x280.docx.sdlxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "7768246b-36fa-4e96-b1ae-69651d122f69",
+      "title": "WIZA 260529",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "[zho-TW][16337500][Event Page - An (…)d Crafting Party][loc_wpn_hob_event_unexpected-crafting-party_en.html].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "27b960a6-10ee-441c-8c41-8bc56ce2b5f9",
+      "title": "Matchington Mansion 260424",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "https://docs.google.com/spreadsheets/d/12_2S-q72LNY96S5JqgG7V5ag-g1vsvuBCf1lCZ7Zz3w/edit?pli=1&gid=1910817469#gid=1910817469"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "bb3c1bcb-cb12-495e-b22d-9c33e7e672a8",
+      "title": "WIZA 260609A",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA - 00144063 - Web & Marketing - June - 2026",
+            "tf-1776578044252-hvd": "[zho-TW][16381332][WPN Dashboard Ti(…)ings Update_0605][20260605_DASHBOARD_Profile-P(…)tion_CONTENT TEAM Copy_.xlsx].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "91782539-7eb9-4fcd-a814-abb45ea9cd23",
+      "title": "WIZA 260526",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "在 memoQ 檔案清單裡按下 Structure，可以看到資料夾層級的名稱，找編號 740"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "b340ce58-aeab-4372-801a-5c32166ada01",
+      "title": "7 Days To Think About It 260428",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "memoQ",
+          "fields": [
+            {
+              "id": "tf-1773019967717-k1y",
+              "type": "text",
+              "label": "伺服器位址"
+            },
+            {
+              "id": "tf-1773019983872-z4u",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1773020063542-zed",
+              "type": "text",
+              "label": "檔案名稱"
+            },
+            {
+              "id": "tf-1773597666184-rzp",
+              "type": "text",
+              "label": "交件方式"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1773019967717-k1y": "agm-loc.memoqworld.com",
+            "tf-1773019983872-z4u": "7 Days To Think About It (7 Langs.)",
+            "tf-1773020063542-zed": "Dialogues Full Game_grey_lines.xlsx",
+            "tf-1773597666184-rzp": "上述資訊僅供派案人員交件，譯者請使用自研工具"
+          }
+        },
+        {
+          "id": "te-1776839709482",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "7 Days To Think About It",
+            "tf-1776578044252-hvd": "檔案 #1-5"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "12be91f4-65c0-4865-b7a4-588a2df666e3",
+      "title": "Focus 260514",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {}
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "969104f3-065b-4d71-b6ad-798aabc15c1e",
+      "title": "ELTA 260414",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {}
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "d184c9b1-6157-4627-a486-a20043799320",
+      "title": "WIZA 260609B",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA - 00144063 - Web & Marketing - June - 2026",
+            "tf-1776578044252-hvd": "[zho-TW][16384984][Email for localization 06.08.26][HOB Prerelease Allocation Emai(…)8.26 (CN, CS, JA, KO, BP).xlsx].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "873b3744-e493-4712-b8c3-25c3cbd2b8f8",
+      "title": "Reign of Hades 260428B",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Reigh of Hades",
+            "tf-1776578044252-hvd": "SCENARIO BOOK 280x280.docx.sdlxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "add137da-c513-402e-b3ac-39c08d0b94e8",
+      "title": "Michael Page 260511",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Michael Page",
+            "tf-1776578044252-hvd": "INTERNAL - Call Script -TW-EN.pptx.sdlxliff\nINTERNAL - ONE-PAGER consultant guide - TW-EN.pptx.sdlxliff\nTT26 Taiwan Report Draft_新增内容 P16~19.docx.sdlxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "062bc7fd-ab69-46c2-bd88-453fdc6300d7",
+      "title": "WIZA 260610A",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA - 00144063 - Web & Marketing - June - 2026",
+            "tf-1776578044252-hvd": "[zho-TW][16385295][QOTW July, August, September 2026][Localization — QOTW Jul Aug Sep 2026.xlsx].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "9119660c-2c0b-4476-8e35-3407c9f8f4df",
+      "title": "WIZA 260520B",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "[zho-TW][16272008][Email templates (…)ization 05.19.26][Localization — New Store Auto Emails_.xlsx].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "295ba0c7-7d33-48a3-a83d-d99cd7a16c71",
+      "title": "Atari 260525",
+      "tools": [
+        {
+          "id": "te-1774238012458",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Miscellaneous",
+            "tf-1776578044252-hvd": "BRAVA Store Loc Sheet.xlsx\nGOAT Store Loc Sheet.xlsx\nGRUFF Store Loc Sheet.xlsx"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "5bca0ca9-758c-4045-9226-f2190ae388fb",
+      "title": "Top Drives 260529",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Top Drives",
+            "tf-1776578044252-hvd": "28.05.2026 TD Liveops task.xlsx"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "fb603c94-9854-44a8-bf44-13add42cbf8f",
+      "title": "WIZA 260602B",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "在 memoQ 檔案清單裡按下 Structure，可以看到資料夾層級的名稱，找編號 040"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "5d6adc7b-6390-449d-8c78-f74deda72720",
+      "title": "Reign of Hades 260428A",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Reigh of Hades",
+            "tf-1776578044252-hvd": "CHALLENGE BOOK 210x280mm.docx.sdlxliff\nAPPENDIX 210x280mm.docx.sdlxliff\nCAMPAING BOOK 300x280 -B.docx.sdlxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "e1752d6c-6944-4333-8a9e-b95fcf33e982",
+      "title": "WIZA 260603",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA - 00144063 - Web & Marketing - June - 2026",
+            "tf-1776578044252-hvd": "[zho-TW][16347629][Companion - June 2nd][app-strings-v4_.xml_en.docx].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "404432f5-a9b7-46fc-96a4-ae55cda9a4fb",
+      "title": "Top Drives 260605",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "26-2052_Hutch Games_[Top Drives]",
+            "tf-1776578044252-hvd": "TD - Consumer Insights - Localisation Sheet.xlsx_zho-TW.mqxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "bf34b0e4-4ad9-4b19-9760-314008c9b8c9",
+      "title": "Riot - 2XKO 260601A",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "2XKO",
+            "tf-1776578044252-hvd": "53609_01_PRF - 2XKO - PvE Announce Trailer.docx\n53609_01_PvEGameplayTrailer_YouTube Ecosystem_SRT.srt\n53609_01_PvE Gameplay Trailer_OST+GRAPH.xlsx"
+          }
+        },
+        {
+          "id": "te-1773753532590",
+          "tool": "GlobalProtect",
+          "fields": [
+            {
+              "id": "tf-1773020850004-obu",
+              "type": "text",
+              "label": "說明"
+            },
+            {
+              "id": "tf-1773021945091-4me",
+              "type": "text",
+              "label": "入口"
+            },
+            {
+              "id": "tf-1773021981933-of1",
+              "type": "text",
+              "label": "帳號"
+            },
+            {
+              "id": "tf-1773021968961-6q7",
+              "type": "text",
+              "label": "密碼"
+            },
+            {
+              "id": "tf-1773022107831-l7b",
+              "type": "text",
+              "label": "備註"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1773020850004-obu": "此案件需要使用 VPN 工具「Global Protect」，請於此下載：\nhttps://www.kernel.com.tw/m/404-1255-87354.php\n若該連結無效，請上網搜尋有效載點\n--\n此工具連線時需私訊威儀本人索取「KW 驗證碼」\n緊急聯絡電話：0981596855",
+            "tf-1773021945091-4me": "sin2p1.globalprotect.keywordsstudios.com",
+            "tf-1773021968961-6q7": "Rayman-12345",
+            "tf-1773021981933-of1": "wejiang@keywordsstudios.com",
+            "tf-1773022107831-l7b": "此 VPN 工具在某些電腦上會影響到部份網站的連線能力，使用時請注意"
+          }
+        },
+        {
+          "id": "te-1780367891481",
+          "tool": "memoQ",
+          "fields": [
+            {
+              "id": "tf-1773019967717-k1y",
+              "type": "text",
+              "label": "伺服器位址"
+            },
+            {
+              "id": "tf-1773019971300-152",
+              "type": "text",
+              "label": "使用者名稱"
+            },
+            {
+              "id": "tf-1773019974400-czi",
+              "type": "text",
+              "label": "登入密碼"
+            },
+            {
+              "id": "tf-1773019983872-z4u",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1773020063542-zed",
+              "type": "text",
+              "label": "檔案名稱"
+            },
+            {
+              "id": "tf-1773597666184-rzp",
+              "type": "text",
+              "label": "交件方式"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1773019967717-k1y": "riot-euw-1.memoqworld.com",
+            "tf-1773019971300-152": "rws_tw_t1",
+            "tf-1773019974400-czi": "dPJu*kDX44Ti",
+            "tf-1773019983872-z4u": "",
+            "tf-1773020063542-zed": "",
+            "tf-1773597666184-rzp": "1. 完成後請跑 QA，並確認所有跳出來的問題都確實修正或勾選忽略\n2. 在專案內的檔案名稱上按右鍵，依序點選「Export」>「Export Bilingual」>「Plain XLIFF for...」，輸出 .MQXLIFF 檔並上傳至譯者完稿欄位（請務必確認上傳的附檔名是否正確）\n3. 除非另有指示，否則請勿按 Deliver"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "6c80acf5-c6f7-493e-9986-fef34864511e",
+      "title": "Matchington Mansion 260430",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "https://docs.google.com/spreadsheets/d/12_2S-q72LNY96S5JqgG7V5ag-g1vsvuBCf1lCZ7Zz3w/edit?pli=1&gid=1910817469#gid=1910817469"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "ee02e64f-2ba4-4d6d-88ce-f953e41dbb4b",
+      "title": "F1 Clash 260602",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "26-2053_Hutch Games_[F1 Clash]",
+            "tf-1776578044252-hvd": "F1 Clash CRM change & F1M Locs"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "9c728e86-4a6c-46fd-bebb-8480fde9aebf",
+      "title": "F1 Clash 260605",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "F1 Clash",
+            "tf-1776578044252-hvd": "F1C Tasks.xlsx"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "7ad8b370-caa7-4281-9141-86c2adbf6a50",
+      "title": "Top Drives 260602",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "26-2052_Hutch Games_[Top Drives]",
+            "tf-1776578044252-hvd": "Liveops + PL32 01.06.2026.xlsx"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "cca3764f-0523-439e-b653-922a33e2ea07",
+      "title": "WIZA 260611A",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA - 00144063 - Web & Marketing - June - 2026",
+            "tf-1776578044252-hvd": "[zho-TW][16396827][06.10.26 - 2HG Refresher][2HG Prerelease Refresher 06.10.26_.xlsx].xlf_zho-TW.mqxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "9ab082cb-2521-4076-b027-d4fb5fb44b98",
+      "title": "WIZA 260525B",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "[zho-TW][16299952][WPN Tier 6 Overview Article][20260522_WPN_Tier-6-Overview_Markup.html].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "aebb40d1-df9c-4ec6-bd13-cd5aa7ea5d42",
+      "title": "Macallan 260506",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            },
+            {
+              "id": "cf-1778079153777-3wv",
+              "type": "text",
+              "label": "注意事項"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "cf-1778079153777-3wv": "原文檔有圖，另外附有簡中翻譯對照",
+            "tf-1776578038686-et6": "Misc",
+            "tf-1776578044252-hvd": "Sherry Wall translation.xlsx"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "d0ccc04c-3ded-40aa-a8b4-c9c056048c94",
+      "title": "7 Days To Think About It 260610",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "memoQ",
+          "fields": [
+            {
+              "id": "tf-1773019967717-k1y",
+              "type": "text",
+              "label": "伺服器位址"
+            },
+            {
+              "id": "tf-1773019983872-z4u",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1773020063542-zed",
+              "type": "text",
+              "label": "檔案名稱"
+            },
+            {
+              "id": "tf-1773597666184-rzp",
+              "type": "text",
+              "label": "交件方式"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1773019967717-k1y": "agm-loc.memoqworld.com",
+            "tf-1773019983872-z4u": "7 Days To Think About It (7 Langs.)",
+            "tf-1773020063542-zed": "\\06.08 7 Days To Think About It\\翻訳対象テキスト.xlsx",
+            "tf-1773597666184-rzp": "上述資訊僅供派案人員交件，譯者請使用自研工具"
+          }
+        },
+        {
+          "id": "te-1776839709482",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "7 Days To Think About It",
+            "tf-1776578044252-hvd": "檔案 #1-5"
+          }
+        }
+      ],
+      "cat_tool_enabled": false
+    },
+    {
+      "id": "931b2382-8746-49ee-83ee-8512a6431453",
+      "title": "F1 Clash 260610",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "F1 Clash",
+            "tf-1776578044252-hvd": "F1C tasks 2"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "1dc75558-da77-4dc8-a473-e520917aee2b",
+      "title": "NCIS 260604",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "NCIS",
+            "tf-1776578044252-hvd": "I2Loc E50 Shadow Strike FOR TRANSLATORS (1)-en_us-zh_tw-PE.mxliff\nI2Loc E50V01 Final Fragment FOR TRANSLATORS (1)-en_us-zh_tw-PE.mxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "title": "Reign of Hades 260503",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Reigh of Hades",
+            "tf-1776578044252-hvd": "句段集 Ares Charcter Pack\n句段集 Box\n句段集 Cards\n句段集 Dice Tower\n句段集 Hades expansion\n句段集 Heroic Item and Weapon pack\n句段集 Player board"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "b8b88ac8-b6ce-4928-8447-22bfa6c6bb33",
+      "title": "Control Resonant 260603",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Control Resonant",
+            "tf-1776578044252-hvd": "NED 20260601 - Batch 9 - Dialogue Lines (NED)_2.csv_pq5mp9ubom3yz_zhHK_2026-06-02_02-45-46.modified.xlsx_zho-TW.mqxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "d3e4165d-ba64-470b-bda4-6db9e1edab99",
+      "title": "WIZA 260522B",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "[zho-TW][16286359][MSH Dates & Deta(…)e Phase 2 Update][loc_wpn_msh_article_dates-details_p2_en.html].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "8c5f48a7-c2f2-4e03-bc88-0c808bce4282",
+      "title": "WIZA 260519B",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "[zho-TW][16252168][WPN MSH Video v2][2026060_MSH WPN Video Captions_.srt].xlf\n[zho-TW][16252169][WPN MSH Video v2][20250602_MSH WPN Video Title Description.xlsx].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "f98c8a05-b839-449b-885c-239d5868b9f5",
+      "title": "Magicians 260528",
+      "tools": [
+        {
+          "id": "te-default",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "Misc",
+            "tf-1776578044252-hvd": "MAGICIANS_REVEAL_PRESS_NoR.srt"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "ec95544a-909c-42f9-96a5-28985d094503",
+      "title": "WIZA 260610B",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA - 00144063 - Web & Marketing - June - 2026",
+            "tf-1776578044252-hvd": "[zho-TW][16393373][D&D Reference Cards Product Pages][loc_wpn_dnd_trove_productdetails_xtm.xlsx].xlf_zho-TW.mqxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "c5613d5e-0fff-484e-88bf-97baefb7586f",
+      "title": "WIZA 260520A",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "[zho-TW][16271782][MSH Product Delays][loc_wpn_msh_article_alert_product-delays_en.html].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "9ea55a51-279f-419f-b831-631965b8f379",
+      "title": "WIZA 260525A",
+      "tools": [
+        {
+          "id": "te-1775550434991",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            }
+          ],
+          "fileValues": {},
+          "fieldValues": {
+            "tf-1776578038686-et6": "WIZA",
+            "tf-1776578044252-hvd": "[zho-TW][16299952][WPN Tier 6 Overview Article][20260522_WPN_Tier-6-Overview_Markup.html].xlf"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    },
+    {
+      "id": "4f1da055-1c79-49d5-abd1-e54601611a0b",
+      "title": "Austria 260508",
+      "tools": [
+        {
+          "id": "te-1773073214214",
+          "tool": "自研工具",
+          "fields": [
+            {
+              "id": "tf-1776578038686-et6",
+              "type": "text",
+              "label": "專案名稱"
+            },
+            {
+              "id": "tf-1776578044252-hvd",
+              "type": "text",
+              "label": "檔案名稱"
+            },
+            {
+              "id": "cf-1778216592476-ehw",
+              "type": "file",
+              "label": "連結"
+            }
+          ],
+          "fileValues": {
+            "cf-1778216592476-ehw": [
+              {
+                "url": "https://talk-hanzi-joy.vercel.app/cat/team/projects/615805b9-2ba4-45f8-b12c-d2ad28a2c139",
+                "name": "20260507 apple-tech-know-how-aus-oesterreich.docx.sdlxliff"
+              }
+            ]
+          },
+          "fieldValues": {
+            "tf-1776578038686-et6": "Austria",
+            "tf-1776578044252-hvd": "20260424 eurovision-song-contest-2026.docx.sdlxliff"
+          }
+        }
+      ],
+      "cat_tool_enabled": true
+    }
+  ],
+  "cat_projects": [
+    {
+      "id": "b603e302-400d-4a50-b2c1-fe31bef487d1",
+      "name": "Riot - WR"
+    },
+    {
+      "id": "3ba57128-e1a5-47d1-816f-5f2a24e33f85",
+      "name": "Centric"
+    },
+    {
+      "id": "ed853e1d-66ab-4e4f-97ca-159a6c8b87f1",
+      "name": "Focus"
+    },
+    {
+      "id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "name": "7 Days To Think About It"
+    },
+    {
+      "id": "23ff707b-0348-45fb-b24c-ed0c7fd5bc8f",
+      "name": "LOL"
+    },
+    {
+      "id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "name": "WIZA"
+    },
+    {
+      "id": "14c4040d-a20a-4194-a998-e602d85e8f24",
+      "name": "Follow the Light"
+    },
+    {
+      "id": "36c8da08-fee1-41bf-97f2-e75deb3a57b7",
+      "name": "Perpetual Games"
+    },
+    {
+      "id": "4ad3d6df-bce9-4022-a0fa-41777392d7b3",
+      "name": "Michael Page"
+    },
+    {
+      "id": "b06c9b83-998b-42b3-bbd8-fdf255d6cbce",
+      "name": "Matchington Mansion"
+    },
+    {
+      "id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "name": "Planet Zoo 2"
+    },
+    {
+      "id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "name": "Reign of Hades"
+    },
+    {
+      "id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "name": "Hot Wheels"
+    },
+    {
+      "id": "0b4b2def-e147-42c4-a1cc-0dad67c55630",
+      "name": "NXX"
+    },
+    {
+      "id": "60e52bf8-5a75-4f10-861f-2c201a72d5b8",
+      "name": "House Alway Wins"
+    },
+    {
+      "id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "name": "Thick as Thieves"
+    },
+    {
+      "id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "name": "2XKO"
+    },
+    {
+      "id": "4d1b36a7-0308-4133-badc-e1d7c594607d",
+      "name": "簡轉繁"
+    },
+    {
+      "id": "03769e54-860a-4c57-bba6-4c779ef4ca29",
+      "name": "Top Drives"
+    },
+    {
+      "id": "97f95219-8ca4-43a0-a98b-8a9660850a1e",
+      "name": "F1 Clash"
+    },
+    {
+      "id": "640901fc-88aa-4196-ab7c-3ca127955934",
+      "name": "Test"
+    },
+    {
+      "id": "e853c7c0-dc71-4ef7-9161-d0fadce508b3",
+      "name": "HOK: World"
+    },
+    {
+      "id": "3ed849ad-f5e9-4c48-bbdc-4ce5c2bb6d7d",
+      "name": "星穹鐵道"
+    },
+    {
+      "id": "0eed6389-5c53-4a71-aedc-2fa2b59a1170",
+      "name": "ELTA"
+    },
+    {
+      "id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "name": "Control Resonant"
+    },
+    {
+      "id": "61c0ddc8-864d-4008-91ab-0bd34a41247f",
+      "name": "Metalstorm"
+    },
+    {
+      "id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "name": "Misc"
+    },
+    {
+      "id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "name": "Total War: WH40K"
+    },
+    {
+      "id": "4a456ff5-0a1f-4ec2-a484-4a8e2593fc3a",
+      "name": "Sinking City II"
+    },
+    {
+      "id": "f532948a-0f48-44c4-ba45-aecbd61f56b3",
+      "name": "Fortnite"
+    },
+    {
+      "id": "d14e2123-d728-4fb7-91d1-c52fbdbc74b1",
+      "name": "NCIS"
+    },
+    {
+      "id": "ee1d0924-3939-4968-9d8f-7dc34483f6ae",
+      "name": "Atari"
+    },
+    {
+      "id": "d0b7aedf-6a55-4741-b223-acb49a81e475",
+      "name": "Teamfight Tactitcs"
+    },
+    {
+      "id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "name": "Riftbound"
+    },
+    {
+      "id": "21f0f11a-0c7e-47a3-a58d-49ef4473c6e5",
+      "name": "ZHCN > ZHTW Misc"
+    },
+    {
+      "id": "615805b9-2ba4-45f8-b12c-d2ad28a2c139",
+      "name": "Austria"
+    },
+    {
+      "id": "61306c65-8578-45d8-935d-295e696b394a",
+      "name": "EULA"
+    }
+  ],
+  "cat_files": [
+    {
+      "id": "07591b6c-1176-49cf-bf95-87b6a5be6d3f",
+      "name": "LOC-168633-Release 40.41 In-Game Strings - Batch 2-en-US_zh-TW_Translation_TEP_v1.xliff_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "b8ac4d8a-e03e-4490-aee6-cbeb3e5f71a2",
+      "name": "28.05.2026 TD Liveops task.xlsx_zho-TW.mqxliff",
+      "project_id": "03769e54-860a-4c57-bba6-4c779ef4ca29",
+      "related_lms_case_id": "5bca0ca9-758c-4045-9226-f2190ae388fb",
+      "related_lms_case_title": "Top Drives 260529"
+    },
+    {
+      "id": "9b084285-e7d2-42b3-8afc-6a9c9fccb6e0",
+      "name": "Scenery_part1-zhTW_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d4905cd2-0947-4a07-be37-1971561b479a",
+      "name": "P4_zho-TW.mqxliff",
+      "project_id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "9a12a3c5-9091-4052-a783-9a483032ea2b",
+      "name": "Matchington Maison 260424.xlsx",
+      "project_id": "b06c9b83-998b-42b3-bbd8-fdf255d6cbce",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "f4659184-a885-4a5f-a684-fc9daffde036",
+      "name": "Follow the Light 20260429 EN Source and Code.xlsx",
+      "project_id": "14c4040d-a20a-4194-a998-e602d85e8f24",
+      "related_lms_case_id": "d174a4d5-e43e-4bb6-9d3d-4c792f14c5c3",
+      "related_lms_case_title": "Follow the Light 260429"
+    },
+    {
+      "id": "f2cdb480-af44-45c1-bd37-5929e92c5aa1",
+      "name": "[zho-TW][16244560][Emails for localization 05.14.26_1][WPN update content snippets week 21 05.13.26.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "741ffe74-f6fb-45fc-877c-e2d9cbb34552",
+      "name": "APPENDIX 210x280mm.docx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "5d6adc7b-6390-449d-8c78-f74deda72720",
+      "related_lms_case_title": "Reign of Hades 260428A"
+    },
+    {
+      "id": "69980b28-e2fc-495d-a6c6-9eda3b4560b2",
+      "name": "CAMPAING BOOK 300x280 -B.docx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "5d6adc7b-6390-449d-8c78-f74deda72720",
+      "related_lms_case_title": "Reign of Hades 260428A"
+    },
+    {
+      "id": "d61d56f1-9c75-46ef-9003-297802dc658b",
+      "name": "SCENARIO BOOK 280x280.docx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "873b3744-e493-4712-b8c3-25c3cbd2b8f8",
+      "related_lms_case_title": "Reign of Hades 260428B"
+    },
+    {
+      "id": "2286990b-44b9-455e-8ab7-6e83dec31ae4",
+      "name": "Game.po",
+      "project_id": "14c4040d-a20a-4194-a998-e602d85e8f24",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "a3974a19-95a2-4d5c-87a2-5053aafb2ec4",
+      "name": "20260424 eurovision-song-contest-2026.docx.sdlxliff",
+      "project_id": "615805b9-2ba4-45f8-b12c-d2ad28a2c139",
+      "related_lms_case_id": "8e810242-6027-4b13-9d26-9953c20b1a9b",
+      "related_lms_case_title": "Austria 260424"
+    },
+    {
+      "id": "c286f9b8-b273-4ee2-b03f-6531d5081519",
+      "name": "TT26 Taiwan Report Draft 02.docx.sdlxliff",
+      "project_id": "4ad3d6df-bce9-4022-a0fa-41777392d7b3",
+      "related_lms_case_id": "feb46131-54ab-49de-88b2-a90ad1f130fa",
+      "related_lms_case_title": "Michael Page 260421"
+    },
+    {
+      "id": "795be47a-5544-45e1-b77e-676b75222f39",
+      "name": "[zho-TW][16286196][Not Logged In Si(…)ect Landing Page][loc_wpn_page_landing-log-in-access_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "96dff563-d779-4401-9a07-2d2a65aff202",
+      "related_lms_case_title": "WIZA 260522A"
+    },
+    {
+      "id": "195fdfba-fc66-49e9-8f40-6a76976d90a5",
+      "name": "F1 Clash CRM change & F1M Locs.xlsx_zho-TW.mqxliff",
+      "project_id": "97f95219-8ca4-43a0-a98b-8a9660850a1e",
+      "related_lms_case_id": "ee02e64f-2ba4-4d6d-88ce-f953e41dbb4b",
+      "related_lms_case_title": "F1 Clash 260602"
+    },
+    {
+      "id": "edc84d32-6ed4-44f5-ad95-6a4f2af2aebc",
+      "name": "[zho-TW][16308811][HOB Dates & Deta(…)d Crafting Party][wpn_hob_update_dates-details-unexpected-crafting.docx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "41e32d86-3dad-478e-bea5-0d71f61bb6fd",
+      "related_lms_case_title": "WIZA 260527"
+    },
+    {
+      "id": "d96345fa-e67a-4c05-b1f1-462394ba750c",
+      "name": "MEMOQ JSON Export 2026-06-02-10_16_27_449+0000 (ar_AE).json_zho-TW.mqxliff",
+      "project_id": "d0b7aedf-6a55-4741-b223-acb49a81e475",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "8270d1af-50f2-4e0f-949b-f34a9e38a480",
+      "name": "[zho-TW][16397038][Email for localization 06.10.26][Season of Horror D&D Beyond Non-EN 06.10.26_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "f701683d-a6bf-4ae8-9d8b-1838daf685fb",
+      "related_lms_case_title": "WIZA 260611B"
+    },
+    {
+      "id": "43675502-e9fe-45f1-91d0-bb4910ad7568",
+      "name": "LOC-168633-Release 40.41 In-Game Strings - Batch 2-en-US_zh-TW_Translation_TEP_v1.xliff_zho-TW.mqxliff",
+      "project_id": "f532948a-0f48-44c4-ba45-aecbd61f56b3",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2742c7a1-1e8c-4a3c-b50d-3f39096eb7f8",
+      "name": "53537_04_JSON_CardStringSet6_D_v1_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "1487224d-997d-4dd1-b96c-e90c31026bd0",
+      "name": "tat_emergencyloc2_send.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "655ce00f-b8c5-4c6f-9f26-041b2b21f9e5",
+      "name": "53537_05_JSON_CardStringSet6_E_v1_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6ccd84ae-fc2f-40e8-a053-c858db00006b",
+      "name": "[zho-TW][16286359][MSH Dates & Deta(…)e Phase 2 Update][loc_wpn_msh_article_dates-details_p2_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "d3e4165d-ba64-470b-bda4-6db9e1edab99",
+      "related_lms_case_title": "WIZA 260522B"
+    },
+    {
+      "id": "d99153e1-29fc-4041-b769-a502078e97bb",
+      "name": "260605.xlsx",
+      "project_id": "d0b7aedf-6a55-4741-b223-acb49a81e475",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "a5da1241-ea91-4ee2-96a7-a74a9601f256",
+      "name": "52733 - Set 5 Card Strings_zhTW_C.xlsx_zho-TW.mqxliff",
+      "project_id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "efd3a95d-0095-4c57-8b5a-54f3d5158a61",
+      "name": "HW3_in-game texts__2026-03-30_01-37-35_VS+Alpha_targets.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "94aa6cc6-2b85-421c-918e-2663d62e3021",
+      "name": "Matchington Mansion 260430",
+      "project_id": "b06c9b83-998b-42b3-bbd8-fdf255d6cbce",
+      "related_lms_case_id": "6c80acf5-c6f7-493e-9986-fef34864511e",
+      "related_lms_case_title": "Matchington Mansion 260430"
+    },
+    {
+      "id": "ff40b0f3-c2a2-47df-a8d2-6cad3f8500bd",
+      "name": "52896_01_2XKO - PRF - Pool Party Evo Registration Drive.docx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "33ec5f37-6edc-46fd-ad7c-59958af570e6",
+      "name": "53905_02_JSON_JadeChampsItemsBatch5B_v1_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "23ff707b-0348-45fb-b24c-ed0c7fd5bc8f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "61109b91-f18b-4e7c-9ba9-844a92f56a4c",
+      "name": "achievementlocfile.xlsx_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": "6bd52cce-b2b0-46ba-8534-52477e11456d",
+      "related_lms_case_title": "Control Resonant 260612"
+    },
+    {
+      "id": "6d3a5a9a-840c-42b3-96b4-c7b6698138c0",
+      "name": "20260611Born Global Champions 2026.docx.sdlxliff",
+      "project_id": "615805b9-2ba4-45f8-b12c-d2ad28a2c139",
+      "related_lms_case_id": "a90960e0-b70d-492e-a225-4e503d3e7285",
+      "related_lms_case_title": "Austria 260611"
+    },
+    {
+      "id": "648d8788-1c63-4b76-8022-ea07af3d7816",
+      "name": "051326_WR_05_1_A.xlsx_zho-TW.mqxliff",
+      "project_id": "b603e302-400d-4a50-b2c1-fe31bef487d1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "4231dcb3-8ba6-4556-a12a-48e23dd3a666",
+      "name": "Control Resonant 260529_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "b92f3e65-39fc-4584-a989-7581c469cfca",
+      "name": "[zho-TW][16259271][Email snippets f(…)ization 05.18.26][WPN Beta Survey 05.18.26.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "e16e7c29-5ea0-4c18-aea4-065e2f465e71",
+      "related_lms_case_title": "WIZA 260519A"
+    },
+    {
+      "id": "1adb5595-bbe0-4f3f-92d6-fb0d96e2232b",
+      "name": "【S1】妃寒传记-处理后_zh-TW.xliff_zho-TW.mqxliff",
+      "project_id": "e853c7c0-dc71-4ef7-9161-d0fadce508b3",
+      "related_lms_case_id": "3ebb2477-b055-456f-b62a-d09ddc1469d6",
+      "related_lms_case_title": "HOK: World (NGR) 260603"
+    },
+    {
+      "id": "e5bed219-c62f-4f07-8d10-3f58a1253ab4",
+      "name": "Metalstorm 260522_zho-TW.mqxliff",
+      "project_id": "61c0ddc8-864d-4008-91ab-0bd34a41247f",
+      "related_lms_case_id": "5876e446-db7b-463e-880f-5a6f831d8017",
+      "related_lms_case_title": "Metalstorm 260522"
+    },
+    {
+      "id": "1dadff7e-f1c0-4a54-915b-bcaac249dfb6",
+      "name": "F1C - Survey - Future Features.xlsx_zho-TW.mqxliff",
+      "project_id": "97f95219-8ca4-43a0-a98b-8a9660850a1e",
+      "related_lms_case_id": "0252ff48-75ce-45b1-8714-1a02312beadc",
+      "related_lms_case_title": "F1 Clash 260527"
+    },
+    {
+      "id": "d3ed01a6-55f9-4887-9b57-709ebe82d553",
+      "name": "[zho-TW][16384984][Email for localization 06.08.26][HOB Prerelease Allocation Emai(…)8.26 (CN, CS, JA, KO, BP).xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "d184c9b1-6157-4627-a486-a20043799320",
+      "related_lms_case_title": "WIZA 260609B"
+    },
+    {
+      "id": "d082e5bc-c120-4a5b-9b6c-72a3de2e0b17",
+      "name": "CHALLENGE BOOK 210x280mm.docx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "5d6adc7b-6390-449d-8c78-f74deda72720",
+      "related_lms_case_title": "Reign of Hades 260428A"
+    },
+    {
+      "id": "e6d66fca-194d-4171-920c-b53efb17014a",
+      "name": "CAMPAING BOOK 300x280 -A.docx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "873b3744-e493-4712-b8c3-25c3cbd2b8f8",
+      "related_lms_case_title": "Reign of Hades 260428B"
+    },
+    {
+      "id": "2d186b3a-e00d-4a50-bc90-8481171f5b34",
+      "name": "Scenery 260504_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "52242d9d-6a26-49b3-8a96-e3710a6565a2",
+      "name": "52951_01_2XKO - JEVO26 - _Know Before You Go_ Article and PRF - V1.docx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "a3c0ce5d-6897-4b4a-b599-cb3331b66dbd",
+      "name": "20260513marketplace-austria-food-beverages-2026.docx.sdlxliff",
+      "project_id": "615805b9-2ba4-45f8-b12c-d2ad28a2c139",
+      "related_lms_case_id": "a1685d33-9ec6-4070-8690-1a7994c5e73e",
+      "related_lms_case_title": "Austria 260513"
+    },
+    {
+      "id": "7369d031-fd16-4e88-8df0-761c306e3058",
+      "name": "oneapp_I2Loc E50 Shadow Strike FOR TRANSLATORS (1)-en_us-zh_tw-PE.mxliff",
+      "project_id": "d14e2123-d728-4fb7-91d1-c52fbdbc74b1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "23eaae7a-cb20-431c-807c-436c918ad906",
+      "name": "[zho-TW][16252168][WPN MSH Video v2][2026060_MSH WPN Video Captions_.srt].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "8c5f48a7-c2f2-4e03-bc88-0c808bce4282",
+      "related_lms_case_title": "WIZA 260519B"
+    },
+    {
+      "id": "24df51eb-f901-41b2-8177-69c25414bd12",
+      "name": "53537_01_JSON_CardStringSet6_A_v1_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "72efc639-8cde-4611-8c14-85f13c54ddb5",
+      "name": "NED 20260601 - Batch 9 - Dialogue Lines (NED)_2.csv_pq5mp9ubom3yz_zhHK_2026-06-02_02-45-46.modified.xlsx_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": "b8b88ac8-b6ce-4928-8447-22bfa6c6bb33",
+      "related_lms_case_title": "Control Resonant 260603"
+    },
+    {
+      "id": "de9e394c-a189-499b-b5ac-bd67084c25bd",
+      "name": "Batch 10 Seg 314-670_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": "3cc1c666-0e19-4e98-9294-0f34103c882c",
+      "related_lms_case_title": "Control Resonant 260605"
+    },
+    {
+      "id": "b2dc5bb0-581e-4aa7-8a09-f613660c7241",
+      "name": "[zho-TW][16381332][WPN Dashboard Ti(…)ings Update_0605][20260605_DASHBOARD_Profile-P(…)tion_CONTENT TEAM Copy_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "bb3c1bcb-cb12-495e-b22d-9c33e7e672a8",
+      "related_lms_case_title": "WIZA 260609A"
+    },
+    {
+      "id": "1f4edab2-6460-47eb-9a85-197812e35c69",
+      "name": "Lockit_The_House_Always_Wins_Achievements.xlsx_zho-TW.mqxliff",
+      "project_id": "60e52bf8-5a75-4f10-861f-2c201a72d5b8",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "84b02889-ec4e-434d-89d4-5c0c6bbaf756",
+      "name": "loc-master_05.06.xlsx_zho-TW.mqxliff",
+      "project_id": "61c0ddc8-864d-4008-91ab-0bd34a41247f",
+      "related_lms_case_id": "bf759319-8812-4ad9-a90b-2bea5311865b",
+      "related_lms_case_title": "Metalstorm 260508"
+    },
+    {
+      "id": "9741f82e-cf12-4f6e-be0e-b84648ee6757",
+      "name": "TT26 Taiwan Report Draft_新增内容 P16~19.docx.sdlxliff",
+      "project_id": "4ad3d6df-bce9-4022-a0fa-41777392d7b3",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "c82d3ec5-8051-4883-b403-f8efeb4296c2",
+      "name": "Character Card APHRODITE -ASIAN 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "262e44d5-0dfe-4d47-b552-9647ee6dafb5",
+      "name": "Character Card ARTEMIS 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2609480c-56ea-4f4a-aa92-0884c06e22cf",
+      "name": "Character Card HEPHESTUS 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "3f6b3de9-47c5-4c54-9a94-fafdd13cd9ff",
+      "name": "Character Card HERA -BLACK 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "644f4f37-6d8b-4310-8415-9b2137154a3d",
+      "name": "Character Card POSEIDON 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "fd1e359c-2121-4035-bd26-ea6cee524083",
+      "name": "[zho-TW][16201822][Email for localization 05.11.26][MSH Promo Allocation 05.11.26_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "7e134288-8d01-4a3c-9b22-47e44cd8bd77",
+      "name": "[zho-TW][16252169][WPN MSH Video v2][20250602_MSH WPN Video Title Description.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "8c5f48a7-c2f2-4e03-bc88-0c808bce4282",
+      "related_lms_case_title": "WIZA 260519B"
+    },
+    {
+      "id": "ecd76f5b-d1f3-4051-bad1-f91449c66f59",
+      "name": "【S1】支线-处理后_zh-TW.xliff_zho-TW.mqxliff",
+      "project_id": "e853c7c0-dc71-4ef7-9161-d0fadce508b3",
+      "related_lms_case_id": "3ebb2477-b055-456f-b62a-d09ddc1469d6",
+      "related_lms_case_title": "HOK: World (NGR) 260603"
+    },
+    {
+      "id": "46742b67-2c11-4434-b4e1-8be1468dfe69",
+      "name": "F1C Tasks.xlsx_zho-TW.mqxliff",
+      "project_id": "97f95219-8ca4-43a0-a98b-8a9660850a1e",
+      "related_lms_case_id": "9c728e86-4a6c-46fd-bebb-8480fde9aebf",
+      "related_lms_case_title": "F1 Clash 260605"
+    },
+    {
+      "id": "0e99314c-cc02-4929-ba7b-2d55a308746a",
+      "name": "[zho-TW][16385295][QOTW July, August, September 2026][Localization — QOTW Jul Aug Sep 2026.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "062bc7fd-ab69-46c2-bd88-453fdc6300d7",
+      "related_lms_case_title": "WIZA 260610"
+    },
+    {
+      "id": "39bc982f-2589-47d2-a5cb-0e5fce27225f",
+      "name": "[zho-TW][16165983][EventLink Localization Request][localization-diff.xml].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "badff421-b504-474c-aa7a-9f499a8c89ce",
+      "related_lms_case_title": "WIZA 260512B"
+    },
+    {
+      "id": "686c3b1f-c530-4852-b757-b725162d816b",
+      "name": "oneapp_I2Loc E50 Shadow Strike FOR TRANSLATORS (1)-en_us-zh_tw-PE.mxliff",
+      "project_id": "d14e2123-d728-4fb7-91d1-c52fbdbc74b1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "e0bcb708-86a3-4022-b349-5a9b2ade0ae8",
+      "name": "[zho-TW][16174717][Available Now Yo(…)More Update 0518][20260518_Welcome to Early Access Article.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "fc817912-226d-4e4b-8c94-035657be8d6b",
+      "name": "Master and store copy - loc request.xlsx_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "270efa6e-4800-4da5-bf7a-c89f6ca93121",
+      "name": "20260507 apple-tech-know-how-aus-oesterreich.docx.sdlxliff",
+      "project_id": "615805b9-2ba4-45f8-b12c-d2ad28a2c139",
+      "related_lms_case_id": "4f1da055-1c79-49d5-abd1-e54601611a0b",
+      "related_lms_case_title": "Austria 260508"
+    },
+    {
+      "id": "ccb1fb90-9be4-47d2-ad49-07aef806dd05",
+      "name": "Character Card APHRODITE -ASIAN 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "4fdc32d9-a005-4eff-aab4-60e8ee3aac6b",
+      "name": "Character Card APHRODITE -ASIAN 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ac5fe83c-7935-4b79-94cc-01f819651b18",
+      "name": "Character Card ARTEMIS 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "817a3580-acba-403a-87f5-4549aa7b4b75",
+      "name": "Character Card ARTEMIS 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "4472561e-55a7-4109-8ab8-e6ea4588040b",
+      "name": "Character Card ATHENA 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "784bd71b-6e0d-46d1-b4fe-3df6d0491e36",
+      "name": "Character Card HEPHESTUS 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "b5917399-645e-4e2e-a4e7-b51ec08ebafb",
+      "name": "Character Card HERA -BLACK 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "5bb596bc-0e64-4d8c-9201-10bb7cdb4c13",
+      "name": "Character Card HERMES 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "acd24c2d-c0ac-480e-810d-3ac0df53418a",
+      "name": "TD - Consumer Insights - Localisation Sheet.xlsx_zho-TW.mqxliff",
+      "project_id": "03769e54-860a-4c57-bba6-4c779ef4ca29",
+      "related_lms_case_id": "404432f5-a9b7-46fc-96a4-ae55cda9a4fb",
+      "related_lms_case_title": "Top Drives 260605"
+    },
+    {
+      "id": "82277029-eee6-47aa-ad0f-4d658cd75f85",
+      "name": "53537_02_JSON_CardStringSet6_B_v1_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "3fdf52f1-63a2-4277-b04a-058f1c8b0795",
+      "name": "Focus Entertainment_202605260842224007938_Lockit 26052026 Batch 2_zh-TW.xliff_zho-TW.mqxliff",
+      "project_id": "0eed6389-5c53-4a71-aedc-2fa2b59a1170",
+      "related_lms_case_id": "3b88ef4f-d0aa-4dbe-8b3d-435ab29579da",
+      "related_lms_case_title": "ELTA 260527"
+    },
+    {
+      "id": "5e537338-8aca-4c95-808a-3c409c69e439",
+      "name": "F1C tasks 2.xlsx_zho-TW.mqxliff",
+      "project_id": "97f95219-8ca4-43a0-a98b-8a9660850a1e",
+      "related_lms_case_id": "931b2382-8746-49ee-83ee-8512a6431453",
+      "related_lms_case_title": "F1 Clash 260610"
+    },
+    {
+      "id": "9c33a977-9c7f-42fb-b5fc-64ecd18db1eb",
+      "name": "oneapp_I2Loc E50V01 Final Fragment FOR TRANSLATORS (1)-en_us-zh_tw-PE.mxliff",
+      "project_id": "d14e2123-d728-4fb7-91d1-c52fbdbc74b1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "88ff6d1f-3a2d-4a9e-9247-7dd44632d9f6",
+      "name": "[zho-TW][16201462][WPN Dashboard Walkthrough][20260508_WPN New Dashboard Script_EN.srt].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "b5cd89f0-4411-438f-bac3-2f52797efa88",
+      "name": "P3_zho-TW.mqxliff",
+      "project_id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "ccaec56f-4b1a-4a2b-a2a5-5cd9c34be3c8",
+      "name": "Textmap+V4.3版本增量_主体_20260508更新_繁体中文+zh-TW_source+target_20260508134915.xlsx",
+      "project_id": "3ed849ad-f5e9-4c48-bbdc-4ce5c2bb6d7d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d16085ce-34a9-41f5-8c22-5a9d38f00133",
+      "name": "zhtw_part1_1-99_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "9ab8ac88-e631-4eb7-a2e8-1b0ebbd43472",
+      "name": "Character Card APHRODITE -ASIAN 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0fc358b0-cb6c-43dc-bac8-fd68b3ab0eb0",
+      "name": "Character Card ARTEMIS 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "e5cb5e14-02b3-4978-af74-6c6d12c2b6e5",
+      "name": "Character Card ARTEMIS 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "b65506be-b836-421a-9998-e349cbaddce3",
+      "name": "Character Card ATHENA 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "39979ced-3e78-445e-b6a8-d9056648e0c2",
+      "name": "Character Card ATHENA 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "138a8dc3-d667-49d4-8734-f0b81bd3ae52",
+      "name": "Character Card HEPHESTUS 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "6decc9a1-a4e6-4b71-9f0e-5d13a5779082",
+      "name": "[zho-TW][16177887][Wizards EventLink Segments Feature][wpn_article_segments_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "8d014474-2ac6-4819-bb6c-eb5f8f94212d",
+      "name": "260519_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "c9d5fd0b-dd10-4395-b19d-44df4ec2191a",
+      "name": "ErrorReporting_NOT_TEXT_SYMBOLS_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "579a2ec0-4ac8-4b69-a011-84065b88b701",
+      "name": "NGR 260607_zho-TW.mqxliff",
+      "project_id": "e853c7c0-dc71-4ef7-9161-d0fadce508b3",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "968dfde0-7800-40ab-afde-9112831f0edb",
+      "name": "Focus Entertainment_202604130738176798130_Lockit 24032026 Batch 1_zh-TW.xliff_zho-TW.mqxliff",
+      "project_id": "0eed6389-5c53-4a71-aedc-2fa2b59a1170",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "67299ab8-eed6-4c30-9819-9acb03047cb0",
+      "name": "Cloudheim Store Page Localisation.xlsx_zho-TW.mqxliff",
+      "project_id": "36c8da08-fee1-41bf-97f2-e75deb3a57b7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "db93aa57-5535-4d49-af9b-ee75004e8efb",
+      "name": "[zho-TW][16334546][MSH DMA Labels][msh_downloadable_asset_import_template_debut_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "d887db66-05ce-41fa-a857-0d54fbdbf665",
+      "related_lms_case_title": "WIZA 260528"
+    },
+    {
+      "id": "302e1475-5663-42e9-b4d2-66d18eeed292",
+      "name": "[zho-TW][16201465][WPN Dashboard Walkthrough][20260511_WPN Dashboard Overview Title Description_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "3ea0404e-cc71-4b9d-b99a-ec03bf1aeb3e",
+      "name": "zhtw_part3_174-239_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d031acdd-e74d-47e3-a020-90580cec96d0",
+      "name": "53609_01_PRF - 2XKO - PvE Announce Trailer.docx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": "99461ed6-a283-4c55-b960-2cabd1547a52",
+      "related_lms_case_title": "Riot - 2XKO 260601B"
+    },
+    {
+      "id": "d7315b56-0de4-40d3-9ce9-075456bd50be",
+      "name": "House_Final Batch_ALL.xlsx_zho-TW.mqxliff",
+      "project_id": "60e52bf8-5a75-4f10-861f-2c201a72d5b8",
+      "related_lms_case_id": "64abeaee-e5bb-43c6-b924-99e55594beeb",
+      "related_lms_case_title": "House Always Wins 260506"
+    },
+    {
+      "id": "276c55c4-ee3e-49ad-beb5-0b2be0997ee9",
+      "name": "P1_2026年4月W4_V4.3_尘灵+飞机大巴扎等活动_繁体中文+zh-TW_翻译_source+target_20260508145511.xlsx",
+      "project_id": "3ed849ad-f5e9-4c48-bbdc-4ce5c2bb6d7d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "ba55cb53-e627-443d-b3ab-b9c955f8c4c1",
+      "name": "zhtw_part2_100-173_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "c5287984-4f22-4684-a587-51b9919fbd27",
+      "name": "Character Card ARTEMIS 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "5368a730-c05d-4643-87d4-86e210675ff6",
+      "name": "Character Card ATHENA 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "6458061e-101c-42f7-a26d-95613095ddcd",
+      "name": "Character Card ATHENA 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "d9023c8c-6bb0-47b3-92ce-abb2bf017267",
+      "name": "Character Card HEPHESTUS 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "8f812b81-5244-4841-bf4d-b7c0832454d2",
+      "name": "Character Card HEPHESTUS 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "df960e96-3d24-4977-86bd-38f5b70364f8",
+      "name": "Character Card HEPHESTUS 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "bb23f841-69a4-450f-a362-29cf0e313802",
+      "name": "C_M SGF26 Store Texts.docx_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6f565e20-fd89-48ac-acdf-89ee93f1aef9",
+      "name": "GraphicsOptionsMenu_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2c6292d8-c90c-46f7-9d05-20ab89de8a5f",
+      "name": "[zho-TW][16347629][Companion - June 2nd][app-strings-v4_.xml_en.docx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "e1752d6c-6944-4333-8a9e-b95fcf33e982",
+      "related_lms_case_title": "WIZA 260603"
+    },
+    {
+      "id": "42cbbf95-7fb8-48c6-8745-0b70a632c1fa",
+      "name": "53926_01_HTML_patchnotes26.12_v1_zh_TW.html_zho-TW.mqxliff",
+      "project_id": "23ff707b-0348-45fb-b24c-ed0c7fd5bc8f",
+      "related_lms_case_id": "d40bb612-a05a-4445-9615-7b5d450f17db",
+      "related_lms_case_title": "Riot - LOL 260605A"
+    },
+    {
+      "id": "59f5a66e-6abb-4c6b-81bd-2d5016173112",
+      "name": "CULTIC Store Loc Sheet.xlsx",
+      "project_id": "ee1d0924-3939-4968-9d8f-7dc34483f6ae",
+      "related_lms_case_id": "b7dbabd4-f689-4096-b526-7053ea07f033",
+      "related_lms_case_title": "Atari 260610"
+    },
+    {
+      "id": "2a4be6ba-f429-4510-b607-cfc36419f5fb",
+      "name": "joined-P10394-J32-33-34-35-36-37-en_us-zh_tw-PE.mxliff",
+      "project_id": "640901fc-88aa-4196-ab7c-3ca127955934",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d167a665-2ef8-43f1-8860-4266326e0a08",
+      "name": "52896_01_2XKO - PRF - Pool Party Evo Registration Drive.docx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2b114a3e-20be-455f-a659-74c6f702d309",
+      "name": "Scenery_zh-TW_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "24d70880-f426-4e6b-887a-a23c72f01015",
+      "name": "P2_zho-TW.mqxliff",
+      "project_id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "3a6feb80-be49-4f29-9266-662ff73cf6e5",
+      "name": "Import Test_53237_01_WORD_NewDuoFeaturesComingto2XK_v1_zh_TW.docx_zho-TW.mqxliff",
+      "project_id": "640901fc-88aa-4196-ab7c-3ca127955934",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6dc7a7a0-a303-49bd-b7a4-0cf9514d92d7",
+      "name": "INTERNAL - Call Script -TW-EN.pptx.sdlxliff",
+      "project_id": "4ad3d6df-bce9-4022-a0fa-41777392d7b3",
+      "related_lms_case_id": "add137da-c513-402e-b3ac-39c08d0b94e8",
+      "related_lms_case_title": "Michael Page 260511"
+    },
+    {
+      "id": "fc04432e-2fdf-4613-85d8-75f2c1fc1ffd",
+      "name": "Character Card ARES 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "88bfc329-549d-495d-b6db-dcd781083a19",
+      "name": "Character Card ARES 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "748caf15-dd9f-45ca-aba8-211610eb9a89",
+      "name": "Character Card ARES 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2b96de4f-e234-4ce3-bc42-2930e1a4e94d",
+      "name": "ROH_Ares_CharacterTuckbox_EN.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "aec5e945-3220-4412-b6b5-0e8f31f0e0fe",
+      "name": "Signature weapon cards ARES - 56x87 -ADDBOX.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "96a1c527-3c56-4854-8593-424d0cc0ae99",
+      "name": "2026-03-09-translation-TM-Review- ZH-HANT-TraditionalChinese.xlsx",
+      "project_id": "3ba57128-e1a5-47d1-816f-5f2a24e33f85",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "328c3e28-90d9-4bd0-8702-4d199ba9bb2a",
+      "name": "MAGICIANS_REVEAL_PRESS_NoR.srt_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": "f98c8a05-b839-449b-885c-239d5868b9f5",
+      "related_lms_case_title": "Magicians 260528"
+    },
+    {
+      "id": "d968b336-db5e-4353-8752-facfb740f862",
+      "name": "260520_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6a97409d-8291-44ed-9992-4df12d113429",
+      "name": "HOW TO PLAY BOOK 280x280.docx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "7a68a286-4b6b-428e-b5a7-ddde5c2f4057",
+      "name": "【请勿外传】简中-繁中_试译文本_430.xlsx",
+      "project_id": "4d1b36a7-0308-4133-badc-e1d7c594607d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "58c428d7-28f3-4010-bed8-dfe9a6ee13f5",
+      "name": "Starting Feat Cards ARES - 56x87mm -ADDBOX.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0ef9b645-a795-4d39-bf69-0e03114091ae",
+      "name": "LegalScreen_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "1df46687-9d3a-4be5-8504-e6a02238760f",
+      "name": "53609_01_PvE Gameplay Trailer_OST+GRAPH.xlsx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": "99461ed6-a283-4c55-b960-2cabd1547a52",
+      "related_lms_case_title": "Riot - 2XKO 260601B"
+    },
+    {
+      "id": "abe21805-c0c8-4158-b6ec-baf4c24129c1",
+      "name": "ROH_BossandMegaBoss_Box_Bottom_EN.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "845ca75a-8e9b-4d64-8d68-bb5569b78510",
+      "name": "Action card - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "65c59d5a-2522-4ccd-b095-404924c9a56a",
+      "name": "Boss Monster Cards - 75x110mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "74d4e53b-ab7e-4536-b906-301c52f3d243",
+      "name": "Activities _ Achievements Localization.xlsx_zho-TW.mqxliff",
+      "project_id": "4a456ff5-0a1f-4ec2-a484-4a8e2593fc3a",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "e9c63a73-6544-4aff-9582-d6538fbe1766",
+      "name": "HW3_Glossary__2026-04-20_11-27-15.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d6dd523f-db38-4120-b81f-6858f28e5661",
+      "name": "P1_2026年5月W1_V4.3_活动+狸狸周刊与任务文本迭代_繁体中文+zh-TW_翻译_source+target_20260508144827.xlsx",
+      "project_id": "3ed849ad-f5e9-4c48-bbdc-4ce5c2bb6d7d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "34699297-edc4-4626-ab1b-46469558a6db",
+      "name": "DarwinHUD_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "27ffd90a-ff53-4d4a-b0ed-61173c32c27f",
+      "name": "53926_01_WORD_Patch26.12POBlock_v1_zh_TW.docx_zho-TW.mqxliff",
+      "project_id": "23ff707b-0348-45fb-b24c-ed0c7fd5bc8f",
+      "related_lms_case_id": "d40bb612-a05a-4445-9615-7b5d450f17db",
+      "related_lms_case_title": "Riot - LOL 260605A"
+    },
+    {
+      "id": "cb05aeee-1764-4398-a950-6d159cfcf220",
+      "name": "[zho-TW][16393373][D&D Reference Cards Product Pages][loc_wpn_dnd_trove_productdetails_xtm.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "ec95544a-909c-42f9-96a5-28985d094503",
+      "related_lms_case_title": "WIZA 260610B"
+    },
+    {
+      "id": "4995ce3d-82cb-4801-b292-71f33ddf97f2",
+      "name": "53609_01_PvEGameplayTrailer_YouTube Ecosystem_SRT.srt_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": "99461ed6-a283-4c55-b960-2cabd1547a52",
+      "related_lms_case_title": "Riot - 2XKO 260601B"
+    },
+    {
+      "id": "153773de-188a-482e-9023-e7311801d07a",
+      "name": "1727-2323_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2a9c970a-387b-4047-862c-051956efff1c",
+      "name": "ParkUpload_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "b30ad182-9da5-438f-a382-55f3cd2dd3b0",
+      "name": "FrontierAccountSignUpFlow_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d6019591-e90d-485c-b8d4-b3388ffdd6a1",
+      "name": "NGR T1_zh-TW 1118.xliff_zho-TW.mqxliff",
+      "project_id": "e853c7c0-dc71-4ef7-9161-d0fadce508b3",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "69462933-2cdd-41c7-9986-ffff4dcbc52c",
+      "name": "REMEDY END-USER LICENSE AGREEMENT (Final approved version 02 06 2026) (1).html_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": "4e747d28-6fae-4f24-bf70-1ac12d32851d",
+      "related_lms_case_title": "Control Resonant 260610"
+    },
+    {
+      "id": "ce8b0287-ef09-4900-b18c-dbdd8c2d73fe",
+      "name": "5.9六周年_繁体中文+zh-TW_翻译_source+target_20260602021619.xlsx",
+      "project_id": "0b4b2def-e147-42c4-a1cc-0dad67c55630",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "a105c3f2-d018-4b8d-9c8e-2017bd665901",
+      "name": "[zho-TW][16045114][MSH Commander Party][MTGMSH_EN_CmmndrPrty_PlyAd_prep.idml].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "4daf1ce5-ef41-44b9-a5ed-1c99d181bcc7",
+      "name": "Dialogues Full Game_0414.xlsx_zho-TW.mqxliff",
+      "project_id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "140e5fb3-7279-4100-8106-43b50f696898",
+      "name": "HW3_in-game texts__2026-04-13_02-45-34_target-langs_Beta_v2.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "35a06914-c84a-4f0a-9175-6a4159093f0b",
+      "name": "Test 1111.xlsx",
+      "project_id": "640901fc-88aa-4196-ab7c-3ca127955934",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "8ff328eb-f2c0-45d9-92ef-a3c6947f9064",
+      "name": "EducationTopics_zh-TW_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "498347f7-6563-4f0a-841f-be3b753060c4",
+      "name": "Career_VO_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "475a5eaa-2278-41ee-8077-29292c9ac14b",
+      "name": "52830_01_Ahri x Yasuo Intro Lines_OST.xlsx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "5a8e0fc0-ba10-4557-bb1f-bed10af93595",
+      "name": "Achievements.xlsx_zho-TW.mqxliff",
+      "project_id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2c473aa3-7147-4945-8ddb-90b4aa6179c7",
+      "name": "260420_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "de0f86fb-e585-44ca-8c0c-bb8af787a7e2",
+      "name": "GUI_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "5839f6d5-1499-4a53-8355-278cba8ea67c",
+      "name": "[zho-TW][16299952][WPN Tier 6 Overview Article][20260522_WPN_Tier-6-Overview_Markup.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "9ea55a51-279f-419f-b831-631965b8f379",
+      "related_lms_case_title": "WIZA 260525"
+    },
+    {
+      "id": "5c0d879c-9e76-4073-a9dc-be7c91c2f99a",
+      "name": "042726_2XKO_04_2_B_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "bc5d67b9-881d-4dbe-9b86-5277cec7d700",
+      "name": "Steam Rich Presence.xlsx_zho-TW.mqxliff",
+      "project_id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "95ae1553-a446-4c26-87df-3fc65b81d4e1",
+      "name": "042726_2XKO_04_2_C_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "1e9d001e-c2c8-4966-878b-6479fa050346",
+      "name": "DialogsComments-ZHTW-Batch210426.xlsx_zho-TW.mqxliff",
+      "project_id": "4a456ff5-0a1f-4ec2-a484-4a8e2593fc3a",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "4029e89e-f880-4e83-bad1-f7d26fc65310",
+      "name": "INTERNAL - ONE-PAGER consultant guide - TW-EN.pptx.sdlxliff",
+      "project_id": "4ad3d6df-bce9-4022-a0fa-41777392d7b3",
+      "related_lms_case_id": "add137da-c513-402e-b3ac-39c08d0b94e8",
+      "related_lms_case_title": "Michael Page 260511"
+    },
+    {
+      "id": "abf5b012-0f2d-461c-8175-f822cab993e9",
+      "name": "Character Card ARES 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ad238242-42bc-4ca4-af66-015a5dfd6ab0",
+      "name": "Character Card ARES 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "af523ca2-3207-4368-bd33-8c45e8da757c",
+      "name": "Character Card ARES 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "9e5dfef5-4e64-41af-a438-b44e7855ccfe",
+      "name": "ROH_BossandMegaBoss_Box_Top.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "a027c6bc-276d-4f7c-b97a-18b9462c9f8a",
+      "name": "ROH_Deluxe_Box_Bottom_EN.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "efe604a9-27c6-41b5-becb-fce06b6da9da",
+      "name": "ROH_Deluxe_Box_Top.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ccaf95fd-cf5e-4455-9d54-d01299bd7bee",
+      "name": "Boss Monster Cards - 75x110mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "e93e81e5-be78-44c0-9d67-4d730a861a49",
+      "name": "Macallan 260506 Working.xlsx",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": "aebb40d1-df9c-4ec6-bd13-cd5aa7ea5d42",
+      "related_lms_case_title": "Macallan 260506"
+    },
+    {
+      "id": "60f01571-614b-4033-ab60-30e2b4a6cf18",
+      "name": "Scene cards ii-2 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "1bd477c3-bc48-4549-8eaf-9ae6677b7728",
+      "name": "[zho-TW][16300560][Update to How to Apply for the WPN][loc_wpn_update_how-to-apply-wpn_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "9ab082cb-2521-4076-b027-d4fb5fb44b98",
+      "related_lms_case_title": "WIZA 260525B"
+    },
+    {
+      "id": "d88257ea-bd6d-411c-906b-01e3a2fe07a2",
+      "name": "Achievements_Xbox_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "4a72a3a0-fea6-4050-b949-c5b3daecdc5c",
+      "name": "Focus_Magicians.xlsx",
+      "project_id": "ed853e1d-66ab-4e4f-97ca-159a6c8b87f1",
+      "related_lms_case_id": "12be91f4-65c0-4865-b7a4-588a2df666e3",
+      "related_lms_case_title": "Focus 260514"
+    },
+    {
+      "id": "6712ae68-37e3-4933-b1d1-028e92f80941",
+      "name": "042726_2XKO_04_2_A_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "0ed15067-24fa-432a-9a7f-ccdfc85c59a8",
+      "name": "7 Days To Think About It 260428 Legacy.mqxliff",
+      "project_id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "4ff63e9c-c96d-4e7c-8e78-412c5c2c6fcb",
+      "name": "Dialogues Full Game_grey_lines.xlsx_zho-TW.mqxliff",
+      "project_id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "ac190ca5-cbe0-4990-b8e3-4969e4fb576f",
+      "name": "HW3_in-game texts_zhTW_2026-04-27_06-18-50.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "81c10c6a-0b65-4dbd-a8d7-d5f798f677e3",
+      "name": "P0 - P0.5_zho-TW.mqxliff",
+      "project_id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "related_lms_case_id": "bdc46f3b-1374-4aa7-bb7e-bd9e36e00a0d",
+      "related_lms_case_title": "Total War: WH40K 260429"
+    },
+    {
+      "id": "eb5b4c5a-5f1b-46c6-87e0-f8be21644456",
+      "name": "Atari, SA - End User License Agreement - EULA - Revised - May 6 2025 - Final.docx_zho-TW.mqxliff",
+      "project_id": "61306c65-8578-45d8-935d-295e696b394a",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "1c74322e-7b32-46b3-973d-02b80bd08a3c",
+      "name": "Common__2026-04-02_03-07-51_SWITCH2.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "8ea26711-dc82-496c-9d5e-b07d515a8a01",
+      "name": "HW3_in-game texts__2026-04-13_02-45-34_target-langs_Beta_v2.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "00289ef7-0ebe-44f3-9509-a21ab34e9bb6",
+      "name": "52951_02_2XKO - JEVO26 - _Know Before You Go_ Article and PRF_v2.docx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "95649e7f-a7c1-486b-8a2d-f6293bef0de1",
+      "name": "Steam Descriptions.xlsx_zho-TW.mqxliff",
+      "project_id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "c7abe3d5-013d-4f13-9fdc-dae9587f9af6",
+      "name": "53013_01_EXCEL_zhTWSet1InsertCards_v1_zh_TW.xlsx_zho-TW.mqxliff",
+      "project_id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "8c3f7d75-e27b-40ac-aa98-800558c4843d",
+      "name": "Dialogues Demo_0414.xlsx_zho-TW.mqxliff",
+      "project_id": "3aa14ec8-511d-489f-8b08-8e66167cdaa1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "5add7457-d073-4cd8-84ec-209b9dddc3ef",
+      "name": "TAT-locdrop_26-02-26.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "517644e2-940a-4b85-8418-5327c603e733",
+      "name": "Localization Drops.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "5e9a49ad-d562-4bbc-b2b8-ee2c5a99d813",
+      "name": "locdrop_12-04-2026.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "e0adfb23-5179-4c77-9646-200d6e566a46",
+      "name": "SCR1_In-game-texts__2026-04-29_10-46-11_Switch2.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2176b180-b6d1-4492-9e06-1de0f94d643f",
+      "name": "locdrop_04-03-2026.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2138a793-19c4-4f75-8f9d-140c4e6bec2c",
+      "name": "TaT_updated_store_metadata_Updates_Apr 2026.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "5635304b-4775-4d70-9f9d-4584f2b4fe65",
+      "name": "P0.5 - P1_zho-TW.mqxliff",
+      "project_id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "related_lms_case_id": "bdc46f3b-1374-4aa7-bb7e-bd9e36e00a0d",
+      "related_lms_case_title": "Total War: WH40K 260429"
+    },
+    {
+      "id": "e1a3d23f-b33a-46d2-807f-eb974a6a93f9",
+      "name": "TAT_locdrop_29-04-2026.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d51db579-9f26-45d2-93ee-c89c861cce4b",
+      "name": "Lockit_The_House_Always_Wins_EN_ALL_UPDATE.xlsx_zho-TW.mqxliff",
+      "project_id": "60e52bf8-5a75-4f10-861f-2c201a72d5b8",
+      "related_lms_case_id": "5efd961a-4700-4da1-b1be-68b3771b9ef4",
+      "related_lms_case_title": "House Always Wins 260430"
+    },
+    {
+      "id": "b5e08973-24e8-4391-ae83-2232e9d22eb0",
+      "name": "APPENDIX 210x280mm-P10.docx 1.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "ce1e7f2e-511e-4090-b9de-77903394dbf8",
+      "name": "Challenge card - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "c3ecf690-c214-44f6-8acb-80e0730dcfdb",
+      "name": "Character Card APHRODITE 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "fd5457f2-01fc-416e-bfba-dfbfe71bb7c4",
+      "name": "Scene cards ii-2 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0ade700b-f340-45cf-8aa4-10048828531e",
+      "name": "Scene cards iv-1 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "22831c24-4f83-458e-8b9b-28ad6eebe4a4",
+      "name": "[zho-TW][16271782][MSH Product Delays][loc_wpn_msh_article_alert_product-delays_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "c5613d5e-0fff-484e-88bf-97baefb7586f",
+      "related_lms_case_title": "WIZA 260520A"
+    },
+    {
+      "id": "424667c4-04bc-4633-a1a2-989f2a818cc4",
+      "name": "260529_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "86100adf-9e7d-4b8a-b4d4-e50486be7c19",
+      "name": "Character Card APHRODITE 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "9a7911ac-5120-4705-b855-209be9899789",
+      "name": "Character Card APHRODITE 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2599397a-dbe2-480d-a0a8-2a5da475ff4a",
+      "name": "Character Card APHRODITE 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "410ea3a6-773c-4141-b75f-0d03dcd01b30",
+      "name": "Character Card APHRODITE -ASIAN 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "3e8c6ede-d308-46da-9d39-2aeb297e362c",
+      "name": "Character Card APHRODITE -ASIAN 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "43f1c499-dfc0-4b4f-885a-facd9063944f",
+      "name": "Career_VO_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "c26e701c-251a-4bfd-b6fb-15d31ba029b4",
+      "name": "Character Card HERMES 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "164785e0-40a3-42c2-ab97-552e40ed1669",
+      "name": "Character Card HERMES 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "fa2756df-8492-4c28-8927-65f1016026f5",
+      "name": "Companion card- 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "94bee344-bbf6-4296-8ee0-39233f73a2b2",
+      "name": "52753_01_PRF - 2XKO - Pool Party Skins Trailer.docx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "4a151f3c-4024-4ce9-abd8-fd911cbeb055",
+      "name": "[zho-TW][16272008][Email templates (…)ization 05.19.26][Localization — New Store Auto Emails_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "9119660c-2c0b-4476-8e35-3407c9f8f4df",
+      "related_lms_case_title": "WIZA 260520B"
+    },
+    {
+      "id": "a64ddb90-87a7-4dde-8a28-3f6f919bbb9c",
+      "name": "Character Card HERA 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ff5291e0-2982-426c-aefd-bdccae50bea2",
+      "name": "Character Card HERA 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "53be54d5-318c-48f3-9e5b-ee0a888cc31d",
+      "name": "Character Card HERA -BLACK 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "a462f6b9-3259-461b-b1b2-f5656f16446f",
+      "name": "Character Card HERA -BLACK 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0f48f2f4-db03-432c-bb27-7f6d7ae7bf51",
+      "name": "Character Card HERMES 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "1e9a73f5-1ab9-40ac-aadb-d3260cad6b11",
+      "name": "Character Card HERMES 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "dc99916d-2535-4336-a6b0-7d2aab26bb89",
+      "name": "Character Card POSEIDON 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "7e542f1f-e253-44bf-a01c-b864eb2b2606",
+      "name": "Condition Card - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0e94a9d2-3fb7-4ec1-81a9-58bcd90d6f3b",
+      "name": "Feat card - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "219d721a-b03e-442b-b91f-f4e86bed96ed",
+      "name": "Character Card HERA 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "daddbc11-59a5-46c5-8ac5-b7687df8dff0",
+      "name": "Character Card POSEIDON 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "53e8275e-5399-444d-b561-21ce6082d3ec",
+      "name": "Character Card POSEIDON 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "3b6c00e3-e07a-44d4-9fe0-d9f0d8584e69",
+      "name": "Character Card POSEIDON 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "e7116199-0c74-41d8-a657-ffc63ecfbc18",
+      "name": "zh-CN-zh-TW_Translated_P1_2026年4月W4_V4.3_尘灵+飞机大巴扎等活动_繁体中文+zh-TW_翻译_source+target_20260508145511.xlsx",
+      "project_id": "3ed849ad-f5e9-4c48-bbdc-4ce5c2bb6d7d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "bbd8d012-a7d0-47ab-b934-5081e1c750b9",
+      "name": "BRAVA Store Loc Sheet.xlsx",
+      "project_id": "ee1d0924-3939-4968-9d8f-7dc34483f6ae",
+      "related_lms_case_id": "295ba0c7-7d33-48a3-a83d-d99cd7a16c71",
+      "related_lms_case_title": "Atari 260525"
+    },
+    {
+      "id": "a06aa073-e8e0-4cc0-bf97-7da2701a8c90",
+      "name": "[zho-TW][16337500][Event Page - An (…)d Crafting Party][loc_wpn_hob_event_unexpected-crafting-party_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "7768246b-36fa-4e96-b1ae-69651d122f69",
+      "related_lms_case_title": "WIZA 260529"
+    },
+    {
+      "id": "fac97b5e-88f9-4366-a332-02e4a25b99e7",
+      "name": "52753_01_RIOT-147_2XKO_Pool Party Day + Night Trailer_9x16_59s_Final.srt_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "0a68d3b2-5a9e-49ed-bb82-b397d245a907",
+      "name": "52753_01_RIOT-147_2XKO_Pool Party Day + Night Trailer_FullLength_Final.srt_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "a369f360-7bef-4868-be3f-1f098eaaf78c",
+      "name": "Character Card ZEUS 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "13f17048-3910-44c1-81ee-5800bdf9ca90",
+      "name": "Character Card ATHENA 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "13bdff2d-9426-4d5b-ad49-80a694e66d48",
+      "name": "Character Card HERA 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "bbf9d917-3029-4520-a2d4-cb87bd58e5ba",
+      "name": "Character Card HERA 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "6e8e7d1b-0747-40a9-85bc-f548a1707f10",
+      "name": "Character Card HERA 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "72078dec-c2f2-496a-b30f-6140526e7edd",
+      "name": "Character Card HERA -BLACK 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "fddc0578-e062-4212-afa2-d3d5e27f29b6",
+      "name": "Character Card ZEUS 75x110 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "f56b1cc5-1f6f-49a1-bc75-c54a1ec5b17c",
+      "name": "Metalstorm 260515_zho-TW.mqxliff",
+      "project_id": "61c0ddc8-864d-4008-91ab-0bd34a41247f",
+      "related_lms_case_id": "849b5f80-9c8b-4167-93ee-64f5f5739c52",
+      "related_lms_case_title": "Metalstorm 260515"
+    },
+    {
+      "id": "e2a0e20e-8e54-4739-b957-80a42bd2e557",
+      "name": "Bass Center Patient Registry Information Sheet_050726.docx_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "f6bbbeea-50cd-4764-aedf-895ad497277e",
+      "name": "Character Card ZEUS 75x110 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2d3f1293-ade3-43e8-8193-a3543138760a",
+      "name": "Character Card ZEUS 75x110 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "8cbdabcb-89cd-493f-847f-5ccfaded4bf1",
+      "name": "Test 1111.xlsx",
+      "project_id": "640901fc-88aa-4196-ab7c-3ca127955934",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "edbc7def-e1dd-4619-a0cc-eccdc56bc586",
+      "name": "Character Card HERMES 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "c649c467-a9ad-4932-92f4-d54f93b525e5",
+      "name": "Character Card POSEIDON 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "d111de18-979d-4d4f-820b-495bbc092636",
+      "name": "Character Card ZEUS 75x110 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "b36dc725-56fb-4923-a672-7e082292b9ac",
+      "name": "Character Card ZEUS 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "bd3728c0-69d9-4ef7-8479-b6f9d8d1db79",
+      "name": "Fighting position - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "4016e011-c6d1-4462-9f2a-30591e528bc2",
+      "name": "Item card - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "dd15e992-f4b1-4baf-b398-79ded412a1f2",
+      "name": "Item card - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "d3248970-9cd1-427e-985e-6813a1f14659",
+      "name": "Monster card - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "60334f7a-98ff-463a-915d-124bf1a5a8c7",
+      "name": "Monster card - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "70662793-be6d-48ef-bca5-5522a42d1204",
+      "name": "Monster card - 56x87mm -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "f55a4b10-208a-4d32-b3ef-bd76fef28693",
+      "name": "Monster card - 56x87mm -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "12f475c7-6db0-4d3c-a84d-800cdc4f3e86",
+      "name": "260509_zho-TW.mqxliff",
+      "project_id": "61c0ddc8-864d-4008-91ab-0bd34a41247f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "282bab78-f354-4808-9b86-81c36b42e982",
+      "name": "Scene cards ii-3 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "3955a556-fdfc-43ec-aa22-7360ffd6be5a",
+      "name": "GOAT Store Loc Sheet.xlsx",
+      "project_id": "ee1d0924-3939-4968-9d8f-7dc34483f6ae",
+      "related_lms_case_id": "295ba0c7-7d33-48a3-a83d-d99cd7a16c71",
+      "related_lms_case_title": "Atari 260525"
+    },
+    {
+      "id": "07820feb-c45e-43cf-8ce4-6a75890cc730",
+      "name": "Metalstorm 260529_zho-TW.mqxliff",
+      "project_id": "61c0ddc8-864d-4008-91ab-0bd34a41247f",
+      "related_lms_case_id": "00a758a2-4bf8-4fdb-9649-c232615018e9",
+      "related_lms_case_title": "Metalstorm 260529"
+    },
+    {
+      "id": "26c07c75-c22f-403c-9b28-f5f108f403e2",
+      "name": "EducationTopics_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "e4c0b286-ef51-433b-a11c-daca8d0d1af5",
+      "name": "Player Aids - Wave Resolution - 75x110mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "7b8873bb-f8d6-44e8-89fb-40d37970cac3",
+      "name": "Player Aids SOLO - Wave Resolution - 75x110mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "cdb7c57f-fe6e-48cd-b0ea-1fb65cd54a75",
+      "name": "Primordial Deitis card - 75x110mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "9c1585e5-ef7e-4f72-986b-dfb4c3aa66ea",
+      "name": "Round Structure - 75x110mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0cb54306-8656-4186-ae06-650bfa990d88",
+      "name": "Scene cards i-1 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "1846df1d-62bf-4e0f-ab43-867a45e32e18",
+      "name": "Scene cards i-2 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "04ee5d07-09b4-4ce1-8a32-0e203aa7809c",
+      "name": "Scene cards i-2 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "1f110efb-75a8-4bd3-b2f3-ec47f68a8a24",
+      "name": "Scene cards i-4 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "83f4abc7-a270-403e-8d6b-c4cc12ac96fc",
+      "name": "Scene cards i-4 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "d627efd3-edf7-417b-8d3b-fabe9f9eb4bc",
+      "name": "Scene cards i-4 - 56x87mm -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "e4c2bd4f-9142-47ea-8642-ed0f0b7798c6",
+      "name": "Scene cards i-4 - 56x87mm -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2bc5b592-e6b8-4ff0-8f88-1ee61313ec2f",
+      "name": "Scene cards i-4 - 56x87mm -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "04d8b98f-ee50-43b6-841f-9df105afa9df",
+      "name": "Scene cards ii-1 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "7742516c-2162-4630-abea-1758808af500",
+      "name": "Scene cards ii-1 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "8d74609e-385b-4a0e-ba14-73e6abafddeb",
+      "name": "Scene cards ii-1 - 56x87mm -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2e58bdca-216f-4046-baba-2b5aa6c67ba5",
+      "name": "Scene cards ii-1 - 56x87mm -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "fcaa2d6b-0a87-4d0e-90f1-41faf13c825c",
+      "name": "zh-CN-zh-TW_Translated_P1_2026年4月W4_V4.3_尘灵+飞机大巴扎等活动_繁体中文+zh-TW_翻译_source+target_20260508145511.xlsx",
+      "project_id": "640901fc-88aa-4196-ab7c-3ca127955934",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "d20bc883-5c8b-4771-845f-a62057ce58b9",
+      "name": "Scene cards ii-2 - 56x87mm -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0c4874d9-4c7d-4236-aec1-51f5b3d17f3d",
+      "name": "Scene cards iii-5 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "1aed86e6-663d-4cae-a0a0-20ce67037d7a",
+      "name": "Scene cards iv-5 - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "9f5ea42a-2216-46ac-a202-5b4b3ab450f8",
+      "name": "Weapon card - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "d9ad680f-1055-4065-86fa-a226e0e2058f",
+      "name": "Weapon Types Player Aid - 75x110mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "7e001fdb-de85-483b-a1e1-b12b8a61e4b3",
+      "name": "Scene cards STANDALONE - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "34533a53-c259-4ae2-a60e-24f93d4df88f",
+      "name": "Scene cards ii-2 - 56x87mm -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "36cc66f5-821b-4dd7-8518-f5dcd919bd84",
+      "name": "Scene cards ii-3 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "3ba8bdd4-1b96-44b0-93e9-b6338c88a001",
+      "name": "1520-1726_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "558e4398-efbe-4786-ae72-2b46f15202da",
+      "name": "GRUFF Store Loc Sheet.xlsx",
+      "project_id": "ee1d0924-3939-4968-9d8f-7dc34483f6ae",
+      "related_lms_case_id": "295ba0c7-7d33-48a3-a83d-d99cd7a16c71",
+      "related_lms_case_title": "Atari 260525"
+    },
+    {
+      "id": "094bb5c7-4bd9-4dc3-ba3c-1bab72013b5b",
+      "name": "ResearchTopics_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "05eba711-3000-4c7f-b6d2-22b0f72143d5",
+      "name": "Scene cards iii-3 - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "4c9f0aa6-2671-4f8e-9ec7-51cbd27411e9",
+      "name": "Scene cards iv-1 - 56x87mm -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2b843b16-0e6c-4139-a143-e410789937e1",
+      "name": "Scene cards iv-1 - 56x87mm -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "c7c01e59-316a-497d-8fa7-737768647a6a",
+      "name": "Scene cards iv-3 - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2cac6721-e21c-43e5-bc32-2a87ff7678c0",
+      "name": "Scene cards ii-4 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "eb98139f-13e7-48e2-a59c-aa07d2b979b5",
+      "name": "Scene cards ii-5 - 87x56mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "b104df91-6e35-4dca-816a-c12a330ef72a",
+      "name": "Scene cards iii-5 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "c25e7de8-a070-437a-b779-f86005c84373",
+      "name": "Scene cards STANDALONE - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "f8a45524-99ed-4e06-8820-cba903236546",
+      "name": "Scene cards ii-3 - 56x87mm -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "b1b923b6-aaf3-498a-87ee-8db997e7622b",
+      "name": "Scene cards ii-3 - 56x87mm -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "28c95d30-342e-4890-bc0e-583dab18b72d",
+      "name": "Scene cards iii-1 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "8a806c9b-85b9-4a86-a110-42b3595125c3",
+      "name": "Scene cards iv-1 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "34392a44-79d9-47d2-b7f8-5c50a6923ed2",
+      "name": "Scene cards iv-2 - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "daea3159-14c0-46ed-8687-0bee985b1856",
+      "name": "ROH_DiceTower_Box_Bottom_EN.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "04c32e20-6415-457f-b137-4c2c0d4eb73d",
+      "name": "tat_Localization_27-04-2026.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6d8e8eaf-154a-4709-9a28-c3f18b2fbb04",
+      "name": "260503 Unlocked_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6bb4d7ea-bc4d-40f6-929f-d56f3cba40d7",
+      "name": "Scenery_part1-zhTW_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "10b9426f-69d5-4307-a8b6-641a32606215",
+      "name": "Scenery_part2-zhTW_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "e8168c61-4ebe-4bcc-92de-32647aadf8c8",
+      "name": "Character Card APHRODITE 75x110 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "458eeb0b-153f-41cb-98ba-23bb6a8a96c1",
+      "name": "Character Card HERA -BLACK 75x110 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "4e468389-3970-43cb-bdd6-7351f28dd5c3",
+      "name": "Localization_PWSA_1.3.0.csv_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "50454068-3244-4e33-ba4b-eb6662899202",
+      "name": "53609_03_PvE Gameplay Trailer (battle 2 card)_OST.xlsx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": "f3039eb2-4a22-45a1-81ea-f962cf63b1de",
+      "related_lms_case_title": "Riot - 2XKO 260602B"
+    },
+    {
+      "id": "2f68f01e-46b1-4a07-a268-a19915076b09",
+      "name": "21.05.2026 TD tasks.xlsx_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6a5b5404-91eb-4af5-a8b1-97a6c0f8db9f",
+      "name": "Project Apophis - Store Page Localization V2.xlsx",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": "2b56ebc3-aa67-4b6b-a395-f47b35d917a4",
+      "related_lms_case_title": "Project Apophis 260529"
+    },
+    {
+      "id": "eeaf039f-b9e8-4912-8eb5-8e7d696fe1d6",
+      "name": "I2Loc E50V01 Final Fragment FOR TRANSLATORS (1)-en_us-zh_tw-PE.mxliff",
+      "project_id": "d14e2123-d728-4fb7-91d1-c52fbdbc74b1",
+      "related_lms_case_id": "1dc75558-da77-4dc8-a473-e520917aee2b",
+      "related_lms_case_title": "NCIS 260604"
+    },
+    {
+      "id": "387969de-0e5b-4a78-8d1a-d07d5936237c",
+      "name": "Scenery_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "63d133e3-9806-4c6f-b7d9-8af20656f12a",
+      "name": "zh_export_localisation_Fri Apr 24 2026_TW40K_main.xlsx_zho-TW.mqxliff",
+      "project_id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "c7a0a21a-c8fc-490f-9742-afd2836f9888",
+      "name": "Scene cards ii-3 - 56x87mm -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "2f1b46f6-50fa-4df9-8272-a3030d9c7d8d",
+      "name": "Scene cards iv-4 - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "88251bf2-338e-485e-9128-8bf5eb1e02d6",
+      "name": "SCENARIO BOOK 280x280 -ADDBOX.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "466c6d6f-9292-48ff-ab33-a376fa6bf7d6",
+      "name": "ROH_Hades_CharacterTuckbox_EN.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "1b40e12a-f274-4eeb-8b95-93d1dfaf8746",
+      "name": "Condition Card - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "3fd9dfd6-9df0-418d-b0fc-74dc3ad5f2cf",
+      "name": "Fighting Dice - 110x75mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ac00de88-d65f-4d6e-a821-d3492920ce0b",
+      "name": "Monster card - 56x87mm -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ce41345a-d3bf-42bf-97bc-5ae4d6fe1298",
+      "name": "Scene cards i-1 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "63db155c-ecd8-4f26-8a22-e25d0a8b9b78",
+      "name": "Scene cards iii-1 - 56x87mm -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "a3c76251-75a2-43c3-9191-3b049e36a86b",
+      "name": "Heroic Weapons and Items card - 56x87 -D.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "08de55af-ec14-402a-b9f2-cfe38fa1e01c",
+      "name": "Heroic Weapons and Items card - 56x87 -E.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "dbcd1851-568f-4a1a-a7da-76c7803f6d38",
+      "name": "Heroic Weapons and Items card - 56x87 -F.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "e062e005-6909-4902-81a7-036c497c416e",
+      "name": "Heroic Weapons and Items card - 56x87 -H.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "612e74d5-ba36-47d7-91ee-62d8b734b6a0",
+      "name": "Heroic Weapons and Items card - 56x87 -I.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "1a51532e-4f92-4b83-937d-298cff350ac0",
+      "name": "Heroic Weapons and Items card - 56x87 -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "330c1a42-44b8-482a-91a8-ed9f5d12c7cd",
+      "name": "Heroic Weapons and Items card - 56x87 -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0182b7cb-a522-4767-bfae-923ec86e8c5b",
+      "name": "Heroic Weapons and Items card - 56x87 -C.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "e50b6afd-79e4-4c15-ad66-cfba413e41e1",
+      "name": "Player board_289x226mm- BOTTOM-BACK VAR1.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "955541ad-59b0-4c82-b620-90fc1e1514a4",
+      "name": "Player board_289x226mm- BOTTOM-BACK VAR2.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "6dc11c3e-972a-4b15-9fe9-6e2ae8d5d1cf",
+      "name": "ROH_DiceTower_Box_Top.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ece1811d-803b-43c5-b07d-e3c2e1a83285",
+      "name": "53609_03_PvE_Gamplay_Trailer_Vertical 59s Cutdown_SRT.srt_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": "f3039eb2-4a22-45a1-81ea-f962cf63b1de",
+      "related_lms_case_title": "Riot - 2XKO 260602B"
+    },
+    {
+      "id": "094db1ae-068f-4f0a-a720-418e04e7007f",
+      "name": "[zho-TW][16279885][MSH on MTG Arena][MD_20260602_MSH on MTG Arena.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "554cdb28-c4cf-425a-a718-92e6f88a0e1b",
+      "related_lms_case_title": "WIZA 260521C"
+    },
+    {
+      "id": "3324c4e0-b24f-4e94-9f40-b3ff747dd4bc",
+      "name": "I2Loc E50 Shadow Strike FOR TRANSLATORS (1)-en_us-zh_tw-PE.mxliff",
+      "project_id": "d14e2123-d728-4fb7-91d1-c52fbdbc74b1",
+      "related_lms_case_id": "1dc75558-da77-4dc8-a473-e520917aee2b",
+      "related_lms_case_title": "NCIS 260604"
+    },
+    {
+      "id": "a8b62a6c-a13f-4c23-b6c7-03f047f9cf17",
+      "name": "21.05.2026 TD tasks.xlsx_zho-TW.mqxliff",
+      "project_id": "03769e54-860a-4c57-bba6-4c779ef4ca29",
+      "related_lms_case_id": "3f7f7130-8cc5-4799-8aa4-1a649eb354d8",
+      "related_lms_case_title": "Top Drives 260522"
+    },
+    {
+      "id": "3d29ff61-23a0-4f3f-8ec8-01c76206669c",
+      "name": "AP3010_TB_EN_REVISED.xlsx",
+      "project_id": "d14e2123-d728-4fb7-91d1-c52fbdbc74b1",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "29ed51a7-8843-4ee8-aa34-8e5bc470b996",
+      "name": "UI fixes ASIA.csv_zhTW_2026-05-06_02-21-18.xlsx_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "dd53c474-8f33-4d19-97ea-b7a9b8bb7591",
+      "name": "Textmap+V4.3版本增量_主体_20260509更新_繁体中文+zh-TW_source+target_20260510212207.xlsx",
+      "project_id": "3ed849ad-f5e9-4c48-bbdc-4ce5c2bb6d7d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "963f7a61-e808-4e8d-aacb-8ae6caa80235",
+      "name": "TAT-locdrop-backslash-error-fix.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "011ee518-03b0-4964-abd1-2244efd020cc",
+      "name": "Scene cards ii-4 - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ab5e99a2-f92f-4b71-a580-ee8d3cf9d4b2",
+      "name": "Scene cards iii-2 - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "6ef59b3e-7d67-4389-b9dc-e172f53532e8",
+      "name": "Starting Feat Cards HADES - 56x87mm -ADDBOX.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "be1b3038-295e-4b73-82f3-8f59a997b3a7",
+      "name": "Solo - Lone wolf cards - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "433603c3-0245-4f85-9383-2b0c429c24b9",
+      "name": "CHALLENGE BOOK 210x280mm -ADDBOX.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "0e2acc3b-c603-4719-acac-20d9b8cb4543",
+      "name": "Player board_289x226mm- BOTTOM-BACK VAR4.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "b9972a74-b78b-4783-8e7b-86522d6252a6",
+      "name": "DIECUT-345x275 PUNCHBOARD1.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "7982cb0d-9ee6-4e25-81ae-5ca2c71fba2c",
+      "name": "Character Card HADES 75x110.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "34860578-5450-4084-9584-d3ff9c677adf",
+      "name": "DIECUT-345x275 PUNCHBOARD2.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "142e2848-e2c1-4cc0-8302-62e1a39e53f7",
+      "name": "Zoopedia_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "f08f0d64-a44c-4bf9-b095-66fd8183da63",
+      "name": "[zho-TW][16280065][HOB Web Debut + Arena Support][Localization_Request_HOB_Web_Debut.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "43b614d9-e6fb-499a-8447-a06184b915e9",
+      "related_lms_case_title": "WIZA 260521B"
+    },
+    {
+      "id": "ebe024da-c27f-47bd-b2be-5af01cfa7b95",
+      "name": "52753_01_[PRL_Y1S226_114] Pool Party Skins Trailer_OST+GRAPH.xlsx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "70c1b005-9140-4c21-88c4-91d9c0887f1d",
+      "name": "5.9六周年_繁体中文+zh-TW_翻译_source+target_20260526132851.xlsx",
+      "project_id": "0b4b2def-e147-42c4-a1cc-0dad67c55630",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6183fee3-bb20-478f-bd7a-8ce23cb3c388",
+      "name": "53237_01_WORD_NewDuoFeaturesComingto2XK_v1_zh_TW.docx_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "6389d466-3201-4b6d-927c-365a0bb16436",
+      "name": "Textmap+V4.3版本增量_主体_20260509更新_繁体中文+zh-TW_source+target_20260510222454.xlsx",
+      "project_id": "3ed849ad-f5e9-4c48-bbdc-4ce5c2bb6d7d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "acacc2c7-b2e2-489d-bdca-9926a7bdc49c",
+      "name": "Scene cards iii-1 - 56x87mm -B.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "f4582816-7199-4eaf-a33c-64b14f140ed3",
+      "name": "Scene cards iii-4 - 56x87mm.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "87f2b015-1634-4564-b066-fc372dd85247",
+      "name": "Signature weapon cards 56x87.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "7f5c3d67-0bde-4b7b-ba78-4fea52e41749",
+      "name": "Signature weapon cards HADES - 56x87 -ADDBOX.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "ba4ddd2f-80c3-4bd9-8ef9-a87ace827d31",
+      "name": "Common_UGC_address-bugfix.xlsx_zho-TW.mqxliff",
+      "project_id": "81cef49b-4247-45ef-9e0d-75ffb2605bd6",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "889db63d-e042-4af3-806e-0bd889ad618c",
+      "name": "[zho-TW][16342772][MSH Article Products Video][loc_wpn_msh_article_video-and-products_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "0bba04bf-b5e8-4893-8367-d21a43e78318",
+      "related_lms_case_title": "WIZA 260602"
+    },
+    {
+      "id": "5e82b2b9-ea3a-4a46-831c-9e110f130b75",
+      "name": "[zho-TW][16284439][MSH Marketing Kit Article][loc_wpn_msh_article_marketing-kit_en.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "f0d7257d-8eaf-4ce3-9b83-7fae290baf67",
+      "related_lms_case_title": "WIZA 260521A"
+    },
+    {
+      "id": "5aacc580-a31a-48c3-903d-0379be9b4a06",
+      "name": "[zho-TW][16300742][Site Terms v2 (KO, RU, CT)][Site Terms for Localization_v2_(KO RU CT).xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "5fac27e6-84d3-4859-bdda-44c9f08dd61c",
+      "name": "Control Resonant 260604_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": "325b3e8f-e876-4932-90c3-f603f7b08d2b",
+      "related_lms_case_title": "Control Resonant 260604"
+    },
+    {
+      "id": "b8a49154-8ff7-40da-ba2f-ae323ffb665a",
+      "name": "Blueprints_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "85566c18-509c-424c-836b-72e15f7e7a2a",
+      "name": "Test 1111.xlsx",
+      "project_id": "640901fc-88aa-4196-ab7c-3ca127955934",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "31e26e2b-8abd-46f6-a647-a40950caf87b",
+      "name": "tat_emergencyloc_1.xlsx_zho-TW.mqxliff",
+      "project_id": "e21e2a2a-652a-4b07-ac7a-60b33d3801a7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "25c0ff79-5bdf-49d4-9461-440b641a1f36",
+      "name": "004748_How to Build Resilience, Lower Stress, and Improve Mental Health_ENG.docx_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "b7eef267-e5d0-4c36-976c-eb9304c94f04",
+      "name": "Liveops + PL32 01.06.2026.xlsx_zho-TW.mqxliff",
+      "project_id": "03769e54-860a-4c57-bba6-4c779ef4ca29",
+      "related_lms_case_id": "7ad8b370-caa7-4281-9141-86c2adbf6a50",
+      "related_lms_case_title": "Top Drives 260602"
+    },
+    {
+      "id": "cf9f8f58-c6ad-4d58-8571-1aeae76051cc",
+      "name": "Perceptum Store Page Localisation.xlsx_zho-TW.mqxliff",
+      "project_id": "6237e047-7638-4193-8f91-8a61ac8be33f",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "e4fba094-1c9b-42cc-acbd-1d0076ea2588",
+      "name": "Blueprints_zh_TW.xliff_zho-TW.mqxliff",
+      "project_id": "3c0d036d-e48e-4b58-bbf7-9038b8383fb0",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "e2f39731-8924-49e3-8fc6-179fb0233b1e",
+      "name": "[zho-TW][16244556][Emails for localization 05.14.26_1][MSH God of Mischief Scheduling Error 05.13.26.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "5575d59f-bf5b-46eb-9cd6-abce892d4ff7",
+      "name": "Heroic Weapons and Items card - 56x87 -G.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "3799903b-7c12-4d52-9e18-22c3393597cc",
+      "name": "Solo - Lone wolf cards - 56x87mm -A.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "f022a1e7-715d-41fa-ba76-5799fc527e16",
+      "name": "Player board_289x226mm- BOTTOM-BACK VAR3.xlsx.sdlxliff",
+      "project_id": "c81b0261-13f5-49ba-ba0c-6e9cb3d3d8a8",
+      "related_lms_case_id": "df8f09d0-d161-4114-9d83-9708b45f7a5c",
+      "related_lms_case_title": "Reign of Hades 260503"
+    },
+    {
+      "id": "7b3b5ca8-053e-40e5-bb66-8a6220e127bf",
+      "name": "zh_export_localisation_Fri Apr 24 2026_TW40K_main.xlsx_zho-TW.mqxliff",
+      "project_id": "b2d559c1-a8ed-41fe-a7b5-0f46b6f97285",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "49852200-1e24-4812-b904-4068fa6bb90f",
+      "name": "[zho-TW][16250677][WPN Tier 5 Overview Article][20260515_WPN_Tier-5-Overview_Markup.html].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "2d32dc6e-e0db-4a73-8aeb-657372631f6c",
+      "name": "[zho-TW][16345417][Zendesk Custom Statuses][Localization — Zendesk Custom Statuses_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "fb603c94-9854-44a8-bf44-13add42cbf8f",
+      "related_lms_case_title": "WIZA 260602B"
+    },
+    {
+      "id": "953aa22b-aef1-4072-9ea1-221bed8b75d3",
+      "name": "53505_zho-TW.mqxliff",
+      "project_id": "81f0c763-6312-4fcb-ac2f-d3b2cb605e3b",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "1c943e3a-d4b8-486e-bcea-adfc36dab48b",
+      "name": "53537_03_JSON_CardStringSet6_C_v1_zh_TW.json_zho-TW.mqxliff",
+      "project_id": "f5a81003-3fb8-43ee-9f07-e829bc383c0d",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "3dafe897-8da3-4b79-8fc8-523ae86fc3a6",
+      "name": "NED 20260601 - Batch 9 - Dialogue Lines (NED)_2.csv_pq5mp9ubom3yz_zhHK_2026-06-02_02-45-46.modified.xlsx_zho-TW.mqxliff",
+      "project_id": "041e98a2-a549-4c89-a06d-094bfd97f867",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "551e3db4-c93f-4d8d-a1c2-bb9dff7719b4",
+      "name": "NGR T1_zh-TW 1119.xliff_zho-TW.mqxliff",
+      "project_id": "e853c7c0-dc71-4ef7-9161-d0fadce508b3",
+      "related_lms_case_id": null,
+      "related_lms_case_title": ""
+    },
+    {
+      "id": "a74ae192-23cd-476b-8348-5b0eada5f815",
+      "name": "[zho-TW][16396827][06.10.26 - 2HG Refresher][2HG Prerelease Refresher 06.10.26_.xlsx].xlf_zho-TW.mqxliff",
+      "project_id": "aaaadc1c-fd85-4f7b-83f4-5cdafd588ba7",
+      "related_lms_case_id": "cca3764f-0523-439e-b653-922a33e2ea07",
+      "related_lms_case_title": "WIZA 260611A"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
 > 相關：[`CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md`](CAT_TAG_VIEW_MODE_IMPLEMENTATION_PLAN.md)、[`XLIFF_TAG_PIPELINE.md`](XLIFF_TAG_PIPELINE.md) §6、[`bug-report_mqxliff-tag-issues.md`](bug-report_mqxliff-tag-issues.md)  
 > 靜態預覽：[`preview-cat-paired-tag-border/index.html`](preview-cat-paired-tag-border/index.html)
 
-本文件定義編輯器 **成對開／閉 tag**（`.rt-tag-s`／`.rt-tag-e`）在保留箭頭形狀的前提下，外框與底色須與 **獨立 tag**（`.rt-tag`）視覺一致之實作策略、觸點與驗收。**本波為規格文件**；CSS 落地待確認後另波執行。
+本文件定義編輯器 **成對開／閉 tag**（`.rt-tag-s`／`.rt-tag-e`）在保留箭頭形狀的前提下，外框與底色須與 **獨立 tag**（`.rt-tag`）視覺一致之實作策略、觸點與驗收。雙層 pseudo／`drop-shadow` 已實機否決；**下一波定案內嵌 SVG**。
 
 ---
 
@@ -60,17 +60,27 @@
 
 ---
 
-## 4. 定案策略（建議實作順序）
+## 4. 定案策略（下一波實作）
 
-實作時依序嘗試；每一候選都須通過 §6 斜角驗收後才可定案。
+| 狀態 | 技法 | 結果 |
+|------|------|------|
+| 否決 | `::before` border + `clip-path` | 斜角缺框 |
+| 否決 | 雙層 pseudo（`72cfc7c`） | 斜角／橫邊過粗、不均 |
+| 否決 | `drop-shadow` 0.6px（`ea38568`） | 近乎無框 |
+| 否決 | 四向 1px `drop-shadow`（`0612bc6`） | 譯文格 `overflow` 裁切陰影；箭頭仍不可靠 |
+| **採用** | **內嵌 SVG background** | 見 §4.3 |
 
-| 優先 | 技法 | 作法摘要 | 斜邊 | 風險 |
-|------|------|----------|------|------|
-| **1** | **雙層 pseudo（外框層 + 內填層）** | 外層 `::before` 填 `var(--tag-color)`（略大 polygon）；內層本體或 `::after` 填 `color-mix(...)` 底色（略小／inset 1px） | 靠兩層差異描出斜邊 | 需調 polygon 百分比與 `z-index`；內文須在填色層之上 |
-| **2** | **`filter: drop-shadow()`** | 對已 `clip-path` 的本體疊多層同色 shadow 模擬 1px 描邊 | 沿 alpha 輪廓 | `tag-extra` 橘色、高 DPI／縮放時可能略糊；須測三模式 |
-| **3（退回）** | **內嵌 SVG background** | open／close 各一 `path`，`fill` + `stroke="var(--tag-color)"` | 最穩 | 維護兩份 path；模式 2 長文案變寬時須測伸縮 |
+**不採用**：方角 pill 取代箭頭（方案 A）。**勿再嘗試**依賴溢出 pill 本體的 `drop-shadow` 當唯一外框。
 
-**不採用**：以方角 pill 取代箭頭（方案 A）。
+### 4.3 SVG 實作要點（優先 1）
+
+- **open**／**close** 各一 `background-image: url("data:image/svg+xml,...")`，`background-size: 100% 100%`；`background-repeat: no-repeat`。
+- SVG `path`：`fill` = 內底色（或透明 + 本體 `background: var(--tag-fill)`）、`stroke` = `currentColor`；必要時 `vector-effect="non-scaling-stroke"` 維持 1px。
+- [`.rt-tag-s`／`.rt-tag-e`](../cat-tool/style.css) 設 `color: var(--tag-color)`；**移除** `filter`、雙層 pseudo、`clip-path`（或僅保留 clip 作備援，以 SVG 為準）。
+- 外框繪在 **元素內**（SVG stroke／fill），不依賴會被 [`.grid-textarea { overflow-y: auto }`](../cat-tool/style.css)（約 1474–1478 行）裁切的外側陰影。
+- 靜態預覽：[`preview-cat-paired-tag-border/index.html`](preview-cat-paired-tag-border/index.html) §SVG 候選。
+
+詳細失敗紀錄見 **§8**。
 
 ### 4.1 雙層 pseudo 示意（候選 1）
 
@@ -143,6 +153,23 @@
 |------|------|
 | 規格文件 | **本檔** |
 | 靜態預覽 | [`preview-cat-paired-tag-border/index.html`](preview-cat-paired-tag-border/index.html) |
-| `style.css` 實作 | **已實作**（候選 2：四向 `drop-shadow(±1px 0／0 ±1px, 0 blur)` + `--tag-fill`；勿用 sub-pixel `0 0 0.6px` 會近乎無框） |
+| 雙層 pseudo | **已否決**（`72cfc7c`） |
+| `drop-shadow` | **已否決**（`ea38568`、`0612bc6`） |
+| SVG `style.css` | **待實作** |
 
-落地後執行 `npm run sync:cat`；舊作業檔開檔即見，不需重匯。
+落地後執行 `npm run sync:cat`；SVG 外框為純 CSS，刷新即可，不需重匯。
+
+---
+
+## 8. 實作紀錄與失敗教訓
+
+| 嘗試 | commit | 結果 | 停用原因 |
+|------|--------|------|----------|
+| `::before` border + 同 `clip-path` | 舊版 | 斜角缺框 | `border` 沿裁切前矩形；斜邊是切痕 |
+| 雙層 pseudo | `72cfc7c` | 斜角／橫邊**過粗、不均** | 兩層 polygon 差非等寬 1px 描邊 |
+| `drop-shadow(0 0 0.6px)` ×2 | `ea38568` | 近乎無框 | sub-pixel；暈在底色內 |
+| 四向 `drop-shadow(±1px)` | `0612bc6` | 實機仍無可靠外框 | 陰影在元素外側 → `.grid-textarea` 等 `overflow` 裁切；斜邊四向 shadow 難接合 |
+
+**驗收硬性條件**（不變）：斜角尖端須有連續可見外框；譯文格捲動時外框仍完整；與獨立 `.rt-tag` 並排對照。
+
+**下一波**：§4.3 內嵌 SVG；預覽頁已標記 dual／shadow 為「已否決」。

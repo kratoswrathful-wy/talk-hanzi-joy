@@ -63,6 +63,7 @@
     }
     .badge.warn { color: #b45309; background: #ffedd5; }
     .badge.ok { color: #047857; background: #d1fae5; }
+    .badge.no { color: #991b1b; background: #fee2e2; }
     .note {
       font-size: 0.8rem;
       color: #64748b;
@@ -205,6 +206,27 @@
       clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
     }
 
+    /* ── 候選 3：SVG background（下一波定案）── */
+    .tech-svg .rt-tag-s,
+    .tech-svg .rt-tag-e {
+      border: none;
+      border-radius: 0;
+      position: relative;
+      color: var(--tag-color, #94a3b8);
+      background: var(--tag-fill, color-mix(in srgb, var(--tag-color, #94a3b8) 12%, white));
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+    }
+    .tech-svg .rt-tag-s {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpolygon points='0,0 78,0 100,12 78,24 0,24' fill='%23eff6ff' stroke='%232563eb' stroke-width='1.5' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    }
+    .tech-svg .rt-tag-e {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpolygon points='22,0 100,0 100,24 22,24 0,12' fill='%23eff6ff' stroke='%232563eb' stroke-width='1.5' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    }
+    .tech-svg.tag-present { --tag-color: #2563eb; --tag-fill: #eff6ff; }
+    .tech-svg.tag-missing { --tag-color: #dc2626; --tag-fill: #fef2f2; }
+    .tech-svg.tag-extra { --tag-color: #d97706; --tag-fill: #fffbeb; }
+
     .zoom-hint {
       font-size: 0.78rem;
       color: #94a3b8;
@@ -222,18 +244,19 @@
 <body>
   <h1>預覽 — 成對標籤箭頭外框（方案 B）</h1>
   <p class="intro">
-    規格：<code>docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md</code>。
-    請<strong>放大檢視箭頭尖端</strong>：現行 <code>border</code> + <code>clip-path</code> 在斜角常缺框；
-    候選 1（雙層 pseudo）與候選 2（<code>drop-shadow</code>）供產品定案後寫入 <code>cat-tool/style.css</code>。
+    規格：<code>docs/CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md</code> §8。
+    雙層 pseudo／<code>drop-shadow</code> 已<strong>否決</strong>；下一波定案 <strong>SVG background</strong>（候選 3）。
+    請放大檢視箭頭尖端與譯文格捲動時外框是否完整。
   </p>
 
   <nav class="toc">
     <strong>區塊</strong>
     <a href="#baseline">獨立 tag 基準</a>
-    <a href="#current">現行缺陷</a>
-    <a href="#dual">候選 1 雙層</a>
-    <a href="#shadow">候選 2 shadow</a>
-    <a href="#colors">色票</a>
+    <a href="#svg">候選 3 SVG</a>
+    <a href="#current">舊缺陷</a>
+    <a href="#dual">已否決 雙層</a>
+    <a href="#shadow">已否決 shadow</a>
+    <a href="#colors">色票 SVG</a>
   </nav>
 
   <section class="variant" id="baseline">
@@ -247,8 +270,18 @@
     </div>
   </section>
 
+  <section class="variant" id="svg">
+    <h2>候選 3：SVG background <span class="badge ok">下一波定案</span></h2>
+    <p class="note">open／close 各一 data-URI SVG；<code>stroke</code> + <code>vector-effect: non-scaling-stroke</code>。實作時改為 <code>currentColor</code> 驅動 <code>--tag-color</code>。</p>
+    <div class="mock-row tech-svg">
+      <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">2</span>&lt;strong&gt;</span>
+      被包住的文字
+      <span class="rt-tag rt-tag-e tag-present"><span class="tag-num">2</span>&lt;/strong&gt;</span>
+    </div>
+  </section>
+
   <section class="variant" id="current">
-    <h2>現行缺陷 <span class="badge warn">勿回歸</span></h2>
+    <h2>舊缺陷：border + clip-path <span class="badge warn">勿回歸</span></h2>
     <p class="note"><code>::before { border }</code> + 同 polygon <code>clip-path</code>（對應現行 style.css）。斜角尖端外框易斷。</p>
     <div class="mock-row tech-current">
       <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">2</span>&lt;strong&gt;</span>
@@ -259,7 +292,7 @@
   </section>
 
   <section class="variant" id="dual">
-    <h2>候選 1：雙層 pseudo <span class="badge ok">建議優先</span></h2>
+    <h2>已否決：雙層 pseudo <span class="badge no">72cfc7c</span></h2>
     <p class="note">外層 <code>::before</code> 實心 <code>--tag-color</code>；內層 <code>::after</code> <code>color-mix</code> 底色 inset 1px。</p>
     <div class="mock-row tech-dual">
       <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">2</span>&lt;strong&gt;</span>
@@ -269,8 +302,8 @@
   </section>
 
   <section class="variant" id="shadow">
-    <h2>候選 2：drop-shadow 描邊</h2>
-    <p class="note">多方向 1px shadow 沿裁切輪廓；高 DPI 下可能略糊，需實機驗收。</p>
+    <h2>已否決：drop-shadow 描邊 <span class="badge no">0612bc6</span></h2>
+    <p class="note">譯文格 <code>overflow</code> 易裁切外側陰影；實機近乎無框。</p>
     <div class="mock-row tech-shadow">
       <span class="rt-tag rt-tag-s tag-present"><span class="tag-num">2</span>&lt;strong&gt;</span>
       被包住的文字
@@ -279,9 +312,9 @@
   </section>
 
   <section class="variant" id="colors">
-    <h2>色票（候選 1 雙層）</h2>
-    <p class="note">present 藍、missing 紅、extra 橘 — <code>--tag-color</code> 須同時驅動斜邊。</p>
-    <div class="color-grid tech-dual">
+    <h2>色票（候選 3 SVG）</h2>
+    <p class="note">present 藍、missing 紅、extra 橘 — 實作時 SVG stroke 跟 <code>--tag-color</code>。</p>
+    <div class="color-grid tech-svg">
       <div>
         <div class="mock-label">tag-present</div>
         <div class="mock-row">

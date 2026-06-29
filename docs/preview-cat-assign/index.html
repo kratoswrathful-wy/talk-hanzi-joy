@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>預覽 — CAT 派案介面重構</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif;
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 3rem;
+      color: #334155;
+      line-height: 1.5;
+      background: #f1f5f9;
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.4rem 0; color: #0f172a; }
+    .intro {
+      font-size: 0.85rem; color: #475569; margin: 0 0 1rem 0;
+      padding: 0.7rem 0.85rem; background: #fffbeb;
+      border: 1px solid #fcd34d; border-radius: 8px;
+    }
+    .intro code, .note code, p code, li code, td code {
+      font-size: 0.8rem; background: #e2e8f0; padding: 0.06rem 0.3rem; border-radius: 4px;
+    }
+    nav.toc {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.88rem;
+    }
+    nav.toc strong { display: block; margin-bottom: 0.35rem; color: #0f172a; }
+    nav.toc a { color: #2563eb; margin-right: 0.85rem; white-space: nowrap; line-height: 1.9; }
+    section.card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 1.1rem 1.2rem; margin-bottom: 1.4rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    section.card > h2 {
+      font-size: 1.02rem; margin: 0 0 0.2rem 0; color: #0f172a; font-weight: 700;
+    }
+    section.card > .sub { font-size: 0.82rem; color: #64748b; margin: 0 0 0.9rem 0; }
+    .badge {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      border-radius: 999px; padding: 0.12rem 0.55rem; vertical-align: middle;
+    }
+    .b-new { color: #0369a1; background: #e0f2fe; }
+    .b-old { color: #6b7280; background: #f1f5f9; }
+    .b-ok { color: #047857; background: #d1fae5; }
+    .b-warn { color: #b45309; background: #ffedd5; }
+    .b-no { color: #991b1b; background: #fee2e2; }
+    .b-purple { color: #6d28d9; background: #ede9fe; }
+
+    /* 模擬 CAT 視窗外觀 */
+    .mock {
+      border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden;
+      background: #fff; margin: 0.4rem 0 0.2rem;
+    }
+    .mock-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.6rem 0.85rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+    }
+    .mock-head .title { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+    .mock-head .meta { font-size: 0.78rem; color: #64748b; }
+    .mock-body { padding: 0.85rem; }
+    .mock-foot {
+      display: flex; justify-content: flex-end; gap: 0.5rem;
+      padding: 0.6rem 0.85rem; border-top: 1px solid #e2e8f0; background: #f8fafc;
+    }
+    .btn { font: inherit; font-size: 0.84rem; border-radius: 7px; padding: 0.4rem 0.8rem; cursor: pointer; border: 1px solid transparent; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-ghost { background: #fff; color: #475569; border-color: #cbd5e1; }
+    .btn-ghost:hover { background: #f1f5f9; }
+    .btn-sm { font-size: 0.78rem; padding: 0.25rem 0.55rem; }
+
+    table.assign { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.assign th {
+      text-align: left; font-weight: 600; color: #475569; background: #f1f5f9;
+      padding: 0.45rem 0.55rem; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+    }
+    table.assign td { padding: 0.4rem 0.55rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    table.assign tr:last-child td { border-bottom: none; }
+    .cell-input, .cell-select {
+      font: inherit; font-size: 0.8rem; width: 100%; padding: 0.3rem 0.4rem;
+      border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; box-sizing: border-box;
+    }
+    .role-pill { font-size: 0.74rem; font-weight: 600; border-radius: 6px; padding: 0.1rem 0.45rem; }
+    .role-t { color: #1d4ed8; background: #dbeafe; }
+    .role-r { color: #b45309; background: #fef3c7; }
+    .person { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .avatar { width: 18px; height: 18px; border-radius: 50%; background: #cbd5e1; color: #fff; font-size: 0.6rem; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+    .uuid-tag { font-size: 0.66rem; color: #94a3b8; font-family: ui-monospace, monospace; }
+    .st-dot { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.76rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot-todo { background: #94a3b8; }
+    .dot-doing { background: #d97706; }
+    .dot-done { background: #16a34a; }
+    .dot-err { background: #dc2626; }
+    .row-del { color: #dc2626; cursor: pointer; font-size: 0.95rem; background: none; border: none; }
+    .row-del:hover { color: #991b1b; }
+
+    .split-box { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 9px; padding: 0.7rem 0.8rem; }
+    .split-box .row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .split-box label { font-size: 0.8rem; color: #6d28d9; font-weight: 600; }
+    .split-box input[type=number] { width: 4.5rem; padding: 0.25rem 0.4rem; border: 1px solid #d8b4fe; border-radius: 6px; }
+
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+    @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
+    .compare .pane { border: 1px solid #e2e8f0; border-radius: 9px; padding: 0.7rem 0.8rem; background: #fcfcfd; }
+    .compare .pane h3 { margin: 0 0 0.5rem; font-size: 0.85rem; }
+    .checklist label { display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.1rem; border-bottom: 1px dashed #e5e7eb; font-size: 0.82rem; }
+    .x-list { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.78rem; color: #b91c1c; }
+    .x-list.ok { color: #047857; }
+    .x-list li { margin: 0.15rem 0; }
+
+    .filelist { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .filelist th { text-align: left; background: #f1f5f9; color: #475569; padding: 0.45rem 0.55rem; font-weight: 600; }
+    .filelist td { padding: 0.5rem 0.55rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .stage-line { font-size: 0.78rem; line-height: 1.5; }
+    .stage-line .who { color: #334155; }
+    .muted { color: #64748b; }
+    .warn-inline { color: #b91c1c; font-weight: 600; }
+
+    .legend { font-size: 0.78rem; color: #64748b; display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .flow { font-size: 0.82rem; }
+    .flow ol { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+    .flow li { margin: 0.25rem 0; }
+    .kbd { font-family: ui-monospace, monospace; font-size: 0.74rem; background: #1e293b; color: #e2e8f0; padding: 0.1rem 0.4rem; border-radius: 5px; }
+    .disclaimer { font-size: 0.78rem; color: #64748b; text-align: center; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>預覽 — CAT 派案介面重構</h1>
+  <p class="intro">
+    本頁為 <strong>純靜態示意</strong>，不連資料庫、不影響正式系統，可安心點按。
+    對應規劃：<code>docs/CAT_LMS_ASSIGN_REDESIGN_PLAN_2026-06.md</code>。
+    目標：把 CAT 內陽春的「平面人員勾選」升級為與 LMS 對等的<strong>協作式指派表格</strong>（角色／列範圍／交期），
+    並讓「拆分」一鍵預填、底層統一寫入 <code>cat_stage_assignments</code>、譯者改以帳號編號（UUID）配對。
+  </p>
+
+  <nav class="toc">
+    <strong>章節</strong>
+    <a href="#s1">① 新版指派視窗</a>
+    <a href="#s2">② 拆分 → 預填</a>
+    <a href="#s3">③ 指派現況檢視</a>
+    <a href="#s4">④ 新舊對照</a>
+    <a href="#s5">⑤ 檔案清單顯示</a>
+    <a href="#s6">⑥ 資料模型（UUID 雙寫）</a>
+  </nav>
+
+  <!-- ① 新版指派視窗 -->
+  <section class="card" id="s1">
+    <h2>① 新版 CAT 指派視窗 <span class="badge b-new">新設計</span></h2>
+    <p class="sub">列式表格：每列可指定角色（翻譯／審稿）、人員、負責列範圍、交期；可新增多列。與 LMS 協作表格對等。</p>
+
+    <div class="mock">
+      <div class="mock-head">
+        <span class="title">指派檔案</span>
+        <span class="meta">54316_02_RiftboundCoreRules…mqxliff　·　共 4297 列　·　en → zh-TW</span>
+      </div>
+      <div class="mock-body">
+        <table class="assign" id="assignTable">
+          <thead>
+            <tr>
+              <th style="width:5.5rem;">角色</th>
+              <th style="width:11rem;">人員</th>
+              <th style="width:8rem;">列範圍</th>
+              <th style="width:7.5rem;">交期</th>
+              <th style="width:6rem;">狀態</th>
+              <th style="width:2rem;"></th>
+            </tr>
+          </thead>
+          <tbody id="assignBody"><!-- JS 填入 --></tbody>
+        </table>
+        <div style="margin-top:0.6rem;">
+          <button class="btn btn-ghost btn-sm" onclick="addRow()">＋ 新增一列</button>
+        </div>
+        <div class="legend">
+          <span><span class="dot dot-todo"></span>待開始</span>
+          <span><span class="dot dot-doing"></span>進行中</span>
+          <span><span class="dot dot-done"></span>完成</span>
+          <span><span class="dot dot-err"></span>配對失敗</span>
+        </div>
+      </div>
+      <div class="mock-foot">
+        <button class="btn btn-ghost">取消</button>
+        <button class="btn btn-primary" onclick="fakeSave()">儲存指派</button>
+      </div>
+    </div>
+    <p class="note" style="font-size:0.78rem; color:#64748b; margin-top:0.6rem;">
+      「列範圍」留白＝整檔；可填 <code>1-3063</code>、<code>4298-</code>（從該列到結尾）。儲存後即寫入
+      <code>cat_stage_assignments</code> 並同步回 LMS 協作表格。
+    </p>
+  </section>
+
+  <!-- ② 拆分 → 預填 -->
+  <section class="card" id="s2">
+    <h2>② 「拆分」直接預填指派表 <span class="badge b-purple">流程接通</span></h2>
+    <p class="sub">現況：「拆分」只計算工作量均分、不送出指派。新設計：拆分算完直接把建議列範圍與人選預填到上方表格，PM 微調即送出。</p>
+    <div class="split-box">
+      <div class="row">
+        <label>拆成</label>
+        <input type="number" id="splitN" min="2" max="6" value="3">
+        <label>份，依</label>
+        <select class="cell-select" id="splitBy" style="width:auto;">
+          <option value="word">加權字數（扣 TM 重複）</option>
+          <option value="line">列數平均</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="doSplit()">計算並預填指派表 ↑</button>
+      </div>
+      <div id="splitResult" style="font-size:0.78rem; color:#6d28d9; margin-top:0.5rem;"></div>
+    </div>
+    <div class="flow" style="margin-top:0.7rem;">
+      <strong style="font-size:0.82rem;">操作流程</strong>
+      <ol>
+        <li>選好份數與依據 → 按「計算並預填」。</li>
+        <li>系統把建議列範圍寫進①的表格（角色預設「翻譯」、人員留白待選）。</li>
+        <li>PM 補上每列人員、必要時調整列範圍與交期 → 儲存。</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ③ 指派現況 -->
+  <section class="card" id="s3">
+    <h2>③ 指派現況檢視 <span class="badge b-new">新增</span></h2>
+    <p class="sub">視窗一打開即可看到目前每個人負責的範圍、角色與進度，不再只有空白勾選框。</p>
+    <table class="assign">
+      <thead><tr><th>角色</th><th>人員</th><th>範圍</th><th>進度</th></tr></thead>
+      <tbody>
+        <tr><td><span class="role-pill role-t">翻譯</span></td><td><span class="person"><span class="avatar">威</span>威儀</span></td><td>1–3063 列</td><td><span class="st-dot"><span class="dot dot-doing"></span>進行中（已編輯 41%）</span></td></tr>
+        <tr><td><span class="role-pill role-t">翻譯</span></td><td><span class="person"><span class="avatar">黃</span>黃惠茹</span></td><td>3064–4297 列</td><td><span class="st-dot"><span class="dot dot-todo"></span>待開始</span></td></tr>
+        <tr><td><span class="role-pill role-r">審稿</span></td><td><span class="person"><span class="avatar">威</span>威儀</span></td><td>整檔</td><td><span class="st-dot"><span class="dot dot-todo"></span>等待翻譯完成</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ④ 新舊對照 -->
+  <section class="card" id="s4">
+    <h2>④ 新舊對照</h2>
+    <div class="compare">
+      <div class="pane">
+        <h3><span class="badge b-old">現況</span> 平面人員勾選</h3>
+        <div class="checklist">
+          <label><input type="checkbox" checked> 威儀　<span class="muted">（pm/translator）</span></label>
+          <label><input type="checkbox" checked> 黃惠茹　<span class="muted">（translator）</span></label>
+          <label><input type="checkbox" checked> 朱耘廷　<span class="muted">（translator）</span></label>
+        </div>
+        <ul class="x-list">
+          <li>無法分翻譯／審稿</li>
+          <li>無法指定列範圍（誰做哪一段）</li>
+          <li>無交期</li>
+          <li>寫入 <code>cat_file_assignments</code>，與 LMS 不同表</li>
+        </ul>
+      </div>
+      <div class="pane">
+        <h3><span class="badge b-new">新設計</span> 協作式表格</h3>
+        <ul class="x-list ok">
+          <li>每列可選翻譯／審稿角色</li>
+          <li>可填列範圍（1-3063、4298-、整檔）</li>
+          <li>可設交期</li>
+          <li>統一寫入 <code>cat_stage_assignments</code>，與 LMS 共用</li>
+          <li>「拆分」可一鍵預填</li>
+          <li>顯示每列即時進度</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑤ 檔案清單 -->
+  <section class="card" id="s5">
+    <h2>⑤ 檔案清單顯示：區分「整檔」與「查無指派」 <span class="badge b-warn">修正顯示</span></h2>
+    <p class="sub">現況 bug：查無指派時 fallback 顯示「{名字}（整檔）」，把缺資料偽裝成正常整檔。新設計把兩者分開。</p>
+    <table class="filelist">
+      <thead><tr><th style="width:42%;">檔案</th><th>翻譯 / 審稿（新顯示）</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A 檔（已正確分段指派）</td>
+          <td>
+            <div class="stage-line"><span class="muted">翻譯</span>　<span class="who">威儀（1–3063 列）· <span style="color:#d97706;">進行中</span></span></div>
+            <div class="stage-line"><span class="muted">翻譯</span>　<span class="who">黃惠茹（3064–4297 列）· 待開始</span></div>
+            <div class="stage-line"><span class="muted">審稿</span>　<span class="who">威儀（整檔）· 等待翻譯完成</span></div>
+          </td>
+        </tr>
+        <tr>
+          <td>B 檔（真的整檔指派一人）</td>
+          <td>
+            <div class="stage-line"><span class="muted">翻譯</span>　<span class="who">朱耘廷（整檔）· 待開始</span></div>
+          </td>
+        </tr>
+        <tr>
+          <td>C 檔（同步失敗 / 尚未指派）</td>
+          <td>
+            <div class="stage-line"><span class="warn-inline">⚠ 尚未建立 CAT 指派</span></div>
+            <div class="stage-line muted" style="margin-top:0.15rem;">譯者開檔將無法編輯；請於指派視窗或 LMS 協作表格設定。</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note" style="font-size:0.78rem; color:#64748b; margin-top:0.6rem;">
+      重點：「整檔」只在 <strong>真的整檔指派</strong>（B 檔）時出現；查無指派（C 檔）顯示紅字警示，問題即時浮現，不再被「整檔」遮蔽。
+    </p>
+  </section>
+
+  <!-- ⑥ 資料模型 -->
+  <section class="card" id="s6">
+    <h2>⑥ 資料模型：譯者 UUID 雙寫配對 <span class="badge b-new">穩定性</span></h2>
+    <p class="sub">選人時同時保留「顯示名稱」與「帳號編號（UUID）」。畫面顯示名字，系統配對認編號。改名、同名都不會讓指派消失。</p>
+    <table class="assign">
+      <thead><tr><th>欄位</th><th>現況</th><th>新設計</th></tr></thead>
+      <tbody>
+        <tr><td>協作列譯者</td><td><code>translator: "威儀"</code>（只有名字）</td><td><code>translator: "威儀"</code> ＋ <code>translator_user_id: "8f3a…"</code></td></tr>
+        <tr><td>同步配對依據</td><td>用名字反查（改名／同名即失敗）</td><td>優先用 UUID；配不到才退回名字</td></tr>
+        <tr><td>配對失敗時</td><td>靜默跳過，指派消失</td><td>回傳失敗名單，PM 收到 toast 提示</td></tr>
+      </tbody>
+    </table>
+    <p class="note" style="font-size:0.78rem; color:#64748b; margin-top:0.6rem;">
+      UUID 其實在選單裡<strong>本來就有</strong>（<code>options[].id</code>），目前選定時被丟棄；本案改為一併保留，工程量小、風險低。
+    </p>
+  </section>
+
+  <p class="disclaimer">靜態預覽 · 不連線資料庫 · 僅供版面與流程確認</p>
+
+  <script>
+    const PEOPLE = [
+      { name: "威儀", uuid: "8f3a1c", initial: "威" },
+      { name: "黃惠茹", uuid: "2b9e44", initial: "黃" },
+      { name: "朱耘廷", uuid: "c70d18", initial: "朱" },
+      { name: "（未指定）", uuid: "", initial: "?" },
+    ];
+    const STATUS = {
+      todo:  '<span class="st-dot"><span class="dot dot-todo"></span>待開始</span>',
+      doing: '<span class="st-dot"><span class="dot dot-doing"></span>進行中</span>',
+      done:  '<span class="st-dot"><span class="dot dot-done"></span>完成</span>',
+      err:   '<span class="st-dot"><span class="dot dot-err"></span>配對失敗</span>',
+    };
+
+    let rows = [
+      { role: "T", person: 0, range: "1-3063", deadline: "2026-07-01", status: "doing" },
+      { role: "T", person: 1, range: "3064-4297", deadline: "2026-07-01", status: "todo" },
+      { role: "R", person: 0, range: "", deadline: "2026-07-03", status: "todo" },
+    ];
+
+    function personOptions(sel) {
+      return PEOPLE.map((p, i) =>
+        `<option value="${i}" ${i === sel ? "selected" : ""}>${p.name}</option>`
+      ).join("");
+    }
+
+    function renderRows() {
+      const body = document.getElementById("assignBody");
+      body.innerHTML = rows.map((r, i) => {
+        const p = PEOPLE[r.person] || PEOPLE[3];
+        const uuid = p.uuid ? `<span class="uuid-tag">#${p.uuid}</span>` : `<span class="uuid-tag" style="color:#dc2626;">未綁定</span>`;
+        return `<tr>
+          <td>
+            <select class="cell-select" onchange="setRole(${i}, this.value)">
+              <option value="T" ${r.role === "T" ? "selected" : ""}>翻譯</option>
+              <option value="R" ${r.role === "R" ? "selected" : ""}>審稿</option>
+            </select>
+          </td>
+          <td>
+            <div class="person">
+              <span class="avatar">${p.initial}</span>
+              <select class="cell-select" onchange="setPerson(${i}, this.value)">${personOptions(r.person)}</select>
+            </div>
+            <div style="margin-top:0.15rem;">${uuid}</div>
+          </td>
+          <td><input class="cell-input" value="${r.range}" placeholder="整檔" onchange="setRange(${i}, this.value)"></td>
+          <td><input class="cell-input" type="date" value="${r.deadline}" onchange="setDeadline(${i}, this.value)"></td>
+          <td>${STATUS[r.status] || STATUS.todo}</td>
+          <td><button class="row-del" title="移除此列" onclick="delRow(${i})">×</button></td>
+        </tr>`;
+      }).join("");
+    }
+
+    function setRole(i, v) { rows[i].role = v; }
+    function setPerson(i, v) { rows[i].person = Number(v); renderRows(); }
+    function setRange(i, v) { rows[i].range = v.trim(); }
+    function setDeadline(i, v) { rows[i].deadline = v; }
+    function delRow(i) { rows.splice(i, 1); renderRows(); }
+    function addRow() {
+      rows.push({ role: "T", person: 3, range: "", deadline: "", status: "todo" });
+      renderRows();
+    }
+
+    function doSplit() {
+      const n = Math.max(2, Math.min(6, Number(document.getElementById("splitN").value) || 3));
+      const total = 4297;
+      const per = Math.floor(total / n);
+      const newRows = [];
+      for (let k = 0; k < n; k++) {
+        const start = k * per + 1;
+        const end = (k === n - 1) ? total : (k + 1) * per;
+        newRows.push({ role: "T", person: 3, range: `${start}-${end}`, deadline: "", status: "todo" });
+      }
+      // 保留既有的審稿列
+      const reviewRows = rows.filter(r => r.role === "R");
+      rows = newRows.concat(reviewRows);
+      renderRows();
+      document.getElementById("splitResult").innerHTML =
+        `已預填 ${n} 段翻譯（每段約 ${per} 列）到上方指派表 ↑，請補上各段人員後儲存。`;
+      document.getElementById("s1").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function fakeSave() {
+      const missing = rows.filter(r => !(PEOPLE[r.person] && PEOPLE[r.person].uuid));
+      if (missing.length) {
+        alert("（示意）有 " + missing.length + " 列尚未指定人員。\n正式版會以 toast 提示並阻擋儲存。");
+        return;
+      }
+      alert("（示意）已儲存指派並同步至 cat_stage_assignments / LMS 協作表格。\n本預覽不會真的寫入資料庫。");
+    }
+
+    renderRows();
+  </script>
+</body>
+</html>

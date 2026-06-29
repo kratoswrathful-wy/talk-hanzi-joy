@@ -123,4 +123,4 @@ flowchart TD
 | 日期 | 內容 |
 |------|------|
 | 2026-06-10 | 初稿：需求、決策、錨點、驗收、`49db7c2` |
-| 2026-06-12 | A-2：GS 必選連結、離線阻擋、更新模式沿用既有案件 |
+| 2026-06-12 | A-2：GS 必選連結、離線阻擋、更新模式沿用既有案件；A-5 見主計畫 [`CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md`](./CAT_WORKFLOW_STAGES_AND_REVISION_TRACKING_PLAN_2026-06.md) §4.1（`ab04381`） |

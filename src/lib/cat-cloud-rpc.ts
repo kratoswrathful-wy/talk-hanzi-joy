@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
+import { getEnvironment } from "@/lib/environment";
+import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
 
 type RpcPayload = Record<string, any>;
 
@@ -2631,6 +2633,63 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       });
       if (slackErr) throw slackErr;
       return slackData ?? { ok: true };
+    }
+
+    case "lms.getCaseCollabForFile": {
+      // CAT 端協作式指派：讀取此檔連結之多人案件協作列（單一來源＝LMS collab_rows）
+      const fileId = String(payload.fileId || "");
+      if (!fileId) return { linked: false };
+      const env = getEnvironment();
+      const { data: file } = await supabase
+        .from("cat_files")
+        .select("id, name, related_lms_case_id, related_lms_case_title")
+        .eq("id", fileId)
+        .maybeSingle();
+      const caseId = (file as any)?.related_lms_case_id;
+      if (!caseId) return { linked: false, fileName: (file as any)?.name ?? "" };
+      const { data: caseRow } = await supabase
+        .from("cases")
+        .select("id, title, status, multi_collab, collab_rows, reviewer")
+        .eq("id", caseId)
+        .eq("env", env)
+        .maybeSingle();
+      if (!caseRow) return { linked: false, fileName: (file as any)?.name ?? "" };
+      return {
+        linked: true,
+        multiCollab: !!(caseRow as any).multi_collab,
+        caseId: (caseRow as any).id,
+        caseTitle: (caseRow as any).title ?? "",
+        caseStatus: (caseRow as any).status ?? "",
+        reviewer: (caseRow as any).reviewer ?? "",
+        collabRows: Array.isArray((caseRow as any).collab_rows) ? (caseRow as any).collab_rows : [],
+        fileId: (file as any).id,
+        fileName: (file as any).name ?? "",
+      };
+    }
+    case "lms.updateCaseCollab": {
+      // CAT 端寫回完整 collab_rows，再觸發同步（回傳未解析譯者等報告）
+      const caseId = String(payload.caseId || "");
+      const collabRows = Array.isArray(payload.collabRows) ? payload.collabRows : null;
+      if (!caseId || !collabRows) return { ok: false, error: "missing caseId or collabRows" };
+      const env = getEnvironment();
+      const casePatch: Record<string, unknown> = { collab_rows: collabRows, updated_at: nowIso() };
+      const { error: updErr } = await supabase
+        .from("cases")
+        .update(casePatch as Record<string, never>)
+        .eq("id", caseId)
+        .eq("env", env);
+      if (updErr) return { ok: false, error: updErr.message };
+      const report = await syncCatWorkflowAssignmentsForCase(supabase, caseId);
+      return {
+        ok: true,
+        report: report
+          ? {
+              unresolvedTranslators: report.unresolvedTranslators,
+              rowsWithoutFile: report.rowsWithoutFile,
+              written: report.written,
+            }
+          : null,
+      };
     }
 
     default:

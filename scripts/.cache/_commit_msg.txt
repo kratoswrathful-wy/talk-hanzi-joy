@@ -1,0 +1,5 @@
+fix(cat): Phase 2.3j 浮層死結、導覽錨點保護、篩選聚焦分流
+
+- cat-fake-caret: syncChromeLayerRect 缺浮層時就地建立 chrome layer
+- grid-virtual-scroll: _navAnchorLock 防止 resize 重繪覆蓋導覽錨點
+- app: 篩選 flush 置中與 scheduleEditorFocus 分流（Ctrl+F 保留取代欄焦點）

@@ -39,6 +39,9 @@ export interface CollabRow {
   linkedCatViewId?: string | null;
   lineRange?: string | null;
   scopeLabel?: string | null;
+  /** 派案重構：譯者帳號編號（UUID）雙寫；同步以此優先配對，名字僅供顯示／後備 */
+  translatorUserId?: string | null;
+  reviewerUserId?: string | null;
 }
 
 export interface CaseComment {

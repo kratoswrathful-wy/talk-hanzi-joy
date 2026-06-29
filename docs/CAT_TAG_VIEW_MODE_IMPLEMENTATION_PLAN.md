@@ -74,10 +74,10 @@
 
 ---
 
-## 7. 成對 tag 箭頭外框（已實作）
+## 7. 成對 tag 箭頭外框（待 SVG）
 
-三模式與 `displayFull` 不變。成對開／閉 pill（`.rt-tag-s`／`.rt-tag-e`）保留箭頭形，以 `drop-shadow` 沿輪廓描邊 + `--tag-fill` 底色，外框與獨立 `.rt-tag` 視覺一致。
+三模式與 `displayFull` 不變。成對 pill 保留箭頭形；雙層 pseudo／`drop-shadow` 已否決（§8），下一波改 **內嵌 SVG** 外框。
 
-**已知陷阱**：`clip-path` + `border`（含 `::before`）會使**斜角尖端無外框**，僅矩形三邊有框；先前實作曾踩過，不可僅加強三邊即視為完成。
+**已知陷阱**：`clip-path` + `border` 斜角缺框；`drop-shadow` 易被譯文格 `overflow` 裁切而近乎無框。
 
-完整策略、技法優先順序、觸點與驗收：[`CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md)。靜態預覽：[`preview-cat-paired-tag-border/index.html`](preview-cat-paired-tag-border/index.html)。
+完整策略與驗收：[`CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md`](CAT_PAIRED_TAG_ARROW_BORDER_IMPLEMENTATION_PLAN.md)。預覽：[`preview-cat-paired-tag-border/index.html`](preview-cat-paired-tag-border/index.html)。

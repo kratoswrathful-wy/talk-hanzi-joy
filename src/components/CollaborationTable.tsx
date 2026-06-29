@@ -26,6 +26,7 @@ import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink }
 import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { selectOptionsStore } from "@/stores/select-options-store";
 import { buildCatDeepLink } from "@/lib/cat-deep-link";
 import { countUnconfirmedSegmentsInCollabRange } from "@/lib/cat-collab-task-complete";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +62,15 @@ function decodeCatBind(value: string): Pick<CollabRow, "linkedCatFileId" | "link
 
 function isCatBound(row: CollabRow): boolean {
   return !!(row.linkedCatFileId || row.linkedCatViewId);
+}
+
+/** 由顯示名稱對應到 profile UUID（assignee 選單的 option.id 即 profiles.id）。配不到回傳 null。 */
+function resolveAssigneeUserId(name: string): string | null {
+  const n = (name || "").trim();
+  if (!n) return null;
+  const opts = selectOptionsStore.getField("assignee").options;
+  const hit = opts.find((o) => o.label === n);
+  return hit ? String(hit.id) : null;
 }
 
 function CopyTextButton({ value }: { value: string }) {
@@ -182,7 +192,9 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
 
   const applyBulkPerson = () => {
     if (!bulkPersonField) return;
-    const next = rows.map((r) => ({ ...r, [bulkPersonField]: bulkPersonValue }));
+    const userIdField = bulkPersonField === "translator" ? "translatorUserId" : "reviewerUserId";
+    const resolvedUserId = resolveAssigneeUserId(bulkPersonValue);
+    const next = rows.map((r) => ({ ...r, [bulkPersonField]: bulkPersonValue, [userIdField]: resolvedUserId }));
     onChange(next);
     setBulkPersonField(null);
     setBulkPersonValue("");
@@ -400,7 +412,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 <ColorSelect
                   fieldKey="assignee"
                   value={row.translator}
-                  onValueChange={(v) => updateRow(idx, { translator: v })}
+                  onValueChange={(v) => updateRow(idx, { translator: v, translatorUserId: resolveAssigneeUserId(v) })}
                   className="w-full"
                   disabled={!isPmOrAbove && row.accepted}
                 />
@@ -437,12 +449,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                         }
                         const translatorEmpty = !row.translator || !row.translator.trim();
                         if (translatorEmpty && displayName) {
-                          updateRow(idx, { accepted: true, translator: displayName });
+                          updateRow(idx, { accepted: true, translator: displayName, translatorUserId: resolveAssigneeUserId(displayName) ?? profile?.id ?? null });
                         } else {
                           updateRow(idx, { accepted: true });
                         }
                       } else {
-                        updateRow(idx, { accepted: false, translator: "" });
+                        updateRow(idx, { accepted: false, translator: "", translatorUserId: null });
                       }
                     }}
                   />
@@ -459,7 +471,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 <ColorSelect
                   fieldKey="assignee"
                   value={row.reviewer}
-                  onValueChange={(v) => updateRow(idx, { reviewer: v })}
+                  onValueChange={(v) => updateRow(idx, { reviewer: v, reviewerUserId: resolveAssigneeUserId(v) })}
                   className="w-full"
                   disabled={!isPmOrAbove}
                 />
@@ -548,7 +560,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 const row = rows[lastAcceptConfirm.idx];
                 const translatorEmpty = !row.translator || !row.translator.trim();
                 if (translatorEmpty && displayName) {
-                  updateRow(lastAcceptConfirm.idx, { accepted: true, translator: displayName });
+                  updateRow(lastAcceptConfirm.idx, { accepted: true, translator: displayName, translatorUserId: resolveAssigneeUserId(displayName) ?? profile?.id ?? null });
                 } else {
                   updateRow(lastAcceptConfirm.idx, { accepted: true });
                 }

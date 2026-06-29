@@ -236,6 +236,11 @@
                 });
                 return parts.join('');
             }
+            // 查無指派：若該步驟存在且尚未完成，明確警示（避免被偽裝成「整檔」遮蔽）
+            const noAssignStage = stageKind === 'translate' ? translateStage : (stageKind === 'review' ? reviewStage : null);
+            if (noAssignStage && noAssignStage.status !== 'completed') {
+                return '<span style="color:#dc2626; font-size:0.78rem; font-weight:600;">⚠ 尚未建立指派</span>';
+            }
             return '<span style="color:#94a3b8; font-size:0.78rem;">—</span>';
         }
 
