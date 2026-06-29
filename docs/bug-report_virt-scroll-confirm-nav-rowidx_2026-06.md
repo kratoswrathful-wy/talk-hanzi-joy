@@ -111,3 +111,11 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 **根因**：↑／↓ 用 `indexOf(gRows)` 當全檔索引；一般捲動重畫無焦點還原；`invalidateHeights()` 無 anchor。
 
 **修正**：`focusAdjacentTargetRow(segId)`；`_preserveFocusAcrossVirtRender`；`invalidateHeights(anchorSegId)`。詳見同檔 §2.7。
+
+### 6.3 Phase 2.3f — 雙軌 preserve + 單次 center（2026-06-29）
+
+**症狀**：2.3e 遠距跳行只選列；滾輪保焦回歸；篩選亂跳；假游標 tip 不見。
+
+**根因**：`centerOnSegId` 雙重捲動；pending 過早清除；preserve 僅 pending；`onAfterRender` 順序錯。
+
+**修正**：`_preserveEditingAcrossVirtRender` 就地還原；`isSegIdCentered`；pending gen。詳見同檔 §2.9。

@@ -432,6 +432,19 @@
         return scrollToSegId(segId);
     }
 
+    function isSegIdCentered(segId, tolerancePx) {
+        if (!enabled || !cfg || !cfg.scrollEl || segId == null) return false;
+        const row = queryRow(segId);
+        if (!row) return false;
+        const scrollEl = cfg.scrollEl;
+        const rowRect = row.getBoundingClientRect();
+        const viewportRect = scrollEl.getBoundingClientRect();
+        const rowCenter = rowRect.top + rowRect.height / 2;
+        const viewportCenter = viewportRect.top + viewportRect.height / 2;
+        const tol = tolerancePx != null ? tolerancePx : 24;
+        return Math.abs(rowCenter - viewportCenter) <= tol;
+    }
+
     function centerOnSegId(segId) {
         if (!enabled || !cfg || !cfg.scrollEl || segId == null) return false;
         const list = getRenderableList();
@@ -440,9 +453,15 @@
         const scrollEl = cfg.scrollEl;
         const vh = scrollEl.clientHeight;
         const h = heightOf(String(segId));
+        const targetTop = Math.max(0, sumRange(list, 0, ai) - vh / 2 + h / 2);
+        const nextStart = scrollTopToStartIdx(list, targetTop);
+        const nextEnd = Math.min(list.length, nextStart + WINDOW + BUFFER * 2);
+        if (nextStart !== _lastStartIdx || nextEnd !== _lastEndIdx) {
+            return scrollToSegId(segId, 'center') != null;
+        }
         _suppressScroll = true;
         try {
-            scrollEl.scrollTop = Math.max(0, sumRange(list, 0, ai) - vh / 2 + h / 2);
+            scrollEl.scrollTop = targetTop;
             _anchorSegId = String(segId);
             _anchorOffsetPx = vh / 2 - h / 2;
         } finally {
@@ -476,6 +495,7 @@
         renderWindow,
         scrollToSegId,
         ensureRowMounted,
+        isSegIdCentered,
         centerOnSegId,
         invalidateHeights
     };

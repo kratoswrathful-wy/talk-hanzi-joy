@@ -17740,13 +17740,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfPresets = JSON.parse(localStorage.getItem('catToolSfPresets') || '{}');
     let lastEditedRowIdx = null; // Track cursor position
     let selectedRowIds = new Set(); // Track selected segment IDs
-    /** Phase 2.3c：virt 重畫後再 focus／還原游標（取代 _pendingFocusSegIdxAfterRender） */
-    /** @type {{ segId: *, plainOffset?: number|null, scrollBehavior?: string, restoreCaret?: boolean, afterConfirmPanel?: boolean, caretAtStart?: boolean } | null} */
+      /** Phase 2.3c：virt 重畫後再 focus／還原游標（取代 _pendingFocusSegIdxAfterRender） */
+    /** @type {{ segId: *, plainOffset?: number|null, scrollBehavior?: string, scrollBlock?: string, restoreCaret?: boolean, afterConfirmPanel?: boolean, caretAtStart?: boolean, skipVirtScroll?: boolean, gen?: number } | null} */
     let _pendingEditorFocus = null;
     let _pendingEditorFocusRetry = false;
-    /** Phase 2.3d：一般捲動／重畫前擷取編輯中譯文格，onAfterRender 還原 */
+    let _pendingEditorFocusGen = 0;
+    /** Phase 2.3f：使用者滾輪編輯中就地還原（不 scroll） */
     /** @type {{ segId: *, plainOffset?: number|null } | null} */
-    let _preserveFocusAcrossVirtRender = null;
+    let _preserveEditingAcrossVirtRender = null;
     /** 確認跳行 blur 時略過一次假游標（避免舊列殘留） */
     let _skipFakeCaretOnBlurOnce = false;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
@@ -19526,6 +19527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 restoreCaret: plainOffset != null,
                 scrollBehavior: 'auto',
                 scrollBlock: 'center',
+                skipVirtScroll: true,
             });
         }
         syncSelectedRowAbutmentTopClass();
@@ -21004,33 +21006,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function captureEditingFocusBeforeVirtRender() {
-        if (!_pendingEditorFocus) return;
+        if (_pendingEditorFocus) return;
         const active = document.activeElement;
         if (!isActiveEditorGridTextarea(active)) return;
         const segId = getEditorSegId(active);
         if (segId == null) return;
         let plainOffset = null;
         try { plainOffset = getPlainCaretOffsetViaRangeClone(active); } catch (_) { plainOffset = null; }
-        _preserveFocusAcrossVirtRender = { segId, plainOffset };
+        _preserveEditingAcrossVirtRender = { segId, plainOffset };
     }
 
     function flushEditorFocusAfterVirtRender() {
         requestAnimationFrame(() => requestAnimationFrame(() => {
             flushPendingEditorFocus();
             if (isActiveEditorGridTextarea(document.activeElement)) {
-                _preserveFocusAcrossVirtRender = null;
+                _preserveEditingAcrossVirtRender = null;
                 return;
             }
-            const preserved = _preserveFocusAcrossVirtRender;
-            if (!preserved || preserved.segId == null) return;
             if (_pendingEditorFocus) return;
-            _preserveFocusAcrossVirtRender = null;
-            scheduleEditorFocus({
+            const preserved = _preserveEditingAcrossVirtRender;
+            if (!preserved || preserved.segId == null) return;
+            _preserveEditingAcrossVirtRender = null;
+            applyEditorFocusAtSegId(preserved.segId, {
                 segId: preserved.segId,
                 plainOffset: preserved.plainOffset,
                 restoreCaret: preserved.plainOffset != null,
                 caretAtStart: preserved.plainOffset == null,
-                scrollBehavior: 'auto',
+                skipVirtScroll: true,
             });
         }));
     }
@@ -21044,7 +21046,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(o.scrollBlock || getAfterConfirmScrollBlock());
         let row = getGridRowBySegId(segId, false);
-        if (!row && virtOn) {
+        if (!row && virtOn && !o.skipVirtScroll) {
             row = window.CatVirtGrid.scrollToSegId(segId, scrollBlock);
         }
         if (!row) row = getGridRowBySegId(segId, true);
@@ -21094,6 +21096,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function flushPendingEditorFocus() {
         const pending = _pendingEditorFocus;
         if (!pending || pending.segId == null) return;
+        const gen = pending.gen;
         const seg = currentSegmentsList.find((s) => s && String(s.id) === String(pending.segId));
         if (!seg || !isSegmentVisibleInEditor(seg)) {
             _pendingEditorFocus = null;
@@ -21103,12 +21106,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
         let row = getGridRowBySegId(pending.segId, false);
-        if (!row && virtOn) {
-            window.CatVirtGrid.scrollToSegId(pending.segId, scrollBlock);
-            row = getGridRowBySegId(pending.segId, false);
-            if (!row) return;
+        if (virtOn && !pending.skipVirtScroll) {
+            const isCentered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
+                && window.CatVirtGrid.isSegIdCentered(pending.segId);
+            const needsScroll = !row || (scrollBlock === 'center' && !isCentered);
+            if (needsScroll) {
+                window.CatVirtGrid.scrollToSegId(pending.segId, scrollBlock);
+                row = getGridRowBySegId(pending.segId, false);
+                if (!row) return;
+            }
         }
-        const ok = applyEditorFocusAtSegId(pending.segId, pending);
+        const ok = applyEditorFocusAtSegId(pending.segId, { ...pending, skipVirtScroll: true });
         if (!ok) {
             if (!_pendingEditorFocusRetry) {
                 _pendingEditorFocusRetry = true;
@@ -21116,18 +21124,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             return;
         }
-        if (ok && virtOn && scrollBlock === 'center' && typeof window.CatVirtGrid.centerOnSegId === 'function') {
-            window.CatVirtGrid.centerOnSegId(pending.segId);
-        }
         if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
-        _pendingEditorFocus = null;
-        _pendingEditorFocusRetry = false;
+        if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
+            _pendingEditorFocus = null;
+            _pendingEditorFocusRetry = false;
+        }
     }
 
     /** Phase 2.3c：大檔排入 pending，onAfterRender 後 flush；小檔立即 focus。 */
     function scheduleEditorFocus(opts) {
         if (!opts || opts.segId == null) return false;
-        _preserveFocusAcrossVirtRender = null;
+        _preserveEditingAcrossVirtRender = null;
+        _pendingEditorFocusGen++;
         _pendingEditorFocus = {
             segId: opts.segId,
             plainOffset: opts.plainOffset != null ? opts.plainOffset : null,
@@ -21136,6 +21144,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             restoreCaret: !!opts.restoreCaret,
             afterConfirmPanel: !!opts.afterConfirmPanel,
             caretAtStart: !!opts.caretAtStart,
+            skipVirtScroll: !!opts.skipVirtScroll,
+            gen: _pendingEditorFocusGen,
         };
         _pendingEditorFocusRetry = false;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
@@ -24503,10 +24513,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 onAfterRender: () => {
                     syncSelectedRowClassesFromIds();
+                    flushEditorFocusAfterVirtRender();
                     if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {
                         catFakeCaret.refreshAfterVirtRender();
                     }
-                    flushEditorFocusAfterVirtRender();
                     if (!virtMountFinished) {
                         virtMountFinished = true;
                         finishEditorGridRender();

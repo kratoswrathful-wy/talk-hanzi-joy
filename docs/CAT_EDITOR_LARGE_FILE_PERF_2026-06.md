@@ -72,8 +72,9 @@ flowchart TB
 | **Phase 2.3** | tag 著色 id 假陽性、假游標、清除篩選跳頂、確認 focus／置中 | **已實作** `0670242`（見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md)） |
 | **Phase 2.3b** | 假游標 show 搶 scrollTop；Ctrl+G 與暫存句競態 | **已驗收** `694fa81`（同檔 §2.2b） |
 | **Phase 2.3c** | virt 重畫後 focus 競態；離屏 tip 方向 | **已推送 `0a073ea`；驗收未通過**（同檔 §3.3） |
-| **Phase 2.3d** | 跨重畫 preserve 焦點；↑ DOM 索引；清除篩選 anchor | **已實作，待驗收**（同檔 §2.7） |
-| **Phase 2.3d** | 跨重畫 preserve 焦點；↑ DOM 索引誤導覽；清除篩選空白 | **已實作，待驗收**（同檔 §2.7） |
+| **Phase 2.3d** | 跨重畫 preserve 焦點；↑ DOM 索引；清除篩選 anchor | **已推送 `42bbd17`**（同檔 §2.7） |
+| **Phase 2.3e** | virt 置中、`centerOnSegId` | **已推送 `78818d0`；部分驗收未通過**（同檔 §3.5） |
+| **Phase 2.3f** | 雙軌 preserve、單次 center、pending gen | **已實作，待驗收**（同檔 §2.9） |
 | **Phase 3** | Workflow 快照分批；減少 `renderEditorSegments` 全表重建 | 規劃中 |
 
 ---
