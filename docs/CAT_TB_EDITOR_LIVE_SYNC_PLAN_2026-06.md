@@ -1,7 +1,7 @@
 # CAT 編輯器術語即時同步與編輯器內改刪
 
 **日期**：2026-06  
-**狀態**：已實作  
+**狀態**：已實作；footer 按鈕團隊版 UUID 熱修待驗收  
 **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)
 
 ## 背景
@@ -14,7 +14,7 @@
 |------|----------|--------|
 | 編輯器「新增術語」 | 寫 DB + 快取 push + 重畫 | 寫 DB + **全量 rebuild 快取** + 重畫 |
 | 術語庫頁改／刪 | 只寫 DB | 寫 DB + **rebuild 快取** + 重畫（若編輯器仍開啟） |
-| 編輯器 footer | 僅隱藏 | 寫入目標 TB 可 **編輯／刪除** |
+| 編輯器 footer | 僅隱藏 | 寫入目標 TB 可 **編輯／刪除**（底列並排） |
 
 ## 技術方案
 
@@ -37,17 +37,26 @@
 
 ### 編輯器 footer 改刪 UI
 
-- 條件：`entry.tbId === ActiveWriteTb`、有 `termNumber`、非唯讀（`_viewEditorReadOnly`）。
-- 每段 metadata 下方：**編輯術語**、**刪除此術語**；整列底部保留 **將此術語隱藏**。
+- 條件：`entry.tbId === ActiveWriteTb`、有 `termNumber`、非唯讀（`_viewEditorReadOnly`）；`ActiveWriteTb` 為線上擷取 TB 時開檔即為 `null`，不顯示編輯／刪除。
+- **底列並排**：**編輯**、**刪除**（僅寫入目標 TB）、**隱藏**（一律顯示；按鈕內 `?` 裝飾，`data-tip` 掛整顆按鈕）。
+- 合併列取 `allTbEntries` 中**第一筆可寫入**者之 `tbId` + `termNumber`。
+- 點擊經 `#liveFooterContent` **事件委派**（`data-tb-id`／`data-term-number`），**不使用 inline `onclick`**（團隊版 UUID 相容）。
 - 複用 `tbTermEditModal`；自 footer 開啟時儲存後自動切回 CAT 分頁並還原焦點。
+
+## 除錯紀錄：團隊版編輯／刪除無反應
+
+- **症狀**：點「編輯術語」「刪除此術語」無 Modal／確認框；主控台 `Uncaught SyntaxError: Invalid or unexpected token`（`index.html:1:25`）。
+- **根因**：footer 按鈕 inline `onclick="catEditTbTermFromFooter(${entry.tbId}, …)"` 未為 **UUID 字串**加引號，瀏覽器將 `-` 解析為非法語法。本機 Dexie 數字 ID 不易重現。
+- **修正**：移除 inline `onclick`；改 `data-tb-id` + `initLiveFooterTbActionDelegation`；按鈕文案與佈局一併調整為底列 **編輯／刪除／隱藏**。
 
 ## 驗收步驟（白話）
 
 1. 開檔編輯中，到術語庫頁修改某術語譯文 → 回編輯器點同句段，右欄與原文提示**立即**更新。
 2. 術語庫頁刪除術語 → 右欄該列與原文底線消失。
-3. 右欄選 writeTb 術語 → footer **編輯術語** → 改精確比對等 → 儲存後比對即時更新。
-4. **刪除此術語** 需確認；刪除後比對消失。
-5. 線上擷取 TB、唯讀模式：無編輯／刪除；隱藏仍可用。
+3. **團隊版**：右欄選 writeTb 術語 → footer 底列 **編輯** → 跳出 Modal；主控台**無** SyntaxError。
+4. **團隊版**：點 **刪除** → 確認對話框。
+5. 游標移上 **隱藏** 按鈕（含 `?`）→ 黑色無延遲 tooltip。
+6. 線上擷取 TB、唯讀模式：無編輯／刪除；隱藏仍可用。
 
 ## 維護邊界
 

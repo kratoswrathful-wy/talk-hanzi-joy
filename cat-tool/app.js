@@ -10808,6 +10808,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         return typeof entry.termNumber === 'number';
     }
 
+    function findEditableTbFooterEntry(entries) {
+        for (const entry of entries || []) {
+            if (canEditTbEntryInEditor(entry)) return entry;
+        }
+        return null;
+    }
+
+    function escHtmlAttr(s) {
+        return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
     function openTbTermEditModalForTerm(tb, termIndex) {
         if (!tb || termIndex < 0 || termIndex >= (tb.terms || []).length) return false;
         const t = tb.terms[termIndex];
@@ -10826,7 +10837,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.catEditTbTermFromFooter = async function catEditTbTermFromFooter(tbId, termNumber) {
         const tb = await DBService.getTB(tbId);
-        if (!tb || (tb.sourceType || 'manual') === 'online') return;
+        if (!tb || (tb.sourceType || 'manual') === 'online') {
+            showCatToast('此術語庫為線上擷取，無法於編輯器內修改。', 'info');
+            return;
+        }
         const terms = tb.terms || [];
         const idx = terms.findIndex((t) => t.termNumber === termNumber);
         if (idx < 0) {
@@ -10841,7 +10855,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.catDeleteTbTermFromFooter = async function catDeleteTbTermFromFooter(tbId, termNumber) {
         const tb = await DBService.getTB(tbId);
-        if (!tb || (tb.sourceType || 'manual') === 'online') return;
+        if (!tb || (tb.sourceType || 'manual') === 'online') {
+            showCatToast('此術語庫為線上擷取，無法於編輯器內刪除。', 'info');
+            return;
+        }
         const terms = tb.terms || [];
         const idx = terms.findIndex((t) => t.termNumber === termNumber);
         if (idx < 0) {
@@ -10885,6 +10902,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         showCatToast(`已隱藏「${m.sourceText || ''} → ${m.targetText || ''}」`, 'info');
         refreshTbMatchUiAfterHideChange();
     };
+
+    (function initLiveFooterTbActionDelegation() {
+        const footerRoot = document.getElementById('liveFooterContent');
+        if (!footerRoot) return;
+        footerRoot.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.cat-tb-footer-edit-btn');
+            if (editBtn) {
+                e.preventDefault();
+                const tbId = editBtn.getAttribute('data-tb-id');
+                const tn = parseInt(editBtn.getAttribute('data-term-number'), 10);
+                if (tbId && !Number.isNaN(tn)) {
+                    window.catEditTbTermFromFooter(tbId, tn).catch((err) => console.error(err));
+                }
+                return;
+            }
+            const delBtn = e.target.closest('.cat-tb-footer-delete-btn');
+            if (delBtn) {
+                e.preventDefault();
+                const tbId = delBtn.getAttribute('data-tb-id');
+                const tn = parseInt(delBtn.getAttribute('data-term-number'), 10);
+                if (tbId && !Number.isNaN(tn)) {
+                    window.catDeleteTbTermFromFooter(tbId, tn).catch((err) => console.error(err));
+                }
+                return;
+            }
+            const hideBtn = e.target.closest('.cat-tb-hide-btn');
+            if (hideBtn) {
+                e.preventDefault();
+                window.catHideTbTermFromFooter();
+            }
+        });
+    })();
 
     function renderHiddenTbModalRows() {
         const body = document.getElementById('hiddenTbModalBody');
@@ -25207,16 +25256,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div><strong>建立者：</strong>${byWho}</div>
                             <div><strong>建立時間：</strong>${byAt}</div>
                         </div>
-                        ${canEditTbEntryInEditor(entry) ? `<div class="cat-footer-tb-actions" style="display:flex; gap:0.35rem; flex-wrap:wrap; margin-top:0.35rem;">
-                            <button type="button" class="secondary-btn btn-sm" onclick="catEditTbTermFromFooter(${entry.tbId}, ${entry.termNumber})">編輯術語</button>
-                            <button type="button" class="danger-btn btn-sm" onclick="catDeleteTbTermFromFooter(${entry.tbId}, ${entry.termNumber})">刪除此術語</button>
-                        </div>` : ''}
                         </div>`;
                         });
+                        const hideTip = '隱藏後，此術語在本次開啟檔案期間不會出現在右欄比對與原文提示。關閉編輯器、離開檔案或關閉分頁後會恢復。QA 仍會檢查此術語。';
+                        const hideTipEsc = hideTip.replace(/"/g, '&quot;');
+                        const editableEntry = findEditableTbFooterEntry(allTbEntries);
+                        let tbActionBtns = '';
+                        if (editableEntry) {
+                            const tid = escHtmlAttr(editableEntry.tbId);
+                            const tnum = editableEntry.termNumber;
+                            tbActionBtns = `<button type="button" class="secondary-btn btn-sm cat-tb-footer-edit-btn" data-tb-id="${tid}" data-term-number="${tnum}">編輯</button>
+                            <button type="button" class="danger-btn btn-sm cat-tb-footer-delete-btn" data-tb-id="${tid}" data-term-number="${tnum}">刪除</button>`;
+                        }
                         footerHtml += `<div class="cat-footer-section cat-footer-tb-hide-wrap" style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center;">
+                            ${tbActionBtns}
                             <button type="button" class="secondary-btn btn-sm cat-tb-hide-btn"
-                                data-tip="隱藏後，此術語在本次開啟檔案期間不會出現在右欄比對與原文提示。關閉編輯器、離開檔案或關閉分頁後會恢復。QA 仍會檢查此術語。"
-                                onclick="catHideTbTermFromFooter()">將此術語隱藏</button>
+                                data-tip="${hideTipEsc}"
+                                aria-label="隱藏此術語比對">隱藏 <span class="cat-field-help-icon cat-field-help-icon--in-btn" aria-hidden="true">?</span></button>
                         </div>`;
                     } else if (m.type === 'MqInserted') {
                         const prevHtml = m.prevSegment ? escFoot(m.prevSegment) : '<span style="color:#94a3b8;">無</span>';

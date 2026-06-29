@@ -2174,7 +2174,16 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     border-bottom: none;
 }
 .cat-tb-hide-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
     font-size: 0.78rem;
+}
+.cat-field-help-icon--in-btn {
+    width: 0.85rem;
+    height: 0.85rem;
+    font-size: 0.58rem;
+    pointer-events: none;
 }
 .tm-changelog-entry {
     margin: 0;

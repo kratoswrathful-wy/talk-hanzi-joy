@@ -55,8 +55,7 @@
 |------|------|------|
 | N 筆命中 | 比對表 TB 列分數欄 | 同原文同譯文合併且 N>1 時，於 TB 標籤上方顯示筆數 |
 | 精確比對 ? | TB footer 精確比對列右側 | hover 顯示無延遲黑色 tooltip（精確比對白話說明） |
-| 編輯術語／刪除此術語 | TB footer 各段 metadata 下方（僅寫入目標 TB） | 編輯器內改刪術語；見 live sync 規劃檔 |
-| 將此術語隱藏 | TB metadata 最下方 | `data-tip` 說明效力；隱藏目前列的原文+譯文 |
+| 編輯／刪除／隱藏 | TB footer 底列並排 | 編輯／刪除僅寫入目標 TB；隱藏旁 `?`、`data-tip` 掛整顆按鈕；見 live sync 規劃檔 |
 | 已隱藏的術語 (N) | metadata 上方列左側（與收合資訊同一列） | 無隱藏時 disabled；開啟 Modal |
 | 已隱藏的術語 Modal | 全螢幕 overlay | 勾選＝仍隱藏；**取消勾選即復原**；欄：原文／譯文／術語庫 |
 
@@ -106,6 +105,8 @@ ActiveTbTerms → AI 批次（可選過濾）
 | `c560167` | 合併 key 改原文+譯文、tbId 去重、工作階段隱藏／復原、AI 批次選項 |
 | `1304299` | **除錯**：Card/card 誤壓制 — 壓制須嚴格區分大小寫子字串 |
 | `6261102` | UI：「N 筆命中」堆疊於 TB、精確比對圈問號 tooltip — **使用者驗收通過** |
+| `bf5beaa` | 術語改刪即時同步、`ActiveTbTerms` rebuild、footer 編輯／刪除初版 |
+| （待填） | **熱修**：團隊版 UUID `onclick` SyntaxError → footer 事件委派 + 底列 **編輯／刪除／隱藏** |
 
 ### 6.1 除錯紀錄：Card／card 誤壓制
 
@@ -113,6 +114,12 @@ ActiveTbTerms → AI 批次（可選過濾）
 - **根因**：舊壓制只看 range 涵蓋，未檢查原文是否為**嚴格**（區分大小寫）子字串。
 - **修正**：`isTbSourceStrictSubstring` + `shouldSuppressTbHit` 五條件全滿才壓制（`1304299`）。
 - **驗收**：含 `card` 句段右欄兩列 TB，footer 各一段 metadata。
+
+### 6.2 除錯紀錄：團隊版 footer 編輯／刪除 SyntaxError
+
+- **症狀**：團隊版點編輯／刪除無反應；主控台 `SyntaxError: Invalid or unexpected token`。
+- **根因**：inline `onclick` 內 UUID `tbId` 未加引號。
+- **修正**：`data-tb-id` + `#liveFooterContent` 點擊委派；詳見 [`CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md`](CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md) §除錯紀錄。
 
 ## 維護邊界
 
