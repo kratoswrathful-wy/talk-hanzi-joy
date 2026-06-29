@@ -1,7 +1,7 @@
 # CAT 編輯器術語即時同步與編輯器內改刪
 
 **日期**：2026-06  
-**狀態**：已實作；footer 按鈕團隊版 UUID 熱修已推送（`22ba4b1`），待驗收  
+**狀態**：**已驗收**（即時同步 `bf5beaa`；footer 底列改刪隱藏與團隊版 UUID 熱修 `22ba4b1`；2026-06-29 團隊版驗收通過）  
 **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)
 
 ## 背景
@@ -51,12 +51,33 @@
 
 ## 驗收步驟（白話）
 
+**狀態**：下列 1～6 項均已驗收（含 2026-06-29 **團隊版** footer 底列編輯／刪除／隱藏）。
+
 1. 開檔編輯中，到術語庫頁修改某術語譯文 → 回編輯器點同句段，右欄與原文提示**立即**更新。
 2. 術語庫頁刪除術語 → 右欄該列與原文底線消失。
 3. **團隊版**：右欄選 writeTb 術語 → footer 底列 **編輯** → 跳出 Modal；主控台**無** SyntaxError。
 4. **團隊版**：點 **刪除** → 確認對話框。
 5. 游標移上 **隱藏** 按鈕（含 `?`）→ 黑色無延遲 tooltip。
 6. 線上擷取 TB、唯讀模式：無編輯／刪除；隱藏仍可用。
+
+## 開發與驗收時序（本對話脈絡）
+
+本節記錄 2026-06 末同一對話內，由 TB 比對 UI 微調一路至 footer 熱修驗收之完整歷程。右欄合併／隱藏等前置規格見 [`CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md`](CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md)。
+
+| 階段 | commit | 內容 | 驗收 |
+|------|--------|------|------|
+| 1 | `6261102` | 右欄合併列「N 筆命中」、移除黃底附加列；footer 精確比對改圈問號 `?` tooltip | 通過 |
+| 2 | `bf5beaa` | `rebuildActiveTbTermsFromProject`／`refreshEditorTbUiAfterTermsChange`；術語庫頁改刪後編輯器即時更新；footer 初版「編輯術語／刪除此術語／將此術語隱藏」 | 通過（本機／一般路徑） |
+| 3 | — | **團隊版回報**：點 footer 編輯／刪除無反應；主控台 `SyntaxError: Invalid or unexpected token` | 待修 |
+| 4 | `22ba4b1` | 根因：inline `onclick` 內 UUID `tbId` 未加引號；改 `data-tb-id` + `#liveFooterContent` 事件委派；底列並排 **編輯／刪除／隱藏 ?**；線上 TB toast 提示 | 推送 |
+| 5 | `2a3ef92` | 文件補 commit 編號 | — |
+| 6 | — | **團隊版驗收**：編輯開 Modal、刪除出確認框、隱藏 tooltip、主控台無 SyntaxError | **通過** |
+
+### 對話內決策與備註
+
+- **permission 誤命中 Sion**：屬術語比對規則（建議對該條開啟精確比對 `wholeWord: true`），非 footer UI 缺陷。
+- **Card／card 誤壓制**（`1304299`）：子字串壓制須嚴格區分大小寫，與本 footer 熱修無關但同對話前期已修。
+- **隱藏**按鈕不受 UUID 問題影響（原即無參數 `onclick`），熱修後與編輯／刪除併入同一底列。
 
 ## 維護邊界
 

@@ -1,7 +1,7 @@
 # CAT 右欄 TB 比對：子字串壓制、合併、隱藏與復原
 
 **日期**：2026-06  
-**狀態**：已驗收（`6261102` 起含 UI 微調；即時同步與編輯器內改刪見 [`CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md`](CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md)）  
+**狀態**：已驗收（`6261102` 起含 UI 微調；即時同步、footer 底列編輯／刪除／隱藏與團隊版 UUID 熱修 `22ba4b1` 亦已驗收 — 見 [`CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md`](CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md)）  
 **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)
 
 ## 背景
@@ -87,7 +87,7 @@ ActiveTbTerms → AI 批次（可選過濾）
 1. `Base→基地` 與 `Base→根據`：右欄兩列。
 2. 兩個 TB 皆 `Base→基地`：一列；分數欄顯示「2 筆命中」；footer 各 TB 名只出現一次。
 3. `Mark Anthony` 壓制 `Anthony`／`Ant`；句尾獨立 `ant` 不壓制。
-4. 點「將此術語隱藏」：右欄與原文提示消失；QA 仍報「術語未套用」。
+4. 點 footer 底列 **隱藏**（或舊版「將此術語隱藏」）：右欄與原文提示消失；QA 仍報「術語未套用」。
 5. 「已隱藏的術語 (1)」開 Modal；取消勾選後比對恢復。
 6. 無隱藏時按鈕反灰。
 7. AI 批次預設含隱藏術語；取消勾選後 prompt 不含。
@@ -106,7 +106,7 @@ ActiveTbTerms → AI 批次（可選過濾）
 | `1304299` | **除錯**：Card/card 誤壓制 — 壓制須嚴格區分大小寫子字串 |
 | `6261102` | UI：「N 筆命中」堆疊於 TB、精確比對圈問號 tooltip — **使用者驗收通過** |
 | `bf5beaa` | 術語改刪即時同步、`ActiveTbTerms` rebuild、footer 編輯／刪除初版 |
-| `22ba4b1` | **熱修**：團隊版 UUID `onclick` SyntaxError → footer 事件委派 + 底列 **編輯／刪除／隱藏** |
+| `22ba4b1` | **熱修**：團隊版 UUID `onclick` SyntaxError → footer 事件委派 + 底列 **編輯／刪除／隱藏** — **2026-06-29 團隊版驗收通過** |
 
 ### 6.1 除錯紀錄：Card／card 誤壓制
 
@@ -118,8 +118,9 @@ ActiveTbTerms → AI 批次（可選過濾）
 ### 6.2 除錯紀錄：團隊版 footer 編輯／刪除 SyntaxError
 
 - **症狀**：團隊版點編輯／刪除無反應；主控台 `SyntaxError: Invalid or unexpected token`。
-- **根因**：inline `onclick` 內 UUID `tbId` 未加引號。
-- **修正**：`data-tb-id` + `#liveFooterContent` 點擊委派；詳見 [`CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md`](CAT_TB_EDITOR_LIVE_SYNC_PLAN_2026-06.md) §除錯紀錄。
+- **根因**：inline `onclick` 內 UUID `tbId` 未加引號（本機 Dexie 數字 ID 不易重現）。
+- **修正**：`data-tb-id` + `#liveFooterContent` 點擊委派；底列文案改 **編輯／刪除／隱藏** 並排；隱藏按鈕整顆掛 `data-tip`（`22ba4b1`）。
+- **驗收**（2026-06-29，團隊版）：點編輯開 Modal、點刪除出確認框、隱藏 tooltip 正常、主控台無 SyntaxError；詳見 live sync 規劃檔 §開發與驗收時序。
 
 ## 維護邊界
 
