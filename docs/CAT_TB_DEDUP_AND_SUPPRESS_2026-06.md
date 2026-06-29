@@ -106,7 +106,7 @@ ActiveTbTerms → AI 批次（可選過濾）
 | `1304299` | **除錯**：Card/card 誤壓制 — 壓制須嚴格區分大小寫子字串 |
 | `6261102` | UI：「N 筆命中」堆疊於 TB、精確比對圈問號 tooltip — **使用者驗收通過** |
 | `bf5beaa` | 術語改刪即時同步、`ActiveTbTerms` rebuild、footer 編輯／刪除初版 |
-| （待填） | **熱修**：團隊版 UUID `onclick` SyntaxError → footer 事件委派 + 底列 **編輯／刪除／隱藏** |
+| `22ba4b1` | **熱修**：團隊版 UUID `onclick` SyntaxError → footer 事件委派 + 底列 **編輯／刪除／隱藏** |
 
 ### 6.1 除錯紀錄：Card／card 誤壓制
 
