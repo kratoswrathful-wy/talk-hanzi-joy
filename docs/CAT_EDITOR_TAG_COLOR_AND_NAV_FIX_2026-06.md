@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3i 已實作，待驗收**（2026-06-29；2.3h `ffe459d` 項 2 通過、3／4／5 未通過 → 2.3i 離窗不硬抓焦點／篩選置中／字數 memoQ 預翻）
+> **狀態**：**Phase 2.3j 已實作，待驗收**（2026-06-29；2.3i `e17ff35` 項 2／4 通過、1／3 未通過＋新問題 5 → 2.3j 浮層死結／導覽錨點保護／篩選置中與聚焦分流）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
@@ -48,8 +48,11 @@
 18. **進篩選模式置中（2.3f 未通過，2.3g 目標）**：切換至篩選模式 → 以假游標句**置中**顯示。
 19. **假游標 tip 顯示（2.3h 目標）**：編輯句 A → 點 TM → 捲到遠處 → tip 卡片在編輯區**頂或底**可見、位置正確。
 20. **自由捲動不拉回（2.3g 目標，2.3h regression）**：編輯中滾輪捲離 → **不**被拉回暫存句；Ctrl+G 後手動捲動亦不被錨點拉回。
-21. **確認後不掉焦（2.3h）**：大檔 **Ctrl+Enter** 確認跳行 → 新句**停留可打字超過 3 秒**（resize 重畫不掉焦）。
-22. **真游標離屏 tip（2.3h）**：譯文格內編輯 → 捲離 → 「游標在第 N 句」卡片在編輯區**頂或底**、位置正確。
+21. **確認後不掉焦（2.3h，2.3i 通過）**：大檔 **Ctrl+Enter** 確認跳行 → 新句**停留可打字超過 3 秒**（resize 重畫不掉焦）。
+22. **真游標離屏 tip（2.3h／2.3i 未通過 → 2.3j 目標）**：譯文格內編輯 → 捲離 → 「游標在第 N 句」卡片在編輯區**頂或底**、位置正確。
+23. **假游標／提示卡會繪製（2.3j 目標，問題 1）**：大檔編輯某句後失焦或捲遠 → 看得到藍色假游標或頂／底提示卡（浮層死結解除）。
+24. **確認跳行畫面跟捲（2.3j 目標，問題 3）**：第一行 **Ctrl+Enter** 跳至首個未確認句（如 1482）→ 畫面**穩定捲到並置中**該句（連續多次皆然，不再「假游標到了、畫面沒到」）。
+25. **Ctrl+F 進篩選焦點留取代欄（2.3j 目標，問題 5）**：編輯區選字、連按兩次 **Ctrl+F** → 進篩選模式、焦點**停在取代欄**、畫面以原編輯句置中（焦點不被搶回編輯區）。
 
 **2.3b regression（2.3d～2.3h 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效；**Ctrl+Alt+↓ 一次**還原可打字。
 
@@ -247,6 +250,24 @@
 | 假游標 | `refreshAfterVirtRender`／`show`：未掛載列一律 `showOffScreenFakeTip`（`resolveOffScreenTipAbove` 貼頂／底） |
 | 篩選置中 | `didRebuildFilterSnapshot` 時一律 `resolveFilterScrollAnchor()`；編輯句在清單內 → `'center'`；被篩掉 → 第一可見句 `'start'`（置頂） |
 
+### 2.13 Phase 2.3j — 浮層死結／導覽錨點保護／篩選聚焦分流（2026-06-29）
+
+**2.3i 產品驗收**（`e17ff35`）：項 2／4 通過；項 1（假游標／提示卡完全不繪製）、項 3（確認跳行畫面不跟捲）未通過；另發現**新問題 5**（Ctrl+F 進篩選後焦點被搶回編輯區）。
+
+**根因**：
+
+1. **浮層死結（問題 1）**：`show`／`showOffScreenFakeTip`／`showRealCaretTipIfNeeded`／`refreshAfterVirtRender` 首行 `if (!syncChromeLayerRect()) return;`，而 `syncChromeLayerRect` 在浮層不存在時直接回 `false`；唯一建立浮層的 `ensureEditorChromeLayer` 只在這道關卡之後被呼叫 → `#catEditorChromeLayer` 永遠不被建立、每次繪製都放棄（自 2.3h）。
+2. **導覽錨點被覆蓋（問題 3）**：`scrollToSegId` 延遲套用捲動；新掛載列被 `ResizeObserver` 量到真高 → `scheduleResizeRepaint` 以 `inferAnchorFromDom`（目前 DOM 最接近頂端列）重設 `_anchorSegId`，覆蓋導覽目標。重繪先於延遲捲動落定時，重錨頂端、畫面留原處（間歇）。
+3. **置中與聚焦未分流（問題 5）**：2.3i 為問題 4 移除 `!isSfSearchControlActive()` 守衛後，`flushFilterAnchorAfterVirtRender` 連焦點在取代欄時也 `scheduleEditorFocus` 把焦點搬回編輯區。
+
+**修正**：
+
+| 項目 | 作法 |
+|------|------|
+| 浮層死結 | `syncChromeLayerRect` 缺浮層時就地 `ensureEditorChromeLayer()`；`ensureEditorChromeLayer` 移除結尾自呼叫 `syncChromeLayerRect()`（避免遞迴） |
+| 導覽錨點保護 | 新增 `_navAnchorLock`；`scrollToSegId` 設鎖；鎖定期 `scheduleResizeRepaint` 不 `inferAnchorFromDom`，改 `renderWindow(_anchorSegId, _navAnchorBlock)` 重新置中；使用者捲動或短逾時（約 200ms）解鎖；**不**綁 `releaseNavigationAnchor` |
+| 篩選聚焦分流 | `_filterAnchorPending.focusEditor = !isSfSearchControlActive()`；`flushFilterAnchorAfterVirtRender` 一律 `scrollToSegId(center)`，僅 `focusEditor` 為真才 `scheduleEditorFocus` |
+
 ---
 
 ## §3 產品端驗收紀錄（2026-06）
@@ -329,7 +350,17 @@
 | 3／5 | 捲動後提示卡不顯示 | 離窗句段被 preserve 硬抓回焦點／掛載，離屏判斷失效 |
 | 4 | 篩選進出亂跳 | `isSfSearchControlActive()` 擋住篩選快照重建時的置中錨點 |
 
-**2.3i 狀態**：**已實作，待驗收**（項 3～5、21～22 regression；篩選被篩掉時置頂）。
+**2.3i 狀態**：**已推送 `e17ff35`，部分驗收通過**（項 2／4 通過；1／3 未通過＋新問題 5；見 §3.9）。
+
+### 3.9 Phase 2.3i 部分驗收 → 2.3j 修正目標（2026-06-29）
+
+| # | 現象 | 根因（一句） |
+|---|------|-------------|
+| 1 | 假游標／提示卡完全不繪製 | `#catEditorChromeLayer` 浮層死結：建立動作排在 `syncChromeLayerRect` 關卡之後，永遠建不出來（自 2.3h） |
+| 3 | 確認跳行假游標到、畫面沒到（間歇） | 延遲置中捲動落定前，resize 重繪 `inferAnchorFromDom` 覆蓋導覽錨點 |
+| 5（新） | Ctrl+F 進篩選焦點被搶回編輯區 | 2.3i 移除 `!isSfSearchControlActive()` 守衛後，篩選 flush 連焦點在取代欄也 `scheduleEditorFocus` |
+
+**2.3j 狀態**：**已實作，待驗收**（驗收項 §1.3 之 23～25 + 回歸 2／4）。
 
 ---
 
@@ -345,4 +376,5 @@
 | 2026-06-29 | Phase 2.3f：雙軌 preserve、單次 center、pending gen、onAfterRender 順序；**已推送 `927ceec`，部分驗收未通過** |
 | 2026-06-29 | Phase 2.3g：篩選兩段式置中、`suspendEditingPreserve`、錨點釋放、Ctrl+Alt+↓ 強制 center；**已推送 `e84f06d`，產品驗收未通過** |
 | 2026-06-29 | Phase 2.3h：疊層 fixed 化、移除 suspend、焦點遺失才還原 preserve；**已推送 `ffe459d`，部分驗收通過** |
-| 2026-06-29 | Phase 2.3i：離窗不硬抓焦點、篩選置中／被篩掉置頂；字數 memoQ 預翻 `max(TM%,rate%)`；**已實作，待驗收** |
+| 2026-06-29 | Phase 2.3i：離窗不硬抓焦點、篩選置中／被篩掉置頂；字數 memoQ 預翻 `max(TM%,rate%)`；**已推送 `e17ff35`，部分驗收通過** |
+| 2026-06-29 | Phase 2.3j：浮層死結就地建立、導覽錨點保護、篩選置中與聚焦分流；**已實作，待驗收** |

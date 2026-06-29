@@ -27,6 +27,10 @@
     let _restoreFromAnchor = false;
     let _lastStartIdx = -1;
     let _lastEndIdx = -1;
+    let _navAnchorLock = false;
+    let _navAnchorBlock = 'center';
+    let _navAnchorLockTimer = null;
+    const NAV_ANCHOR_LOCK_MS = 200;
 
     function shouldUse(segmentCount) {
         return segmentCount > THRESHOLD;
@@ -84,6 +88,24 @@
         const ai = list.findIndex((s) => String(s.id) === String(segId));
         if (ai < 0) return 0;
         return Math.max(0, sumRange(list, 0, ai) - (offsetPx || 0));
+    }
+
+    function releaseNavAnchorLock() {
+        _navAnchorLock = false;
+        if (_navAnchorLockTimer) {
+            clearTimeout(_navAnchorLockTimer);
+            _navAnchorLockTimer = null;
+        }
+    }
+
+    function armNavAnchorLock(block) {
+        _navAnchorLock = true;
+        _navAnchorBlock = block === 'center' ? 'center' : 'start';
+        if (_navAnchorLockTimer) clearTimeout(_navAnchorLockTimer);
+        _navAnchorLockTimer = setTimeout(() => {
+            _navAnchorLockTimer = null;
+            _navAnchorLock = false;
+        }, NAV_ANCHOR_LOCK_MS);
     }
 
     function inferAnchorFromDom(list) {
@@ -172,6 +194,11 @@
             const list = getRenderableList();
             const scrollEl = cfg && cfg.scrollEl;
             if (!list.length || !scrollEl) return;
+            if (_navAnchorLock && _anchorSegId) {
+                _restoreFromAnchor = false;
+                renderWindow(_anchorSegId, _navAnchorBlock);
+                return;
+            }
             const savedScrollTop = scrollEl.scrollTop;
             const startIdx = scrollTopToStartIdx(list, savedScrollTop);
             const endIdx = Math.min(list.length, startIdx + WINDOW + BUFFER * 2);
@@ -331,6 +358,7 @@
     function onScroll() {
         if (!enabled || _suppressScroll || _rendering) return;
         if (typeof cfg.onUserScroll === 'function') cfg.onUserScroll();
+        releaseNavAnchorLock();
         if (scrollRaf) cancelAnimationFrame(scrollRaf);
         scrollRaf = requestAnimationFrame(() => {
             scrollRaf = null;
@@ -359,6 +387,8 @@
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
+        releaseNavAnchorLock();
+        _navAnchorBlock = 'center';
         ensureSpacers();
         if (!resizeObserver) {
             resizeObserver = new ResizeObserver(onResizeEntries);
@@ -385,6 +415,8 @@
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
+        releaseNavAnchorLock();
+        _navAnchorBlock = 'center';
         if (scrollDebounceTimer) {
             clearTimeout(scrollDebounceTimer);
             scrollDebounceTimer = null;
@@ -418,6 +450,7 @@
         const list = getRenderableList();
         const idx = list.findIndex((s) => String(s.id) === String(segId));
         if (idx < 0) return null;
+        armNavAnchorLock(block);
         _anchorSegId = String(segId);
         _anchorOffsetPx = 0;
         _restoreFromAnchor = false;
@@ -479,6 +512,8 @@
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
+        releaseNavAnchorLock();
+        _navAnchorBlock = 'center';
         const list = getRenderableList();
         let passAnchor = anchorSegId;
         if (passAnchor != null && passAnchor !== '') {

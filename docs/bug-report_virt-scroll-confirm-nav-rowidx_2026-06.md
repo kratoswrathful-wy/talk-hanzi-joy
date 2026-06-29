@@ -147,3 +147,22 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 **根因**：preserve 對已捲出視窗句段仍 `applyEditorFocusAtSegId`；篩選重建快照時 `isSfSearchControlActive()` 跳過置中錨點。
 
 **修正**：未掛載列不還原焦點、改 `refreshAfterVirtRender` 離屏 tip；`didRebuildFilterSnapshot` 一律錨定編輯句（被篩掉則置頂）。詳見 §2.12。
+
+### 6.7 Phase 2.3j — 導覽錨點保護、篩選聚焦分流、浮層死結（2026-06-29）
+
+**症狀**（2.3i `e17ff35` 後）：
+1. 假游標／提示卡完全不繪製（問題 1）。
+2. 確認跳行假游標到、畫面沒到（間歇，問題 3）。
+3. Ctrl+F 進篩選焦點被搶回編輯區（新問題 5）。
+
+**根因**：
+1. `#catEditorChromeLayer` 浮層死結（建立排在 `syncChromeLayerRect` 關卡之後）。
+2. 延遲置中捲動落定前，`scheduleResizeRepaint` 的 `inferAnchorFromDom` 覆蓋 `scrollToSegId` 設的導覽錨點。
+3. 2.3i 移除 `!isSfSearchControlActive()` 守衛後，`flushFilterAnchorAfterVirtRender` 連焦點在取代欄也 `scheduleEditorFocus`。
+
+**修正**：
+- 浮層：`syncChromeLayerRect` 缺浮層就地 `ensureEditorChromeLayer`；後者移除自呼叫避免遞迴。
+- 導覽錨點：新增 `_navAnchorLock`，鎖定期 resize 重繪改 `renderWindow(_anchorSegId, block)` 重新置中、不 `inferAnchorFromDom`；使用者捲動或短逾時解鎖，不綁 `releaseNavigationAnchor`。
+- 篩選：`_filterAnchorPending.focusEditor = !isSfSearchControlActive()`；flush 一律置中，僅 `focusEditor` 時才聚焦編輯句。
+
+詳見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §2.13。

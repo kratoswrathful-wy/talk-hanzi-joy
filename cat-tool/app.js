@@ -19663,6 +19663,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     plainOffset: resolved.plainOffset,
                     phase: 'invalidate',
                     gen: _filterAnchorGen,
+                    focusEditor: !isSfSearchControlActive(),
                 };
             } else {
                 _filterAnchorPending = null;
@@ -21212,19 +21213,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (p.phase === 'invalidate') {
             const segId = p.segId;
             const plainOffset = p.plainOffset;
+            const focusEditor = !!p.focusEditor;
             _filterAnchorPending = null;
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 if (window.CatVirtGrid && typeof window.CatVirtGrid.scrollToSegId === 'function') {
                     window.CatVirtGrid.scrollToSegId(segId, 'center');
                 }
-                scheduleEditorFocus({
-                    segId,
-                    plainOffset,
-                    restoreCaret: plainOffset != null,
-                    scrollBehavior: 'auto',
-                    scrollBlock: 'center',
-                    skipVirtScroll: true,
-                });
+                if (focusEditor) {
+                    scheduleEditorFocus({
+                        segId,
+                        plainOffset,
+                        restoreCaret: plainOffset != null,
+                        scrollBehavior: 'auto',
+                        scrollBlock: 'center',
+                        skipVirtScroll: true,
+                    });
+                }
                 releaseVirtNavigationAnchor();
             }));
         }

@@ -56,7 +56,8 @@
 
         /** Phase 2.3h：以 editorGrid 視窗矩形同步 fixed 覆蓋層。 */
         function syncChromeLayerRect() {
-            const layer = document.getElementById('catEditorChromeLayer');
+            let layer = document.getElementById('catEditorChromeLayer');
+            if (!layer) layer = ensureEditorChromeLayer();
             if (!layer) return false;
             if (!isEditorGridVisible()) {
                 layer.style.display = 'none';
@@ -115,7 +116,6 @@
                 document.body.appendChild(layer);
                 observeEditorGridResize();
             }
-            syncChromeLayerRect();
             return layer;
         }
 
