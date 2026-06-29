@@ -1,7 +1,7 @@
 /**
  * CAT 內嵌編輯器：暫存游標（假游標）記錄、捲動提示、還原焦點。
  * 假游標／提示掛載於 #editorGrid 內 #catEditorChromeLayer（見 docs/CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md）。
- * Phase 2.3：segId + plainOffset 持久化，virt 重畫後 resolve 編輯格（見 docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md）。
+ * Phase 2.3：segId + plainOffset 持久化；Phase 2.3b：被動 show 不 scrollToSegId（見 docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md）。
  */
 (function (global) {
     'use strict';
@@ -13,7 +13,7 @@
      * @property {(editorEl: HTMLElement) => *} getEditorSegId
      * @property {(editor: HTMLElement) => number|null} [getPlainCaretOffset]
      * @property {(editor: HTMLElement, offset: number) => Range|null} [buildRangeAtPlainOffset]
-     * @property {(segId: *) => { row: HTMLElement|null, editor: HTMLElement|null }} [ensureEditorMountedForSegId]
+     * @property {(segId: *, opts?: { scroll?: boolean }) => { row: HTMLElement|null, editor: HTMLElement|null }} [ensureEditorMountedForSegId]
      */
 
     /**
@@ -124,10 +124,11 @@
             }
         }
 
-        function findRowAndEditorForSegId(segId) {
+        /** @param {{ scroll?: boolean }} [opts] scroll 預設 true（使用者導覽）；false 為被動重畫。 */
+        function findRowAndEditorForSegId(segId, opts) {
             if (segId == null || segId === '') return { row: null, editor: null };
             if (ensureEditorMountedForSegId) {
-                return ensureEditorMountedForSegId(segId);
+                return ensureEditorMountedForSegId(segId, opts);
             }
             const row = document.querySelector(`.grid-data-row[data-seg-id="${CSS.escape(String(segId))}"]`);
             if (!row) return { row: null, editor: null };
@@ -166,16 +167,33 @@
             if (r) saved.range = r;
         }
 
-        function resolveSavedEditor() {
+        /** @param {{ scroll?: boolean }} [opts] */
+        function resolveSavedEditor(opts) {
             if (!saved || saved.segId == null) return { row: null, editor: null };
-            const { row, editor } = findRowAndEditorForSegId(saved.segId);
+            const { row, editor } = findRowAndEditorForSegId(saved.segId, opts);
             if (editor) syncSavedEditorRef(editor);
             return { row, editor };
         }
 
+        function showOffScreenFakeTip(outAbove) {
+            const gridRect = getEditorGridRect();
+            if (!gridRect || saved.segId == null) return;
+            const segNum = getSegDisplayIndex(saved.segId);
+            const mark = ensureFakeEl();
+            const tip = ensureFakeTipEl();
+            mark.classList.add('hidden');
+            tip.textContent = `暫存游標位於第 ${segNum} 號句段（點此或按 Ctrl+Alt+↓ 捲至該列）`;
+            tip.classList.remove('hidden');
+            tip.style.pointerEvents = 'auto';
+            bindFakeTipNavigation(tip);
+            const colTarget = document.querySelector('.col-target');
+            const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
+            positionScrollTipInLayer(tip, anchorLeft, gridRect, outAbove !== false);
+        }
+
         /** 真／假游標提示共用：捲至句段列、聚焦譯文格、還原暫存 Range（若有）。 */
         function navigateToSegmentBySegId(segId) {
-            const { row, editor } = findRowAndEditorForSegId(segId);
+            const { row, editor } = findRowAndEditorForSegId(segId, { scroll: true });
             if (!editor) return false;
 
             const active = document.activeElement;
@@ -296,8 +314,12 @@
 
         function show() {
             if (!saved || saved.segId == null) return;
-            const { editor } = resolveSavedEditor();
-            if (!editor || editor.contentEditable === 'false') return;
+            const passiveOpts = { scroll: false };
+            const { editor } = resolveSavedEditor(passiveOpts);
+            if (!editor || editor.contentEditable === 'false') {
+                showOffScreenFakeTip(true);
+                return;
+            }
             if (document.activeElement === editor) {
                 hide();
                 return;
@@ -375,7 +397,7 @@
 
         function restore() {
             if (!saved || saved.segId == null) return null;
-            const { row, editor } = resolveSavedEditor();
+            const { row, editor } = resolveSavedEditor({ scroll: true });
             if (!editor || editor.contentEditable === 'false') return null;
             if (row && typeof row.scrollIntoView === 'function') {
                 try {
@@ -447,7 +469,7 @@
         function refreshAfterVirtRender() {
             if (!saved || saved.segId == null) return;
             const active = document.activeElement;
-            const { editor } = resolveSavedEditor();
+            const { editor } = resolveSavedEditor({ scroll: false });
             if (editor && active === editor) {
                 hide();
                 return;

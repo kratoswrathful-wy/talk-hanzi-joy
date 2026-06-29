@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**已實作，待驗收**（2026-06-29）  
+> **狀態**：**Phase 2.3b 已實作，待驗收**（2026-06-29；`0670242` Phase 2.3 + 2.3b scroll 競態修正）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
@@ -33,6 +33,8 @@
 3. **清除篩選**：篩選中編輯句 800+ → 清除篩選 → 畫面停該句（非第一行）。
 4. **確認跳行**：設定「下一個尚未確認」+「置中」→ **Ctrl+Enter** → 焦點進下一句譯文格、畫面置中；後方全已確認 → toast、焦點不憑空消失。
 5. **小檔 ≤800**：3、4 regression。
+6. **自由捲動（2.3b）**：大檔往下捲 800+ → **不**持續跳回第一行；有暫存假游標時仍可自由捲動（僅顯示提示，不強制拉回暫存句）。
+7. **Ctrl+G + 假游標（2.3b）**：句 A 編輯 → 點 TM 產生暫存游標 → **Ctrl+G** 跳 838 → 畫面到 838、焦點進譯文格。
 
 ### 1.4 已知邊界
 
@@ -58,6 +60,19 @@
 
 **修正**：`cat-fake-caret.js` 存 `segId` + `plainOffset`；`ensureEditorMounted(segId)` + `buildCollapsedRangeAtPlainTextOffsetUsingSegments` 重建；`CatVirtGrid.onAfterRender` 刷新 `show()`。
 
+#### 2.2b Phase 2.3b 回歸 — 假游標 scroll 競態（`0670242` 後）
+
+**症狀**：Phase 2.3 部署後 — 往下捲被**持續拉回第一行**；**Ctrl+G** 838 像沒反應。
+
+**根因**：被動路徑 `show()`／`refreshAfterVirtRender()` 綁在每次 scroll + virt `onAfterRender`，內部 `resolveSavedEditor()` 無條件 `scrollToSegId(暫存句)`，與 Phase 2.1「scroll 僅限 app.js 明確導覽」衝突。與 Phase 2.1c「飄回第一行」**同族不同觸點**（見 [`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)）。
+
+**修正（mount 雙模式）**：
+
+| 路徑 | `scrollToSegId` |
+|------|-----------------|
+| `show()`、`refreshAfterVirtRender`、`getSearchNavAnchorCollapsed` | **否** — `queryEditorForSegId` 或 `{ scroll: false }` |
+| `restore()`、`navigateToSegmentBySegId`、Ctrl+Alt+↓、Ctrl+G | **是** — `{ scroll: true }` 或 `focusTargetEditorAtSegmentIndex` |
+
 ### 2.3 清除篩選跳位（C）
 
 **根因**：`btnSfClearNav` 用 `rows[全檔索引]`；`runSearchAndFilter` 在 focus 後 `invalidateHeights()` 重設 scrollTop。
@@ -80,4 +95,5 @@
 
 | 日期 | 事項 |
 |------|------|
-| 2026-06-29 | 規劃定案；實作 A～D；**待產品端驗收** |
+| 2026-06-29 | 規劃定案；實作 A～D（`0670242`）；**待產品端驗收** |
+| 2026-06-29 | Phase 2.3b：假游標被動 show 不得 scrollToSegId；Ctrl+G 走 `focusTargetEditorAtSegmentIndex`；**待驗收** |

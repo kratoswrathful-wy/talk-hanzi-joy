@@ -92,4 +92,4 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 
 **根因（與 51815db 互補）**：virt `focusTargetEditorAtSegmentIndex` 無 scroll／center；假游標綁 DOM；`invalidateHeights` 覆寫捲動；著色 `normalizeXmlForSig` 未略 `id`。
 
-**完整規劃與驗收**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **已實作，待驗收**。
+**完整規劃與驗收**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — Phase 2.3 **`0670242`**；**Phase 2.3b**（假游標 scroll 競態，非 rowIdx）見同檔 §2.2b — **待驗收**。

@@ -19362,7 +19362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (catFakeCaret && catFakeCaret.getSaved) {
             const s = catFakeCaret.getSaved();
             if (s && s.segId != null) {
-                const { editor } = ensureEditorMountedForFakeCaretSegId(s.segId);
+                const { editor } = queryEditorForSegId(s.segId);
                 if (editor && document.body.contains(editor) && s.range) return fromRange(s.range);
             }
         }
@@ -20847,13 +20847,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         return focusTargetEditorAtSegmentIndex(idx, scrollBehavior);
     }
 
-    function ensureEditorMountedForFakeCaretSegId(segId) {
+    /** 被動查詢：僅已掛載列，virt 下不 scrollToSegId（假游標 show／F3 錨點）。 */
+    function queryEditorForSegId(segId) {
+        if (segId == null || segId === '') return { row: null, editor: null };
+        const row = getGridRowBySegId(segId, false);
+        if (!row) return { row: null, editor: null };
+        const editor = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
+        if (!editor || editor.contentEditable === 'false') return { row: null, editor: null };
+        return { row, editor };
+    }
+
+    /** @param {{ scroll?: boolean }} [opts] scroll 預設 true；false 時不 scrollToSegId（Phase 2.3b 被動重畫）。 */
+    function ensureEditorMountedForFakeCaretSegId(segId, opts) {
+        const scroll = !opts || opts.scroll !== false;
         if (segId == null || segId === '') return { row: null, editor: null };
         let row = getGridRowBySegId(segId, false);
-        if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
+        if (!row && scroll && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
             row = window.CatVirtGrid.scrollToSegId(segId);
         }
-        if (!row) row = getGridRowBySegId(segId, true);
+        if (!row && scroll) row = getGridRowBySegId(segId, true);
         if (!row) return { row: null, editor: null };
         const editor = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
         if (!editor || editor.contentEditable === 'false') return { row: null, editor: null };
@@ -25648,22 +25660,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。');
             return;
         }
-        let row = getGridRowBySegId(segId);
-        if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled()) {
-            row = window.CatVirtGrid.scrollToSegId(segId);
-        }
-        if (!row) {
+        const idx = currentSegmentsList.findIndex((s) => String(s.id) === String(segId));
+        if (idx < 0 || !focusTargetEditorAtSegmentIndex(idx, 'auto')) {
             alert('無法跳至該句段（捲動定位失敗），請再試一次或重新整理頁面。');
-            return;
-        }
-        setActiveGridRow(row);
-        const ta = row.querySelector('.grid-textarea');
-        if (ta) {
-            try {
-                ta.focus({ preventScroll: true });
-            } catch (_) {
-                ta.focus();
-            }
         }
     }
 
