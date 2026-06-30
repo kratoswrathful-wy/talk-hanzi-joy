@@ -55,11 +55,11 @@
 - [`docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md) — **Bug #12** mq:rxt `val` 屬性不符（reconcile 短路；**已修並驗收** `2a88a48`）；樣本 `36432` 列 203
 - [`docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md`](docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md) — mqxliff **memoQ 預翻／機翻**（`<mq:insertedmatch>`）右欄比對表第一列、百分比與 `MT /` 分色；開發／驗收紀錄
 - [`docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) — 編輯器**大檔效能**；Phase 1～2.2 首批**已驗收**（主紀錄 §開發與驗收時序）
-- [`docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **Phase 2.3**（`0670242`）+ **2.3b** `694fa81` + **2.3c** `0a073ea`（驗收未通過）+ **2.3d** `42bbd17` + **2.3e** `78818d0`（部分未通過）+ **2.3f** `927ceec`（部分未通過）+ **2.3g** `e84f06d`（未通過）+ **2.3h** `ffe459d`（部分通過）+ **2.3i** `e17ff35`（項 2／4 通過、1／3 未通過＋新問題 5）+ **2.3j** `e147c10`（Ctrl+F／回歸通過、1～8 未通過）+ **2.3k** 大檔捲動穩定 + 個人句段色點；**2.3k 已實作，待驗收** — 色點見 [`CAT_SEGMENT_USER_MARKERS_2026-06.md`](docs/CAT_SEGMENT_USER_MARKERS_2026-06.md)
+- [`docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **Phase 2.3** … + **2.3k** 大檔捲動穩定 + 個人句段色點（`3d6030d`）；**第一輪 AI 驗收部分通過、補測中**（§3.11）— 色點見 [`CAT_SEGMENT_USER_MARKERS_2026-06.md`](docs/CAT_SEGMENT_USER_MARKERS_2026-06.md)
 - [`docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md) — 大檔虛擬捲動 **rowIdx 污染**、確認後不跳行、重複句 DOM；**已修並驗收** `51815db`（Phase 2.3 延伸見上）
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
 - [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）
-- [`docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md`](docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md) — AI 批次 **穩定修正**（備註誤譯 prompt、切批字元含 extra、詢問路徑分批、聚焦漏句 blur；**已實作，待驗收**）
+- [`docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md`](docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md) — AI 批次 **穩定修正**（備註誤譯 prompt、切批字元含 extra、詢問路徑分批、聚焦漏句 blur；`76c6da3` **初輪部分通過、補測中**；來源 `260630 AI 系統修正`）
 - [`docs/CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md`](docs/CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md) — AI 批次 **memoQ 預翻譯併入 TM 參考**（參考門檻候選池、單行、算法計分；**已實作，待驗收**）
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄
@@ -80,7 +80,7 @@
 - [`docs/bug-report_workflow-import-confirmed-status-column_2026-06.md`](docs/bug-report_workflow-import-confirmed-status-column_2026-06.md) — 匯入 XLIFF **已確認 vs 狀態欄**（**B-7e 已實作**；五態互動見 **B-7g**）
 - [`docs/bug-report_import-confirmed-tm-write-progress-overlay_2026-06.md`](docs/bug-report_import-confirmed-tm-write-progress-overlay_2026-06.md) — 匯入確認疊層（**已修並驗收**）、TM 去重（**已修並驗收**）、匯入路徑 `ActiveWriteTms`（**已修並驗收** `c4e4736`）
 - [`docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) — **B-0** 檔序、句段集排序、左欄顯示序、篩選 A、Workflow 列號對齊
-- [`docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md`](docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) — **測試模式（環境隔離）**：執行長專用、身分綁定 `env`（假帳號＝test）、假人團隊專區、CAT 補 env 與 RLS 把關、Slack 測試分流、一鍵重置、頂欄 UI（**已落地 `bfa5cdc`／`d7abef0`；驗收結案**；backlog 見 §13）
+- [`docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md`](docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) — **測試模式（環境隔離）**單一主紀錄：設計 §1–§9、落地 §10、時序／三輪驗收 §11–§12、**權威 backlog §13**、頂欄 UI §14、**開發問題與解法 §15**（已落地 `bfa5cdc`／`d7abef0`；驗收結案）
 - [`docs/LMS_AI_AGENT_BRIDGE_2026-06.md`](docs/LMS_AI_AGENT_BRIDGE_2026-06.md) — **LMS AI 操作切入點**（`window.__lmsAgent`）：案件／費用單腳本讀寫、驗證層、草稿守門、開發／驗收紀錄（**已實作並驗收**；T1–T10 `82644f0`；clientInfo C1–C5 `18fdf0a`）
 - [`docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md) — **Claude 技能書**（`__lmsAgent` 速查）
 - [`docs/bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](docs/bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md) — `fee.update` 部分 `clientInfo` 誤清空營收列（**已修**；`mergeClientInfoPatch`）

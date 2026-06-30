@@ -1,6 +1,8 @@
 # 測試模式（環境隔離）實作規劃 2026-06
 
-> 狀態：**已落地並初步驗收**（commit `bfa5cdc`；2026-06-30）。本文件含設計藍圖、實作觸點、部署與驗收紀錄；選性補測與日後修正見 §13。
+> 狀態：**已落地並驗收結案**（功能 `bfa5cdc`、UI 微調 `d7abef0`；2026-06-30）。本文件為測試模式**單一主紀錄**。
+>
+> **閱讀導覽**：§1–§9 規劃藍圖（§3 為實作前快照）｜§10 落地與取捨｜§11 時序｜§12 三輪驗收｜§13 **權威 backlog**｜§14 頂欄 UI｜§15 問題與解法
 > 語言：台灣正體中文。Shell 為 Windows PowerShell（指令分開呼叫、勿用 `&&`）。
 > 相關常駐規則：[`.cursor/rules/language-zh-tw.mdc`](../.cursor/rules/language-zh-tw.mdc)、[`.cursor/rules/shell-windows.mdc`](../.cursor/rules/shell-windows.mdc)。
 
@@ -41,7 +43,7 @@
 
 ## 3. 現況盤點（實作前的事實基礎，歷史快照）
 
-> **歷史快照**，供對照用；實作後現況見 §10–§13。
+> **歷史快照**，供對照用；實作後現況見 §10–§15。
 
 ### 3.1 角色與身分
 
@@ -171,7 +173,7 @@ flowchart TD
   - Storage：`buildCatOriginalStoragePath` → `{env}/{projectId}/{fileId}/original`；`db.uploadNoteImage` → `{env}/{userId}/…`；同步 `deleteProject` 的路徑收集邏輯。
 - React 直查補 env：[`src/components/case/CatProjectFilePickerModal.tsx`](../src/components/case/CatProjectFilePickerModal.tsx) 等加 `.eq("env", getEnvironment())`。
 - CAT iframe 指派同步：[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx) 的 `sendAssignments` 等直查改經 env 過濾的母層。
-- 改完於專案根目錄執行 `npm run sync:cat`，一併提交 `cat-tool` 與 `public/cat`。
+- 規劃時預期改 `cat-tool/` 後執行 `npm run sync:cat`；**實作後**確認 env 由母層 RPC 強制，**未改** `cat-tool/`，故不需 sync（見 §10 取捨）。
 
 ### 工項四：身分切換入口（執行長專用、限真人）
 
@@ -226,7 +228,7 @@ flowchart TD
 - **既有 localhost 誤寫**：過去在 localhost 建立的 CAT 專案 `env` 可能為 `production`，需評估是否 backfill 為 `test`。
 - **`_env` 模組快取**：切換登入者後務必 `resetEnvironmentCache()` 或整頁 reload。
 - **`settings-persistence` legacy fallback**：新 key 無資料時會讀無前綴舊 key（[`src/stores/settings-persistence.ts`](../src/stores/settings-persistence.ts) 行 54–67），測試模式可能誤讀正式設定，需留意。
-- **CAT 改動後**務必 `npm run sync:cat` 再提交。
+- **CAT 改動後**：若動到 `cat-tool/` 才需 `npm run sync:cat`；本功能僅改 React 母層 RPC，見 §10。
 
 ---
 
@@ -256,10 +258,10 @@ flowchart TD
 | 一 | 環境判定改身分優先、`resetEnvironmentCache()`、`isTestAccount`/`isRealExecutive` | [`src/lib/environment.ts`](../src/lib/environment.ts)、[`src/hooks/use-auth.ts`](../src/hooks/use-auth.ts)、[`src/lib/profile-columns.ts`](../src/lib/profile-columns.ts) |
 | 二 | `profiles.is_test`、`public.current_env()`、`cat_files.env` + backfill + 索引、對有 env 欄的表與 `cat_files` 併入 `env = current_env()` 的 RLS | [`supabase/migrations/20260630120000_test_mode_env_isolation.sql`](../supabase/migrations/20260630120000_test_mode_env_isolation.sql) |
 | 三 | CAT 雲端 RPC 全面補 env（建立帶標籤、列表過濾、`searchLmsCases`、Storage 路徑 env 前綴、一致性檢查），React 直查補 env | [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)、[`src/components/case/CatProjectFilePickerModal.tsx`](../src/components/case/CatProjectFilePickerModal.tsx) |
-| 四 | 測試模式面板（真人執行長入口 / 假人切換 / 離開）、常駐警示條、`dev-switch-user` 加呼叫者授權 | [`src/components/DevRoleSwitcher.tsx`](../src/components/DevRoleSwitcher.tsx)、[`src/components/AppLayout.tsx`](../src/components/AppLayout.tsx)、[`supabase/functions/dev-switch-user/index.ts`](../supabase/functions/dev-switch-user/index.ts)、[`supabase/config.toml`](../supabase/config.toml) |
+| 四 | 測試模式控制項（真人執行長入口 / 假人切換 / 離開）、常駐警示條、`dev-switch-user` 加呼叫者授權；**`d7abef0` 起內嵌頂欄**（見 §14） | [`src/components/DevRoleSwitcher.tsx`](../src/components/DevRoleSwitcher.tsx)、[`src/components/AppLayout.tsx`](../src/components/AppLayout.tsx)、[`supabase/functions/dev-switch-user/index.ts`](../supabase/functions/dev-switch-user/index.ts)、[`supabase/config.toml`](../supabase/config.toml) |
 | 五 | 團隊成員頁假人專區（僅真人執行長可見）、`create-user` 加授權與 `is_test` 標記 + 直接指派角色 | [`src/pages/MembersPage.tsx`](../src/pages/MembersPage.tsx)、[`supabase/functions/create-user/index.ts`](../supabase/functions/create-user/index.ts) |
 | 六 | Slack 測試分流：前端帶 `env`，函式於 `env='test'` 時加 `[測試]` 前綴 | [`supabase/functions/slack-send-dm/index.ts`](../supabase/functions/slack-send-dm/index.ts)、`InquirySlackDialog`／`NoteReminderSlackDialog`／`slack-case-reply-notify.ts`／`cat-cloud-rpc.ts` |
-| 七 | 重置測試環境 Edge Function（僅真人執行長、僅刪 `env='test'`、含 Storage、可選種子）+ 雙重確認按鈕 | [`supabase/functions/reset-test-env/index.ts`](../supabase/functions/reset-test-env/index.ts)、[`src/pages/MembersPage.tsx`](../src/pages/MembersPage.tsx) |
+| 七 | 重置測試環境 Edge Function（僅真人執行長、僅刪 `env='test'`、含 Storage、可選種子）+ 雙重確認按鈕；**種子實作範圍縮減**見下 | [`supabase/functions/reset-test-env/index.ts`](../supabase/functions/reset-test-env/index.ts)、[`src/pages/MembersPage.tsx`](../src/pages/MembersPage.tsx) |
 
 ### 實作取捨（與原規劃的差異）
 
@@ -267,17 +269,20 @@ flowchart TD
 - **免密碼返回本人**：採「進入測試模式前先為自己預先取得一張 magic-link 返回票（存 `sessionStorage`，關閉分頁即失效）」。`dev-switch-user` 後端僅允許「切到自己」或「切到 `@test.local`」，因此假帳號無法藉切換跳進任何真人帳號。返回票逾時則退回登入頁。
 - **CAT 內嵌前端（`cat-tool/`）未改動**：所有雲端讀寫都經由母層 `handleCatCloudRpc` 強制 env，iframe 無需傳 env，故**不需** `npm run sync:cat`。
 - **型別**：`profiles.is_test`、`cat_files.env` 尚未進 generated types，少數直查以 `as any` 規避 TS「型別過深」（與既有慣例一致）。
+- **種子資料範圍**：§2 決策為「案件、費用、CAT 專案＋檔案」；實作僅在 `reset-test-env` 可選插入 **2 筆 LMS 示範案件**，無 CAT／費用種子 → 見 §13 **FIX-9**。
 
 ### 部署紀錄（2026-06-30 已完成）
 
 | 項目 | 狀態 |
 | --- | --- |
-| Git | `bfa5cdc` on `main` |
+| Git 功能 | `bfa5cdc` on `main` |
+| Git 文件 | `6a7ac00`（§11–§13 初版驗收紀錄） |
+| Git UI | `d7abef0`（頂欄控制項） |
 | Vercel production | READY（Claude 驗收第一輪確認） |
 | Migration | `20260630120000_test_mode_env_isolation.sql` 已 `supabase db push` |
 | Edge Functions | `dev-switch-user`、`create-user`、`reset-test-env`、`slack-send-dm` 已部署 |
 
-**首次使用**：由真人執行長在「團隊成員 → 測試成員（假人）」新增 `test-exec@test.local`（角色：執行長）等假人，即可由頂端面板「進入測試模式」。
+**首次使用**：由真人執行長在「團隊成員 → 測試成員（假人）」新增 `test-exec@test.local`（角色：執行長）等假人，即可由頂欄「進入測試模式」。
 
 ---
 
@@ -290,17 +295,27 @@ flowchart LR
   deploy --> round1["Slack 驗收 第一輪"]
   round1 --> round2["Slack 驗收 第二輪 R1–R4"]
   round2 --> docClose["文件結案 §12"]
+  docClose --> round3["Slack 驗收 第三輪 C/OPT"]
+  round3 --> uiFix["頂欄 UI d7abef0"]
+  uiFix --> ownerOk["專案擁有者 UI 驗收通過"]
+  ownerOk --> docFull["文件補全 §12–§15"]
 ```
 
 | 時間 | 事件 |
 | --- | --- |
 | 2026-06-30 早 | 規劃文件初版、七工項實作 |
 | 2026-06-30 | `bfa5cdc` 推送；migration + 4 個 Edge Function 部署 |
-| 2026-06-30 09:59 | Slack `#development` 張貼驗收任務（[thread](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782784797.711929)） |
-| 2026-06-30 12:57 | Claude **第一輪**回報：核心 7/9 PASS；CAT 部分；Slack SKIP |
+| 2026-06-30 09:59 | Slack `#development` 張貼驗收任務（[thread 一～二輪](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782784797.711929)） |
+| 2026-06-30 12:57 | Claude **第一輪**回報：核心 7/9 PASS；CAT 部分；Slack SKIP（§12.4） |
 | 2026-06-30 13:01 | Cursor 回覆第二輪指引（R1–R4） |
-| 2026-06-30 13:31 | Claude **第二輪**回報：R1/R2/R3 PASS；R4 SKIP；附 CAT 變更紀錄小缺口 |
+| 2026-06-30 13:31 | Claude **第二輪**回報：R1/R2/R3 PASS；R4 SKIP；附 FIX-1（§12.5） |
 | 2026-06-30 | 專案擁有者手動移除 08:41 誤建正式區 `[AI驗收]` 草稿（H4 完成） |
+| 2026-06-30 | `6a7ac00` 推送：§11–§13 驗收紀錄與 OPT/FIX backlog 初版 |
+| 2026-06-30 14:35 | Slack 張貼**第三輪**結案確認 + 選性補測（[thread](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782801351711309)） |
+| 2026-06-30 22:28 | Claude **第三輪**回報：C 組 PASS；OPT-1 PASS；OPT-2 FAIL；FIX-1 仍重現（§12.3） |
+| 2026-06-30 | `d7abef0` 推送：測試模式控制項移入頂欄、移除多餘面板列（§14） |
+| 2026-06-30 | 專案擁有者**手動驗收通過**頂欄 UI（CAT 編輯器不再因多一行面板偏移） |
+| 2026-06-30 | 主文件補全：§12.4–§12.5、§13 結構化 backlog、§15 開發紀錄（本 commit） |
 
 ---
 
@@ -315,42 +330,306 @@ flowchart LR
 | §8 項 | 結果 | 證據摘要 |
 | --- | --- | --- |
 | 1 隔離（LMS 案件） | PASS | 進出測試模式互不可見 |
-| 2 假人視角 | PASS（部分） | 假譯者警示條、無管理入口；指派過濾未測（見 §13 OPT-2） |
+| 2 假人視角 | PASS（部分） | 假譯者警示條、無管理入口；**指派過濾 FAIL**（第三輪 OPT-2；見 §12.3、§13 FIX-8） |
 | 3 CAT 隔離 | PASS | R1：專案 `[測試模式驗收] CAT-R1`（UUID `1808d3e2-a022-4d55-a153-5784c72c1e61`）；正式清單不含；直接 URL 導回 |
 | 4 團隊專區／入口 | PASS（部分） | 執行長可見假人專區；Claude 自測 member 無入口；正式 PM 帳未獨立測（見 §13 OPT-3） |
 | 5 重置 | PASS | 重置測試環境不動正式資料 |
-| 6 Slack | 未驗 | 四假人皆未 OAuth → SKIP（見 §13 OPT-1） |
+| 6 Slack | PASS | 第三輪 OPT-1：測試模式 DM 開頭 `[測試]`（第一輪 SKIP 因當時未 OAuth） |
 | 安全 API | PASS | `dev-switch-user` 切真人 email → `403 forbidden` |
 
-**結論**：測試模式**主線功能可上線使用**；Slack 前綴與少數邊角項目不阻擋結案。
+**結論**：測試模式**主線功能可上線使用**；譯者指派過濾與 CAT 變更紀錄等小缺口**不阻擋結案**（見 §13 backlog）。
 
 ### 12.2 驗收中發現、不阻擋上線的小缺口
 
-- **CAT「變更紀錄」未依 env 過濾**：正式環境儀表板／專案頁的 `cat_module_logs`（`db.getModuleLogs`）仍可能顯示測試操作摘要（專案名、操作者、時間；**不含譯文**）。觸點：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) `db.getModuleLogs`、[`cat-tool/app.js`](../cat-tool/app.js) 變更紀錄側欄。日後修正見 §13 FIX-1。
+- **CAT「變更紀錄」未依 env 過濾**（FIX-1）：正式環境儀表板／專案頁的 `cat_module_logs`（`db.getModuleLogs`）仍可能顯示測試操作摘要（專案名、操作者、時間；**不含譯文**）。第三輪 C2 **仍重現**。觸點：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) `db.getModuleLogs`、[`cat-tool/app.js`](../cat-tool/app.js) 變更紀錄側欄。
+- **譯者案件清單未依指派過濾**（FIX-8）：第三輪 OPT-2 **FAIL**——假譯者登入後，案件清單（UI 與 `window.__lmsAgent`）仍回傳全部案件，未只顯示被指派的案。此為 LMS 既有行為缺口，測試模式驗收時才明確暴露。
+
+### 12.3 第三輪驗收明細（2026-06-30 22:28）
+
+Slack thread：[第三輪](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782801351711309)。對照規格 §8、§12、§13。
+
+| 項 | 結果 | 證據摘要 |
+| --- | --- | --- |
+| **C1** 結案複查 §8 第 1、3、5 項 | PASS | 與 §12.1 一致，無新增退化 |
+| **C2** FIX-1 觀察 | 已知狀態 | 正式 CAT「變更紀錄」仍洩漏測試操作摘要；**不判 FAIL** |
+| **OPT-1** Slack `[測試]` 前綴 | PASS | 測試模式觸發 DM 帶前綴（較第一輪 SKIP 已補驗） |
+| **OPT-2** 譯者指派過濾 | **FAIL** | 建案 `[測試模式驗收] OPT-2 指派過濾測試案`（id `69d27121-075a-40cc-a792-4157cbca870c`）指派假譯者後，切 `test-t1` 仍見全部案 |
+| **OPT-3** 正式 PM 視角 | N/A | 需人工帳密 |
+| **OPT-4** 正式譯者視角 | N/A | 需人工帳密 |
+| **安全複查** | 已確認 | 假執行長 `dev-switch-user` 切真人 → `403`，與第二輪 R3 一致 |
+
+**第三輪結案判定**：✅ **維持可結案**（C 組無退化；OPT-2 為選性補測 FAIL，依指引不推翻結案）。可執行項 5 項中 4 項通過／維持預期。
+
+### 12.4 第一輪驗收明細（2026-06-30 12:57）
+
+Slack thread：[一～二輪](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782784797.711929)。Claude 回報 **7/9 PASS**（自訂 TM 編號與 §8 六項並用，見 Cursor 第二輪指引回覆）。
+
+| 類別 | 項 | 結果 | 證據摘要 | 後續 |
+| --- | --- | --- | --- | --- |
+| 部署 | Vercel 含 `bfa5cdc` | PASS | production READY | — |
+| 身分 | 進入／離開測試模式 | PASS | magic link 切換 + reload | — |
+| LMS | §8-1 案件隔離 | PASS | 進出互不可見 | 第三輪 C1 複查 |
+| LMS | §8-5 重置 | PASS | 測試區清空、正式無傷 | 第三輪 C1 複查 |
+| 團隊 | 假人專區（執行長） | PASS | 可見測試成員區 | — |
+| 安全 UI | 假人無真人 email 選項 | PASS | 切換清單僅假人 | — |
+| CAT | §8-3 跨環境隔離 | **部分** | 第一輪未完整建專案驗證 | → 第二輪 **R1** |
+| 假人 | §8-2 譯者視角 | **部分** | 警示條 OK；指派過濾未測 | → 第二輪 R2 SKIP；第三輪 OPT-2 FAIL |
+| 團隊 | §8-4 PM／譯者無入口 | **未獨立測** | 無正式 PM 帳密 | OPT-3/4；Claude 曾自測改角色 |
+| Slack | §8-6 `[測試]` 前綴 | SKIP | 假人未 OAuth | → 第三輪 **OPT-1 PASS** |
+| 安全 API | `dev-switch-user` | 未測 | — | → 第二輪 **R3** |
+
+**附註（H4）**：08:41 前以**真人執行長**在正式區誤建 `[AI驗收]` 草稿（`env=production`），不會被「重置測試環境」清除；專案擁有者已手動刪除。
+
+### 12.5 第二輪驗收明細（2026-06-30 13:31）
+
+同一 Slack thread；Cursor 於 13:01 發布 R1–R4 指引。
+
+| 項 | 結果 | 證據摘要 | 後續 |
+| --- | --- | --- | --- |
+| **R1** CAT 隔離 | PASS | 專案 `[測試模式驗收] CAT-R1`（UUID `1808d3e2-a022-4d55-a153-5784c72c1e61`）；正式清單不含；直連 URL 導回 | §12.1 項 3 |
+| **R2** 假譯者視角 | PASS（部分） | 黃色警示條、無重置／假人管理；**指派過濾 SKIP**（僅 2 筆示範案、譯者欄「—」） | 第三輪 OPT-2 |
+| **R3** 安全 API | PASS | 假執行長 `fetch` 切真人 email → `403` | 第三輪安全複查 |
+| **R4** Slack 前綴 | SKIP | 四假人未 OAuth | 第三輪 OPT-1 |
+| 附帶 | FIX-1 發現 | 正式 CAT「變更紀錄」出現測試操作摘要 | §13 FIX-1；第三輪 C2 |
+
+**人工項 H1–H4（第二輪後狀態）**：
+
+| ID | 項目 | 狀態 |
+| --- | --- | --- |
+| H4 | 清理誤建正式區 `[AI驗收]` | ✅ 專案擁有者手動完成 |
+| H1 | 正式 PM 無測試入口 | ⚠️ Claude 曾暫改執行長→譯者自測 PASS；**不等同**威儀 PM 獨立驗 → OPT-3 |
+| H2 | 正式譯者無測試入口 | 待人工 → OPT-4 |
+| H3 | Slack `[測試]` 前綴 | 第二輪 SKIP → 第三輪 OPT-1 PASS |
 
 ---
 
-## 13. 選擇性補測試與日後修正 backlog
+## 13. 權威 backlog（選性補測與日後修正）
 
-**不阻擋目前結案**；有需要或排程時再處理。
+**與結案關係（§13.3）**：測試模式**主線已可日常使用**；下列 FIX 為日後排程，**不阻擋**目前結案。OPT 失敗項已升格 FIX 或標待人工。
 
-### 13.1 選擇性補測試（日後再說）
+### 13.1 選性補測（OPT）
 
-| ID | 項目 | 誰／怎麼測 | 預期 |
+| ID | 項目 | 狀態 | 備註 |
 | --- | --- | --- | --- |
-| OPT-1 | Slack `[測試]` 前綴 | 假人或真人於測試模式 + Slack 已 OAuth → 發詢案／註記提醒 | DM 開頭 `[測試]` |
-| OPT-2 | 譯者案件指派過濾 | 測試區建案並指派 `test-t1` → 切假譯者 | 只看得到被指派的案 |
-| OPT-3 | 正式 PM 視角（H1） | 威儀或其他 PM 登入 | 無測試入口、無假人專區 |
-| OPT-4 | 其他譯者視角（H2） | 任一譯者登入 | 同上 |
+| OPT-1 | Slack `[測試]` 前綴 | ✅ 第三輪 PASS | §12.3 |
+| OPT-2 | 譯者案件指派過濾 | ❌ 第三輪 FAIL → **FIX-8** | §12.3 |
+| OPT-3 | 正式 PM 視角（H1） | 待人工 | 無測試入口、無假人專區 |
+| OPT-4 | 其他譯者視角（H2） | 待人工 | 同上 |
 
-### 13.2 日後修正 backlog（排程再說）
+### 13.2 日後修正（FIX）— 結構化條目
 
-| ID | 項目 | 備註 |
+#### FIX-1｜CAT 變更紀錄未依 env 過濾
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | **高** |
+| 狀態 | open |
+| 現象 | 正式環境 CAT 儀表板／專案頁「變更紀錄」側欄出現測試專案名、操作者、時間（**不含譯文**） |
+| 根因 | `db.getModuleLogs` 查 `cat_module_logs` 無 `.eq("env", …)`（[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 約 681–689 行）；表可能亦無 `env` 欄或寫入未帶 env |
+| 建議修法 | 為 log 寫入與查詢補 `env`；`getModuleLogs` 依 `getEnvironment()` 過濾；必要時 migration backfill |
+| 驗收條件 | 正式區開 CAT → 變更紀錄**不含**名稱含 `[測試模式驗收]` 或操作者含「測試」的列 |
+| 發現來源 | 第二輪 R1 附帶；第三輪 C2 **仍重現** |
+
+#### FIX-8｜譯者案件清單未依指派過濾
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | **中** |
+| 狀態 | open |
+| 現象 | `member`／假譯者登入後，案件清單與 `window.__lmsAgent` 仍回傳**全部**同 env 案件 |
+| 根因 | LMS 載入案件時僅 `.eq("env", env)`，未依 `translator`／角色過濾（[`src/stores/case-store.ts`](../src/stores/case-store.ts)、[`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts)） |
+| 建議修法 | `member` 角色查詢／前端列表過濾：僅顯示 `translator` 含本人 `display_name` 的案；`__lmsAgent` 同步 |
+| 驗收條件 | 測試案 `[測試模式驗收] OPT-2 指派過濾測試案`（id `69d27121-075a-40cc-a792-4157cbca870c`）指派 `test-t1` 後，假譯者清單**僅含該案** |
+| 發現來源 | 第三輪 OPT-2 FAIL（**LMS 既有缺口**，非測試模式 env 回歸） |
+
+#### FIX-9｜種子資料未含 CAT／費用
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | 低 |
+| 狀態 | open |
+| 現象 | 重置後勾選種子僅得 2 筆 LMS 示範案，無 CAT 專案、費用單 |
+| 根因 | [`reset-test-env/index.ts`](../supabase/functions/reset-test-env/index.ts) `seed` 分支僅 `cases.insert` 兩筆 |
+| 建議修法 | 擴充 seed：至少 1 個 `cat_projects`+檔案、1–2 筆 `fees`；`display_name` 與 `translator` 對齊 |
+| 驗收條件 | 重置＋勾選種子後，測試區有可開的 CAT 專案與費用列 |
+| 發現來源 | 實作取捨 §10 vs §2 決策；第二輪 R2 指派過濾 SKIP 亦受影響 |
+
+#### FIX-2｜localhost 誤標 production 的 CAT 專案
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | 低 |
+| 狀態 | open |
+| 現象 | 舊 localhost 建立的 CAT 專案 `env=production`，與預期測試區混淆 |
+| 根因 | 實作前 `createProject` 不帶 env，落 DB 預設 |
+| 建議修法 | 一次性 SQL backfill 或手動標記 |
+| 驗收條件 | 已知測試用專案在正式清單行為符合預期 |
+| 發現來源 | §7 風險盤點 |
+
+#### FIX-3｜settings-persistence 跨 env 誤讀
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | 低 |
+| 狀態 | open |
+| 現象 | 測試模式可能讀到無前綴 legacy 設定 |
+| 根因 | [`settings-persistence.ts`](../src/stores/settings-persistence.ts) legacy fallback |
+| 建議修法 | 測試 env 禁止 fallback 正式 key，或 key 一律經 `envKey()` |
+| 驗收條件 | 測試區與正式區 UI 設定互不干擾 |
+| 發現來源 | §7 |
+
+#### FIX-4｜cases UPDATE 限縮為 PM／相關人
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | 低 |
+| 狀態 | open |
+| 現象 | 同 env 內任一登入者可 UPDATE 任一案件 |
+| 根因 | 實作取捨：維持譯者協作列更新，僅加 env 限制 |
+| 建議修法 | 定義「相關人」後收緊 RLS `USING` |
+| 驗收條件 | 譯者無法改非相關案件欄位（需產品定義） |
+| 發現來源 | §10 實作取捨 |
+
+#### FIX-5｜Slack 測試頻道
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | 低 |
+| 狀態 | open |
+| 現象 | 測試通知仍進收件者 DM，僅有 `[測試]` 前綴 |
+| 根因 | 未設定 `SLACK_TEST_CHANNEL_ID` |
+| 建議修法 | Edge function 於 `env=test` 改 post 測試頻道（可選） |
+| 驗收條件 | 測試模式通知不進正式工作 DM（若產品要頻道分流） |
+| 發現來源 | §2 決策；OPT-1 前綴已 PASS |
+
+#### FIX-6｜CAT AI API key 測試／正式分離
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | 低 |
+| 狀態 | open |
+| 現象 | 測試模式 AI 批次可能共用正式 API 額度 |
+| 根因 | `cat_ai_*` 設定未分 env |
+| 建議修法 | 測試專用 key 或 env 前綴設定 |
+| 驗收條件 | 測試區 AI 呼叫不扣正式配額（若需隔離） |
+| 發現來源 | 原規劃 §9 |
+
+#### FIX-7｜葉子表全表 RLS env
+
+| 欄位 | 內容 |
+| --- | --- |
+| 優先級 | 低 |
+| 狀態 | open（預留） |
+| 現象 | `cat_segments` 等無 env 欄 RLS |
+| 根因 | 效能與複雜度折衷，靠母層 + RPC |
+| 建議修法 | 僅在稽核要求升級時再加 |
+| 驗收條件 | 跨 env 直連 segment ID 無法讀寫 |
+| 發現來源 | §7、§10 |
+
+### 13.3 backlog 與結案關係（白話）
+
+- **可結案**：進出測試模式、LMS／CAT **資料隔離**、重置、假人專區、Slack 前綴、API 安全邊界均已驗收（§12）。
+- **不必為 FIX 再擋一輪上線**：FIX-1、FIX-8 等屬**體驗／資訊干擾／既有 LMS 行為**，修完後可單獨補驗對應條目。
+- **日後開工**：以 §13.2 各 FIX 的「建議修法」「驗收條件」為工單，無需翻 Slack。
+
+### 13.4 FIX 索引表（速查）
+
+| ID | 優先 | 狀態 | 摘要 |
+| --- | --- | --- | --- |
+| FIX-1 | 高 | open | CAT 變更紀錄 env |
+| FIX-8 | 中 | open | 譯者案件指派過濾 |
+| FIX-9 | 低 | open | 種子含 CAT／費用 |
+| FIX-2 | 低 | open | localhost CAT backfill |
+| FIX-3 | 低 | open | settings legacy key |
+| FIX-4 | 低 | open | cases UPDATE 限縮 |
+| FIX-5 | 低 | open | Slack 測試頻道 |
+| FIX-6 | 低 | open | CAT AI key 分離 |
+| FIX-7 | 低 | open | 葉子表 RLS env |
+
+---
+
+## 14. UI 調整紀錄：測試模式控制項移入頂欄（`d7abef0`）
+
+### 14.1 問題與動機
+
+初版（`bfa5cdc`）將 [`DevRoleSwitcher`](../src/components/DevRoleSwitcher.tsx) 掛在 [`AppLayout`](../src/components/AppLayout.tsx) 的 `header` **下方**獨立一列（`px-6 pt-3` 容器，含虛線框樣式）。專案擁有者於 CAT 句段集編輯器驗收時回報：
+
+- 多出的這一行會把主內容區整體往下推；
+- CAT iframe 與周邊版面出現**視窗偏移**，操作不便。
+
+### 14.2 變更內容（`d7abef0`）
+
+| 檔案 | 變更 |
+| --- | --- |
+| [`src/components/AppLayout.tsx`](../src/components/AppLayout.tsx) | 刪除 `header` 下方 `{showTestModePanel && <div className="px-6 pt-3">…}` 整列；改在 `header` 內、`SidebarTrigger` 右側直接渲染 `<DevRoleSwitcher />`；`header` 加 `shrink-0`、`gap-2` |
+| [`src/components/DevRoleSwitcher.tsx`](../src/components/DevRoleSwitcher.tsx) | 移除獨立面板用的虛線框／底色／`py-2`；改頂欄內嵌緊湊樣式；測試中多假人按鈕改 `overflow-x-auto` 橫向捲動，避免撐高 `header` |
+
+**未變更**：黃色常駐警示條（`isTestAccount` 時顯示於最上方）、測試模式邏輯、`dev-switch-user` 流程。
+
+### 14.3 驗收
+
+| 驗收者 | 時間 | 結果 |
 | --- | --- | --- |
-| FIX-1 | `cat_module_logs` 加 env 過濾 | R1 附帶發現；§12.2 |
-| FIX-2 | localhost 誤標 `production` 的 CAT 專案 backfill | 原 §9 |
-| FIX-3 | `settings-persistence` legacy key 跨 env 誤讀 | 原 §7 |
-| FIX-4 | `cases` UPDATE 進一步限縮為 PM／相關人 | 原實作取捨 §10 |
-| FIX-5 | Slack 可選測試頻道 `SLACK_TEST_CHANNEL_ID` | 原 §9；目前僅實作前綴 |
-| FIX-6 | `cat_ai_*` 測試／正式 API key 分離 | 原 §9；預設共用 |
-| FIX-7 | 葉子表全表 RLS env | 原 §9；預留升級路徑 |
+| 專案擁有者（手動） | 2026-06-30 | ✅ 通過——頂欄左側折疊鈕右邊即為測試模式按鈕，CAT 編輯器無多餘偏移 |
+| Claude AI（第三輪） | — | 未單獨複測此 UI；第三輪於 `d7abef0` 推送前執行 |
+
+### 14.4 版面示意（變更後）
+
+```
+┌─ 黃色警示條（僅測試帳號）────────────────────────────┐
+├─ header h-12 ─────────────────────────────────────────┤
+│ [≡ 折疊]  🧪 測試模式： [進入測試模式]                │
+├─ main 內容（CAT / LMS）───────────────────────────────┤
+│ …                                                      │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 15. 開發過程：問題與解決方案
+
+本節集中記錄**規劃 → 實作 → 驗收 → UI 微調**中遭遇的問題與採取的解法。細節驗收表見 §12；待修工單見 §13。
+
+### 15.1 規劃與設計階段
+
+| # | 現象／議題 | 根因或背景 | 解法／決策 |
+| --- | --- | --- | --- |
+| P1 | 正式站無法安全驗收各角色 | 舊 `DevRoleSwitcher` 僅 `import.meta.env.DEV`；CAT 無 env | 測試模式綁定假帳號 + 全面補 env（§2） |
+| P2 | 測試與正式是否分庫 | 成本與維運 | **方案 A**：同 Supabase、靠 `env` 標籤（§2） |
+| P3 | 進入後是本人還是假執行長 | 願景「假人自成一區」 | **混合**：真人開門 → 預設假執行長 → 假人間切換（§2） |
+| P4 | 假執行長能否再開測試入口 | 角色皆為 `executive` | 入口＝`executive` **且** 非測試帳號（`isRealExecutive`） |
+| P5 | 切回真人需密碼 | 切換即 `signOut` | **返回票**：進入前 `sessionStorage` 存 magic link；失效則登出（§10） |
+| P6 | 全表 RLS env 效能疑慮 | `cat_segments` 量大 | **折衷**：母表 + `cat_files.env` + RPC 一致性檢查（§7、§10） |
+| P7 | `cases` UPDATE 過寬 | 原 RLS `USING(true)` | 實作僅加 **同 env**；PM／相關人限縮延後（FIX-4） |
+
+### 15.2 實作階段（`bfa5cdc`）
+
+| # | 現象／議題 | 根因 | 解法 |
+| --- | --- | --- | --- |
+| I1 | 任何人可呼叫 `dev-switch-user` 切假人 | 舊版僅白名單目標 email | 驗證呼叫者：切自己或切 `@test.local`；假人切真人 → 403 |
+| I2 | 切換身分後 env 可能錯 | `getEnvironment()` 模組快取 `_env` | `resetEnvironmentCache()` + 切換後 `location.reload()` |
+| I3 | CAT iframe 是否要改 | 規劃假設改 `cat-tool/` | **不改**；`handleCatCloudRpc` 統一 env → 免 `sync:cat` |
+| I4 | TS 編譯 `profiles.is_test` | 未進 generated types | 少數直查 `as any` |
+| I5 | 種子應含 CAT＋費用 | §2 決策 | 實作僅 2 筆 LMS case → **FIX-9** |
+| I6 | Slack 應進測試頻道 | §2 決策 | 實作僅 `[測試]` 前綴 → **FIX-5**；前綴第三輪已驗 |
+| I7 | 首次使用無假人 | 需執行長建帳 | 團隊成員「測試成員」專區 + `create-user` 標 `is_test` |
+
+### 15.3 驗收與上線後調整
+
+| # | 現象／議題 | 根因 | 解法 |
+| --- | --- | --- | --- |
+| V1 | 第一輪 CAT 隔離未完整 | 時間與步驟不足 | 第二輪 **R1** PASS |
+| V2 | 第一輪 Slack SKIP | 假人未 OAuth | 第三輪 **OPT-1** PASS |
+| V3 | 正式 CAT 變更紀錄見測試摘要 | `getModuleLogs` 無 env | 記 **FIX-1**；第三輪 C2 仍重現 |
+| V4 | 08:41 正式區 `[AI驗收]` 草稿 | 上線前真人建案、`env=production` | 專案擁有者手動刪（H4）；驗收資料用 `[測試模式驗收]` |
+| V5 | 譯者見全部測試案 | LMS 未做指派過濾 | **FIX-8**（第三輪 OPT-2 FAIL） |
+| V6 | 頂欄下多一行致 CAT 偏移 | `AppLayout` 獨立面板列 | **`d7abef0`** 移入 header；專案擁有者驗收通過（§14） |
+
+### 15.4 相關 commit 一覽
+
+| Commit | 內容 |
+| --- | --- |
+| `bfa5cdc` | 測試模式七工項完整實作 |
+| `6a7ac00` | 文件：§11–§13 驗收紀錄初版 |
+| `d7abef0` | UI：測試模式控制項移入頂欄 |
+| （本文件補全） | §12.4–§12.5、§13 結構化 backlog、§15 開發紀錄 |
