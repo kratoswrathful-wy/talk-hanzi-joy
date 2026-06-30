@@ -1375,7 +1375,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.getUserSegmentMarkersByFile": {
       await assertFileEnv(payload.fileId);
       const { data, error } = await supabase
-        .from("cat_user_segment_markers")
+        .from("cat_user_segment_markers" as any)
         .select("segment_id, colors, updated_at")
         .eq("file_id", payload.fileId)
         .eq("user_id", userId);
@@ -1391,7 +1391,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const colors = Array.isArray(payload.colors) ? payload.colors.filter(Boolean) : [];
       if (!colors.length) {
         const { error } = await supabase
-          .from("cat_user_segment_markers")
+          .from("cat_user_segment_markers" as any)
           .delete()
           .eq("file_id", payload.fileId)
           .eq("segment_id", payload.segmentId)
@@ -1400,7 +1400,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         return;
       }
       const { error } = await supabase
-        .from("cat_user_segment_markers")
+        .from("cat_user_segment_markers" as any)
         .upsert(
           {
             user_id: userId,
