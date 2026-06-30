@@ -276,7 +276,8 @@ flowchart TD
 | 項目 | 狀態 |
 | --- | --- |
 | Git 功能 | `bfa5cdc` on `main` |
-| Git 文件 | `6a7ac00`（§11–§13 初版驗收紀錄） |
+| Git 文件初版 | `6a7ac00`（§11–§13 驗收紀錄） |
+| Git 文件補全 | `8e8cd1a`（§12–§15 完整紀錄） |
 | Git UI | `d7abef0`（頂欄控制項） |
 | Vercel production | READY（Claude 驗收第一輪確認） |
 | Migration | `20260630120000_test_mode_env_isolation.sql` 已 `supabase db push` |
@@ -315,7 +316,7 @@ flowchart LR
 | 2026-06-30 22:28 | Claude **第三輪**回報：C 組 PASS；OPT-1 PASS；OPT-2 FAIL；FIX-1 仍重現（§12.3） |
 | 2026-06-30 | `d7abef0` 推送：測試模式控制項移入頂欄、移除多餘面板列（§14） |
 | 2026-06-30 | 專案擁有者**手動驗收通過**頂欄 UI（CAT 編輯器不再因多一行面板偏移） |
-| 2026-06-30 | 主文件補全：§12.4–§12.5、§13 結構化 backlog、§15 開發紀錄（本 commit） |
+| 2026-06-30 | `8e8cd1a` 推送：主文件補全 §12.4–§12.5、§13 結構化 backlog、§15 開發紀錄 |
 
 ---
 
@@ -632,4 +633,4 @@ Slack thread：[一～二輪](https://1up-studio.slack.com/archives/C0BDSDCT9B5/
 | `bfa5cdc` | 測試模式七工項完整實作 |
 | `6a7ac00` | 文件：§11–§13 驗收紀錄初版 |
 | `d7abef0` | UI：測試模式控制項移入頂欄 |
-| （本文件補全） | §12.4–§12.5、§13 結構化 backlog、§15 開發紀錄 |
+| `8e8cd1a` | 文件：§12.4–§12.5、§13 結構化 backlog、§15 開發紀錄 |
