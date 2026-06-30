@@ -77,6 +77,8 @@
 - [`docs/bug-report_workflow-import-confirmed-status-column_2026-06.md`](docs/bug-report_workflow-import-confirmed-status-column_2026-06.md) — 匯入 XLIFF **已確認 vs 狀態欄**（**B-7e 已實作**；五態互動見 **B-7g**）
 - [`docs/bug-report_import-confirmed-tm-write-progress-overlay_2026-06.md`](docs/bug-report_import-confirmed-tm-write-progress-overlay_2026-06.md) — 匯入確認疊層（**已修並驗收**）、TM 去重（**已修並驗收**）、匯入路徑 `ActiveWriteTms`（**已修並驗收** `c4e4736`）
 - [`docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) — **B-0** 檔序、句段集排序、左欄顯示序、篩選 A、Workflow 列號對齊
+- [`docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md`](docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) — **測試模式（環境隔離）實作規劃**：執行長專用、身分綁定 `env`（假帳號＝test）、假人團隊專區、CAT 補 env 與 RLS 把關、Slack 測試分流、一鍵重置（**規劃中，尚未動程式**）
+- [`docs/LMS_AI_AGENT_BRIDGE_2026-06.md`](docs/LMS_AI_AGENT_BRIDGE_2026-06.md) — **LMS AI 操作切入點**（`window.__lmsAgent`）：案件／費用單腳本讀寫、驗證層、草稿守門、元件副作用限制與驗收（**已實作**）
 - **1UP CAT／LMS 整合 UX 大計畫**（Cursor plan `1up_ux_與遷移`）— **唯一完整主紀錄**（第二波 UX、B+D2、UX 微調、加號）；Git 摘要 [`docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md)
 
 ## 回覆與推送慣例

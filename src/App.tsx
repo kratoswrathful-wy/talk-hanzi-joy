@@ -32,6 +32,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
 import { setUserTimezone } from "@/lib/format-timestamp";
+import { installAiAgentBridge } from "@/lib/ai-agent-bridge";
 
 function TranslatorFeeDetailWrapper() {
   const { id } = useParams();
@@ -122,6 +123,10 @@ function AuthenticatedRoutes() {
       initSettings();
     }
   }, [loading, user]);
+
+  useEffect(() => {
+    installAiAgentBridge();
+  }, []);
 
   if (loading) {
     return (
