@@ -153,31 +153,31 @@ export function DevRoleSwitcher() {
     }
   }, [busy]);
 
-  // 真人執行長、尚未進入測試模式：只顯示入口。
+  // 真人執行長、尚未進入測試模式：只顯示入口（內嵌於頂欄，不另占一行）。
   if (isRealExecutive && !isTestAccount) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
         <FlaskConical className="h-3.5 w-3.5 shrink-0" />
         <span className="font-medium shrink-0">測試模式：</span>
-        <Button size="sm" variant="outline" className="h-6 text-xs px-2.5" onClick={enterTestMode} disabled={busy !== null}>
+        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" onClick={enterTestMode} disabled={busy !== null}>
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : "進入測試模式"}
         </Button>
       </div>
     );
   }
 
-  // 測試帳號登入中：顯示假人切換 + 離開。
+  // 測試帳號登入中：顯示假人切換 + 離開（頂欄橫向捲動，避免撐高版面）。
   if (isTestAccount) {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-amber-400/60 bg-amber-50/60 px-4 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto text-xs text-amber-900 dark:text-amber-200 [scrollbar-width:thin]">
         <FlaskConical className="h-3.5 w-3.5 shrink-0" />
-        <span className="font-medium shrink-0">測試模式 — 目前扮演：</span>
+        <span className="shrink-0 font-medium">測試模式 — 目前扮演：</span>
         {personas.map((p) => (
           <Button
             key={p.email}
             variant={currentEmail === p.email ? "default" : "outline"}
             size="sm"
-            className="h-6 text-xs px-2.5"
+            className="h-7 shrink-0 text-xs px-2.5"
             onClick={() => switchPersona(p.email)}
             disabled={busy !== null}
           >
@@ -187,7 +187,7 @@ export function DevRoleSwitcher() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 text-xs px-2.5 ml-auto"
+          className="h-7 shrink-0 text-xs px-2.5"
           onClick={leaveTestMode}
           disabled={busy !== null}
         >

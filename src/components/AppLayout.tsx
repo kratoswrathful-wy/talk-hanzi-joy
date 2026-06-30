@@ -62,14 +62,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               測試模式 — 目前所有操作都在測試環境，與正式資料隔離
             </div>
           )}
-          <header className="flex h-12 items-center border-b border-border px-4">
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
             <SidebarTrigger />
+            {showTestModePanel && <DevRoleSwitcher />}
           </header>
-          {showTestModePanel && (
-            <div className="px-6 pt-3">
-              <DevRoleSwitcher />
-            </div>
-          )}
           <main className="flex-1 overflow-auto p-6">{children}</main>
         </div>
       </div>
