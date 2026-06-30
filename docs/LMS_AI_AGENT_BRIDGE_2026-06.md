@@ -1,6 +1,8 @@
 # LMS AI 操作切入點（`window.__lmsAgent`）
 
-> 2026-06 規劃與實作。讓 AI 以瀏覽器腳本直接讀寫**案件單**與**費用單**，跳過下拉選單、時間介面、核取方塊的點擊操作。
+> 2026-06 規劃、實作與驗收。讓 AI 以瀏覽器腳本直接讀寫**案件單**與**費用單**，跳過下拉選單、時間介面、核取方塊的點擊操作。
+
+**狀態**：**已實作並驗收**（2026-06-30；Claude AI 代理 10/10 通過，commit `82644f0`）
 
 ## 目的
 
@@ -170,6 +172,154 @@ const updated = await window.__lmsAgent.case.update("案件-uuid", {
 3. `fee.create({ title: 'AI 測試' })` 應在費用清單出現新草稿；畫面刷新後仍在。
 4. 對已定案費用執行 `fee.update` 應回 `{ ok: false, error: '...已定案...' }`。
 5. `case.update(id, { status: 'delivered' })` 應被拒絕並附 `allowed` 清單。
+
+正式環境 AI 代理驗收腳本（T1–T10）見下方 §7.2；Slack `#development` thread（2026-06-30 08:41 CST）已執行完畢。
+
+## 開發與驗收紀錄
+
+### 1. 背景與動機（2026-06-30）
+
+LMS 案件單、費用單表單含大量 **Radix UI 下拉**、自訂 **`DateTimePicker`**（Popover + 日曆 + 時區）、**核取方塊**與文字輸入。AI 若用「截圖＋點擊」自動化：
+
+- 下拉選項在 portal 內、收合時不存在於 DOM，定位 fragile。
+- 時間介面多步驟，難以穩定填出正確 ISO。
+- React 受控元件無法靠改 DOM 塞值。
+
+另曾討論「直接寫 Supabase／後端」：格式雖可控制，但易填不存在的狀態值、且跳過前端連動。本功能改在 **store 層** 包 API：與人手操作共用寫入路徑，並加 **驗證層** 對照 `selectOptionsStore`，使下拉合法值與設定頁自動同步。
+
+### 2. 方案選型
+
+| 方案 | 說明 | 本專案決策 |
+|------|------|------------|
+| A. `data-testid` | 穩定定位，仍須多步點擊 | 輔助；非主路徑 |
+| B. **`window.__lmsAgent`** | 腳本直接 `caseStore` / `feeStore` | **採用（主路徑）** |
+| C. Supabase MCP 直寫 DB | 繞過 UI，適合批次查改 | 並存；本功能不取代 |
+| D. 換成原生 `<select>` | 自動化友善 | 未採；侵入 UI |
+
+架構：`AI 腳本 → __lmsAgent → 驗證層 → caseStore/feeStore → React 畫面 + Supabase`。
+
+### 3. 產品決策（與專案擁有者確認）
+
+規劃過程中曾討論：直接寫後端易填錯狀態值；bridge 若對照 `selectOptionsStore` 則下拉變動可自動同步。初版規劃傾向「僅測試環境、只改既有單」，最終定案如下：
+
+| 議題 | 初議 | **最終決策** | 理由 |
+|------|------|------------|------|
+| 環境 | 僅 test | **所有環境常駐** | 需在正式環境讓 AI 執行真實工作 |
+| 操作範圍 | 只改既有單 | **可建立 + 可修改**；不可刪除 | 滿足 AI 協助建單填欄 |
+| 定案 | — | **不可** `fee.status = finalized` | 定案＝開立完成，不可逆，保留人手把關 |
+| 案件 workflow | — | 僅允許 `draft` / `inquiry` / `dispatched` | 交件後狀態由人手流程推進 |
+| 驗證失敗 | — | 回傳 `error` + `allowed` 合法值 | 讓 AI 自我修正，不必猜選項 |
+| 下拉合法值 | — | 讀 `selectOptionsStore` | 設定頁改選項後 bridge 自動跟上 |
+
+### 4. 實作內容
+
+#### 4.1 新增檔案
+
+- [`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts)
+  - `installAiAgentBridge()` → 掛載 `window.__lmsAgent`
+  - `describe()` / `options.get()` / `options.listKeys()`
+  - `case.list|get|create|update` / `fee.list|get|create|update`
+  - 驗證：文字、數字、布林、ISO 時間、下拉（options store）、狀態守門
+  - 巢狀：`workGroups`、`collabRows`、`taskItems`、`clientInfo`
+  - 匯出常數 `CASE_STATUS_ALLOWED` / `CASE_STATUS_BLOCKED` 供文件與測試對照
+
+#### 4.2 修改檔案
+
+- [`src/App.tsx`](../src/App.tsx)：`useEffect` 啟動時呼叫 `installAiAgentBridge()`（不分環境）
+- [`AGENTS.md`](../AGENTS.md)：文件索引
+
+#### 4.3 刻意未實作
+
+- `delete`（案件／費用）
+- `fee` 定案、`case` 複製（`duplicate`）
+- 元件層：Slack 通知、變更紀錄合併、Notion 匯入、重複標題對話框（見 § 元件層副作用盤點）
+
+### 5. Git 時序
+
+| 時間（約） | Commit | 說明 |
+|------------|--------|------|
+| 2026-06-30 | `3d5c3e1` | 初版：`ai-agent-bridge.ts`、`App.tsx` 掛載、本文件、`AGENTS.md` 索引 |
+| 2026-06-30 | `82644f0` | **fix**：Vercel `tsc -b` 失敗；`AgentResult` union 窄化問題，改 `result.ok === false` + `failFrom()` |
+
+### 6. 建置問題與修正
+
+**現象**：Vercel 部署 `3d5c3e1` 時 `tsc -b` 報錯（約 14 處 TS2322）。
+
+**根因**：驗證函式回傳 `AgentResult<T>`（success | fail union）。以 `!result.ok` early return 時，TypeScript 未將失敗分支窄化為 `{ ok: false }`，導致 `return result` 與存取 `.error` 型別不相容。
+
+**修正**（`82644f0`）：
+
+- 新增 `failFrom(result)` 轉發失敗結果
+- 所有失敗分支改為 `if (result.ok === false) return failFrom(result)`
+
+本機 `npx tsc -b` 通過後重新推送，Vercel 部署成功。
+
+### 7. 驗收流程
+
+#### 7.1 驗收方式
+
+- **執行者**：Claude（AI 代理），非人手點 UI
+- **手段**：瀏覽器自動化 + `Runtime.evaluate` 呼叫 `window.__lmsAgent`
+- **環境**：`https://talk-hanzi-joy.vercel.app`（正式）
+- **登入**：PM（威儀）
+- **任務張貼**：Slack `#development`（2026-06-30 08:41 CST；commit `82644f0`）
+  - 驗收任務訊息：https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782780099779469
+  - 首次部署 `3d5c3e1` 建置失敗後，改貼 `82644f0` 版本任務
+
+#### 7.2 驗收項目（T1–T10）
+
+| 項 | 內容 | 預期 |
+|----|------|------|
+| T1 | `__lmsAgent` 存在 | `true` |
+| T2 | `describe()` | `{ ok: true, data: { case, fee, ... } }` |
+| T3 | `options.get('taskType')` | labels 含「翻譯」 |
+| T4 | `fee.create` 草稿 | `status: 'draft'`，有 id |
+| T5 | `fee.update` taskItems | 不走 UI，`unitCount: 100` |
+| T6 | 阻擋 `status: finalized` | `{ ok: false }`，allowed 含 `draft` |
+| T7 | `case.create` 草稿 | `status: 'draft'` |
+| T8 | ISO `translationDeadline` | 合法 ISO 寫入 |
+| T9 | 阻擋 `status: delivered` | `{ ok: false }`，allowed 含 draft/inquiry/dispatched |
+| T10 | 非法 taskType | `{ ok: false, allowed: [...] }` |
+
+測試資料標題前綴：**`[AI驗收]`**；驗收後**只列出、不刪除**，由 PM 手動清理。
+
+#### 7.3 驗收結果（2026-06-30）
+
+| 項目 | 結果 |
+|------|------|
+| 總結 | **10/10 通過** |
+| 環境 | talk-hanzi-joy.vercel.app |
+| 登入 | 威儀（PM） |
+| 回報位置 | Slack `#development` thread（父訊息 2026-06-30 08:41 CST） |
+
+**解讀**：正式環境已可讓 AI 以腳本建立／修改草稿案件與費用；守門（不定案、不寫敏感 workflow、非法下拉被拒）運作正常。
+
+#### 7.4 測試資料清理
+
+Claude 回覆未附具體 UUID。請在 LMS 搜尋標題 **`[AI驗收]`**，或於主控台：
+
+```javascript
+window.__lmsAgent.fee.list({ search: "[AI驗收]" });
+window.__lmsAgent.case.list({ search: "[AI驗收]" });
+```
+
+刪除 T4（費用）、T7（案件）建立的草稿即可。
+
+### 8. 已知限制與後續可選項
+
+| 限制 | 說明 |
+|------|------|
+| 元件層副作用 | edit_logs、Slack、Notion 帶入等不觸發（見上文表格） |
+| 正式環境常駐 | 已登入且能執行 JS 的 session 即可呼叫；RLS 仍把關 |
+| 無 delete API | 刪除須走 UI 或日後擴充 |
+| 案件重複標題 | bridge 不檢查；公布流程才檢查 |
+
+**後續可選**（未排程）：
+
+- 環境或角色旗標（僅 PM/Executive 可呼叫）
+- `data-testid` 作 UI 自動化後備
+- 補 `edit_logs` 合併（若 AI 也需留變更紀錄）
+- 驗收腳本收進 `scripts/` 供 CI 或重跑
 
 ## 相關檔案
 
