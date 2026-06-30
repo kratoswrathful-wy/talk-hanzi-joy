@@ -2,6 +2,8 @@
 
 > 2026-06 規劃、實作與驗收。讓 AI 以瀏覽器腳本直接讀寫**案件單**與**費用單**，跳過下拉選單、時間介面、核取方塊的點擊操作。
 
+**Claude 速查技能書**：[`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)（本檔為完整規格與驗收紀錄）。
+
 **狀態**：**已實作並驗收**（2026-06-30；Claude AI 代理 10/10 通過，commit `82644f0`）
 
 ## 目的
