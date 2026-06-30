@@ -59,7 +59,7 @@
 - [`docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md) — 大檔虛擬捲動 **rowIdx 污染**、確認後不跳行、重複句 DOM；**已修並驗收** `51815db`（Phase 2.3 延伸見上）
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
 - [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）
-- [`docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md`](docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md) — AI 批次 **穩定修正**（備註誤譯 prompt、切批字元含 extra、詢問路徑分批、聚焦漏句 blur；`76c6da3` **初輪部分通過、補測中**；來源 `260630 AI 系統修正`）
+- [`docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md`](docs/CAT_AI_BATCH_STABILITY_FIX_PLAN_2026-06.md) — AI 批次 **穩定修正**（備註誤譯 prompt、切批字元含 extra、詢問路徑分批、聚焦漏句 blur；`76c6da3` **初輪＋補測部分通過、尚不可結案**；來源 `260630 AI 系統修正`）
 - [`docs/CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md`](docs/CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md) — AI 批次 **memoQ 預翻譯併入 TM 參考**（參考門檻候選池、單行、算法計分；**已實作，待驗收**）
 - [`docs/bug-report_mxliff-confirm-level-export_2026-06.md`](docs/bug-report_mxliff-confirm-level-export_2026-06.md) — mxliff 匯出 `m:confirmed="1"` 未對齊 `m:level`、Phrase 顯示未確認；TM 鎖定句段確認值被覆寫；**已修並驗收** `12eb3ab`
 - [`docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md`](docs/CAT_LOCKED_SEGMENT_CONFIRM_UX_2026-06.md) — 鎖定／禁止編輯句段確認狀態保留、匯入匯出規格、編輯器選取與批次 toast；I2Loc 樣本驗收紀錄

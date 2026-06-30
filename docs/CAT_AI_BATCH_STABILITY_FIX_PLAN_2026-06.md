@@ -1,7 +1,8 @@
 # CAT AI 批次翻譯 — 穩定修正規劃
 
 > 建立：2026-06-27  
-> 狀態：**已實作**（A–D；待驗收）  
+> 狀態：**已實作**（A–D；**初輪＋補測部分通過，尚不可結案**）  
+> 來源聊天室：`260630 AI 系統修正`（Cursor）  
 > 相關：[`CAT_AI_BATCH_TOKEN_UX_2026-05.md`](CAT_AI_BATCH_TOKEN_UX_2026-05.md)、[`CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md)、[`bug-report_ai-batch-parse-error-no-retry_2026-06.md`](bug-report_ai-batch-parse-error-no-retry_2026-06.md)
 
 ---
@@ -304,4 +305,57 @@ if (document.activeElement?.classList.contains('grid-textarea')) {
 | 日期 | 說明 |
 |------|------|
 | 2026-06-27 | 建立本規劃：整理問題 A–D、根因、修正規格與驗收步驟（對話調查：長備註誤譯、概算低仍錯、聚焦漏句） |
-| 2026-06-27 | **已實作** A–D：`buildPrompt` 原文優先／備註降格；`_segmentSourceCharCount` + 切批 opts；`_translateAiBatchChunks`（詢問路徑＋遺漏重試）；`runAiBatchTranslate` 開頭 blur |
+| 2026-06-27 | **已實作** A–D（`76c6da3`）：`buildPrompt` 原文優先／備註降格；`_segmentSourceCharCount` + 切批 opts；`_translateAiBatchChunks`（詢問路徑＋遺漏重試）；`runAiBatchTranslate` 開頭 blur |
+| 2026-06-30 | **初輪 AI 驗收**（Slack `#development` [1782801382](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782801382945569)；來源聊天室 `260630 AI 系統修正`）：部署前提 pass；T2（A prompt）、T4（B 切批）pass；T3 僅 metadata 情境 pass（`Tags_zh_TW`／Zoo），未測 `Simple door` 類長敘述備註；T1（D 聚焦漏句）因測試檔匯入即鎖定無法驗證；T5／T6 skip。詳見 §10。 |
+| 2026-06-30 | **補測任務**發送至 Slack `#development` [1782835401](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782835401039769)（同聊天室發起）：R1／R2／R3。 |
+| 2026-07-01 | **補測回覆**（[thread 回覆](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782835401039769?thread_ts=1782835401.039769&cid=C0BDSDCT9B5)）：R1 程式化驗證 blur 機制、端對端標 blocked（無空白譯文檔）；R2／R3 **Slack 未附細項**（見 §10.3）。 |
+
+---
+
+## 10. 驗收紀錄（Claude AI）
+
+### 10.1 初輪（2026-06-30）
+
+| 測項 | 修正 | 結果 | 證據摘要 |
+|------|------|------|----------|
+| 部署 | — | pass | `76c6da3` 為已部署正式 commit 祖先 |
+| T2 | A | pass | `CatAiTranslate.buildPrompt`：`原文:` 在 `（備註，請勿翻譯：` 前 |
+| T4 | B | pass | `Tags_zh_TW.xliff` 95 句；勾額外資訊後 13 批→27 批，各批未滿 30 句 |
+| T3 | A | 部分 pass | 句 2「Zoo」實測→「動物園」；樣本為結構化 metadata，非長敘述備註 |
+| T1 | D | 未驗 | 測試檔句段匯入即鎖定，無法 focus／重現漏句 |
+| T5 | C | skip | 未備 ≥30 已確認＋詢問模式 |
+| T6 | C 延伸 | skip | 規格可選 |
+
+**初輪結論**：無 fail；**不可結案**。缺口為 D（聚焦漏句）、A 長備註實務樣本、C 詢問分批。
+
+### 10.2 補測任務（2026-07-01 發起）
+
+Slack：[1782835401](https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782835401039769)。來源聊天室 `260630 AI 系統修正`。
+
+| 代號 | 對應 | 通過條件 | 檔案／前置建議 |
+|------|------|----------|----------------|
+| **R1** | T1／D | 聚焦第 1 句或第 N 句後全文批次，該句譯文非空且與記憶體一致 | **未鎖定可編輯** mqxliff／xliff／Excel；勿用 `Tags_zh_TW`；可建 `[AI驗收]` 小專案 |
+| **R2** | T3／A | `Simple door` 等列譯文為簡短名稱，非備註整段中文 | 7 Days／I2Loc 類道具檔；短原文＋長敘述「額外資訊」 |
+| **R3** | T5／C | 詢問路徑出現多批進度 toast／log | 同檔 ≥30 句已確認；Modal「已確認→詢問」 |
+
+### 10.3 補測回覆（2026-07-01）
+
+Claude 標題「補測完畢（T1／T3／T5）」；**正文僅詳述 T1**，R2／R3 無 pass／fail 表格或證據，視為**回報不完整**。
+
+| 代號 | 結果 | 證據摘要 | 備註 |
+|------|------|----------|------|
+| **R1** | blocked（機制已驗） | `blur()` 路徑已程式化驗證；端對端因**無空白譯文測試檔**未跑完斷言 | 非 fail；建議匯入空白 mqxliff 再測 |
+| **R2** | **未回報** | — | 仍缺 `Simple door` 類長敘述備註實測 |
+| **R3** | **未回報** | — | 仍缺 ≥30 已確認＋詢問分批 |
+
+**補測結論**：無功能 fail；**仍不可結案**。待補：R1 端對端（需測試檔）、R2、R3；或請 Claude 補齊 R2／R3 表格。
+
+### 10.4 結案條件（PM 參考）
+
+| 優先 | 項目 | 現況 |
+|------|------|------|
+| 已過 | T2（A prompt）、T4（B 切批） | pass |
+| 建議補 | R1 端對端（D 聚焦漏句） | blur 已驗；需空白可編輯檔 |
+| 建議補 | R2（A 長備註） | 未測 |
+| 建議補 | R3（C 詢問分批） | 未測 |
+| 可選 | T6 遺漏重試分批 | skip |
