@@ -128,6 +128,11 @@ function fail(error: string, allowed?: string[]): AgentResult<never> {
   return { ok: false, error, allowed };
 }
 
+/** 從失敗結果轉發 error（避免 union 窄化問題） */
+function failFrom(result: Extract<AgentResult<unknown>, { ok: false }>): AgentResult<never> {
+  return fail(result.error, result.allowed);
+}
+
 function getOptionLabels(fieldKey: string): string[] {
   return selectOptionsStore.getSortedOptions(fieldKey).map((o) => o.label);
 }
@@ -208,7 +213,7 @@ function validateRecordFields(
       return fail(`${prefix}${key} 不是可寫入欄位`);
     }
     const result = validateScalar(`${prefix}${key}`, meta, value);
-    if (!result.ok) return result;
+    if (result.ok === false) return failFrom(result);
     out[key] = result.data;
   }
   return ok(out);
@@ -223,7 +228,7 @@ function validateWorkGroups(value: unknown): AgentResult<WorkGroup[]> {
     const obj = row as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `wg-${Date.now()}-${i}`;
     const validated = validateRecordFields(`workGroups[${i}].`, WORK_GROUP_FIELDS, obj);
-    if (!validated.ok) return validated;
+    if (validated.ok === false) return failFrom(validated);
     out.push({ id, workType: "", billingUnit: "", unitCount: 0, ...validated.data } as WorkGroup);
   }
   return ok(out);
@@ -238,7 +243,7 @@ function validateCollabRows(value: unknown): AgentResult<CollabRow[]> {
     const obj = row as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `cr-${Date.now()}-${i}`;
     const validated = validateRecordFields(`collabRows[${i}].`, COLLAB_ROW_FIELDS, obj);
-    if (!validated.ok) return validated;
+    if (validated.ok === false) return failFrom(validated);
     out.push({
       id,
       segment: "",
@@ -265,7 +270,7 @@ function validateFeeTaskItems(value: unknown): AgentResult<FeeTaskItem[]> {
     const obj = row as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `item-${Date.now()}-${i}`;
     const validated = validateRecordFields(`taskItems[${i}].`, FEE_TASK_ITEM_FIELDS, obj);
-    if (!validated.ok) return validated;
+    if (validated.ok === false) return failFrom(validated);
     out.push({
       id,
       taskType: "翻譯",
@@ -282,7 +287,7 @@ function validateClientInfo(value: unknown): AgentResult<ClientInfo> {
   if (!value || typeof value !== "object") return fail("clientInfo 必須為物件");
   const obj = value as Record<string, unknown>;
   const validated = validateRecordFields("clientInfo.", CLIENT_INFO_FIELDS, obj);
-  if (!validated.ok) return validated;
+  if (validated.ok === false) return failFrom(validated);
   const base = { ...defaultClientInfo, ...validated.data } as ClientInfo;
   if (obj.clientTaskItems !== undefined) {
     if (!Array.isArray(obj.clientTaskItems)) return fail("clientInfo.clientTaskItems 必須為陣列");
@@ -297,7 +302,7 @@ function validateClientInfo(value: unknown): AgentResult<ClientInfo> {
         FEE_CLIENT_TASK_FIELDS,
         itemObj,
       );
-      if (!itemValidated.ok) return itemValidated;
+      if (itemValidated.ok === false) return failFrom(itemValidated);
       items.push({
         id: itemId,
         taskType: "翻譯",
@@ -317,13 +322,13 @@ function validateCasePatch(patch: Record<string, unknown>): AgentResult<Partial<
   for (const [key, value] of Object.entries(patch)) {
     if (key === "workGroups") {
       const wg = validateWorkGroups(value);
-      if (!wg.ok) return wg;
+      if (wg.ok === false) return failFrom(wg);
       out.workGroups = wg.data;
       continue;
     }
     if (key === "collabRows") {
       const cr = validateCollabRows(value);
-      if (!cr.ok) return cr;
+      if (cr.ok === false) return failFrom(cr);
       out.collabRows = cr.data;
       continue;
     }
@@ -332,7 +337,7 @@ function validateCasePatch(patch: Record<string, unknown>): AgentResult<Partial<
       return fail(`案件欄位「${key}」不是 AI 切入點可寫入欄位`);
     }
     const result = validateScalar(`case.${key}`, meta, value);
-    if (!result.ok) return result;
+    if (result.ok === false) return failFrom(result);
     (out as Record<string, unknown>)[key] = result.data;
   }
   return ok(out);
@@ -343,13 +348,13 @@ function validateFeePatch(patch: Record<string, unknown>): AgentResult<Partial<T
   for (const [key, value] of Object.entries(patch)) {
     if (key === "taskItems") {
       const ti = validateFeeTaskItems(value);
-      if (!ti.ok) return ti;
+      if (ti.ok === false) return failFrom(ti);
       out.taskItems = ti.data;
       continue;
     }
     if (key === "clientInfo") {
       const ci = validateClientInfo(value);
-      if (!ci.ok) return ci;
+      if (ci.ok === false) return failFrom(ci);
       out.clientInfo = ci.data;
       continue;
     }
@@ -358,7 +363,7 @@ function validateFeePatch(patch: Record<string, unknown>): AgentResult<Partial<T
       return fail(`費用欄位「${key}」不是 AI 切入點可寫入欄位`);
     }
     const result = validateScalar(`fee.${key}`, meta, value);
-    if (!result.ok) return result;
+    if (result.ok === false) return failFrom(result);
     (out as Record<string, unknown>)[key] = result.data;
   }
   return ok(out);
@@ -518,7 +523,7 @@ function buildAgentApi(): LmsAgentApi {
       create: async (initial = {}) => {
         const patch = { ...initial, status: "draft" as CaseStatus };
         const validated = validateCasePatch(patch as Record<string, unknown>);
-        if (!validated.ok) return validated;
+        if (validated.ok === false) return failFrom(validated);
         const created = await caseStore.create({
           title: "新案件",
           status: "draft",
@@ -532,7 +537,7 @@ function buildAgentApi(): LmsAgentApi {
         const existing = caseStore.getById(id);
         if (!existing) return fail(`找不到案件 id=${id}`);
         const validated = validateCasePatch(patch as Record<string, unknown>);
-        if (!validated.ok) return validated;
+        if (validated.ok === false) return failFrom(validated);
         await caseStore.update(id, validated.data);
         const updated = caseStore.getById(id);
         return updated ? ok(updated) : fail("更新後讀取案件失敗");
@@ -552,7 +557,7 @@ function buildAgentApi(): LmsAgentApi {
         const draft = feeStore.createDraft();
         if (Object.keys(initial).length === 0) return ok(draft);
         const validated = validateFeePatch(initial as Record<string, unknown>);
-        if (!validated.ok) return validated;
+        if (validated.ok === false) return failFrom(validated);
         feeStore.updateFee(draft.id, validated.data);
         const created = feeStore.getFeeById(draft.id);
         return created ? ok(created) : fail("建立費用後讀取失敗");
@@ -565,7 +570,7 @@ function buildAgentApi(): LmsAgentApi {
           return fail("此費用單已定案（finalized），AI 切入點不可修改");
         }
         const validated = validateFeePatch(patch as Record<string, unknown>);
-        if (!validated.ok) return validated;
+        if (validated.ok === false) return failFrom(validated);
         feeStore.updateFee(id, validated.data);
         const updated = feeStore.getFeeById(id);
         return updated ? ok(updated) : fail("更新後讀取費用失敗");
