@@ -98,8 +98,9 @@ function guessMimeFromCatFileName(name: string): string {
   return "application/octet-stream";
 }
 
-function buildCatOriginalStoragePath(projectId: string, fileId: string): string {
-  return `${projectId}/${fileId}/original`;
+function buildCatOriginalStoragePath(env: string, projectId: string, fileId: string): string {
+  // env 前綴：測試與正式的原始檔分流（既有檔案沿用 DB 內已存的路徑，不受影響）。
+  return `${env}/${projectId}/${fileId}/original`;
 }
 
 /** 與 cat-tool db.js chunk btoa 對齊，避免大檔單次 String.fromCharCode 爆堆疊 */
@@ -649,6 +650,27 @@ async function cleanupEmptyIssueGroups(params: { scope: "translation" | "style" 
 }
 
 export async function handleCatCloudRpc(action: string, payload: RpcPayload, userId: string) {
+  // 環境隔離：所有 CAT 雲端讀寫一律依目前環境（測試／正式）過濾與標記。
+  const env = getEnvironment();
+
+  // 一致性檢查：確認某專案／檔案確實屬於目前環境，否則拒絕破壞性操作（防程式誤帶跨區 ID）。
+  const assertProjectEnv = async (projectId: string) => {
+    if (!projectId) return;
+    const { data } = await supabase.from("cat_projects").select("env").eq("id", projectId).maybeSingle();
+    const rowEnv = (data as any)?.env ?? "production";
+    if (data && rowEnv !== env) {
+      throw new Error(`[cat-cloud-rpc] env mismatch: project ${projectId} is "${rowEnv}" but current env is "${env}"`);
+    }
+  };
+  const assertFileEnv = async (fileId: string) => {
+    if (!fileId) return;
+    const { data } = await (supabase as any).from("cat_files").select("env").eq("id", fileId).maybeSingle();
+    const rowEnv = (data as any)?.env ?? "production";
+    if (data && rowEnv !== env) {
+      throw new Error(`[cat-cloud-rpc] env mismatch: file ${fileId} is "${rowEnv}" but current env is "${env}"`);
+    }
+  };
+
   switch (action) {
     case "db.addModuleLog": {
       const { module, payload: p } = payload;
@@ -676,6 +698,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           source_langs: sourceLangs,
           target_langs: targetLangs,
           owner_user_id: userId,
+          env,
           created_at: nowIso(),
           last_modified: nowIso(),
         } as any)
@@ -739,15 +762,16 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
 
     case "db.getProjects": {
-      const { data } = await supabase.from("cat_projects").select("*").order("created_at", { ascending: true, nullsFirst: true });
+      const { data } = await supabase.from("cat_projects").select("*").eq("env", env).order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapProjectRow);
     }
     case "db.getProject": {
-      const { data } = await supabase.from("cat_projects").select("*").eq("id", payload.projectId).maybeSingle();
+      const { data } = await supabase.from("cat_projects").select("*").eq("id", payload.projectId).eq("env", env).maybeSingle();
       return data ? mapProjectRow(data) : null;
     }
     case "db.deleteProject": {
       const projectId = payload.projectId;
+      await assertProjectEnv(projectId);
       const { data: files } = await supabase.from("cat_files").select("original_file_path").eq("project_id", projectId);
       const paths = (files ?? [])
         .map((f: any) => String(f.original_file_path ?? "").trim())
@@ -762,11 +786,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.createFile": {
       const fileId = crypto.randomUUID();
       const projectId = payload.projectId;
+      await assertProjectEnv(projectId);
       const b64 = payload.originalFileBase64 ?? "";
       let originalPath: string | null = null;
       let inlineB64 = b64;
       if (b64.length > 0) {
-        originalPath = buildCatOriginalStoragePath(projectId, fileId);
+        originalPath = buildCatOriginalStoragePath(env, projectId, fileId);
         await uploadCatOriginalFromBase64(originalPath, b64, payload.name || "");
         inlineB64 = "";
       }
@@ -776,6 +801,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           id: fileId,
           project_id: projectId,
           name: payload.name,
+          env,
           original_file_base64: inlineB64,
           original_file_path: originalPath,
           source_lang: payload.sourceLang ?? "",
@@ -793,10 +819,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return data.id;
     }
     case "db.getFiles": {
-      const { data } = await supabase
+      // cat_files.env 為新欄位（尚未進 generated types），用 as any 避免型別過深推導。
+      const { data } = await (supabase as any)
         .from("cat_files")
         .select(CAT_FILE_LIST_COLUMNS)
         .eq("project_id", payload.projectId)
+        .eq("env", env)
         .order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map((r: any) => mapFileRow(r, { listMode: true }));
     }
@@ -877,7 +905,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return { ok: true };
     }
     case "db.getFile": {
-      const { data } = await supabase.from("cat_files").select("*").eq("id", payload.fileId).maybeSingle();
+      const { data } = await (supabase as any).from("cat_files").select("*").eq("id", payload.fileId).eq("env", env).maybeSingle();
       if (!data) return null;
       // 開啟編輯器只需 metadata + 句段；略過 Storage 下載可避免大檔逾時與卡在「載入中」
       if (payload.includeOriginal === true) {
@@ -889,15 +917,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const keyword = String(payload.keyword || "").trim();
       const limit = Math.min(Math.max(Number(payload.limit) || 20, 1), 50);
       if (!keyword) return [];
-      let env = "production";
-      if (payload.projectId) {
-        const { data: prj } = await supabase
-          .from("cat_projects")
-          .select("env")
-          .eq("id", payload.projectId)
-          .maybeSingle();
-        env = (prj as any)?.env || "production";
-      }
+      // 一律以目前環境（身分優先）搜尋 LMS 案件，不再依專案 env 或硬編 production。
       const { data } = await supabase
         .from("cases")
         .select("id,title,keyword,status,updated_at")
@@ -946,7 +966,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         if (!existing) throw new Error("db.updateFile: file not found");
         const pid = (existing as any).project_id;
         const prevPath = String((existing as any).original_file_path ?? "").trim();
-        const path = prevPath || buildCatOriginalStoragePath(pid, fileId);
+        const path = prevPath || buildCatOriginalStoragePath(env, pid, fileId);
         const displayName = u.name != null ? String(u.name) : String((existing as any).name ?? "");
         if (b64.length > 0) {
           await uploadCatOriginalFromBase64(path, b64, displayName);
@@ -964,6 +984,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return await supabase.from("cat_files").update(rowPatch as any).eq("id", fileId);
     }
     case "db.deleteFile": {
+      await assertFileEnv(payload.fileId);
       const { data: row } = await supabase.from("cat_files").select("original_file_path").eq("id", payload.fileId).maybeSingle();
       const p = row?.original_file_path != null ? String(row.original_file_path).trim() : "";
       if (p) {
@@ -975,6 +996,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
 
     case "db.refreshFileSegments": {
       const { fileId, ops } = payload;
+      await assertFileEnv(fileId);
       const { update = [], insert = [], remove = [], newFileBase64 } = ops ?? {};
       const BATCH = 500;
 
@@ -989,7 +1011,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         if (!fileRow) throw new Error("db.refreshFileSegments: file not found");
         const projectId = String((fileRow as any).project_id);
         const oldPath = fileRow.original_file_path ? String(fileRow.original_file_path).trim() : "";
-        const canonicalPath = buildCatOriginalStoragePath(projectId, fileId);
+        const canonicalPath = buildCatOriginalStoragePath(env, projectId, fileId);
         const displayName = String((fileRow as any).name ?? "");
         await uploadCatOriginalFromBase64(canonicalPath, String(newFileBase64), displayName);
         if (oldPath && oldPath !== canonicalPath) {
@@ -1469,7 +1491,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const ab = new Uint8Array(byteStr.length);
       for (let i = 0; i < byteStr.length; i++) ab[i] = byteStr.charCodeAt(i);
       const blob = new Blob([ab], { type: mimeType || "image/png" });
-      const path = `${userId}/${Date.now()}_${fileName || "image.png"}`;
+      const path = `${env}/${userId}/${Date.now()}_${fileName || "image.png"}`;
       const { error } = await supabase.storage.from("cat-notes-images").upload(path, blob, { contentType: mimeType || "image/png", upsert: false });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("cat-notes-images").getPublicUrl(path);
@@ -1484,6 +1506,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           source_langs: payload.sourceLangs ?? [],
           target_langs: payload.targetLangs ?? [],
           owner_user_id: userId,
+          env,
           change_log: [],
           created_at: nowIso(),
           last_modified: nowIso(),
@@ -1496,7 +1519,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.updateTMLangs":
       return await supabase.from("cat_tms").update({ source_langs: payload.sourceLangs ?? [], target_langs: payload.targetLangs ?? [], last_modified: nowIso() } as any).eq("id", payload.tmId);
     case "db.getTMs": {
-      const { data } = await supabase.from("cat_tms").select("*").order("created_at", { ascending: true, nullsFirst: true });
+      const { data } = await supabase.from("cat_tms").select("*").eq("env", env).order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapTmRow);
     }
     case "db.getTM": {
@@ -1639,6 +1662,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           online_import_config:
             payload.onlineImportConfig && typeof payload.onlineImportConfig === "object" ? payload.onlineImportConfig : {},
           owner_user_id: userId,
+          env,
           created_at: nowIso(),
           last_modified: nowIso(),
         } as any)
@@ -1650,7 +1674,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.updateTBLangs":
       return await supabase.from("cat_tbs").update({ source_langs: payload.sourceLangs ?? [], target_langs: payload.targetLangs ?? [], last_modified: nowIso() } as any).eq("id", payload.tbId);
     case "db.getTBs": {
-      const { data } = await supabase.from("cat_tbs").select("*").order("created_at", { ascending: true, nullsFirst: true });
+      const { data } = await supabase.from("cat_tbs").select("*").eq("env", env).order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapTbRow);
     }
     case "db.getTB": {
@@ -2629,6 +2653,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           recipient_user_ids: uniqueRecipients,
           message,
           notification_fallback: notificationFallback,
+          env,
         },
       });
       if (slackErr) throw slackErr;

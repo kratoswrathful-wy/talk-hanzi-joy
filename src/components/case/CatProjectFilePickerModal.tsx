@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getEnvironment } from "@/lib/environment";
 import {
   Dialog,
   DialogContent,
@@ -59,7 +60,7 @@ export function CatProjectFilePickerModal({
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
     try {
-      const { data, error } = await supabase.from("cat_projects").select("id, name").order("name");
+      const { data, error } = await supabase.from("cat_projects").select("id, name").eq("env", getEnvironment()).order("name");
       if (error) throw error;
       setProjects((data ?? []) as CatProject[]);
     } catch (e: unknown) {
@@ -78,10 +79,12 @@ export function CatProjectFilePickerModal({
     }
     setLoadingFiles(true);
     try {
-      const { data, error } = await supabase
+      // cat_files.env 為新欄位（尚未進 generated types），用 as any 避免型別過深推導。
+      const { data, error } = await (supabase as any)
         .from("cat_files")
         .select("id, name, related_lms_case_id, related_lms_case_title")
         .eq("project_id", projectId)
+        .eq("env", getEnvironment())
         .order("name");
       if (error) throw error;
       setFiles((data ?? []) as unknown as CatFileOption[]);

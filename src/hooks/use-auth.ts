@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { getAuthSnapshot, subscribeAuthReady, waitForAuthReady } from "@/lib/auth-ready";
 import { PROFILE_SELECT_COLUMNS } from "@/lib/profile-columns";
+import { setTestAccountFlag } from "@/lib/environment";
 
 interface Profile {
   id: string;
@@ -18,6 +19,8 @@ interface Profile {
   receive_translator_case_reply_slack_dms?: boolean | null;
   /** Optional suffixes for automatic case-reply Slack DMs (JSON from DB). */
   slack_message_defaults?: unknown;
+  /** 測試帳號（假人）旗標；true 代表此帳號一律屬於測試環境。 */
+  is_test?: boolean | null;
 }
 
 interface UserRole {
@@ -71,7 +74,10 @@ export function useAuth() {
       return;
     }
 
-    setProfile(data as unknown as Profile);
+    const profileData = data as unknown as Profile;
+    setProfile(profileData);
+    // 將 profiles.is_test 寫入環境模組（權威來源），供 getEnvironment() 身分優先判斷。
+    setTestAccountFlag(profileData.is_test === true);
   }, []);
 
   const fetchRoles = useCallback(async (userId: string) => {
@@ -120,6 +126,7 @@ export function useAuth() {
     if (!user) {
       setProfile(null);
       setRoles([]);
+      setTestAccountFlag(null);
       setLoading(false);
       return;
     }
@@ -152,6 +159,14 @@ export function useAuth() {
     return "member";
   })();
 
+  const isExecutive = roles.some((r) => r.role === "executive");
+  // 測試帳號：profiles.is_test，或 email 以 @test.local 結尾（profile 尚未載入時的退路）。
+  const isTestAccount =
+    profile?.is_test === true ||
+    (user?.email?.toLowerCase().endsWith("@test.local") ?? false);
+  // 真人執行長：executive 且非測試帳號 —— 唯一可開啟測試模式、管理假人專區的身分。
+  const isRealExecutive = isExecutive && !isTestAccount;
+
   const signOut = useCallback(async () => {
     try {
       localStorage.removeItem("keep_logged_in");
@@ -164,6 +179,7 @@ export function useAuth() {
     setSession(null);
     setProfile(null);
     setRoles([]);
+    setTestAccountFlag(null);
     setLoading(false);
   }, []);
 
@@ -175,6 +191,9 @@ export function useAuth() {
     loading,
     isAdmin,
     primaryRole,
+    isExecutive,
+    isTestAccount,
+    isRealExecutive,
     signOut,
     refetchProfile: () => user && fetchProfile(user.id),
   };

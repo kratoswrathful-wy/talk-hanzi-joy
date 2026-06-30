@@ -21,12 +21,45 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { email, password, role, display_name, id: requestedUserId } = await req.json();
+    const { email, password, role, display_name, id: requestedUserId, is_test } = await req.json();
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "email and password required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // 建立測試帳號（假人）：須為真人執行長，且 email 必須是 @test.local。
+    const isTestPersona = is_test === true;
+    if (isTestPersona) {
+      const authHeader = req.headers.get("authorization");
+      const { data: { user: caller } } = authHeader
+        ? await adminClient.auth.getUser(authHeader.replace("Bearer ", ""))
+        : { data: { user: null } };
+      if (!caller) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const callerIsTest = (caller.email ?? "").toLowerCase().endsWith("@test.local");
+      const { data: roleRows } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", caller.id);
+      const callerIsExecutive = (roleRows ?? []).some((r: { role: string }) => r.role === "executive");
+      if (!callerIsExecutive || callerIsTest) {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!String(email).toLowerCase().endsWith("@test.local")) {
+        return new Response(JSON.stringify({ error: "test persona email must end with @test.local" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Optional: preserve legacy UUID when migrating from another Supabase project (Admin API only)
@@ -70,6 +103,17 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // 測試帳號：標記 profiles.is_test，並直接指派角色（不走邀請接受流程，建立即可用）。
+    if (isTestPersona && data.user) {
+      await adminClient
+        .from("profiles")
+        .update({ is_test: true, ...(display_name ? { display_name } : {}) })
+        .eq("id", data.user.id);
+      const personaRole = role && ["member", "pm", "executive"].includes(role) ? role : "member";
+      await adminClient.from("user_roles").delete().eq("user_id", data.user.id);
+      await adminClient.from("user_roles").insert({ user_id: data.user.id, role: personaRole });
     }
 
     return new Response(JSON.stringify({ user: data.user }), {

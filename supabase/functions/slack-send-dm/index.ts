@@ -256,13 +256,19 @@ Deno.serve(async (req) => {
 
     const token = cred.access_token as string;
 
-    const message: string = typeof body.message === "string" ? body.message : "";
-    const notificationFallback: string =
-      typeof body.notification_fallback === "string" && body.notification_fallback.trim()
-        ? body.notification_fallback.trim()
-        : message.split("\n")[0]?.slice(0, 300) || "詢案訊息";
+    // 測試模式分流：env='test' 時所有 Slack 訊息加上 [測試] 前綴，避免與正式通知混淆。
+    const isTestEnv = body.env === "test";
+    const testPrefix = isTestEnv ? "[測試] " : "";
 
-    if (!message.trim()) {
+    const rawMessage: string = typeof body.message === "string" ? body.message : "";
+    const message: string = rawMessage ? `${testPrefix}${rawMessage}` : rawMessage;
+    const notificationFallback: string =
+      testPrefix +
+      (typeof body.notification_fallback === "string" && body.notification_fallback.trim()
+        ? body.notification_fallback.trim()
+        : rawMessage.split("\n")[0]?.slice(0, 300) || "詢案訊息");
+
+    if (!rawMessage.trim()) {
       return new Response(JSON.stringify({ error: "message required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

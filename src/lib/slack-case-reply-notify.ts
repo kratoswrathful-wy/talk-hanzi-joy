@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
+import { getEnvironment } from "@/lib/environment";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
 import {
   effectiveAcceptSuffix,
@@ -153,6 +154,7 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
       case_reply_notification: true,
       message,
       notification_fallback,
+      env: getEnvironment(),
     },
   });
 

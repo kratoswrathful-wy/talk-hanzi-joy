@@ -330,6 +330,7 @@ export function InquirySlackDialog({
             recipient_emails: [r.email!],
             message: msg,
             notification_fallback: notificationFallback,
+            env: getEnvironment(),
           },
         });
 

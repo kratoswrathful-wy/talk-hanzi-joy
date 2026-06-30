@@ -377,6 +377,7 @@ export function NoteReminderSlackDialog({
             recipient_emails: [r.email],
             message: msg,
             notification_fallback: notificationFallback,
+            env: getEnvironment(),
           },
         });
 

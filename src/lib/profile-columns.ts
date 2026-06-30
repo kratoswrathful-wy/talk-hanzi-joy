@@ -19,6 +19,7 @@ export const PROFILE_SELECT_COLUMNS = [
   "bio",
   PROFILE_COLUMN_RECEIVE_TRANSLATOR_CASE_REPLY_SLACK_DMS,
   "slack_message_defaults",
+  "is_test",
   "created_at",
   "updated_at",
 ].join(", ");

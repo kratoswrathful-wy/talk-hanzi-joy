@@ -37,6 +37,7 @@ interface Member {
   role: AppRole;
   isInvitation?: boolean;
   invitationId?: string;
+  is_test?: boolean;
   // translator settings
   note: string;
   no_fee: boolean;
@@ -145,7 +146,7 @@ function EmailTagInput({
 }
 
 export default function MembersPage() {
-  const { isAdmin, user, roles } = useAuth();
+  const { isAdmin, user, roles, isRealExecutive } = useAuth();
   const { allRoles: permRoles, checkPerm } = usePermissions();
   const isExecutive = roles.some((r) => r.role === "executive");
   const getRoleLabel = (key: string) => {
@@ -153,7 +154,17 @@ export default function MembersPage() {
     return found?.label || DEFAULT_ROLE_LABELS[key] || key;
   };
   const [members, setMembers] = useState<Member[]>([]);
+  const [testMembers, setTestMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  // 假人專區（僅真人執行長）
+  const [personaOpen, setPersonaOpen] = useState(false);
+  const [personaName, setPersonaName] = useState("");
+  const [personaEmail, setPersonaEmail] = useState("");
+  const [personaRole, setPersonaRole] = useState<AppRole>("member");
+  const [creatingPersona, setCreatingPersona] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetSeed, setResetSeed] = useState(true);
+  const [resetting, setResetting] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
@@ -180,7 +191,7 @@ export default function MembersPage() {
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     const [{ data: profiles }, { data: rolesData }, { data: invitations }, { data: settings }] = await Promise.all([
-      supabase.from("profiles").select("id, display_name, email, avatar_url"),
+      supabase.from("profiles").select("id, display_name, email, avatar_url, is_test"),
       supabase.from("user_roles").select("user_id, role"),
       supabase.from("invitations").select("*").is("accepted_at", null),
       supabase.from("member_translator_settings").select("*"),
@@ -197,7 +208,7 @@ export default function MembersPage() {
       sort_order: s.sort_order ?? 0,
     }));
 
-    const registeredMembers: Member[] = (profiles || []).map((p: any) => {
+    const allRegistered: Member[] = (profiles || []).map((p: any) => {
       const s = settingsMap.get(p.email) || { note: "", no_fee: false, frozen: false, sort_order: 0 };
       return {
         id: p.id,
@@ -205,12 +216,17 @@ export default function MembersPage() {
         email: p.email,
         avatar_url: p.avatar_url,
         role: roleMap.get(p.id) || "member",
+        is_test: p.is_test === true,
         note: s.note,
         no_fee: s.no_fee,
         frozen: s.frozen,
         sort_order: s.sort_order,
       };
     });
+
+    // 測試帳號（假人）抽離成獨立清單，不混進一般成員。
+    const registeredMembers = allRegistered.filter((m) => !m.is_test);
+    setTestMembers(allRegistered.filter((m) => m.is_test).sort((a, b) => a.email.localeCompare(b.email)));
 
     const registeredEmails = new Set((profiles || []).map((p: any) => p.email));
     const pendingMembers: Member[] = (invitations || []).filter((inv: any) => !registeredEmails.has(inv.email)).map((inv: any) => {
@@ -262,6 +278,49 @@ export default function MembersPage() {
       fetchMembers();
     }
     setInviting(false);
+  };
+
+  const handleCreatePersona = async () => {
+    const email = personaEmail.trim().toLowerCase();
+    if (!email.endsWith("@test.local")) {
+      toast.error("假人 email 必須以 @test.local 結尾");
+      return;
+    }
+    setCreatingPersona(true);
+    const { error } = await supabase.functions.invoke("create-user", {
+      body: {
+        email,
+        password: crypto.randomUUID(),
+        role: personaRole,
+        display_name: personaName.trim() || email,
+        is_test: true,
+      },
+    });
+    if (error) {
+      toast.error("建立假人失敗：" + error.message);
+    } else {
+      toast.success("已建立假人");
+      setPersonaOpen(false);
+      setPersonaName("");
+      setPersonaEmail("");
+      setPersonaRole("member");
+      fetchMembers();
+    }
+    setCreatingPersona(false);
+  };
+
+  const handleResetTestEnv = async () => {
+    setResetting(true);
+    const { error } = await supabase.functions.invoke("reset-test-env", {
+      body: { seed: resetSeed },
+    });
+    if (error) {
+      toast.error("重置失敗：" + error.message);
+    } else {
+      toast.success(resetSeed ? "測試環境已重置並建立示範資料" : "測試環境已重置");
+    }
+    setResetting(false);
+    setResetOpen(false);
   };
 
   const handleRoleChange = async (member: Member, newRole: AppRole) => {
@@ -547,6 +606,141 @@ export default function MembersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 假人專區：僅真人執行長可見 */}
+      {isRealExecutive && (
+        <Card className="border-amber-300/60">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">測試成員（假人）</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  僅執行長可見。假人僅存在於測試環境，用於驗收功能，與正式資料隔離。
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPersonaOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  新增假人
+                </Button>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { setResetSeed(true); setResetOpen(true); }}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  重置測試環境
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {testMembers.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">尚無假人，點「新增假人」建立。</p>
+            ) : (
+              <div className="space-y-1">
+                {testMembers.map((m) => {
+                  const initials = (m.display_name || m.email || "?").slice(0, 2).toUpperCase();
+                  return (
+                    <div key={m.id} className="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-secondary/30">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={m.avatar_url || undefined} />
+                          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <span className="truncate text-sm font-medium">{m.display_name || m.email}</span>
+                          <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge variant="secondary" className="text-xs">{getRoleLabel(m.role)}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => setRemoveTarget(m)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 重置測試環境確認 */}
+      <AlertDialog open={resetOpen} onOpenChange={(open) => { if (!open) setResetOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>重置測試環境</AlertDialogTitle>
+            <AlertDialogDescription>
+              這會永久刪除「測試環境」的所有資料（案件、請款、CAT 專案／記憶庫／術語庫、上傳的檔案與圖片）。
+              <strong className="text-destructive">不會</strong>動到任何正式資料。此操作無法復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-1">
+            <LabeledCheckbox
+              id="reset-seed"
+              checked={resetSeed}
+              onCheckedChange={(c) => setResetSeed(c)}
+            >
+              重置後建立示範案件（種子資料）
+            </LabeledCheckbox>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleResetTestEnv(); }}
+              disabled={resetting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {resetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              確定重置
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 新增假人 Dialog */}
+      <Dialog open={personaOpen} onOpenChange={setPersonaOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新增假人</DialogTitle>
+            <DialogDescription>
+              假人僅存在於測試環境，email 必須以 <code>@test.local</code> 結尾。建立後可在頂端「測試模式」面板切換扮演。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">顯示名稱</label>
+              <Input value={personaName} onChange={(e) => setPersonaName(e.target.value)} placeholder="例如：測試譯者三" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">電子信箱（@test.local）</label>
+              <Input value={personaEmail} onChange={(e) => setPersonaEmail(e.target.value)} placeholder="test-t3@test.local" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">角色</label>
+              <Select value={personaRole} onValueChange={(v) => setPersonaRole(v as AppRole)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {permRoles.map((r) => (
+                    <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPersonaOpen(false)}>取消</Button>
+            <Button onClick={handleCreatePersona} disabled={creatingPersona || !personaEmail.trim()}>
+              {creatingPersona && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              建立
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Invite Dialog */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>

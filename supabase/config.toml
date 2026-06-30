@@ -16,3 +16,11 @@ verify_jwt = false
 
 [functions.slack-disconnect]
 verify_jwt = false
+
+# 網關 verify_jwt 與新版 publishable key + 使用者 JWT 組合可能回 Invalid JWT；
+# 改由函式內 supabase.auth.getUser(jwt) 驗證呼叫者身分（見 index.ts 授權規則）。
+[functions.dev-switch-user]
+verify_jwt = false
+
+[functions.reset-test-env]
+verify_jwt = false
