@@ -1531,7 +1531,8 @@ const DBService = {
         const sid = segmentId != null ? String(segmentId) : '';
         if (!fid || !sid) return;
         const now = new Date().toISOString();
-        const norm = Array.isArray(colors) ? colors.filter(Boolean) : [];
+        const valid = new Set(['red', 'yellow', 'blue', 'purple']);
+        const norm = Array.isArray(colors) ? colors.filter((c) => valid.has(c)) : [];
         const existing = await db.userSegmentMarkers.where('[fileId+segmentId]').equals([fid, sid]).first();
         if (!norm.length) {
             if (existing) await db.userSegmentMarkers.delete(existing.id);

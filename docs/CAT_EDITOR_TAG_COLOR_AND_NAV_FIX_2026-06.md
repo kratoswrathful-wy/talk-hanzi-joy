@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3k 已實作，待驗收**（2026-06-30；2.3j `e147c10` Ctrl+F／回歸通過、1～8 未通過 → 2.3k 大檔修正 + 個人句段色點）
+> **狀態**：**Phase 2.3l 已實作，待 Claude AI 驗收**（2026-06-30；2.3k `3d6030d` → 2.3l；見 §3.12）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)、[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md)
@@ -65,6 +65,14 @@
 35. **色點 Team 跨裝置（2.3k）**：另一瀏覽器開同一檔色點一致。
 36. **色點篩選（2.3k）**：進階篩選選「紅」→ 僅留有紅點列。
 37. **2.3j 回歸（2.3k）**：Ctrl+F 雙按焦點留取代欄；確認後可打字。
+38. **離開篩選 Virt 刷新（2.3l）**：大檔篩選後切搜尋或按清除 → **不需滾輪**即恢復全檔可見列。
+39. **篩選中批次確認（2.3l）**：篩選「未確認」+ 多選批次確認 → 篩選結果**不整批消失**（快照保留）。
+40. **重複句 ✕ 雙向（2.3l）**：句 A 設 ✕、句 B 確認同原文 → A 譯文與確認狀態**不被覆寫**。
+41. **色點四色 2×2（2.3l）**：狀態欄 **9px** 紅黃藍紫四點 2×2 排列於綠圈上方；無橘／灰。
+42. **色點篩選列 UI（2.3l）**：「個人色點」有分隔線、粗體；選項為色點圖示無文字。
+43. **色點右鍵批次（2.3l）**：多選右鍵「附加／移除」各色；全有→移除、缺一→附加。
+44. **色點 Team 持久化（2.3l）**：upsert 後 reload 仍在（`cat_user_segment_markers`）。
+45. **2.3k 回歸整合（2.3l）**：項 26–33、37 與 §3.11 補測一併驗（見 Slack 新版任務）。
 
 **2.3b regression（2.3d～2.3h 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效；**Ctrl+Alt+↓ 一次**還原可打字。
 
@@ -406,7 +414,58 @@
 | 7 | TB 術語捲動中消失 | |
 | 8 | 譯文編輯後篩選跑掉 | |
 
-**2.3k 狀態**：**已實作，待驗收**（驗收 §1.3 項 26～37 + 色點；見 §2.14）。
+**2.3k 狀態**：**已實作，第一輪 AI 驗收部分通過**（2026-06-30；見 §3.11；**補測進行中**）。
+
+### 3.11 Phase 2.3k 第一輪 Claude AI 驗收 → 補測（2026-06-30）
+
+**執行者**：Claude AI（瀏覽器自動化 + iframe `Runtime.evaluate`）  
+**來源聊天室**：Cursor「Phase 2.3k 大檔修正與色點」  
+**測試檔**：`Test_Big.mqxliff`（專案 CLAUDE-QA-TEST-0630，6333 句；`CatVirtGrid.isEnabled()=true`）  
+**Slack**：`#development` 補測任務（2026-06-30；第一輪父訊息已刪除，改發新補測任務）  
+**補測訊息**：<https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782835520364379>
+
+#### 第一輪結果摘要
+
+| 區塊 | 項 | 結果 | 備註 |
+|------|-----|------|------|
+| 批 A | 27 | **通過** | 手動捲不拉回暫存內容 |
+| 批 A | 29 下 | **通過** | 游標在視窗下方離屏，tip 貼底 |
+| 批 A | 26 | **未按規格測** | 僅 Ctrl+G 跳 838／2000，非 Ctrl+Enter |
+| 批 A | 28 | **無法驗證** | 毫秒級 UI，靜態截圖不足 |
+| 批 A | 29 上 | **未測** | 上方句段往下捲 → tip 貼頂 |
+| 批 B | 30～33 | **整批未驗** | 搜尋框合成事件無效（0/0）；需真實鍵盤 |
+| 批 C | 34～36 | **通過** | 五色 UI、Supabase 讀寫、篩選「紅」、刪除同步 |
+| 批 C | 35 | **部分** | reload 持久化通過；未測第二瀏覽器 |
+| 批 C | 37 | **未測** | Ctrl+F 雙按 + 確認可打字 |
+| 回歸 | Ctrl+G／Ctrl+Alt+↓／自由捲 | **通過** | |
+
+**附帶發現**（工程待確認，非驗收失敗）：Team 模式下色點寫入 Supabase、畫面正確，但本機 Dexie `userSegmentMarkers` 查詢為空；是否為「Team 直讀雲端、不寫本機快取」之預期，待工程確認。測試殘留：句 838 藍色點 + 暫存編輯「盤面。X」（PM 手動清理）。
+
+#### 補測待辦（第二輪）
+
+| 優先 | 項 | 內容 |
+|------|-----|------|
+| P0 | 30～33 | 批 B 全項；真實鍵盤／CDP `Input.dispatchKeyEvent` |
+| P0 | 37 | Ctrl+F 雙按焦點留取代欄；確認後可打字 |
+| P1 | 26 | Ctrl+Enter 連跳 3 次、單次置中 |
+| P1 | 29 上 | 上方句段往下捲 → tip 貼頂 |
+| P1 | 28 | MutationObserver 或錄影；否則 blocked |
+| P2 | 34 本機／35 跨裝置 | 可選 |
+
+建議測試方式見 Slack 補測任務內「建議測試方式」表。
+
+### 3.12 Phase 2.3l — 篩選 bug、重複句 ✕、色點改版（2026-06-30）
+
+**狀態**：**已實作，待 Claude AI 驗收**（**忽略** 2026-06-30 00:05 舊 Slack 補測訊息，以新版 `#development` 父訊息為準）
+
+| # | 修正 | 觸點 |
+|---|------|------|
+| 1 | 大檔離開篩選 Virt 不重畫 | `runSearchAndFilter`：`leavingFilter` + `needsVirtRefresh` → `invalidateHeights`；`scheduleRunSearchAndFilter(0, opts)` |
+| 2 | 篩選中批次確認清空結果 | `executeBatchConfirm`：`keepFilterSnapshot` + `refreshBatchConfirmRowsDom`（不再全量 `renderEditorSegments`） |
+| 3 | 重複句 ✕ 雙向隔離 | `propagateRepetition`／`applyOptimisticRepetitionAfterPrimaryConfirm`／`collectConfirmTouchIndices`／範圍外 Modal 跳過 `repModeSeg === 'none'` 目標 |
+| 4 | 色點四色改版 | 紅黃藍紫、9px、2×2、`#sfMarkerFilterRow` 分隔線＋色點 checkbox、右鍵批次附加／移除 |
+
+詳細色點規格：[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md) §2.9。
 
 ---
 
@@ -424,4 +483,5 @@
 | 2026-06-29 | Phase 2.3h：疊層 fixed 化、移除 suspend、焦點遺失才還原 preserve；**已推送 `ffe459d`，部分驗收通過** |
 | 2026-06-29 | Phase 2.3i：離窗不硬抓焦點、篩選置中／被篩掉置頂；字數 memoQ 預翻 `max(TM%,rate%)`；**已推送 `e17ff35`，部分驗收通過** |
 | 2026-06-29 | Phase 2.3j：浮層死結就地建立、導覽錨點保護、篩選置中與聚焦分流；**已推送 `e147c10`，部分驗收通過** |
-| 2026-06-30 | Phase 2.3k：大檔捲動穩定、搜尋／TB 換窗裝飾、個人句段色點（本機+雲端）；**已實作，待驗收** |
+| 2026-06-30 | Phase 2.3k：大檔捲動穩定、搜尋／TB 換窗裝飾、個人句段色點（`3d6030d`）；**第一輪 Claude AI 驗收部分通過**（§3.11） |
+| 2026-06-30 | Phase 2.3l：篩選 Virt 刷新、批次確認快照、重複 ✕ 雙向、色點四色改版；**待 Claude AI 驗收**（§3.12） |

@@ -1387,13 +1387,18 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (error) throw error;
       return (data ?? []).map((r: any) => ({
         segmentId: r.segment_id,
-        colors: Array.isArray(r.colors) ? r.colors : [],
+        colors: (Array.isArray(r.colors) ? r.colors : []).filter((c: string) =>
+          ["red", "yellow", "blue", "purple"].includes(c)
+        ),
         updatedAt: r.updated_at,
       }));
     }
     case "db.upsertUserSegmentMarker": {
       await assertFileEnv(payload.fileId);
-      const colors = Array.isArray(payload.colors) ? payload.colors.filter(Boolean) : [];
+      const validMarker = new Set(["red", "yellow", "blue", "purple"]);
+      const colors = Array.isArray(payload.colors)
+        ? payload.colors.filter((c: string) => validMarker.has(c))
+        : [];
       if (!colors.length) {
         const { error } = await supabase
           .from("cat_user_segment_markers" as any)

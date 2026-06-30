@@ -19,4 +19,4 @@ create policy "cat_user_segment_markers_owner" on public.cat_user_segment_marker
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
-comment on table public.cat_user_segment_markers is '個人句段色點書籤（紅藍橘灰紫，可多色）';
+comment on table public.cat_user_segment_markers is '個人句段色點書籤（紅黃藍紫，可多色）';

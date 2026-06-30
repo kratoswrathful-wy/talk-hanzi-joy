@@ -1548,27 +1548,28 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 
 /* Phase B B-3：Workflow 三層狀態欄（內部綠點／綠外圈 + mqxliff 白字） */
 .col-status {
-    min-width: 52px;
-    width: 52px;
+    min-width: 56px;
+    width: 56px;
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
-    flex-wrap: wrap;
-}
-.seg-user-markers {
-    display: inline-flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    gap: 2px;
+    flex-wrap: nowrap;
+}
+.seg-user-markers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1px;
     flex-shrink: 0;
+    align-items: center;
+    justify-items: center;
 }
 .seg-user-marker-dot {
-    width: 7px;
-    height: 7px;
-    min-width: 7px;
-    min-height: 7px;
+    width: 9px;
+    height: 9px;
+    min-width: 9px;
+    min-height: 9px;
     padding: 0;
     border: 1px solid rgba(0, 0, 0, 0.2);
     border-radius: 50%;
@@ -1577,11 +1578,68 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     box-sizing: border-box;
 }
 .seg-user-marker-dot.is-on[data-marker-color="red"] { background: #ef4444; border-color: #dc2626; }
+.seg-user-marker-dot.is-on[data-marker-color="yellow"] { background: #eab308; border-color: #ca8a04; }
 .seg-user-marker-dot.is-on[data-marker-color="blue"] { background: #3b82f6; border-color: #2563eb; }
-.seg-user-marker-dot.is-on[data-marker-color="orange"] { background: #f97316; border-color: #ea580c; }
-.seg-user-marker-dot.is-on[data-marker-color="grey"] { background: #9ca3af; border-color: #6b7280; }
 .seg-user-marker-dot.is-on[data-marker-color="purple"] { background: #a855f7; border-color: #9333ea; }
-.sf-adv-status-row-markers label { font-size: 0.85rem; }
+.sf-adv-status-row-markers {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed #e2e8f0;
+    align-items: center;
+}
+.sf-marker-heading {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    white-space: nowrap;
+    margin-right: 0.15rem;
+}
+.sf-marker-filter-label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 0.1rem;
+}
+.sf-marker-filter-label input.sf-marker-cb {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.sf-marker-filter-dot {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    box-sizing: border-box;
+    background: transparent;
+}
+.sf-marker-filter-label:has(.sf-marker-cb:checked) .sf-marker-filter-dot {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--primary-color);
+}
+.sf-marker-filter-dot[data-marker-color="red"] { background: #ef4444; border-color: #dc2626; }
+.sf-marker-filter-dot[data-marker-color="yellow"] { background: #eab308; border-color: #ca8a04; }
+.sf-marker-filter-dot[data-marker-color="blue"] { background: #3b82f6; border-color: #2563eb; }
+.sf-marker-filter-dot[data-marker-color="purple"] { background: #a855f7; border-color: #9333ea; }
+.context-menu-item .ctx-marker-dot {
+    width: 11px;
+    height: 11px;
+    min-width: 11px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+}
+.context-menu-item .ctx-marker-dot[data-marker-color="red"] { background: #ef4444; border-color: #dc2626; }
+.context-menu-item .ctx-marker-dot[data-marker-color="yellow"] { background: #eab308; border-color: #ca8a04; }
+.context-menu-item .ctx-marker-dot[data-marker-color="blue"] { background: #3b82f6; border-color: #2563eb; }
+.context-menu-item .ctx-marker-dot[data-marker-color="purple"] { background: #a855f7; border-color: #9333ea; }
+.context-menu-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 0.25rem 0;
+}
 .status-icon-stack {
     position: relative;
     display: inline-flex;

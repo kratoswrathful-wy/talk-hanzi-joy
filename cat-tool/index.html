@@ -907,11 +907,10 @@
                                     </div>
                                     <div id="sfMarkerFilterRow" class="sf-adv-grid sf-adv-status-row-markers">
                                         <span class="sf-marker-heading" aria-hidden="true">個人色點</span>
-                                        <label><input type="checkbox" class="sf-marker-cb" value="red"> 紅</label>
-                                        <label><input type="checkbox" class="sf-marker-cb" value="blue"> 藍</label>
-                                        <label><input type="checkbox" class="sf-marker-cb" value="orange"> 橘</label>
-                                        <label><input type="checkbox" class="sf-marker-cb" value="grey"> 灰</label>
-                                        <label><input type="checkbox" class="sf-marker-cb" value="purple"> 紫</label>
+                                        <label class="sf-marker-filter-label" title="紅色標記"><input type="checkbox" class="sf-marker-cb" value="red" aria-label="紅色標記"><span class="sf-marker-filter-dot" data-marker-color="red"></span></label>
+                                        <label class="sf-marker-filter-label" title="黃色標記"><input type="checkbox" class="sf-marker-cb" value="yellow" aria-label="黃色標記"><span class="sf-marker-filter-dot" data-marker-color="yellow"></span></label>
+                                        <label class="sf-marker-filter-label" title="藍色標記"><input type="checkbox" class="sf-marker-cb" value="blue" aria-label="藍色標記"><span class="sf-marker-filter-dot" data-marker-color="blue"></span></label>
+                                        <label class="sf-marker-filter-label" title="紫色標記"><input type="checkbox" class="sf-marker-cb" value="purple" aria-label="紫色標記"><span class="sf-marker-filter-dot" data-marker-color="purple"></span></label>
                                     </div>
                                 </div>
 
@@ -1648,10 +1647,10 @@
                                 <span style="font-size:1rem; width:24px; text-align:center; display:inline-flex; flex-direction:column; align-items:center; line-height:1;" title="確認整個檔案中所有重複句段">⇳</span>
                                 確認整個檔案中所有重複句段
                             </label>
-                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="停用重複句段連動確認功能">
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="此句不參與重複句段自動填入（雙向：不往外推、也不被兄弟句覆寫）">
                                 <input type="radio" name="repMode" value="none">
-                                <span style="font-size:1rem; width:24px; text-align:center; display:inline-flex; flex-direction:column; align-items:center; line-height:1;" title="停用重複句段連動確認"><span style="color:red; font-size:0.9rem;">✕</span></span>
-                                不確認任何重複句段
+                                <span style="font-size:1rem; width:24px; text-align:center; display:inline-flex; flex-direction:column; align-items:center; line-height:1;" title="此句不參與重複句段自動填入"><span style="color:red; font-size:0.9rem;">✕</span></span>
+                                此句不參與重複句段自動填入
                             </label>
                         </div>
                         <button class="secondary-btn btn-sm" id="btnApplyRepMode" style="margin-top: 0.5rem; width: 100%;">套用至所有句段</button>

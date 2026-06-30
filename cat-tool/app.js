@@ -4654,7 +4654,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             renderEditorSegments();
             runSearchAndFilter();
-            alert(`已將重複句段模式「${repMode === 'after' ? '確認其後' : repMode === 'all' ? '確認全部' : '停用'}」套用至所有句段。`);
+            alert(`已將重複句段模式「${repMode === 'after' ? '確認其後' : repMode === 'all' ? '確認全部' : '不參與自動填入'}」套用至所有句段。`);
         });
     } 
 
@@ -18080,8 +18080,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfFilterSnapshotSegIds = null;
     let sfFilterLockedSpecHash = '';
 
-    const USER_MARKER_COLORS = ['red', 'blue', 'orange', 'grey', 'purple'];
-    const USER_MARKER_LABELS = { red: '紅', blue: '藍', orange: '橘', grey: '灰', purple: '紫' };
+    const USER_MARKER_COLORS = ['red', 'yellow', 'blue', 'purple'];
+    const USER_MARKER_LABELS = { red: '紅', yellow: '黃', blue: '藍', purple: '紫' };
+
+    function normalizeUserMarkerColors(colors) {
+        if (!Array.isArray(colors)) return [];
+        return colors.filter((c) => USER_MARKER_COLORS.includes(c));
+    }
+
     /** @type {Map<string, string[]>} */
     const _userSegmentMarkerMap = new Map();
 
@@ -18113,9 +18119,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (_) { rows = []; }
         rows.forEach((r) => {
             if (!r || r.segmentId == null) return;
-            const colors = Array.isArray(r.colors) ? r.colors.filter((c) => USER_MARKER_COLORS.includes(c)) : [];
+            const colors = normalizeUserMarkerColors(r.colors);
             if (colors.length) _userSegmentMarkerMap.set(String(r.segmentId), colors);
         });
+    }
+
+    function refreshUserMarkerStatusCell(segId) {
+        const key = String(segId);
+        const seg = currentSegmentsList.find((s) => s && String(s.id) === key);
+        const row = getGridRowBySegId(segId, false);
+        if (!row || !seg) return;
+        const host = row.querySelector('.col-status');
+        if (host) host.innerHTML = buildStatusColumnHtml(seg);
     }
 
     async function toggleUserSegmentMarkerColor(segId, color) {
@@ -18132,16 +18147,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (err) {
             console.warn('[markers] upsert failed', err);
         }
-        const row = getGridRowBySegId(segId, false);
-        const seg = currentSegmentsList.find((s) => s && String(s.id) === key);
-        if (row && seg) {
-            const host = row.querySelector('.col-status');
-            if (host) {
-                const statusOnly = buildStatusCellHtml(seg);
-                const markers = buildUserMarkersHtml(seg);
-                host.innerHTML = markers + statusOnly;
+        refreshUserMarkerStatusCell(segId);
+    }
+
+    /**
+     * 批次附加或移除個人色點（右鍵選單）。
+     * @param {Iterable<*>} segIds
+     * @param {string} color
+     * @param {'add'|'remove'} mode
+     */
+    async function batchSetUserSegmentMarkerColor(segIds, color, mode) {
+        if (!USER_MARKER_COLORS.includes(color) || currentFileId == null) return;
+        const ids = [...segIds].map((id) => String(id));
+        if (!ids.length) return;
+        const upserts = [];
+        for (const sid of ids) {
+            const cur = getUserSegmentMarkerColors(sid);
+            let next;
+            if (mode === 'remove') {
+                next = cur.filter((c) => c !== color);
+            } else {
+                next = cur.includes(color) ? cur : [...cur, color];
             }
+            if (next.length) _userSegmentMarkerMap.set(sid, next);
+            else _userSegmentMarkerMap.delete(sid);
+            upserts.push({ segId: sid, colors: next });
         }
+        try {
+            await Promise.all(upserts.map((u) => DBService.upsertUserSegmentMarker(currentFileId, u.segId, u.colors)));
+        } catch (err) {
+            console.warn('[markers] batch upsert failed', err);
+        }
+        ids.forEach((sid) => refreshUserMarkerStatusCell(sid));
+        if (sfMode === 'filter' && readSfMarkerColorsFromDom().length > 0) {
+            runSearchAndFilter({ keepFilterSnapshot: true });
+        }
+    }
+
+    function buildMarkerDotHtml(color, extraClass) {
+        const cls = extraClass ? ` ${extraClass}` : '';
+        return `<span class="seg-user-marker-dot is-on${cls}" data-marker-color="${color}" aria-hidden="true"></span>`;
+    }
+
+    function selectedSegsAllHaveMarkerColor(color) {
+        if (!selectedRowIds.size) return false;
+        for (const id of selectedRowIds) {
+            const colors = getUserSegmentMarkerColors(id);
+            if (!colors.includes(color)) return false;
+        }
+        return true;
     }
 
     function readSfMarkerColorsFromDom() {
@@ -18328,19 +18382,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     let sfRunUiTimer = null;
     let sfRunOnNextFrameQueued = false;
+    /** @type {object|null} */
+    let _pendingSfRunOpts = null;
 
     /**
      * 先讓 checkbox / button 狀態完成重繪，再進行重型的 runSearchAndFilter，
      * 避免使用者感覺「點了要等很久才有回饋」。
+     * @param {number} [delayMs]
+     * @param {object} [opts] 傳入 runSearchAndFilter（如 leavingFilter、keepFilterSnapshot）
      */
-    function scheduleRunSearchAndFilter(delayMs = 0) {
+    function scheduleRunSearchAndFilter(delayMs = 0, opts = null) {
+        if (opts && typeof opts === 'object') {
+            _pendingSfRunOpts = { ...(_pendingSfRunOpts || {}), ...opts };
+        }
         clearTimeout(sfRunUiTimer);
         sfRunUiTimer = setTimeout(() => {
             if (sfRunOnNextFrameQueued) return;
             sfRunOnNextFrameQueued = true;
             requestAnimationFrame(() => {
                 sfRunOnNextFrameQueued = false;
-                runSearchAndFilter();
+                const runOpts = _pendingSfRunOpts;
+                _pendingSfRunOpts = null;
+                runSearchAndFilter(runOpts || undefined);
             });
         }, Math.max(0, delayMs | 0));
     }
@@ -18396,9 +18459,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         if (sfMode === 'search') { sfModeFilter.click(); return; } // Toggle behavior
+        const wasFilter = (sfMode === 'filter');
         sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
         _updateSfFilterCountBadge();
-        scheduleRunSearchAndFilter();
+        scheduleRunSearchAndFilter(0, wasFilter || sfFilterSnapshotSegIds !== null ? { leavingFilter: true } : null);
         onSwitchToSearchMode();
         emitCollabFocus('control', 'sfModeSearch');
         syncWordCountEditorScopeRadios();
@@ -19112,8 +19176,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (el) el.checked = nextFlags.rowRangeExclude;
         }
         if (Array.isArray(spec.markerColors)) {
+            const validMarkers = normalizeUserMarkerColors(spec.markerColors);
             document.querySelectorAll('.sf-marker-cb').forEach((c) => {
-                c.checked = spec.markerColors.includes(c.value);
+                c.checked = validMarkers.includes(c.value);
             });
         }
     }
@@ -19740,6 +19805,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentSegmentsList.length) return;
         // keepFilterSnapshot：由取代操作（replaceAll/replaceThis）傳入，避免因內容變動而重算篩選快照。
         // 規格：除非使用者主動變更篩選條件，否則任何操作都不應改變篩選結果。
+        const hadFilterSnapshot = sfFilterSnapshotSegIds !== null;
+        const leavingFilter = !!(opts && opts.leavingFilter);
         const keepFilterSnapshot = !!(opts && opts.keepFilterSnapshot);
         
         if (btnSfInvert) {
@@ -19989,7 +20056,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
-        if (virtActive && didRebuildFilterSnapshot) {
+        const needsVirtRefresh = didRebuildFilterSnapshot
+            || (virtActive && leavingFilter)
+            || (virtActive && hadFilterSnapshot && sfMode !== 'filter');
+        if (needsVirtRefresh) {
             window.CatVirtGrid.invalidateHeights(
                 scrollAnchorSegId != null ? scrollAnchorSegId : undefined,
                 scrollAnchorSegId != null ? scrollAnchorBlock : undefined
@@ -22238,7 +22308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfFilterGroups = sfFilterGroups.filter((g) => !!g.locked);
             renderFilterGroups();
             clearUIFilters();
-            runSearchAndFilter();
+            runSearchAndFilter({ leavingFilter: true });
         });
     }
 
@@ -22311,6 +22381,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (selectedIndexSet.has(j)) continue;
                 const other = currentSegmentsList[j];
                 if (!other || other.sourceText !== sourceText || !other.repetitionType) continue;
+                if ((other.repModeSeg || repMode) === 'none') continue;
                 const st = resolveSegmentConfirmDisplayState(other);
                 const isAlreadyConfirmed = st === 'trans_confirmed' || st === 'review_confirmed' || st === 'post_review_trans';
                 outOfRangeSegs.push({
@@ -22382,6 +22453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (o.isAlreadyConfirmed) continue;
                         const seg = o.seg;
                         if (!seg || isDynamicForbidden(seg) || seg.isLockedUser) continue;
+                        if ((seg.repModeSeg || repMode) === 'none') continue;
                         beforeSnapshots[seg.id] = snapshotSegForUndo(seg);
                         seg.targetText = group.confirmedTranslation;
                         applyWorkflowConfirmToSegment(seg, true, { kinds: _batchConfirmKindsForSeg() });
@@ -22440,8 +22512,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         return results;
     }
 
+    /** 批次確認後更新已掛載列的狀態欄（避免全量 renderEditorSegments 重算篩選快照） */
+    function refreshBatchConfirmRowsDom(indices) {
+        const touchSet = new Set();
+        (indices || []).forEach((idx) => {
+            if (idx < 0) return;
+            touchSet.add(idx);
+            collectConfirmTouchIndices(idx).forEach((j) => touchSet.add(j));
+        });
+        touchSet.forEach((idx) => {
+            const seg = currentSegmentsList[idx];
+            if (!seg) return;
+            const row = getGridRowBySegId(seg.id, false);
+            if (!row) return;
+            const host = row.querySelector('.col-status');
+            if (host) host.innerHTML = buildStatusColumnHtml(seg);
+            if (!isDynamicForbidden(seg) && !seg.isLockedUser) syncRowConfirmedStateClass(row, seg);
+        });
+    }
+
     /**
-     * 批次確認主流程：UI 瞬間更新、背景 DB／TM、範圍外重複 Modal。
      * @param {number[]} primaryIndices 直接選取確認的列索引
      * @param {{ focusIdx?: number|null, skippedSystemLocked?: object[] }} opts
      */
@@ -22477,8 +22567,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         updateProgress();
-        renderEditorSegments();
-        runSearchAndFilter();
+        refreshBatchConfirmRowsDom(changedIndices);
+        runSearchAndFilter({ keepFilterSnapshot: true });
         if (repGroups.length) showOutOfRangeRepetitionModal(repGroups);
         notifySkippedSystemLockedSegs(o.skippedSystemLocked || []);
         const dbItems = changedIndices.map((idx) => {
@@ -22541,8 +22631,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 updateProgress();
                 const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
-                renderEditorSegments();
-                runSearchAndFilter();
+                refreshBatchConfirmRowsDom(changedIndices);
+                runSearchAndFilter({ keepFilterSnapshot: true });
                 if (keepId != null) {
                     scheduleEditorFocus({ segId: keepId, scrollBehavior: 'auto', explicitNav: true });
                 }
@@ -22580,6 +22670,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const other = currentSegmentsList[j];
             const otherLocked = !!(isDynamicForbidden(other) || other.isLockedUser);
             if (otherLocked || other.sourceText !== src) continue;
+            if ((other.repModeSeg || repMode) === 'none') continue;
             if (mode === 'after' && j <= segIndex) continue;
             set.add(j);
         }
@@ -22621,6 +22712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const other = currentSegmentsList[j];
             const otherLocked = !!(isDynamicForbidden(other) || other.isLockedUser);
             if (otherLocked || other.sourceText !== src) continue;
+            if ((other.repModeSeg || repMode) === 'none') continue;
             if (mode === 'after' && j <= primaryIndex) continue;
             other.targetText = tgt;
             applyWorkflowConfirmToSegment(other, true);
@@ -22649,6 +22741,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const other = currentSegmentsList[j];
             const otherLocked = !!(isDynamicForbidden(other) || other.isLockedUser);
             if (otherLocked || other.sourceText !== src) continue;
+            if ((other.repModeSeg || repMode) === 'none') continue;
 
             if (mode === 'after' && j <= segIndex) continue;
 
@@ -24027,7 +24120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     repTitle = '確認整個檔案中所有重複句段';
                 } else {
                     repIcon = '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;"><span style="color:red;">&#x2715;</span></span>';
-                    repTitle = '停用重複句段連動確認';
+                    repTitle = '此句不參與重複句段自動填入';
                 }
                 if (repNum) repIcon = `<span style="font-size:0.7rem;color:var(--text-light);">${repNum}</span>` + repIcon;
             }
@@ -25029,7 +25122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             all:   '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;">&#x21F3;</span>',
                             none:  '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;"><span style="color:red;">&#x2715;</span></span>'
                         };
-                        const titles = { after: '確認其後的重複句段', all: '確認整個檔案中所有重複句段', none: '停用重複句段連動確認' };
+                        const titles = { after: '確認其後的重複句段', all: '確認整個檔案中所有重複句段', none: '此句不參與重複句段自動填入' };
                         const repNum = (seg.repetitionIndex != null && seg.repetitionTotal != null) ? `<span style="font-size:0.7rem;color:var(--text-light);">${seg.repetitionIndex}/${seg.repetitionTotal}</span>` : '';
                         repCell.innerHTML = repNum ? repNum + icons[seg.repModeSeg] : icons[seg.repModeSeg];
                         repCell.title = titles[seg.repModeSeg];
@@ -26188,12 +26281,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const anyUserLocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && s.isLockedUser);
         const anyEffectiveLocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && (isDynamicForbidden(s) || s.isLockedUser));
         const anyUnlocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+
+        let markerMenuHtml = '<div class="context-menu-divider"></div>';
+        USER_MARKER_COLORS.forEach((color) => {
+            const allHave = selectedSegsAllHaveMarkerColor(color);
+            const verb = allHave ? '移除' : '附加';
+            const label = USER_MARKER_LABELS[color] || color;
+            markerMenuHtml += `<div class="context-menu-item ctx-marker-action" data-marker-color="${color}" data-marker-mode="${allHave ? 'remove' : 'add'}"><span class="ctx-marker-dot" data-marker-color="${color}"></span> ${verb}（${label}色圓點）</div>`;
+        });
         
         contextMenu.innerHTML = `
             <div class="context-menu-item confirm" id="ctxBatchConfirm"><div class="icon"></div> 設定為「已確認」</div>
             <div class="context-menu-item" id="ctxBatchUnconfirm"><div class="icon"></div> 設定為「未確認」</div>
             <div class="context-menu-item" id="ctxLockSegments"${anyUnlocked ? '' : ' style="opacity:0.5;pointer-events:none;"'}><div class="icon"></div> 鎖定句段</div>
             <div class="context-menu-item" id="ctxUnlockSegments"${anyUserLocked ? '' : ' style="opacity:0.5;pointer-events:none;"'}><div class="icon"></div> 解除鎖定</div>
+            ${markerMenuHtml}
         `;
         
         document.body.appendChild(contextMenu);
@@ -26284,6 +26386,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderEditorSegments();
             runSearchAndFilter();
             void Promise.all(dbWaits).catch((e) => console.error(e));
+        });
+
+        contextMenu.querySelectorAll('.ctx-marker-action').forEach((el) => {
+            el.addEventListener('click', () => {
+                const color = el.getAttribute('data-marker-color');
+                const mode = el.getAttribute('data-marker-mode');
+                if (!color || !mode) return;
+                void batchSetUserSegmentMarkerColor(selectedRowIds, color, mode);
+            });
         });
     });
 

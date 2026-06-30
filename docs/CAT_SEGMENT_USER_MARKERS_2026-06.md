@@ -1,76 +1,79 @@
-# CAT 編輯器：個人句段色點（Phase 2.3k）
+# CAT 編輯器：個人句段色點（Phase 2.3k → 2.3l）
 
-> **狀態**：**Phase 2.3k 規劃中**（與大檔 virt 修正同批）  
-> **觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/db.js`](../cat-tool/db.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)  
-> **相關**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §2.14
+> **狀態**：**Phase 2.3l 已實作，待 Claude AI 驗收**（2026-06-30）
+> **觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/db.js`](../cat-tool/db.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)、[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)  
+> **相關**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.12
 
 ---
 
 ## Part 1 — 白話
 
-譯者可在每個句段旁加上**個人**小色點（紅／藍／橘／灰／紫），一列可掛**多色**，作為書籤或進度標記。色點**不寫入** XLIFF、不影響他人譯文，僅供自己辨識與**進階篩選**。
+譯者可在每個句段旁加上**個人**小色點（**紅／黃／藍／紫**），一列可掛**多色**，作為書籤或進度標記。色點**不寫入** XLIFF、不影響他人譯文，僅供自己辨識與**進階篩選**。
 
 - **本機版**：存於瀏覽器 IndexedDB（Dexie v27 `userSegmentMarkers`）。
-- **團隊版**：同時存 Supabase `cat_user_segment_markers`，可跨裝置／跨伺服器讀寫（RLS 僅本人）。
+- **團隊版**：Supabase `cat_user_segment_markers`，**同帳號**可跨瀏覽器／裝置（RLS 僅本人）。
+- **Phase 2.3l**：四色 2×2 排列於確認綠圈上方（9px）；進階篩選列分隔線＋色點圖示；右鍵批次附加／移除；**橘／灰已移除**（讀取時 strip，不轉換）。
 
 ---
 
 ## Part 2 — 技術規格
 
-### 2.1 五色 enum
+### 2.1 四色 enum（2.3l）
 
-`red` | `blue` | `orange` | `grey` | `purple`
+`red` | `yellow` | `blue` | `purple`
 
-### 2.2 本機（Dexie v25）
+（2.3k 的 `orange`／`grey` 已廢止；載入與 upsert 時 filter 掉。）
 
-表 `userSegmentMarkers`：
+### 2.2 本機（Dexie v27）
 
-| 欄位 | 說明 |
-|------|------|
-| `fileId` | 檔案 id（number 或 uuid 字串） |
-| `segmentId` | 句段 id |
-| `colors` | `string[]`，子集於五色 |
-| `updatedAt` | ISO 時間 |
+表 `userSegmentMarkers`：`fileId`、`segmentId`、`colors[]`、`updatedAt`。索引 `[fileId+segmentId]`。
 
-索引：`[fileId+segmentId]` 複合唯一。
-
-`DBService`：`getUserSegmentMarkersByFile`、`upsertUserSegmentMarker`、`deleteUserSegmentMarker`（colors 空陣列時刪列）。
+`DBService.upsertUserSegmentMarker` 正規化為四色子集；空陣列刪列。
 
 ### 2.3 雲端（Team）
 
-```sql
-cat_user_segment_markers (
-  user_id uuid → profiles,
-  file_id uuid → cat_files,
-  segment_id uuid → cat_segments,
-  colors text[] not null default '{}',
-  updated_at timestamptz,
-  primary key (user_id, file_id, segment_id)
-)
-```
-
-RLS：`user_id = auth.uid()`（比照 `cat_private_notes`）。
-
-RPC：`db.getUserSegmentMarkersByFile`、`db.upsertUserSegmentMarker`。
+`cat_user_segment_markers`（`user_id`, `file_id`, `segment_id`, `colors text[]`）。RPC 讀寫時同樣 filter 四色。
 
 ### 2.4 執行期 Map
 
-開檔後 `_userSegmentMarkerMap: Map<segmentId, colors[]>`；`buildGridDataRow` 讀 Map 渲染 `.seg-user-markers`。
+`_userSegmentMarkerMap: Map<segmentId, colors[]>`；`buildStatusColumnHtml` = 色點 + 確認圖示。
 
-### 2.5 UI
+### 2.5 UI（2.3l）
 
-- **位置**：狀態欄（`.col-status`）內、確認圖示左側。
-- **操作**：點色點區開選單（或右鍵）勾選／取消多色；即時 upsert。
-- **CSS**：`.seg-user-marker-dot` + `--marker-red` 等。
+| 項目 | 規格 |
+|------|------|
+| 位置 | `.col-status` 直向：上方 2×2 色點，下方 Workflow 綠圈 |
+| 尺寸 | `.seg-user-marker-dot` **9×9px**（原 7px 之 1.3 倍） |
+| 點擊 | 各 dot 切換該色 on/off（保留） |
+| 右鍵 | 多選句段 → 「附加／移除（X色圓點）」；**全部**已有該色 → 移除，**任一**沒有 → 附加 |
 
 ### 2.6 篩選
 
-進階篩選 `#sfMarkerFilterRow`：五色 checkbox，**OR**（任選色與句段 colors 交集非空即命中）。納入 `getSfFilterSpecHash`、`evaluateSegment` 第五維 `markerColors`。
+`#sfMarkerFilterRow`：與「內部流程」同型分隔線 + 粗體「個人色點」；checkbox 以 `.sf-marker-filter-dot` 顯示，無文字 label。OR 邏輯不變。
 
-### 2.7 驗收
+### 2.7 驗收（2.3l）
 
-1. 本機加紅+藍兩點 → 重開檔仍在。
-2. Team 另一瀏覽器開同一檔 → 色點一致。
-3. 篩選「含紅色」→ 僅留有紅點列。
-4. 移除色點 → 雲端／本機同步更新。
-5. 匯出 XLIFF／Workflow 不受影響。
+1. 四色 2×2 + 9px DOM 量測。
+2. 點擊切換 + 右鍵批次附加／移除邏輯。
+3. Team upsert + reload 持久化。
+4. 篩選「紅」僅留有紅點列。
+5. 舊資料含橘／灰 → 開檔後不顯示。
+
+### 2.8 第一輪驗收紀錄（2.3k，2026-06-30）
+
+五色 UI、Supabase、篩選「紅」通過；見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.11。
+
+### 2.9 Phase 2.3l 變更摘要
+
+- `USER_MARKER_COLORS` → 四色；`normalizeUserMarkerColors()`。
+- `batchSetUserSegmentMarkerColor()` + context menu。
+- CSS：`.col-status` column、`.seg-user-markers` grid 2×2、`.sf-adv-status-row-markers` 分隔線。
+
+---
+
+## 開發時序
+
+| 日期 | 事項 |
+|------|------|
+| 2026-06-30 | Phase 2.3k 五色 + Supabase（`3d6030d`） |
+| 2026-06-30 | Phase 2.3l 四色改版 + 右鍵批次 + 橘灰移除；**待驗收** |
