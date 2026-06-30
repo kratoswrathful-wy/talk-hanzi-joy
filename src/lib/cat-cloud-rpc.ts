@@ -885,10 +885,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (!user) return null;
       const { data } = await supabase
         .from("cat_user_ui_prefs" as any)
-        .select("hide_completed_dashboard")
+        .select("hide_completed_dashboard, qa_report_surface")
         .eq("user_id", user.id)
         .maybeSingle();
-      return (data as unknown as { hide_completed_dashboard: boolean } | null) ?? null;
+      return (data as unknown as { hide_completed_dashboard: boolean; qa_report_surface?: string } | null) ?? null;
     }
     case "db.setUserUiPref": {
       const {
@@ -898,6 +898,11 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const patch: Record<string, unknown> = { user_id: user.id, updated_at: nowIso() };
       if (payload.hideCompletedDashboard !== undefined)
         patch.hide_completed_dashboard = !!payload.hideCompletedDashboard;
+      if (payload.qaReportSurface !== undefined) {
+        const v = String(payload.qaReportSurface || "bottom");
+        if (!["bottom", "right", "both"].includes(v)) throw new Error("invalid qaReportSurface");
+        patch.qa_report_surface = v;
+      }
       const { error } = await supabase
         .from("cat_user_ui_prefs" as any)
         .upsert(patch as any, { onConflict: "user_id" });

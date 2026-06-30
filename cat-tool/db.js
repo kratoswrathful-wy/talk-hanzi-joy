@@ -1216,13 +1216,39 @@ const DBService = {
         return { ok: true };
     },
 
+    _userUiPrefLsKey() {
+        return 'catUserUiPref';
+    },
+    _normalizeUserUiPref(raw) {
+        const base = { hide_completed_dashboard: true, qa_report_surface: 'bottom' };
+        if (!raw || typeof raw !== 'object') return { ...base };
+        const out = { ...base, ...raw };
+        const s = String(out.qa_report_surface || 'bottom');
+        out.qa_report_surface = (s === 'right' || s === 'both') ? s : 'bottom';
+        out.hide_completed_dashboard = out.hide_completed_dashboard !== false;
+        return out;
+    },
     async getUserUiPref() {
-        // 離線：回傳預設值（隱藏已完成預設勾選）
-        return { hide_completed_dashboard: true };
+        try {
+            const lsRaw = localStorage.getItem(this._userUiPrefLsKey());
+            if (lsRaw) return this._normalizeUserUiPref(JSON.parse(lsRaw));
+        } catch (_) { /* ignore */ }
+        return this._normalizeUserUiPref(null);
     },
 
-    async setUserUiPref(_prefs) {
-        // 離線：無法持久化，回傳成功
+    async setUserUiPref(prefs) {
+        const cur = await this.getUserUiPref();
+        const next = this._normalizeUserUiPref({ ...cur, ...(prefs || {}) });
+        if (prefs && prefs.hideCompletedDashboard !== undefined) {
+            next.hide_completed_dashboard = !!prefs.hideCompletedDashboard;
+        }
+        if (prefs && prefs.qaReportSurface !== undefined) {
+            const v = String(prefs.qaReportSurface || 'bottom');
+            next.qa_report_surface = (v === 'right' || v === 'both') ? v : 'bottom';
+        }
+        try {
+            localStorage.setItem(this._userUiPrefLsKey(), JSON.stringify(next));
+        } catch (_) { /* ignore */ }
         return { ok: true };
     },
 
@@ -1967,7 +1993,12 @@ const DBService = {
             prompts: {
                 translateSystemPrefix: '',
                 scanSystemPrefix: '',
-                typoSystem: ''
+                typoSystem: '',
+                qaSemanticSystem: '',
+                qaTransGuidelineSystem: '',
+                qaStyleGuidelineSystem: '',
+                qaProjectGuidelineSystem: '',
+                qaSpecialInstructionSystem: ''
             }
         };
     },

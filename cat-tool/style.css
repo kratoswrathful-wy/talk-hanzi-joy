@@ -3347,6 +3347,56 @@ mark.tm-search-hit {
     opacity: 0.55;
     cursor: not-allowed;
 }
+.qa-surface-pref-group {
+    padding: 0.35rem 0.6rem 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+.qa-surface-pref-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.35rem;
+}
+.qa-surface-pref-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.qa-surface-pref-opt {
+    font-size: 0.8rem;
+}
+.qa-surface-redirect-hint {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin: 0;
+    padding: 0.25rem 0.6rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+.qa-check-label.qa-ai-check-unavailable {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+#tabQaResults {
+    display: none;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+#tabQaResults.active {
+    display: flex;
+}
+.qa-results-wrap--bottom {
+    flex: 1 1 0;
+    min-height: 0;
+}
+.qa-results-table--wide .qa-th-info,
+.qa-results-table--wide .qa-td-info {
+    min-width: 12rem;
+    max-width: none;
+}
+.qa-td-info {
+    word-break: break-word;
+}
 .qa-results-hint {
     font-size: 0.78rem;
     color: #475569;

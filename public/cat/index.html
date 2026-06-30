@@ -965,6 +965,7 @@
                                 <div class="notes-panel-tabs">
                                     <button class="notes-tab-btn active" data-notes-tab="tabPrivateNotes">私人筆記</button>
                                     <button class="notes-tab-btn" data-notes-tab="tabSharedInfo">共用資訊</button>
+                                    <button type="button" class="notes-tab-btn" data-notes-tab="tabQaResults">QA 結果</button>
                                     <button type="button" class="notes-tab-btn ai-translator-ui ai-file-only-notes-tab" data-notes-tab="tabAiReport" style="display:none;" hidden aria-hidden="true">AI 報告</button>
                                     <button type="button" class="notes-tab-btn" id="tabRevMgmt" data-notes-tab="tabRevMgmt" style="display:none;">修訂管理</button>
                                 </div>
@@ -1067,6 +1068,27 @@
                                         <ul id="revMgmtSeverityList" class="rev-mgmt-list"></ul>
                                     </div>
                                 </div>
+                                <!-- QA 結果 Tab（寬面板） -->
+                                <div class="notes-tab-content" id="tabQaResults">
+                                    <div id="qaStatusBottom" class="qa-status-bar">按右側「開始 QA」執行檢查。</div>
+                                    <div class="qa-results-wrap qa-results-wrap--bottom" style="overflow-y:auto; flex:1; min-height:0;">
+                                        <div id="qaResultsHintBottom" class="qa-results-hint" style="display:none;">
+                                            <strong>使用說明：</strong>「#」「說明」點擊可跳至該句段。勾選最左欄可多列選取；變更任一列「忽略」時，會一併套用至<strong>所有已選取</strong>列。在「類型」或「說明」儲存格上<strong>右鍵</strong>可批次忽略「同類型」或「同說明」（同說明＝說明文字完全一致）的警報。
+                                        </div>
+                                        <table class="qa-results-table qa-results-table--wide" id="qaResultsTableBottom" style="display:none;">
+                                            <thead>
+                                                <tr>
+                                                    <th class="qa-th-sel" scope="col" aria-label="多列選取" title="多列選取"></th>
+                                                    <th class="qa-th-num qa-sortable-th" data-sort-key="gid" data-qa-surface="bottom">#</th>
+                                                    <th class="qa-th-type qa-sortable-th" data-sort-key="type" data-qa-surface="bottom">類型</th>
+                                                    <th class="qa-th-info qa-sortable-th" data-sort-key="info" data-qa-surface="bottom">說明</th>
+                                                    <th class="qa-th-ignore">忽略</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="qaResultsBodyBottom"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
                                 <!-- AI 報告 Tab -->
                                 <div class="notes-tab-content" id="tabAiReport">
                                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
@@ -1164,15 +1186,26 @@
                             </div>
                         </div>
                         <div class="panel-content" id="tabQA">
-                            <!-- QA 可折疊檢查項目 -->
+                            <!-- 規則檢查 -->
                             <div class="qa-check-group">
-                                <button class="qa-collapse-btn" id="btnQaCollapseChecks">▾ 檢查項目</button>
-                                <div class="qa-collapse-body" id="qaChecksBody">
+                                <button class="qa-collapse-btn" id="btnQaCollapseRules" type="button">▾ 規則檢查</button>
+                                <div class="qa-collapse-body" id="qaRulesBody">
                                     <label class="qa-check-label"><input type="checkbox" id="qaCheckTerms" checked> 術語是否有遺漏或錯誤</label>
                                     <label class="qa-check-label"><input type="checkbox" id="qaCheckTags" checked> Tag 是否有遺漏</label>
                                     <label class="qa-check-label"><input type="checkbox" id="qaCheckConsistency" checked> 原文相同但譯文不一致</label>
                                     <label class="qa-check-label"><input type="checkbox" id="qaCheckNumbers" checked> 數字與原文不一致</label>
-                                    <label class="qa-check-label"><input type="checkbox" id="qaCheckTypos"> 錯字（由 AI 檢查）</label>
+                                </div>
+                            </div>
+                            <!-- AI 檢查 -->
+                            <div class="qa-check-group">
+                                <button class="qa-collapse-btn" id="btnQaCollapseAi" type="button">▾ AI 檢查</button>
+                                <div class="qa-collapse-body" id="qaAiChecksBody">
+                                    <label class="qa-check-label"><input type="checkbox" id="qaCheckTypos"> 錯字／打字</label>
+                                    <label class="qa-check-label"><input type="checkbox" id="qaCheckSemantic"> 語意與翻譯正確性</label>
+                                    <label class="qa-check-label" id="qaCheckTransGuidelineLabel"><input type="checkbox" id="qaCheckTransGuideline"> 翻譯準則</label>
+                                    <label class="qa-check-label" id="qaCheckStyleGuidelineLabel"><input type="checkbox" id="qaCheckStyleGuideline"> 文風偏好</label>
+                                    <label class="qa-check-label" id="qaCheckProjectGuidelineLabel"><input type="checkbox" id="qaCheckProjectGuideline"> 專案準則</label>
+                                    <label class="qa-check-label" id="qaCheckSpecialInstructionLabel"><input type="checkbox" id="qaCheckSpecialInstruction"> 本案特殊指示</label>
                                 </div>
                             </div>
                             <!-- QA 可折疊檢查範圍 -->
@@ -1195,6 +1228,15 @@
                                     </div>
                                 </div>
                             </div>
+                            <!-- 結果顯示位置 -->
+                            <div class="qa-check-group qa-surface-pref-group">
+                                <div class="qa-surface-pref-label">結果顯示位置</div>
+                                <div class="qa-surface-pref-options" role="radiogroup" aria-label="QA 結果顯示位置">
+                                    <label class="qa-label qa-surface-pref-opt"><input type="radio" name="qaReportSurface" value="bottom" checked> 下方寬面板</label>
+                                    <label class="qa-label qa-surface-pref-opt"><input type="radio" name="qaReportSurface" value="right"> 右側</label>
+                                    <label class="qa-label qa-surface-pref-opt"><input type="radio" name="qaReportSurface" value="both"> 兩邊同時</label>
+                                </div>
+                            </div>
                             <!-- QA 動作列 -->
                             <div class="qa-action-bar">
                                 <label class="qa-label" style="display:flex; align-items:center; gap:3px;">
@@ -1204,7 +1246,8 @@
                             </div>
                             <!-- 狀態與結果 -->
                             <div id="qaStatus" class="qa-status-bar">按「開始 QA」執行檢查。</div>
-                            <div class="qa-results-wrap" style="overflow-y:auto; flex:1;">
+                            <p id="qaSurfaceRedirectHint" class="qa-surface-redirect-hint" style="display:none;">結果顯示於下方「QA 結果」分頁。</p>
+                            <div id="qaResultsWrapRight" class="qa-results-wrap" style="overflow-y:auto; flex:1;">
                                 <div id="qaResultsHint" class="qa-results-hint" style="display:none;">
                                     <strong>使用說明：</strong>「#」「說明」點擊可跳至該句段。勾選最左欄可多列選取；變更任一列「忽略」時，會一併套用至<strong>所有已選取</strong>列。在「類型」或「說明」儲存格上<strong>右鍵</strong>可批次忽略「同類型」或「同說明」（同說明＝說明文字完全一致）的警報。
                                 </div>
@@ -1332,13 +1375,29 @@
                         <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">AI 翻譯時每次送出的句段數量，建議 10–30。數字越大每批 context 越豐富，但若超出模型限制會出錯。</p>
                     </div>
                     <div class="form-group" id="aiPromptsExecBlock">
-                        <h4 style="font-size:0.9rem; margin:0 0 0.5rem 0; color:#334155;">可編系統提示（選填，置於內建提示之前）</h4>
+                        <h4 style="font-size:0.9rem; margin:0 0 0.5rem 0; color:#334155;">可編系統提示（選填；留空則用內建，須能輸出與內建相同之 JSON 結尾）</h4>
                         <label class="form-label" style="font-size:0.8rem;">翻譯前綴</label>
                         <textarea id="aiPromptTranslatePrefix" class="form-input" rows="2" spellcheck="false" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
                         <label class="form-label" style="font-size:0.8rem; margin-top:0.5rem;">全文掃描前綴</label>
                         <textarea id="aiPromptScanPrefix" class="form-input" rows="2" spellcheck="false" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
-                        <label class="form-label" style="font-size:0.8rem; margin-top:0.5rem;">錯字檢查（可覆寫內建檢查說明；須能輸出與內建相同之 JSON 結尾）</label>
-                        <textarea id="aiPromptTypoSystem" class="form-input" rows="3" spellcheck="false" placeholder="可留空則用內建" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.75rem;">錯字檢查（QA）</label>
+                        <textarea id="aiPromptTypoSystem" class="form-input ai-qa-prompt-input" rows="3" spellcheck="false" placeholder="可留空則用內建" data-qa-prompt-key="typo" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <p class="ai-qa-prompt-default" data-qa-prompt-key="typo" style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0; line-height:1.45; white-space:pre-wrap;"></p>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.75rem;">語意與翻譯正確性（QA）</label>
+                        <textarea id="aiPromptQaSemanticSystem" class="form-input ai-qa-prompt-input" rows="3" spellcheck="false" placeholder="可留空則用內建" data-qa-prompt-key="semantic" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <p class="ai-qa-prompt-default" data-qa-prompt-key="semantic" style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0; line-height:1.45; white-space:pre-wrap;"></p>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.75rem;">翻譯準則檢查（QA）</label>
+                        <textarea id="aiPromptQaTransGuidelineSystem" class="form-input ai-qa-prompt-input" rows="3" spellcheck="false" placeholder="可留空則用內建" data-qa-prompt-key="transGuideline" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <p class="ai-qa-prompt-default" data-qa-prompt-key="transGuideline" style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0; line-height:1.45; white-space:pre-wrap;"></p>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.75rem;">文風偏好檢查（QA）</label>
+                        <textarea id="aiPromptQaStyleGuidelineSystem" class="form-input ai-qa-prompt-input" rows="3" spellcheck="false" placeholder="可留空則用內建" data-qa-prompt-key="styleGuideline" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <p class="ai-qa-prompt-default" data-qa-prompt-key="styleGuideline" style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0; line-height:1.45; white-space:pre-wrap;"></p>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.75rem;">專案準則檢查（QA）</label>
+                        <textarea id="aiPromptQaProjectGuidelineSystem" class="form-input ai-qa-prompt-input" rows="3" spellcheck="false" placeholder="可留空則用內建" data-qa-prompt-key="projectGuideline" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <p class="ai-qa-prompt-default" data-qa-prompt-key="projectGuideline" style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0; line-height:1.45; white-space:pre-wrap;"></p>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.75rem;">本案特殊指示檢查（QA）</label>
+                        <textarea id="aiPromptQaSpecialInstructionSystem" class="form-input ai-qa-prompt-input" rows="3" spellcheck="false" placeholder="可留空則用內建" data-qa-prompt-key="specialInstruction" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <p class="ai-qa-prompt-default" data-qa-prompt-key="specialInstruction" style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0; line-height:1.45; white-space:pre-wrap;"></p>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.75rem;">
                         <button type="button" id="btnSaveAiSettings" class="primary-btn">儲存設定</button>

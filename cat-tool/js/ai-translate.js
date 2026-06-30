@@ -369,21 +369,78 @@
 
     const QA_TYPO_BATCH = 24;
 
-    /**
-     * 僅依「譯文」檢查一般中文錯字／打字／缺多字／形近字（不送原文）。
-     * @param {Array<{ segId, gid, targetText }>} items
-     * @param {Object} settings - 同 translate（apiKey, apiBaseUrl, model）
-     * @returns {{ issues: Array<{ segId, gid, detail: string }>, error: string|null }}
-     */
-    async function qaChineseTypos(items, settings) {
-        const issues = [];
-        if (!items || items.length === 0) return { issues, error: null };
-        if (!settings || (!settings.apiKey && settings.preferOpenAiProxy === false)) {
-            return { issues, error: 'API 未設定，請至「AI 管理」處理。' };
-        }
+    /** 内建 QA system 主體（不含 JSON 結尾；供 AI 管理「預設提示詞」展示與留空時使用） */
+    const QA_DEFAULT_PROMPTS = {
+        typo: `你是中文譯文校對助理。以下每一條只提供「譯文」（沒有原文），請只檢查譯文中是否出現：
+明顯錯字、缺字、多字、嚴重打字錯誤、易混淆形近字（限一般中文書寫）。
 
+請勿檢查：翻譯是否正確、英文拼字、數字與格式、風格潤飾、專有名詞是否合理。
+若該條譯文幾乎沒有中文（例如僅英文或數字），一律視為無需檢查，issues 留空。`,
+        semantic: `你是專業翻譯品質校對助理。以下每一條提供「原文」與「譯文」。請只檢查：譯文是否正確傳達原文語意（含詞義、因果關係、語境、專有名詞在上下文中的合理性）。
+
+本輪僅負責「語意與翻譯正確性」。請勿檢查：純錯字／打字、是否違反翻譯準則／文風偏好／專案準則／本案特殊指示（另有專門檢查）、標點與格式細節。
+若無語意問題，issues 留空。`,
+        transGuideline: `你是翻譯準則符合性檢查助理。以下每一條提供「原文」與「譯文」。請只對照本訊息所附【翻譯準則】條目，檢查譯文是否違反任一條。
+
+本輪僅負責「翻譯準則」。請勿檢查：泛用語意翻譯正確性、純錯字、文風偏好、專案準則、本案特殊指示。
+若完全合規，issues 留空。`,
+        styleGuideline: `你是文風偏好符合性檢查助理。以下每一條提供「原文」與「譯文」。請只對照本訊息所附【文風偏好】條目，檢查譯文是否違反任一條。
+
+本輪僅負責「文風偏好」。請勿檢查：泛用語意、純錯字、翻譯準則、專案準則、本案特殊指示。
+若完全合規，issues 留空。`,
+        projectGuideline: `你是專案準則符合性檢查助理。以下每一條提供「原文」與「譯文」。請只對照本訊息所附【專案準則】條目，檢查譯文是否違反任一條。
+
+本輪僅負責「專案準則」。請勿檢查：泛用語意、純錯字、翻譯準則、文風偏好、本案特殊指示。
+若完全合規，issues 留空。`,
+        specialInstruction: `你是本案特殊指示符合性檢查助理。以下每一條提供「原文」與「譯文」。請只對照本訊息所附【本案特殊指示】條目，檢查譯文是否違反任一條。
+
+本輪僅負責「本案特殊指示」。請勿檢查：泛用語意、純錯字、翻譯準則、文風偏好、專案準則。
+若完全合規，issues 留空。`
+    };
+
+    function _qaJsonFormatBlock(n) {
+        return `請嚴格只輸出一個 JSON 物件（不要 markdown），格式：
+{"findings":[{"i":0,"issues":""},{"i":1,"issues":"..."}]}
+- findings 必須剛好 ${n} 筆，i 為 0 到 ${n - 1} 的整數且由小到大。
+- 無問題時 issues 必須為空字串 ""。
+- 有問題時 issues 為一句繁體中文（建議 60 字以內），可簡述違反哪一條或問題所在。`;
+    }
+
+    function _qaEnsureApi(settings) {
+        if (!settings || (!settings.apiKey && settings.preferOpenAiProxy === false)) {
+            return 'API 未設定，請至「AI 管理」處理。';
+        }
+        return null;
+    }
+
+    function _qaParseFindings(res, payload, n, { requireCjk = false } = {}) {
+        const issues = [];
+        if (res.error) return { issues, error: res.error };
         const CJK = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
-        const customTypo = (settings.prompts && String(settings.prompts.typoSystem || '').trim()) || '';
+        const findings = Array.isArray(res.data?.findings) ? res.data.findings : [];
+        const byI = new Map();
+        for (const f of findings) {
+            const i = Number(f.i);
+            if (Number.isFinite(i)) byI.set(i, String(f.issues || '').trim());
+        }
+        for (let j = 0; j < n; j++) {
+            const row = payload[j];
+            const note = byI.get(j) || '';
+            if (!note) continue;
+            if (requireCjk && !CJK.test(row.clean || row.tgtClean || '')) continue;
+            issues.push({ segId: row.segId, gid: row.gid, detail: note });
+        }
+        return { issues, error: null };
+    }
+
+    /**
+     * 僅譯文批次 QA（錯字）。
+     */
+    async function _qaBatchTargetOnly(items, settings, defaultBody, customPrompt) {
+        const allIssues = [];
+        const apiErr = _qaEnsureApi(settings);
+        if (apiErr) return { issues: allIssues, error: apiErr };
+        if (!items || items.length === 0) return { issues: allIssues, error: null };
 
         for (let off = 0; off < items.length; off += QA_TYPO_BATCH) {
             const slice = items.slice(off, off + QA_TYPO_BATCH);
@@ -394,47 +451,97 @@
                 payload.push({ segId: it.segId, gid: it.gid, clean, j });
                 lines += `[#${j}] 譯文：${clean}\n`;
             });
-
             const n = slice.length;
-            const jsonFormatBlock = `請嚴格只輸出一個 JSON 物件（不要 markdown），格式：
-{"findings":[{"i":0,"issues":""},{"i":1,"issues":"..."}]}
-- findings 必須剛好 ${n} 筆，i 為 0 到 ${n - 1} 的整數且由小到大。
-- 無問題時 issues 必須為空字串 ""。
-- 有問題時 issues 為一句繁體中文（建議 60 字以內）。`;
-            const defaultRole = `你是中文譯文校對助理。以下每一條只提供「譯文」（沒有原文），請只檢查譯文中是否出現：
-明顯錯字、缺字、多字、嚴重打字錯誤、易混淆形近字（限一般中文書寫）。
-
-請勿檢查：翻譯是否正確、英文拼字、數字與格式、風格潤飾、專有名詞是否合理。
-若該條譯文幾乎沒有中文（例如僅英文或數字），一律視為無需檢查，issues 留空。
-
-` + jsonFormatBlock;
-            const system = customTypo ? (customTypo + '\n\n' + jsonFormatBlock) : defaultRole;
-
+            const jsonFormatBlock = _qaJsonFormatBlock(n);
+            const body = (customPrompt && String(customPrompt).trim()) || defaultBody;
+            const system = body.includes('JSON') ? body : (body + '\n\n' + jsonFormatBlock);
             const user = `共 ${n} 條譯文，請逐條檢查：\n\n${lines}`;
-
             const res = await callApiJsonObject(
                 [{ role: 'system', content: system }, { role: 'user', content: user }],
                 settings
             );
-            if (res.error) return { issues, error: res.error };
-
-            const findings = Array.isArray(res.data?.findings) ? res.data.findings : [];
-            const byI = new Map();
-            for (const f of findings) {
-                const i = Number(f.i);
-                if (Number.isFinite(i)) byI.set(i, String(f.issues || '').trim());
-            }
-
-            for (let j = 0; j < n; j++) {
-                const row = payload[j];
-                const note = byI.get(j) || '';
-                if (!note) continue;
-                if (!CJK.test(row.clean)) continue;
-                issues.push({ segId: row.segId, gid: row.gid, detail: note });
-            }
+            const parsed = _qaParseFindings(res, payload, n, { requireCjk: true });
+            if (parsed.error) return { issues: allIssues, error: parsed.error };
+            allIssues.push(...parsed.issues);
         }
+        return { issues: allIssues, error: null };
+    }
 
-        return { issues, error: null };
+    /**
+     * 原文+譯文批次 QA（語意、準則類）。
+     */
+    async function _qaBatchSrcTgt(items, settings, systemBody, userIntro) {
+        const allIssues = [];
+        const apiErr = _qaEnsureApi(settings);
+        if (apiErr) return { issues: allIssues, error: apiErr };
+        if (!items || items.length === 0) return { issues: allIssues, error: null };
+
+        for (let off = 0; off < items.length; off += QA_TYPO_BATCH) {
+            const slice = items.slice(off, off + QA_TYPO_BATCH);
+            const payload = [];
+            let lines = '';
+            slice.forEach((it, j) => {
+                const srcClean = stripTags(it.sourceText || '').clean;
+                const tgtClean = stripTags(it.targetText || '').clean;
+                payload.push({ segId: it.segId, gid: it.gid, srcClean, tgtClean, j });
+                lines += `[#${j}] 原文：${srcClean}\n[#${j}] 譯文：${tgtClean}\n`;
+            });
+            const n = slice.length;
+            const jsonFormatBlock = _qaJsonFormatBlock(n);
+            const system = systemBody.includes('JSON') ? systemBody : (systemBody + '\n\n' + jsonFormatBlock);
+            const user = `${userIntro || '請逐條檢查'}（共 ${n} 條）：\n\n${lines}`;
+            const res = await callApiJsonObject(
+                [{ role: 'system', content: system }, { role: 'user', content: user }],
+                settings
+            );
+            const parsed = _qaParseFindings(res, payload, n);
+            if (parsed.error) return { issues: allIssues, error: parsed.error };
+            allIssues.push(...parsed.issues);
+        }
+        return { issues: allIssues, error: null };
+    }
+
+    /**
+     * 僅依「譯文」檢查一般中文錯字／打字／缺多字／形近字（不送原文）。
+     * @param {Array<{ segId, gid, targetText }>} items
+     * @param {Object} settings - 同 translate（apiKey, apiBaseUrl, model）
+     * @returns {{ issues: Array<{ segId, gid, detail: string }>, error: string|null }}
+     */
+    async function qaChineseTypos(items, settings) {
+        const customTypo = (settings && settings.prompts && String(settings.prompts.typoSystem || '').trim()) || '';
+        return _qaBatchTargetOnly(items, settings, QA_DEFAULT_PROMPTS.typo, customTypo);
+    }
+
+    /**
+     * 語意與翻譯正確性（原文+譯文）。
+     */
+    async function qaSemanticReview(items, settings) {
+        const custom = (settings && settings.prompts && String(settings.prompts.qaSemanticSystem || '').trim()) || '';
+        const body = custom || QA_DEFAULT_PROMPTS.semantic;
+        return _qaBatchSrcTgt(items, settings, body, '請逐條檢查語意與翻譯正確性');
+    }
+
+    /**
+     * 準則／特殊指示符合性（原文+譯文；guidelinesBlock 由呼叫端組好）。
+     * @param {{ guidelinesBlock: string, sectionLabel: string, promptKey: string }} opts
+     */
+    async function qaGuidelineReview(items, settings, opts) {
+        const o = opts || {};
+        const block = String(o.guidelinesBlock || '').trim();
+        if (!block) return { issues: [], error: null };
+        const promptKey = o.promptKey || 'transGuideline';
+        const defaultBody = QA_DEFAULT_PROMPTS[promptKey] || QA_DEFAULT_PROMPTS.transGuideline;
+        const customMap = {
+            transGuideline: 'qaTransGuidelineSystem',
+            styleGuideline: 'qaStyleGuidelineSystem',
+            projectGuideline: 'qaProjectGuidelineSystem',
+            specialInstruction: 'qaSpecialInstructionSystem'
+        };
+        const customField = customMap[promptKey] || 'qaTransGuidelineSystem';
+        const custom = (settings && settings.prompts && String(settings.prompts[customField] || '').trim()) || '';
+        const sectionLabel = o.sectionLabel || '【準則】';
+        const body = (custom || defaultBody) + '\n\n' + sectionLabel + '\n' + block;
+        return _qaBatchSrcTgt(items, settings, body, `請逐條檢查是否符合${sectionLabel.replace(/[【】]/g, '')}`);
     }
 
     // ---- 主要 translate 函式 ----
@@ -683,6 +790,9 @@
         friendlyError,
         scanFullText,
         estimateScanTokens,
-        qaChineseTypos
+        qaChineseTypos,
+        qaSemanticReview,
+        qaGuidelineReview,
+        QA_DEFAULT_PROMPTS
     };
 })();

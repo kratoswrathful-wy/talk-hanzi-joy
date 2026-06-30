@@ -4197,8 +4197,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             }
-            if (tabId === 'tabQA' && qaLastRunSummaryHtml) {
-                renderQaRunSummary(qaLastRunSummaryHtml);
+            if (tabId === 'tabQA') {
+                if (qaLastRunSummaryHtml) renderQaRunSummary(qaLastRunSummaryHtml);
+                syncQaAiCheckAvailability();
             }
             if (tabId === 'tabCAT' || tabId === 'tabTmSearch') {
                 const ar = document.querySelector('.grid-data-row.active-row');
@@ -26700,6 +26701,215 @@ document.addEventListener('DOMContentLoaded', async () => {
     let qaSortKey = 'gid';
     let qaSortDir = 'asc';
     let qaLastRunSummaryHtml = '';
+    let qaReportSurface = 'bottom';
+
+    function _normalizeQaReportSurface(raw) {
+        const s = String(raw || 'bottom');
+        return (s === 'right' || s === 'both') ? s : 'bottom';
+    }
+
+    async function _loadQaReportSurfacePref() {
+        let surface = 'bottom';
+        try {
+            const pref = await DBService.getUserUiPref();
+            if (pref && pref.qa_report_surface != null) {
+                surface = _normalizeQaReportSurface(pref.qa_report_surface);
+            }
+        } catch (e) {
+            console.warn('[CAT] load qa_report_surface', e);
+        }
+        qaReportSurface = surface;
+        try {
+            const lsRaw = localStorage.getItem('catUserUiPref');
+            const ls = lsRaw ? JSON.parse(lsRaw) : {};
+            ls.qa_report_surface = surface;
+            localStorage.setItem('catUserUiPref', JSON.stringify(ls));
+        } catch (_) { /* ignore */ }
+        _applyQaReportSurfaceUi();
+    }
+
+    async function _saveQaReportSurfacePref(surface) {
+        const s = _normalizeQaReportSurface(surface);
+        qaReportSurface = s;
+        _applyQaReportSurfaceUi();
+        try {
+            await DBService.setUserUiPref({ qaReportSurface: s });
+        } catch (e) {
+            console.warn('[CAT] save qa_report_surface', e);
+        }
+        try {
+            const lsRaw = localStorage.getItem('catUserUiPref');
+            const ls = lsRaw ? JSON.parse(lsRaw) : {};
+            ls.qa_report_surface = s;
+            localStorage.setItem('catUserUiPref', JSON.stringify(ls));
+        } catch (_) { /* ignore */ }
+    }
+
+    function _applyQaReportSurfaceUi() {
+        const wrapRight = document.getElementById('qaResultsWrapRight');
+        const redirectHint = document.getElementById('qaSurfaceRedirectHint');
+        const tabBottom = document.getElementById('tabQaResults');
+        const showRight = qaReportSurface === 'right' || qaReportSurface === 'both';
+        const showBottom = qaReportSurface === 'bottom' || qaReportSurface === 'both';
+        if (wrapRight) wrapRight.style.display = showRight ? '' : 'none';
+        if (redirectHint) redirectHint.style.display = (!showRight && showBottom) ? '' : 'none';
+        if (tabBottom) tabBottom.style.display = showBottom ? '' : 'none';
+        const tabBtn = document.querySelector('[data-notes-tab="tabQaResults"]');
+        if (tabBtn) tabBtn.style.display = showBottom ? '' : 'none';
+        document.querySelectorAll('input[name="qaReportSurface"]').forEach((el) => {
+            el.checked = el.value === qaReportSurface;
+        });
+        renderQaResults();
+    }
+
+    function _qaBuildStatusSummaryText() {
+        const tagCount = _qaResults.filter(r => r.type === 'Tag 檢查').length;
+        const tbCount = _qaResults.filter(r => r.type === '術語未套用').length;
+        const conCount = _qaResults.filter(r => r.type === '譯文不一致').length;
+        const numCount = _qaResults.filter(r => r.type === '數字不相符').length;
+        const typoCount = _qaResults.filter(r => (r.type === '錯字' || r.type === '錯字／打字')).length;
+        const semCount = _qaResults.filter(r => r.type === '語意').length;
+        const qgTrans = _qaResults.filter(r => r.type === '翻譯準則').length;
+        const qgStyle = _qaResults.filter(r => r.type === '文風').length;
+        const qgPg = _qaResults.filter(r => r.type === '專案準則').length;
+        const qgSi = _qaResults.filter(r => r.type === '特殊指示').length;
+        if (_qaResults.length === 0) return { text: '✓ 無發現問題', color: '#16a34a' };
+        const parts = [];
+        if (tagCount) parts.push(`Tag: ${tagCount}`);
+        if (tbCount) parts.push(`術語: ${tbCount}`);
+        if (conCount) parts.push(`一致性: ${conCount}`);
+        if (numCount) parts.push(`數字: ${numCount}`);
+        if (typoCount) parts.push(`錯字: ${typoCount}`);
+        if (semCount) parts.push(`語意: ${semCount}`);
+        if (qgTrans) parts.push(`翻譯準則: ${qgTrans}`);
+        if (qgStyle) parts.push(`文風: ${qgStyle}`);
+        if (qgPg) parts.push(`專案準則: ${qgPg}`);
+        if (qgSi) parts.push(`特殊指示: ${qgSi}`);
+        return { text: `發現 ${_qaResults.length} 個問題（${parts.join('，')}）`, color: '#b45309' };
+    }
+
+    function _qaSetStatusBars(summary) {
+        const s = summary || _qaBuildStatusSummaryText();
+        for (const id of ['qaStatus', 'qaStatusBottom']) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            el.textContent = s.text;
+            el.style.color = s.color;
+        }
+    }
+
+    function _qaNavAfterRunComplete() {
+        document.querySelector('.editor-side-panel .tab-btn[data-tab="tabQA"]')?.click();
+        if (qaReportSurface === 'bottom' || qaReportSurface === 'both') {
+            const panel = document.getElementById('notesPanel');
+            if (panel?.classList.contains('collapsed')) {
+                document.getElementById('btnCollapseNotesPanel')?.click();
+            }
+            document.querySelector('[data-notes-tab="tabQaResults"]')?.click();
+        }
+    }
+
+    async function getQaAiCheckAvailability() {
+        const out = {
+            transGuideline: false,
+            styleGuideline: false,
+            projectGuideline: false,
+            specialInstruction: false
+        };
+        const projectId = currentProjectId;
+        if (!projectId) return out;
+        try {
+            const [allGuidelines, psettings] = await Promise.all([
+                DBService.getAiGuidelines(),
+                DBService.getAiProjectSettings(projectId)
+            ]);
+            const selT = new Set((psettings?.selectedGuidelineIds || []).map((x) => Number(x)).filter((n) => Number.isFinite(n)));
+            const selS = new Set((psettings?.selectedStyleGuidelineIds || []).map((x) => Number(x)).filter((n) => Number.isFinite(n)));
+            out.transGuideline = allGuidelines.some((g) => (g.scope || 'translation') === 'translation' && selT.has(Number(g.id)));
+            out.styleGuideline = allGuidelines.some((g) => (g.scope || '') === 'style' && selS.has(Number(g.id)));
+            const pgList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
+            out.projectGuideline = pgList.some((g) => g && String(g.content || '').trim());
+            const siRows = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+            const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
+            const apSet = fileRec ? new Set(_normalizeApplicableSiIds(fileRec)) : new Set();
+            out.specialInstruction = siRows.some((row) => {
+                if (!row || row.enabled === false) return false;
+                if (!String(row.content || '').trim()) return false;
+                if (apSet.size && !apSet.has(Number(row.id))) return false;
+                return true;
+            });
+        } catch (e) {
+            console.warn('[CAT] getQaAiCheckAvailability', e);
+        }
+        return out;
+    }
+
+    async function syncQaAiCheckAvailability() {
+        const avail = await getQaAiCheckAvailability();
+        const pairs = [
+            ['qaCheckTransGuideline', 'qaCheckTransGuidelineLabel', '尚未選擇翻譯準則', avail.transGuideline],
+            ['qaCheckStyleGuideline', 'qaCheckStyleGuidelineLabel', '尚未選擇文風條目', avail.styleGuideline],
+            ['qaCheckProjectGuideline', 'qaCheckProjectGuidelineLabel', '尚無專案準則', avail.projectGuideline],
+            ['qaCheckSpecialInstruction', 'qaCheckSpecialInstructionLabel', '本檔無已套用的特殊指示', avail.specialInstruction]
+        ];
+        for (const [cbId, labelId, tip, ok] of pairs) {
+            const cb = document.getElementById(cbId);
+            const lbl = document.getElementById(labelId);
+            if (cb) {
+                cb.disabled = !ok;
+                if (!ok) cb.checked = false;
+            }
+            if (lbl) {
+                lbl.classList.toggle('qa-ai-check-unavailable', !ok);
+                lbl.title = ok ? '' : tip;
+            }
+        }
+    }
+
+    function _qaGuidelinesBlockFromList(list) {
+        if (!list || !list.length) return '';
+        return list.map((g, i) => {
+            const prefix = (g && g.issueGroupName) ? `〔${g.issueGroupName}〕 ` : '';
+            return `${i + 1}. ${prefix}${String(g.content || '').trim()}`;
+        }).filter(Boolean).join('\n');
+    }
+
+    async function _qaSpecialInstructionBlockOnly() {
+        const projectId = currentProjectId;
+        if (!projectId || !currentFileId) return '';
+        try {
+            const psettings = await DBService.getAiProjectSettings(projectId);
+            const fileRec = await DBService.getFile(currentFileId).catch(() => null);
+            const apSet = fileRec ? new Set(_normalizeApplicableSiIds(fileRec)) : new Set();
+            const rows = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+            return rows
+                .filter((row) => {
+                    if (!row || row.enabled === false) return false;
+                    if (!String(row.content || '').trim()) return false;
+                    if (apSet.size && !apSet.has(Number(row.id))) return false;
+                    return true;
+                })
+                .map((row, i) => `${i + 1}. ${String(row.content).trim()}`)
+                .join('\n');
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function _qaSegItemsFromFiltered(filteredSegs) {
+        return filteredSegs.map(({ s, gid }) => ({
+            segId: s.id,
+            gid,
+            sourceText: s.sourceText || '',
+            targetText: s.targetText || ''
+        }));
+    }
+
+    function _qaIsAiLikeResult(r) {
+        const t = r && r.type;
+        return t === '錯字' || t === '錯字／打字' || t === '錯字/打字'
+            || t === '語意' || t === '翻譯準則' || t === '文風' || t === '專案準則' || t === '特殊指示';
+    }
 
     function _qaJumpToSegment(segId) {
         const seg = currentSegmentsList && currentSegmentsList.find((s) => String(s.id) === String(segId));
@@ -26996,7 +27206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         _qaResults = _qaResults.filter((r) => {
-            if (_qaIsTypoLikeResult(r)) return true;
+            if (_qaIsAiLikeResult(r)) return true;
             if (r.type === '譯文不一致') {
                 const seg = currentSegmentsList.find((x) => x.id === r.segId);
                 const sk = (seg?.sourceText || '').trim();
@@ -27118,18 +27328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderQaResults() {
-        const tbody = document.getElementById('qaResultsBody');
-        const table = document.getElementById('qaResultsTable');
-        const statusEl = document.getElementById('qaStatus');
-        const hintEl = document.getElementById('qaResultsHint');
-        if (!tbody || !table || !statusEl) return;
-
         const hideIgnored = document.getElementById('qaHideIgnored')?.checked;
-        const tagCount = _qaResults.filter(r => r.type === 'Tag 檢查').length;
-        const tbCount = _qaResults.filter(r => r.type === '術語未套用').length;
-        const conCount = _qaResults.filter(r => r.type === '譯文不一致').length;
-        const numCount = _qaResults.filter(r => r.type === '數字不相符').length;
-        const typoCount = _qaResults.filter(r => (r.type === '錯字' || r.type === '錯字／打字')).length;
         const sortedResults = [..._qaResults].sort((a, b) => {
             const dir = qaSortDir === 'desc' ? -1 : 1;
             if (qaSortKey === 'gid') return ((a.gid || 0) - (b.gid || 0)) * dir;
@@ -27138,26 +27337,45 @@ document.addEventListener('DOMContentLoaded', async () => {
             return av.localeCompare(bv, 'zh-Hant') * dir;
         });
 
+        const summary = _qaResults.length === 0
+            ? { text: '✓ 無發現問題', color: '#16a34a' }
+            : _qaBuildStatusSummaryText();
+        _qaSetStatusBars(summary);
+
+        const targets = [];
+        if (qaReportSurface === 'right' || qaReportSurface === 'both') {
+            targets.push({
+                tbody: document.getElementById('qaResultsBody'),
+                table: document.getElementById('qaResultsTable'),
+                hintEl: document.getElementById('qaResultsHint')
+            });
+        }
+        if (qaReportSurface === 'bottom' || qaReportSurface === 'both') {
+            targets.push({
+                tbody: document.getElementById('qaResultsBodyBottom'),
+                table: document.getElementById('qaResultsTableBottom'),
+                hintEl: document.getElementById('qaResultsHintBottom')
+            });
+        }
+
         if (_qaResults.length === 0) {
-            table.style.display = 'none';
-            if (hintEl) hintEl.style.display = 'none';
-            statusEl.textContent = '✓ 無發現問題';
-            statusEl.style.color = '#16a34a';
+            for (const t of targets) {
+                if (t.table) t.table.style.display = 'none';
+                if (t.hintEl) t.hintEl.style.display = 'none';
+            }
             _qaDismissContextMenu();
             return;
         }
 
-        statusEl.style.color = '#b45309';
-        const parts = [];
-        if (tagCount) parts.push(`Tag: ${tagCount}`);
-        if (tbCount) parts.push(`術語: ${tbCount}`);
-        if (conCount) parts.push(`一致性: ${conCount}`);
-        if (numCount) parts.push(`數字: ${numCount}`);
-        if (typoCount) parts.push(`錯字: ${typoCount}`);
-        statusEl.textContent = `發現 ${_qaResults.length} 個問題（${parts.join('，')}）`;
-        table.style.display = '';
-        if (hintEl) hintEl.style.display = '';
+        for (const t of targets) {
+            _renderQaResultsInto(t.tbody, t.table, t.hintEl, sortedResults, hideIgnored);
+        }
+    }
 
+    function _renderQaResultsInto(tbody, table, hintEl, sortedResults, hideIgnored) {
+        if (!tbody || !table) return;
+        if (hintEl) hintEl.style.display = '';
+        table.style.display = '';
         tbody.innerHTML = '';
         for (const r of sortedResults) {
             const isIgnored = _qaIgnoredSet.has(r.key);
@@ -27242,7 +27460,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tdInfo = document.createElement('td');
             tdInfo.className = 'qa-td-info qa-clickable';
             tdInfo.textContent = r.info;
-            tdInfo.title = '點擊跳至句段；右鍵可批次忽略同說明';
+            tdInfo.title = r.info;
+            tdInfo.setAttribute('data-tip', r.info || '');
             tdInfo.addEventListener('click', () => _qaJumpToSegment(r.segId));
             tdInfo.addEventListener('contextmenu', (ev) => {
                 ev.preventDefault();
@@ -27312,15 +27531,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // QA 折疊檢查項目
-    const btnQaCollapse = document.getElementById('btnQaCollapseChecks');
-    if (btnQaCollapse) {
-        btnQaCollapse.addEventListener('click', () => {
-            const body = document.getElementById('qaChecksBody');
+    // QA 折疊規則檢查 / AI 檢查
+    const btnQaCollapseRules = document.getElementById('btnQaCollapseRules');
+    if (btnQaCollapseRules) {
+        btnQaCollapseRules.addEventListener('click', () => {
+            const body = document.getElementById('qaRulesBody');
             if (!body) return;
             const collapsed = body.style.display === 'none';
             body.style.display = collapsed ? '' : 'none';
-            btnQaCollapse.textContent = (collapsed ? '▾' : '▸') + ' 檢查項目';
+            btnQaCollapseRules.textContent = (collapsed ? '▾' : '▸') + ' 規則檢查';
+        });
+    }
+    const btnQaCollapseAi = document.getElementById('btnQaCollapseAi');
+    if (btnQaCollapseAi) {
+        btnQaCollapseAi.addEventListener('click', () => {
+            const body = document.getElementById('qaAiChecksBody');
+            if (!body) return;
+            const collapsed = body.style.display === 'none';
+            body.style.display = collapsed ? '' : 'none';
+            btnQaCollapseAi.textContent = (collapsed ? '▾' : '▸') + ' AI 檢查';
         });
     }
 
@@ -27341,7 +27570,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const qaRangeExprEl = document.getElementById('qaRangeExpr');
     const qaScopeCurrentFilteredEl = document.getElementById('qaScopeCurrentFiltered');
     const qaConfigControls = [
-        'qaCheckTerms', 'qaCheckTags', 'qaCheckConsistency', 'qaCheckNumbers', 'qaCheckTypos',
+        'qaCheckTerms', 'qaCheckTags', 'qaCheckConsistency', 'qaCheckNumbers',
+        'qaCheckTypos', 'qaCheckSemantic', 'qaCheckTransGuideline', 'qaCheckStyleGuideline',
+        'qaCheckProjectGuideline', 'qaCheckSpecialInstruction',
         'qaUseRange', 'qaRangeExpr', 'qaIncludeLocked', 'qaScopeCurrentFiltered'
     ];
     function syncQaRangeExprDisabledAfterLock() {
@@ -27355,21 +27586,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     function setQaControlsLocked(locked) {
         qaRunInProgress = !!locked;
-        const btnQaCollapseChecks = document.getElementById('btnQaCollapseChecks');
-        if (btnQaCollapseChecks) btnQaCollapseChecks.disabled = !!locked;
+        const btnQaCollapseRules = document.getElementById('btnQaCollapseRules');
+        if (btnQaCollapseRules) btnQaCollapseRules.disabled = !!locked;
+        const btnQaCollapseAi = document.getElementById('btnQaCollapseAi');
+        if (btnQaCollapseAi) btnQaCollapseAi.disabled = !!locked;
         const btnQaCollapseScope = document.getElementById('btnQaCollapseScope');
         if (btnQaCollapseScope) btnQaCollapseScope.disabled = !!locked;
         qaConfigControls.forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
+            if (!locked && ['qaCheckTransGuideline', 'qaCheckStyleGuideline', 'qaCheckProjectGuideline', 'qaCheckSpecialInstruction'].includes(id) && el.disabled) {
+                return;
+            }
             el.disabled = !!locked;
         });
-        const qaChecksBody = document.getElementById('qaChecksBody');
-        if (qaChecksBody) qaChecksBody.classList.toggle('qa-controls-locked', !!locked);
+        document.querySelectorAll('input[name="qaReportSurface"]').forEach((el) => { el.disabled = !!locked; });
+        const qaRulesBody = document.getElementById('qaRulesBody');
+        if (qaRulesBody) qaRulesBody.classList.toggle('qa-controls-locked', !!locked);
+        const qaAiChecksBody = document.getElementById('qaAiChecksBody');
+        if (qaAiChecksBody) qaAiChecksBody.classList.toggle('qa-controls-locked', !!locked);
         const qaOptionsBar = document.querySelector('.qa-options-bar');
         if (qaOptionsBar) qaOptionsBar.classList.toggle('qa-controls-locked', !!locked);
         if (btnRunQA) btnRunQA.disabled = !!locked;
         syncQaRangeExprDisabledAfterLock();
+        if (!locked) syncQaAiCheckAvailability();
     }
     function resetQaScopeInputs() {
         if (qaUseRangeCb) qaUseRangeCb.checked = false;
@@ -27553,15 +27793,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     function updateQaSortHeaderState() {
-        const headers = document.querySelectorAll('#qaResultsTable .qa-sortable-th');
+        const headers = document.querySelectorAll('#qaResultsTable .qa-sortable-th, #qaResultsTableBottom .qa-sortable-th');
         headers.forEach((th) => {
             const key = th.dataset.sortKey;
             if (!key) return;
             const active = key === qaSortKey;
             th.setAttribute('aria-sort', active ? (qaSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
-            let label = th.textContent.replace(/[↑↓]$/, '').trim();
-            if (active) label += qaSortDir === 'asc' ? '↑' : '↓';
-            th.textContent = label;
+            const base = th.dataset.qaThBase || th.textContent.replace(/[↑↓]$/, '').trim();
+            if (!th.dataset.qaThBase) th.dataset.qaThBase = base;
+            th.textContent = active ? base + (qaSortDir === 'asc' ? '↑' : '↓') : base;
         });
     }
     function renderQaRunSummary(runSummary) {
@@ -27583,7 +27823,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (qaScopeCurrentFilteredEl) {
         qaScopeCurrentFilteredEl.addEventListener('change', () => updateQaScopeFilterLockState());
     }
-    document.querySelectorAll('#qaResultsTable .qa-sortable-th').forEach((th) => {
+    document.querySelectorAll('#qaResultsTable .qa-sortable-th, #qaResultsTableBottom .qa-sortable-th').forEach((th) => {
         th.addEventListener('click', () => {
             const key = th.dataset.sortKey;
             if (!key) return;
@@ -27596,6 +27836,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderQaResults();
         });
     });
+    document.querySelectorAll('input[name="qaReportSurface"]').forEach((el) => {
+        el.addEventListener('change', () => {
+            if (!el.checked) return;
+            _saveQaReportSurfacePref(el.value);
+        });
+    });
+    _loadQaReportSurfacePref();
+    syncQaAiCheckAvailability();
     updateQaSortHeaderState();
     if (qaLastRunSummaryHtml) renderQaRunSummary(qaLastRunSummaryHtml);
 
@@ -27615,6 +27863,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const checkConsistency = document.getElementById('qaCheckConsistency')?.checked ?? true;
             const checkNumbers = document.getElementById('qaCheckNumbers')?.checked ?? true;
             const checkTypos = document.getElementById('qaCheckTypos')?.checked ?? false;
+            const checkSemantic = document.getElementById('qaCheckSemantic')?.checked ?? false;
+            const checkTransGuideline = document.getElementById('qaCheckTransGuideline')?.checked ?? false;
+            const checkStyleGuideline = document.getElementById('qaCheckStyleGuideline')?.checked ?? false;
+            const checkProjectGuideline = document.getElementById('qaCheckProjectGuideline')?.checked ?? false;
+            const checkSpecialInstruction = document.getElementById('qaCheckSpecialInstruction')?.checked ?? false;
             const statusEl = document.getElementById('qaStatus');
             const allowedSegIds = getQaScopeVisibleSegIdSet();
             const isFilterContext = sfMode === 'filter';
@@ -27637,6 +27890,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (checkConsistency) checks.push('譯文不一致');
             if (checkNumbers) checks.push('數字');
             if (checkTypos) checks.push('錯字（AI）');
+            if (checkSemantic) checks.push('語意（AI）');
+            if (checkTransGuideline) checks.push('翻譯準則（AI）');
+            if (checkStyleGuideline) checks.push('文風（AI）');
+            if (checkProjectGuideline) checks.push('專案準則（AI）');
+            if (checkSpecialInstruction) checks.push('特殊指示（AI）');
             const scopeParts = [includeLocked ? '含鎖定' : '不含鎖定'];
             if (useRange && rangeExprRaw) {
                 scopeParts.push(`句段範圍 ${rangeExprRaw}`);
@@ -27671,40 +27929,124 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _qaResults = results;
                 _qaSelectedResultKeys.clear();
 
-                if (checkTypos) {
-                    if (statusEl) {
-                        statusEl.textContent = '執行本地檢查完成，錯字檢查（AI）進行中…';
-                        statusEl.style.color = '#64748b';
-                    }
+                const anyAi = checkTypos || checkSemantic || checkTransGuideline
+                    || checkStyleGuideline || checkProjectGuideline || checkSpecialInstruction;
+                if (anyAi) {
                     const settings = await DBService.getAiSettings();
+                    const CatAi = window.CatAiTranslate;
                     if (!settings?.apiKey && settings?.preferOpenAiProxy === false) {
-                        alert('已勾選「錯字（由 AI 檢查）」，但無法連線 AI。請至「AI 管理」設定。');
-                    } else if (typeof window.CatAiTranslate?.qaChineseTypos !== 'function') {
-                        alert('AI 模組未載入，無法執行錯字檢查。');
+                        alert('已勾選 AI 檢查，但無法連線 AI。請至「AI 管理」設定。');
+                    } else if (!CatAi) {
+                        alert('AI 模組未載入，無法執行 AI 檢查。');
                     } else {
+                        const srcTgtItems = _qaSegItemsFromFiltered(filteredSegs);
                         const typoItems = filteredSegs.map(({ s, gid }) => ({
                             segId: s.id,
                             gid,
                             targetText: s.targetText || ''
                         }));
-                        const typoOut = await window.CatAiTranslate.qaChineseTypos(typoItems, settings);
-                        if (typoOut.error) {
-                            alert(typoOut.error);
-                        } else {
-                            for (const it of typoOut.issues) {
-                                _qaResults.push({
-                                    segId: it.segId,
-                                    gid: it.gid,
-                                    type: '錯字',
-                                    info: it.detail,
-                                    key: `${it.gid}:typo`
+                        const aiOpts = (checkTransGuideline || checkStyleGuideline || checkProjectGuideline)
+                            ? await _buildAiOptions(settings, '', undefined, { useExamples: false, useTb: false })
+                            : null;
+                        const aiPasses = [];
+                        if (checkTypos) aiPasses.push({
+                            label: '錯字檢查（AI）',
+                            run: () => CatAi.qaChineseTypos(typoItems, settings),
+                            type: '錯字',
+                            keySuffix: 'typo'
+                        });
+                        if (checkSemantic) aiPasses.push({
+                            label: '語意檢查（AI）',
+                            run: () => CatAi.qaSemanticReview(srcTgtItems, settings),
+                            type: '語意',
+                            keySuffix: 'semantic'
+                        });
+                        if (checkTransGuideline && aiOpts) {
+                            const block = _qaGuidelinesBlockFromList(aiOpts.guidelines);
+                            if (block) {
+                                aiPasses.push({
+                                    label: '翻譯準則檢查（AI）',
+                                    run: () => CatAi.qaGuidelineReview(srcTgtItems, settings, {
+                                        guidelinesBlock: block,
+                                        sectionLabel: '【翻譯準則】',
+                                        promptKey: 'transGuideline'
+                                    }),
+                                    type: '翻譯準則',
+                                    keySuffix: 'qg-trans'
                                 });
+                            }
+                        }
+                        if (checkStyleGuideline && aiOpts) {
+                            const block = _qaGuidelinesBlockFromList(aiOpts.styleGuidelines);
+                            if (block) {
+                                aiPasses.push({
+                                    label: '文風檢查（AI）',
+                                    run: () => CatAi.qaGuidelineReview(srcTgtItems, settings, {
+                                        guidelinesBlock: block,
+                                        sectionLabel: '【文風偏好】',
+                                        promptKey: 'styleGuideline'
+                                    }),
+                                    type: '文風',
+                                    keySuffix: 'qg-style'
+                                });
+                            }
+                        }
+                        if (checkProjectGuideline && aiOpts) {
+                            const block = String(aiOpts.projectGuidelinesNote || '').trim();
+                            if (block) {
+                                aiPasses.push({
+                                    label: '專案準則檢查（AI）',
+                                    run: () => CatAi.qaGuidelineReview(srcTgtItems, settings, {
+                                        guidelinesBlock: block,
+                                        sectionLabel: '【專案準則】',
+                                        promptKey: 'projectGuideline'
+                                    }),
+                                    type: '專案準則',
+                                    keySuffix: 'qg-pg'
+                                });
+                            }
+                        }
+                        if (checkSpecialInstruction) {
+                            const block = await _qaSpecialInstructionBlockOnly();
+                            if (block) {
+                                aiPasses.push({
+                                    label: '特殊指示檢查（AI）',
+                                    run: () => CatAi.qaGuidelineReview(srcTgtItems, settings, {
+                                        guidelinesBlock: block,
+                                        sectionLabel: '【本案特殊指示】',
+                                        promptKey: 'specialInstruction'
+                                    }),
+                                    type: '特殊指示',
+                                    keySuffix: 'qg-si'
+                                });
+                            }
+                        }
+                        for (let pi = 0; pi < aiPasses.length; pi++) {
+                            const pass = aiPasses[pi];
+                            if (statusEl) {
+                                statusEl.textContent = `本地檢查完成，${pass.label}進行中…（${pi + 1}/${aiPasses.length}）`;
+                                statusEl.style.color = '#64748b';
+                            }
+                            const out = await pass.run();
+                            if (out.error) {
+                                alert(`${pass.label}失敗：${out.error}`);
+                            } else {
+                                for (const it of out.issues) {
+                                    _qaResults.push({
+                                        segId: it.segId,
+                                        gid: it.gid,
+                                        type: pass.type,
+                                        info: it.detail,
+                                        key: `${it.gid}:${pass.keySuffix}`
+                                    });
+                                }
                             }
                         }
                     }
                 }
 
                 renderQaResults();
+                _qaNavAfterRunComplete();
             } finally {
                 setQaControlsLocked(false);
                 resetQaScopeInputs();
@@ -28804,6 +29146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (on) cur.add(idNum);
         else cur.delete(idNum);
         await DBService.updateFile(f.id, { applicableSpecialInstructionIds: [...cur] });
+        syncQaAiCheckAvailability();
     }
 
     /** 側欄共用資訊 + 專案頁內嵌區（同一資料） */
@@ -30305,6 +30648,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }).join('');
     }
 
+    function _renderAiQaPromptDefaults() {
+        const defs = window.CatAiTranslate?.QA_DEFAULT_PROMPTS;
+        if (!defs) return;
+        document.querySelectorAll('.ai-qa-prompt-default[data-qa-prompt-key]').forEach((el) => {
+            const key = el.getAttribute('data-qa-prompt-key');
+            const text = key && defs[key] ? String(defs[key]).trim() : '';
+            el.textContent = text ? `預設提示詞：「${text}」` : '';
+        });
+    }
+
     // ---- AI 設定 View ----
     async function loadAiSettingsView() {
         const settings = await DBService.getAiSettings();
@@ -30319,11 +30672,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         const prTr = document.getElementById('aiPromptTranslatePrefix');
         const prSc = document.getElementById('aiPromptScanPrefix');
         const prTy = document.getElementById('aiPromptTypoSystem');
+        const prQaSem = document.getElementById('aiPromptQaSemanticSystem');
+        const prQaTrans = document.getElementById('aiPromptQaTransGuidelineSystem');
+        const prQaStyle = document.getElementById('aiPromptQaStyleGuidelineSystem');
+        const prQaPg = document.getElementById('aiPromptQaProjectGuidelineSystem');
+        const prQaSi = document.getElementById('aiPromptQaSpecialInstructionSystem');
         if (preferProxyEl) preferProxyEl.checked = settings.preferOpenAiProxy !== false;
         if (prTr) prTr.value = pt.translateSystemPrefix || '';
         if (prSc) prSc.value = pt.scanSystemPrefix || '';
         if (prTy) prTy.value = pt.typoSystem || '';
-        if (prTr) prTr.readOnly = prSc.readOnly = prTy.readOnly = !exec;
+        if (prQaSem) prQaSem.value = pt.qaSemanticSystem || '';
+        if (prQaTrans) prQaTrans.value = pt.qaTransGuidelineSystem || '';
+        if (prQaStyle) prQaStyle.value = pt.qaStyleGuidelineSystem || '';
+        if (prQaPg) prQaPg.value = pt.qaProjectGuidelineSystem || '';
+        if (prQaSi) prQaSi.value = pt.qaSpecialInstructionSystem || '';
+        const qaPromptInputs = [prTy, prQaSem, prQaTrans, prQaStyle, prQaPg, prQaSi];
+        qaPromptInputs.forEach((el) => { if (el) el.readOnly = !exec; });
+        if (prTr) prTr.readOnly = prSc.readOnly = !exec;
+        _renderAiQaPromptDefaults();
         if (preferProxyEl) preferProxyEl.disabled = !exec;
         const exBlock = document.getElementById('aiPromptsExecBlock');
         if (exBlock) exBlock.style.opacity = exec ? '1' : '0.65';
@@ -30403,7 +30769,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     prompts: {
                         translateSystemPrefix: prTr?.value?.trim() || '',
                         scanSystemPrefix: prSc?.value?.trim() || '',
-                        typoSystem: prTy?.value?.trim() || ''
+                        typoSystem: prTy?.value?.trim() || '',
+                        qaSemanticSystem: prQaSem?.value?.trim() || '',
+                        qaTransGuidelineSystem: prQaTrans?.value?.trim() || '',
+                        qaStyleGuidelineSystem: prQaStyle?.value?.trim() || '',
+                        qaProjectGuidelineSystem: prQaPg?.value?.trim() || '',
+                        qaSpecialInstructionSystem: prQaSi?.value?.trim() || ''
                     }
                 });
                 saveBtn.textContent = '已儲存 ✓';
@@ -32396,6 +32767,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 specialInstructions,
                 projectAiInstructions,
                 projectGuidelines
+            }).then(() => {
+                if (context === 'editor') syncQaAiCheckAvailability();
             });
         }
 
@@ -33619,6 +33992,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderSelectedStyleGuidelines();
         await renderSpecialInstructions();
         await renderProjectGuidelines();
+        if (context === 'editor') syncQaAiCheckAvailability();
 
         if (btnDefG) {
             btnDefG.onclick = async () => {
