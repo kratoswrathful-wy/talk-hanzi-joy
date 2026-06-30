@@ -31,6 +31,9 @@
     let _navAnchorBlock = 'center';
     let _navAnchorLockTimer = null;
     const NAV_ANCHOR_LOCK_MS = 200;
+    let _lastNavScrollKey = '';
+    let _lastNavScrollAt = 0;
+    const NAV_SCROLL_COALESCE_MS = 48;
 
     function shouldUse(segmentCount) {
         return segmentCount > THRESHOLD;
@@ -450,6 +453,14 @@
         const list = getRenderableList();
         const idx = list.findIndex((s) => String(s.id) === String(segId));
         if (idx < 0) return null;
+        const scrollBlock = block === 'center' ? 'center' : 'start';
+        const navKey = `${String(segId)}:${scrollBlock}`;
+        const now = Date.now();
+        if (_lastNavScrollKey === navKey && (now - _lastNavScrollAt) < NAV_SCROLL_COALESCE_MS) {
+            return queryRow(segId);
+        }
+        _lastNavScrollKey = navKey;
+        _lastNavScrollAt = now;
         armNavAnchorLock(block);
         _anchorSegId = String(segId);
         _anchorOffsetPx = 0;
@@ -530,7 +541,7 @@
     }
 
     function getWindowStartIdx() {
-        return _lastStartIdx >= 0 ? _lastStartIdx : 0;
+        return _lastStartIdx >= 0 ? _lastStartIdx : -1;
     }
 
     global.CatVirtGrid = {

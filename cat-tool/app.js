@@ -7181,7 +7181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!row || !seg) return null;
         const host = row.querySelector('.col-status');
         if (!host) return null;
-        host.innerHTML = buildStatusCellHtml(seg);
+        host.innerHTML = buildUserMarkersHtml(seg) + buildStatusCellHtml(seg);
         return host.querySelector('.status-icon');
     }
 
@@ -7591,6 +7591,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfFilterLockedSpecHash = '';
             _updateSfFilterCountBadge();
             if (typeof highMatchEditConfirmedIds !== 'undefined') highMatchEditConfirmedIds.clear();
+            await _loadUserSegmentMarkersForFile(currentFileId);
             renderEditorSegments();
             runSearchAndFilter();
             renderCollabPresence();
@@ -17742,6 +17743,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfFilterLockedSpecHash = '';
         _updateSfFilterCountBadge();
         highMatchEditConfirmedIds.clear();
+        await _loadUserSegmentMarkersForFile(currentFileId);
         renderEditorSegments();
         runSearchAndFilter();
         joinCollabForFile(file);
@@ -17815,6 +17817,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearEditorCaretArtifacts();
         leaveCollabForCurrentFile();
         currentFileId = null;
+        _userSegmentMarkerMap.clear();
         _currentViewId = null;
         _currentViewFilesMap = {};
         _syncFileScopedNotesTabs();
@@ -18075,6 +18078,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfFilterGroups = []; // [{ op: 'AND'/'OR', term, scopes, isRegex, isInvert, statuses, tms }]
     let sfFilterSnapshotSegIds = null;
     let sfFilterLockedSpecHash = '';
+
+    const USER_MARKER_COLORS = ['red', 'blue', 'orange', 'grey', 'purple'];
+    const USER_MARKER_LABELS = { red: '紅', blue: '藍', orange: '橘', grey: '灰', purple: '紫' };
+    /** @type {Map<string, string[]>} */
+    const _userSegmentMarkerMap = new Map();
+
+    function getUserSegmentMarkerColors(segId) {
+        if (segId == null) return [];
+        const c = _userSegmentMarkerMap.get(String(segId));
+        return Array.isArray(c) ? c.slice() : [];
+    }
+
+    function buildUserMarkersHtml(seg) {
+        const colors = getUserSegmentMarkerColors(seg && seg.id);
+        const dots = USER_MARKER_COLORS.map((c) => {
+            const on = colors.includes(c);
+            return `<button type="button" class="seg-user-marker-dot${on ? ' is-on' : ''}" data-marker-color="${c}" title="${USER_MARKER_LABELS[c] || c}" aria-label="${USER_MARKER_LABELS[c] || c}"></button>`;
+        }).join('');
+        return `<span class="seg-user-markers" data-seg-id="${seg.id}">${dots}</span>`;
+    }
+
+    function buildStatusColumnHtml(seg) {
+        return buildUserMarkersHtml(seg) + buildStatusCellHtml(seg);
+    }
+
+    async function _loadUserSegmentMarkersForFile(fileId) {
+        _userSegmentMarkerMap.clear();
+        if (fileId == null) return;
+        let rows = [];
+        try {
+            rows = await DBService.getUserSegmentMarkersByFile(fileId);
+        } catch (_) { rows = []; }
+        rows.forEach((r) => {
+            if (!r || r.segmentId == null) return;
+            const colors = Array.isArray(r.colors) ? r.colors.filter((c) => USER_MARKER_COLORS.includes(c)) : [];
+            if (colors.length) _userSegmentMarkerMap.set(String(r.segmentId), colors);
+        });
+    }
+
+    async function toggleUserSegmentMarkerColor(segId, color) {
+        if (segId == null || !USER_MARKER_COLORS.includes(color) || currentFileId == null) return;
+        const key = String(segId);
+        const cur = getUserSegmentMarkerColors(segId);
+        let next;
+        if (cur.includes(color)) next = cur.filter((c) => c !== color);
+        else next = [...cur, color];
+        if (next.length) _userSegmentMarkerMap.set(key, next);
+        else _userSegmentMarkerMap.delete(key);
+        try {
+            await DBService.upsertUserSegmentMarker(currentFileId, segId, next);
+        } catch (err) {
+            console.warn('[markers] upsert failed', err);
+        }
+        const row = getGridRowBySegId(segId, false);
+        const seg = currentSegmentsList.find((s) => s && String(s.id) === key);
+        if (row && seg) {
+            const host = row.querySelector('.col-status');
+            if (host) {
+                const statusOnly = buildStatusCellHtml(seg);
+                const markers = buildUserMarkersHtml(seg);
+                host.innerHTML = markers + statusOnly;
+            }
+        }
+    }
+
+    function readSfMarkerColorsFromDom() {
+        return Array.from(document.querySelectorAll('.sf-marker-cb:checked'))
+            .map((cb) => cb.value)
+            .filter((v) => USER_MARKER_COLORS.includes(v));
+    }
 
     function _updateSfFilterCountBadge() {
         const badge = document.getElementById('sfFilterCountBadge');
@@ -18381,6 +18454,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         scheduleRunSearchAndFilter();
     });
     document.querySelectorAll('.sf-status-cb').forEach((cb) => cb.addEventListener('change', () => {
+        updateSfModeToggleLockState();
+        scheduleRunSearchAndFilter();
+    }));
+    document.querySelectorAll('.sf-marker-cb').forEach((cb) => cb.addEventListener('change', () => {
         updateSfModeToggleLockState();
         scheduleRunSearchAndFilter();
     }));
@@ -18930,7 +19007,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'statuses',
         'rowRangeEnabled',
         'rowRangeExpr',
-        'rowRangeExclude'
+        'rowRangeExclude',
+        'markerColors',
     ];
 
     function _sfExprFromLegacyRowRange(fromStr, toStr) {
@@ -18981,12 +19059,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map((cb) => cb.value),
             rowRangeEnabled: rrNorm.rowRangeEnabled,
             rowRangeExpr: rrExpr ? String(rrExpr.value || '') : '',
-            rowRangeExclude: rrNorm.rowRangeExclude
+            rowRangeExclude: rrNorm.rowRangeExclude,
+            markerColors: readSfMarkerColorsFromDom(),
         };
     }
 
     function clearSfAdvancedSpecOnDom() {
         document.querySelectorAll('.sf-status-cb').forEach((c) => { c.checked = false; });
+        document.querySelectorAll('.sf-marker-cb').forEach((c) => { c.checked = false; });
         const tmEl = document.getElementById('sfTmMatch');
         if (tmEl) tmEl.value = '';
         const rrEn = document.getElementById('sfRowRangeEnabled');
@@ -19029,6 +19109,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (spec.rowRangeExclude !== undefined) {
             const el = document.getElementById('sfRowRangeExclude');
             if (el) el.checked = nextFlags.rowRangeExclude;
+        }
+        if (Array.isArray(spec.markerColors)) {
+            document.querySelectorAll('.sf-marker-cb').forEach((c) => {
+                c.checked = spec.markerColors.includes(c.value);
+            });
         }
     }
 
@@ -19304,7 +19389,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        return textMatch && statusMatch && tmMatch;
+        let markerMatch = true;
+        const markerColors = (evalOpts && evalOpts.markerColors) ? evalOpts.markerColors : [];
+        if (markerColors.length > 0) {
+            const segColors = getUserSegmentMarkerColors(seg.id);
+            markerMatch = markerColors.some((c) => segColors.includes(c));
+        }
+
+        return textMatch && statusMatch && tmMatch && markerMatch;
     }
 
     function readTmImpAdvancedSpecFromDom() {
@@ -19506,7 +19598,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             advHidden: advPanel ? advPanel.classList.contains('hidden') : true,
             rowRangeEnabled: adv.rowRangeEnabled,
             rowRangeExpr: adv.rowRangeExpr,
-            rowRangeExclude: adv.rowRangeExclude
+            rowRangeExclude: adv.rowRangeExclude,
+            markerColors: adv.markerColors || [],
         });
     }
 
@@ -19518,7 +19611,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             statuses: adv.statuses,
             tmVal: adv.tmVal,
             isInvert: btnSfInvert.classList.contains('active'),
-            rowSpec: sfRowSpecFromAdvancedPart(adv)
+            rowSpec: sfRowSpecFromAdvancedPart(adv),
+            markerColors: adv.markerColors || [],
         };
     }
 
@@ -19529,8 +19623,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const statuses = criteria.statuses;
         const tmVal = criteria.tmVal;
         const isInvert = criteria.isInvert;
-        const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
-        const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
+        const markerColors = criteria.markerColors || [];
+        const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert || markerColors.length > 0);
+        const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal, { sfMode, markerColors });
         let r_finalMatch = true;
         if (sfFilterGroups.length > 0) {
             if (!hasUiFilter) {
@@ -19900,6 +19995,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
         }
         syncSelectedRowAbutmentTopClass();
+    }
+
+    /** Phase 2.3k：virt 換窗後為已掛載列補搜尋上色與 TB 狀態。 */
+    function refreshVirtWindowDecorAfterRender() {
+        if (!window.CatVirtGrid || !window.CatVirtGrid.isEnabled() || !gridBody) return;
+        const start = window.CatVirtGrid.getWindowStartIdx();
+        const end = start >= 0
+            ? Math.min(currentSegmentsList.length, start + 80)
+            : currentSegmentsList.length;
+        const loopStart = start >= 0 ? start : 0;
+        for (let idx = loopStart; idx < end; idx++) {
+            const seg = currentSegmentsList[idx];
+            if (!seg) continue;
+            const row = getGridRowBySegId(seg.id, false);
+            if (!row) continue;
+            try { updateTbInlineMissingStateForRow(row, seg); } catch (_) { /* ignore */ }
+            const cache = sfRowRenderCache.get(seg.id) || { vis: null, highlightSig: '' };
+            cache.highlightSig = '';
+            sfRowRenderCache.set(seg.id, cache);
+        }
+        const hasGroupTerm = sfFilterGroups.some((g) => !!(g && g.term));
+        const term = sfInput ? sfInput.value.trim() : '';
+        if (term || hasGroupTerm) {
+            runSearchAndFilter({ keepFilterSnapshot: true });
+        }
+        try { decorateTbInlineHintsForActiveRow(); } catch (_) { /* ignore */ }
     }
 
     /** 搜尋導覽錨點：next 用選取結尾／prev 用選取開頭；無選取則假游標；若在搜尋列則沿用上次導覽命中。 */
@@ -21384,6 +21505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function notifyVirtUserScroll() {
         _userScrollGen++;
+        _preserveEditingAcrossVirtRender = null;
         if (_pendingEditorFocus && _pendingEditorFocus.explicitNav) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = false;
@@ -21435,9 +21557,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const focusEditor = !!p.focusEditor;
             _filterAnchorPending = null;
             requestAnimationFrame(() => requestAnimationFrame(() => {
-                if (window.CatVirtGrid && typeof window.CatVirtGrid.scrollToSegId === 'function') {
-                    window.CatVirtGrid.scrollToSegId(segId, 'center');
-                }
                 if (focusEditor) {
                     scheduleEditorFocus({
                         segId,
@@ -21446,7 +21565,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         scrollBehavior: 'auto',
                         scrollBlock: 'center',
                         skipVirtScroll: true,
+                        forceVirtScroll: false,
                     });
+                } else if (window.CatVirtGrid && typeof window.CatVirtGrid.scrollToSegId === 'function') {
+                    const centered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
+                        && window.CatVirtGrid.isSegIdCentered(segId);
+                    if (!centered) window.CatVirtGrid.scrollToSegId(segId, 'center');
                 }
                 releaseVirtNavigationAnchor();
             }));
@@ -21508,7 +21632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!row && virtOn && !o.skipVirtScroll) {
             row = window.CatVirtGrid.scrollToSegId(segId, scrollBlock);
         }
-        if (!row) row = getGridRowBySegId(segId, true);
+        if (!row && !o.skipVirtScroll) row = getGridRowBySegId(segId, true);
         if (!row) return false;
         const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
         if (!ed || ed.contentEditable === 'false') return false;
@@ -21925,9 +22049,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             isInvert: btnSfInvert.classList.contains('active'),
             statuses: advSnap.statuses.slice(),
             tmVal: advSnap.tmVal,
-            rowRangeEnabled: advSnap.rowRangeEnabled,
+                rowRangeEnabled: advSnap.rowRangeEnabled,
             rowRangeExpr: advSnap.rowRangeExpr,
             rowRangeExclude: advSnap.rowRangeExclude,
+            markerColors: (advSnap.markerColors || []).slice(),
             color: getRandomGroupColor(),
             locked: false
         });
@@ -21993,7 +22118,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tmVal: advCur.tmVal,
                 rowRangeEnabled: advCur.rowRangeEnabled,
                 rowRangeExpr: advCur.rowRangeExpr,
-                rowRangeExclude: advCur.rowRangeExclude
+                rowRangeExclude: advCur.rowRangeExclude,
+                markerColors: (advCur.markerColors || []).slice(),
             }
         };
         saveSfPresetsToStorage();
@@ -22079,7 +22205,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             statuses: Array.isArray(p.current.statuses) ? p.current.statuses : [],
             rowRangeEnabled: !!p.current.rowRangeEnabled,
             rowRangeExpr: presetRowExpr,
-            rowRangeExclude: !!p.current.rowRangeExclude
+            rowRangeExclude: !!p.current.rowRangeExclude,
+            markerColors: Array.isArray(p.current.markerColors) ? p.current.markerColors : [],
         });
 
         sfUseRegexChecked = p.current.isRegex;
@@ -23916,7 +24043,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 狀態欄：Workflow 三層（B-3）+ mqxliff memoQ 白字
             const statusCellHtml = buildStatusCellHtml(seg);
-            rowInnerContent += `<div class="col-status">${statusCellHtml}</div>`;
+            rowInnerContent += `<div class="col-status">${buildUserMarkersHtml(seg)}${statusCellHtml}</div>`;
             row.innerHTML = rowInnerContent;
             
             const targetInput = row.querySelector('.grid-textarea');
@@ -24908,9 +25035,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 }
 
-                // B-7g：狀態圖示左鍵（與 Ctrl+Enter 分離）
+                // B-7g：狀態圖示左鍵（與 Ctrl+Enter 分離）；色點切換
                 const statusCol = row.querySelector('.col-status');
-                if (statusCol) statusCol.addEventListener('click', () => {
+                if (statusCol) statusCol.addEventListener('click', (ev) => {
+                    const dot = ev.target.closest('.seg-user-marker-dot');
+                    if (dot) {
+                        ev.stopPropagation();
+                        ev.preventDefault();
+                        const color = dot.getAttribute('data-marker-color');
+                        void toggleUserSegmentMarkerColor(seg.id, color);
+                        return;
+                    }
                     void (async () => {
                         const targetTa = row.querySelector('.grid-textarea');
                         const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa || targetInput);
@@ -24998,6 +25133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {
                         catFakeCaret.refreshAfterVirtRender();
                     }
+                    try { refreshVirtWindowDecorAfterRender(); } catch (_) { /* ignore */ }
                     if (!virtMountFinished) {
                         virtMountFinished = true;
                         finishEditorGridRender();

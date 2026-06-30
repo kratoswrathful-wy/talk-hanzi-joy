@@ -1,9 +1,9 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3j 已實作，待驗收**（2026-06-29；2.3i `e17ff35` 項 2／4 通過、1／3 未通過＋新問題 5 → 2.3j 浮層死結／導覽錨點保護／篩選置中與聚焦分流）
+> **狀態**：**Phase 2.3k 已實作，待驗收**（2026-06-30；2.3j `e147c10` Ctrl+F／回歸通過、1～8 未通過 → 2.3k 大檔修正 + 個人句段色點）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
-> **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)
+> **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)、[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md)
 
 本文採雙層結構：**Part 1** 白話；**Part 2** 技術與維護。
 
@@ -52,7 +52,19 @@
 22. **真游標離屏 tip（2.3h／2.3i 未通過 → 2.3j 目標）**：譯文格內編輯 → 捲離 → 「游標在第 N 句」卡片在編輯區**頂或底**、位置正確。
 23. **假游標／提示卡會繪製（2.3j 目標，問題 1）**：大檔編輯某句後失焦或捲遠 → 看得到藍色假游標或頂／底提示卡（浮層死結解除）。
 24. **確認跳行畫面跟捲（2.3j 目標，問題 3）**：第一行 **Ctrl+Enter** 跳至首個未確認句（如 1482）→ 畫面**穩定捲到並置中**該句（連續多次皆然，不再「假游標到了、畫面沒到」）。
-25. **Ctrl+F 進篩選焦點留取代欄（2.3j 目標，問題 5）**：編輯區選字、連按兩次 **Ctrl+F** → 進篩選模式、焦點**停在取代欄**、畫面以原編輯句置中（焦點不被搶回編輯區）。
+25. **Ctrl+F 進篩選焦點留取代欄（2.3j 通過）**：編輯區選字、連按兩次 **Ctrl+F** → 進篩選模式、焦點**停在取代欄**、畫面以原編輯句置中。
+26. **確認跳行一次捲到置中（2.3k）**：大檔 **Ctrl+Enter** → 畫面**一次**捲到下一未確認句並置中，不連跳。
+27. **手動捲動不拉回暫存句（2.3k）**：Ctrl+Alt+↓ 回暫存句後，手動捲到上下遠處 → **不**被強制拉回暫存句置頂。
+28. **真游標捲動不閃雙 tip（2.3k）**：譯文格內編輯捲動 → 不交替顯示「游標」與「暫存游標」卡。
+29. **離屏 tip 方向正確（2.3k）**：游標在視窗上方句段、往下捲 → tip **貼頂**（非貼底）。
+30. **進出篩選置中不連跳（2.3k）**：編輯句在清單內 → 進／出篩選**置中**；不連跳。
+31. **搜尋命中換窗仍上色（2.3k）**：virt 捲動後新出現列仍有搜尋／篩選 `<mark>`。
+32. **捲動中 TB 底線（2.3k）**：可見列術語底線不整片消失至停捲。
+33. **篩選中編輯譯文列集合不變（2.3k）**：除非手改篩選條件，篩選結果不因譯文編輯而跑掉。
+34. **色點加刪本機（2.3k）**：本機為句段加紅+藍 → 重開檔仍在。
+35. **色點 Team 跨裝置（2.3k）**：另一瀏覽器開同一檔色點一致。
+36. **色點篩選（2.3k）**：進階篩選選「紅」→ 僅留有紅點列。
+37. **2.3j 回歸（2.3k）**：Ctrl+F 雙按焦點留取代欄；確認後可打字。
 
 **2.3b regression（2.3d～2.3h 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效；**Ctrl+Alt+↓ 一次**還原可打字。
 
@@ -268,6 +280,23 @@
 | 導覽錨點保護 | 新增 `_navAnchorLock`；`scrollToSegId` 設鎖；鎖定期 `scheduleResizeRepaint` 不 `inferAnchorFromDom`，改 `renderWindow(_anchorSegId, _navAnchorBlock)` 重新置中；使用者捲動或短逾時（約 200ms）解鎖；**不**綁 `releaseNavigationAnchor` |
 | 篩選聚焦分流 | `_filterAnchorPending.focusEditor = !isSfSearchControlActive()`；`flushFilterAnchorAfterVirtRender` 一律 `scrollToSegId(center)`，僅 `focusEditor` 為真才 `scheduleEditorFocus` |
 
+### 2.14 Phase 2.3k — 大檔捲動穩定 + 個人句段色點（2026-06-30，已實作，待驗收）
+
+**2.3j 產品驗收**（`e147c10`）：Ctrl+F 焦點 + 回歸**通過**；問題 1～8 **未通過**（確認連跳、手動捲被拉回、tip 閃爍／貼底錯誤、篩選連跳、搜尋不上色、TB 消失、篩選跑掉）。
+
+**根因與修正（規劃）**：
+
+| # | 根因（一句） | 修法 |
+|---|-------------|------|
+| 2 | `skipVirtScroll` 仍 `ensureRowMounted` → `scrollToSegId` | `applyEditorFocusAtSegId` 尊重 `skipVirtScroll`；preserve 未掛載只 tip |
+| 3／4 | 真／假 tip 競態；`getVirtWindowStartIndex` 誤 0 | `resolveOffScreenDirection` 統一 listIdx；真游標在格內只真 tip |
+| 1／5 | 多次 `scrollToSegId` + resize 重锚 | 導覽 scroll 合併；filter flush 與 focus 去重 |
+| 6／7 | virt 換窗未重跑 highlight／TB | `onAfterRender` 補裝飾 |
+| 8 | 編輯觸發全量重掛或錨點錯位 | `keepFilterSnapshot` audit |
+| 9 | 新功能 | 色點 Dexie v25 + Supabase；見 [`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md) |
+
+**篩選置中**：編輯句 inList → `'center'`；被篩掉 → `'start'`。
+
 ---
 
 ## §3 產品端驗收紀錄（2026-06）
@@ -360,7 +389,24 @@
 | 3 | 確認跳行假游標到、畫面沒到（間歇） | 延遲置中捲動落定前，resize 重繪 `inferAnchorFromDom` 覆蓋導覽錨點 |
 | 5（新） | Ctrl+F 進篩選焦點被搶回編輯區 | 2.3i 移除 `!isSfSearchControlActive()` 守衛後，篩選 flush 連焦點在取代欄也 `scheduleEditorFocus` |
 
-**2.3j 狀態**：**已實作，待驗收**（驗收項 §1.3 之 23～25 + 回歸 2／4）。
+**2.3j 狀態**：**已推送 `e147c10`，部分驗收通過**（Ctrl+F 焦點 + 回歸通過；1～8 未通過；見 §3.10）。
+
+### 3.10 Phase 2.3j 部分驗收 → 2.3k 修正目標（2026-06-30）
+
+| # | 現象 | 備註 |
+|---|------|------|
+| Ctrl+F | 雙按焦點留取代欄 | **通過** |
+| 回歸 | 確認可打字、篩選置中等 | **通過** |
+| 1 | 確認後畫面連跳、停錯行 | 假游標可 Ctrl+Alt+↓ 回正確句 |
+| 2 | 手動捲被拉回暫存句置頂 | |
+| 3 | 真游標在格內 tip 閃爍 | |
+| 4 | 離屏 tip 應貼頂卻貼底 | |
+| 5 | 進出篩選連跳、置頂非置中 | inList 應置中 |
+| 6 | 搜尋／篩選命中不上色 | |
+| 7 | TB 術語捲動中消失 | |
+| 8 | 譯文編輯後篩選跑掉 | |
+
+**2.3k 狀態**：**已實作，待驗收**（驗收 §1.3 項 26～37 + 色點；見 §2.14）。
 
 ---
 
@@ -377,4 +423,5 @@
 | 2026-06-29 | Phase 2.3g：篩選兩段式置中、`suspendEditingPreserve`、錨點釋放、Ctrl+Alt+↓ 強制 center；**已推送 `e84f06d`，產品驗收未通過** |
 | 2026-06-29 | Phase 2.3h：疊層 fixed 化、移除 suspend、焦點遺失才還原 preserve；**已推送 `ffe459d`，部分驗收通過** |
 | 2026-06-29 | Phase 2.3i：離窗不硬抓焦點、篩選置中／被篩掉置頂；字數 memoQ 預翻 `max(TM%,rate%)`；**已推送 `e17ff35`，部分驗收通過** |
-| 2026-06-29 | Phase 2.3j：浮層死結就地建立、導覽錨點保護、篩選置中與聚焦分流；**已實作，待驗收** |
+| 2026-06-29 | Phase 2.3j：浮層死結就地建立、導覽錨點保護、篩選置中與聚焦分流；**已推送 `e147c10`，部分驗收通過** |
+| 2026-06-30 | Phase 2.3k：大檔捲動穩定、搜尋／TB 換窗裝飾、個人句段色點（本機+雲端）；**已實作，待驗收** |

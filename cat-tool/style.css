@@ -1548,9 +1548,40 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 
 /* Phase B B-3：Workflow 三層狀態欄（內部綠點／綠外圈 + mqxliff 白字） */
 .col-status {
-    min-width: 42px;
-    width: 42px;
+    min-width: 52px;
+    width: 52px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    flex-wrap: wrap;
 }
+.seg-user-markers {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    flex-shrink: 0;
+}
+.seg-user-marker-dot {
+    width: 7px;
+    height: 7px;
+    min-width: 7px;
+    min-height: 7px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+.seg-user-marker-dot.is-on[data-marker-color="red"] { background: #ef4444; border-color: #dc2626; }
+.seg-user-marker-dot.is-on[data-marker-color="blue"] { background: #3b82f6; border-color: #2563eb; }
+.seg-user-marker-dot.is-on[data-marker-color="orange"] { background: #f97316; border-color: #ea580c; }
+.seg-user-marker-dot.is-on[data-marker-color="grey"] { background: #9ca3af; border-color: #6b7280; }
+.seg-user-marker-dot.is-on[data-marker-color="purple"] { background: #a855f7; border-color: #9333ea; }
+.sf-adv-status-row-markers label { font-size: 0.85rem; }
 .status-icon-stack {
     position: relative;
     display: inline-flex;

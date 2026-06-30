@@ -703,6 +703,38 @@ db.version(26).stores({
     ]);
 });
 
+// v27：Phase 2.3k 個人句段色點
+db.version(27).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt',
+    workflowTemplates: '++id, projectId, isDefault',
+    workflowTemplateStages: '++id, templateId, stageOrder',
+    fileWorkflowStages: '++id, fileId, stageOrder',
+    stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
+    stageSnapshots: '++id, segmentId, fileId, [segmentId+snapshotReason]',
+    segmentAnnotations: '++id, segmentId, fileId, parentAnnotationId',
+    annotationOptions: '++id, optionType, sortOrder',
+    userSegmentMarkers: '[fileId+segmentId], fileId, segmentId',
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -1455,6 +1487,35 @@ const DBService = {
     },
     async deletePrivateNote(noteId) {
         return await db.privateNotes.delete(noteId);
+    },
+
+    // ---- User segment markers（個人色點）----
+    async getUserSegmentMarkersByFile(fileId) {
+        const fid = fileId != null ? String(fileId) : '';
+        if (!fid) return [];
+        const rows = await db.userSegmentMarkers.where('fileId').equals(fid).toArray();
+        return rows.map((r) => ({
+            segmentId: r.segmentId,
+            colors: Array.isArray(r.colors) ? r.colors.slice() : [],
+            updatedAt: r.updatedAt || null,
+        }));
+    },
+    async upsertUserSegmentMarker(fileId, segmentId, colors) {
+        const fid = fileId != null ? String(fileId) : '';
+        const sid = segmentId != null ? String(segmentId) : '';
+        if (!fid || !sid) return;
+        const now = new Date().toISOString();
+        const norm = Array.isArray(colors) ? colors.filter(Boolean) : [];
+        const existing = await db.userSegmentMarkers.where('[fileId+segmentId]').equals([fid, sid]).first();
+        if (!norm.length) {
+            if (existing) await db.userSegmentMarkers.delete(existing.id);
+            return;
+        }
+        if (existing) {
+            await db.userSegmentMarkers.update(existing.id, { colors: norm, updatedAt: now });
+            return;
+        }
+        await db.userSegmentMarkers.add({ fileId: fid, segmentId: sid, colors: norm, updatedAt: now });
     },
 
     // ---- Guidelines（共用資訊：翻譯準則 & 共用筆記）----
@@ -2283,6 +2344,10 @@ const DBService = {
         });
     };
     DBService.deletePrivateNote = async (noteId) => rpc('db.deletePrivateNote', { noteId });
+
+    DBService.getUserSegmentMarkersByFile = async (fileId) => rpc('db.getUserSegmentMarkersByFile', { fileId });
+    DBService.upsertUserSegmentMarker = async (fileId, segmentId, colors) =>
+        rpc('db.upsertUserSegmentMarker', { fileId, segmentId, colors });
 
     // guidelines
     DBService.addGuideline = async (entry) => rpc('db.addGuideline', { entry });

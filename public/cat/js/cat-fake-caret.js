@@ -85,10 +85,46 @@
         function repaintChromeOverlays() {
             const active = document.activeElement;
             if (active && active.classList && active.classList.contains('grid-textarea')) {
+                const activeSegId = getEditorSegId(active);
+                if (saved && saved.segId != null && activeSegId != null
+                    && String(activeSegId) === String(saved.segId)) {
+                    showRealCaretTipIfNeeded();
+                    hide();
+                    return;
+                }
                 showRealCaretTipIfNeeded();
                 return;
             }
             show();
+        }
+
+        /** Phase 2.3k：以 list 索引判斷離屏 tip 貼頂（above）或貼底（below）。 */
+        function resolveOffScreenDirection(segId) {
+            const sid = segId != null ? segId : (saved && saved.segId);
+            if (sid == null) return 'above';
+            if (typeof getSegListIndex !== 'function') return 'above';
+            const listIdx = getSegListIndex(sid);
+            if (listIdx == null) return 'above';
+            let windowStart = null;
+            if (typeof getVirtWindowStartIndex === 'function') {
+                windowStart = getVirtWindowStartIndex();
+            }
+            if (windowStart == null || windowStart < 0) {
+                const vg = global.CatVirtGrid;
+                if (vg && typeof vg.getAnchorSegId === 'function' && typeof getSegListIndex === 'function') {
+                    const anchorId = vg.getAnchorSegId();
+                    if (anchorId != null) {
+                        const anchorIdx = getSegListIndex(anchorId);
+                        if (anchorIdx != null) windowStart = anchorIdx;
+                    }
+                }
+            }
+            if (windowStart == null || windowStart < 0) return 'above';
+            return listIdx < windowStart ? 'above' : 'below';
+        }
+
+        function resolveOffScreenTipAbove(segId) {
+            return resolveOffScreenDirection(segId) === 'above';
         }
 
         function onScrollOrResize() {
@@ -179,16 +215,7 @@
             }
         }
 
-        /** 列未掛載時：listIdx < windowStart → 提示貼頂，否則貼底（Phase 2.3c）。 */
-        function resolveOffScreenTipAbove(segId) {
-            const sid = segId != null ? segId : (saved && saved.segId);
-            if (sid == null) return true;
-            if (typeof getSegListIndex !== 'function' || typeof getVirtWindowStartIndex !== 'function') return true;
-            const listIdx = getSegListIndex(sid);
-            const windowStart = getVirtWindowStartIndex();
-            if (listIdx == null || windowStart == null) return true;
-            return listIdx < windowStart;
-        }
+        /** 列未掛載時：listIdx < windowStart → 提示貼頂，否則貼底（Phase 2.3c／2.3k）。 */
 
         /** @param {{ scroll?: boolean }} [opts] scroll 預設 true（使用者導覽）；false 為被動重畫。 */
         function findRowAndEditorForSegId(segId, opts) {
@@ -255,7 +282,8 @@
             bindFakeTipNavigation(tip);
             const colTarget = document.querySelector('.col-target');
             const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
-            positionScrollTipInLayer(tip, anchorLeft, gridRect, !!outAbove);
+            const dir = typeof outAbove === 'boolean' ? outAbove : (resolveOffScreenDirection(saved.segId) === 'above');
+            positionScrollTipInLayer(tip, anchorLeft, gridRect, dir);
         }
 
         /** 真／假游標提示共用：捲至句段列、聚焦譯文格、還原暫存 Range（若有）。 */
@@ -429,7 +457,8 @@
                     bindFakeTipNavigation(tip);
                     const colTarget = document.querySelector('.col-target');
                     const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
-                    positionScrollTipInLayer(tip, anchorLeft, gridRect, outAbove);
+                    const dirAbove = resolveOffScreenDirection(saved.segId) === 'above';
+                    positionScrollTipInLayer(tip, anchorLeft, gridRect, dirAbove);
                     return;
                 }
             }
@@ -554,17 +583,18 @@
         function refreshAfterVirtRender() {
             if (!saved || saved.segId == null) return;
             if (!syncChromeLayerRect()) return;
-            if (!isSavedSegMountedInWindow()) {
-                showOffScreenFakeTip(resolveOffScreenTipAbove(saved.segId));
-                return;
-            }
             const active = document.activeElement;
             if (active && active.classList && active.classList.contains('grid-textarea')) {
                 const activeSegId = getEditorSegId(active);
                 if (activeSegId != null && String(activeSegId) === String(saved.segId)) {
                     hide();
+                    showRealCaretTipIfNeeded();
                     return;
                 }
+            }
+            if (!isSavedSegMountedInWindow()) {
+                showOffScreenFakeTip();
+                return;
             }
             show();
         }

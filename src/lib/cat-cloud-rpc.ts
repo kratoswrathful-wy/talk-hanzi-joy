@@ -1372,6 +1372,49 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return;
     }
 
+    case "db.getUserSegmentMarkersByFile": {
+      await assertFileEnv(payload.fileId);
+      const { data, error } = await supabase
+        .from("cat_user_segment_markers")
+        .select("segment_id, colors, updated_at")
+        .eq("file_id", payload.fileId)
+        .eq("user_id", userId);
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        segmentId: r.segment_id,
+        colors: Array.isArray(r.colors) ? r.colors : [],
+        updatedAt: r.updated_at,
+      }));
+    }
+    case "db.upsertUserSegmentMarker": {
+      await assertFileEnv(payload.fileId);
+      const colors = Array.isArray(payload.colors) ? payload.colors.filter(Boolean) : [];
+      if (!colors.length) {
+        const { error } = await supabase
+          .from("cat_user_segment_markers")
+          .delete()
+          .eq("file_id", payload.fileId)
+          .eq("segment_id", payload.segmentId)
+          .eq("user_id", userId);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await supabase
+        .from("cat_user_segment_markers")
+        .upsert(
+          {
+            user_id: userId,
+            file_id: payload.fileId,
+            segment_id: payload.segmentId,
+            colors,
+            updated_at: nowIso(),
+          } as any,
+          { onConflict: "user_id,file_id,segment_id" }
+        );
+      if (error) throw error;
+      return;
+    }
+
     // ---- Guidelines ----
     case "db.addGuideline": {
       const { data, error } = await supabase

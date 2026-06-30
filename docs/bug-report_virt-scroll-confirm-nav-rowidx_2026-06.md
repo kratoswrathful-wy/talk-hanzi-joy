@@ -166,3 +166,15 @@ Ctrl+Enter 以錯誤 `i` 呼叫 `getAfterConfirmFocusIndex(i)`，從錯誤起點
 - 篩選：`_filterAnchorPending.focusEditor = !isSfSearchControlActive()`；flush 一律置中，僅 `focusEditor` 時才聚焦編輯句。
 
 詳見 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §2.13。
+
+### 6.8 Phase 2.3k — preserve 不硬掛載、導覽 scroll 合併（2026-06-30，規劃中）
+
+**症狀**：確認／篩選連跳；手動捲動被拉回暫存句；搜尋上色與篩選快照在 virt 換窗後失效。
+
+**修法**：
+- `applyEditorFocusAtSegId`：`skipVirtScroll` 時禁止 `ensureRowMounted`。
+- 使用者捲動後清除 preserve 硬還原競態。
+- 導覽 `scrollToSegId` 合併、filter flush 與 focus 去重；inList 篩選置中 `'center'`。
+- `onAfterRender` 補 search highlight 與 TB。
+
+詳見 §2.14。
