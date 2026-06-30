@@ -7,6 +7,7 @@
 - **本檔** — 對話語言、推送慣例、CAT 單一來源、工作評估與文件、對話與執行（含資料庫操作）與下列章節。
 - **[`.cursor/rules/`](.cursor/rules/)** — 依你正在編輯的檔案路徑自動套用（例如 [`cat-tool-source.mdc`](.cursor/rules/cat-tool-source.mdc)、[`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc)）；預設非全域常駐，觸及對應 glob 時才注入。
 - **[`.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)** — **全域常駐**：對話與文件僅台灣正體中文，禁止混用其他語言書寫說明正文。
+- **[`.cursor/rules/claude-ai-acceptance-slack.mdc`](.cursor/rules/claude-ai-acceptance-slack.mdc)** — **全域常駐**：使用者指定「Claude／AI 驗收」時，自動撰寫 AI 可執行驗收要求並發送到 Slack `#development`。
 - **[`docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)** — **LMS 技能書（Claude 速查）**：操作網站時用 `window.__lmsAgent` 讀寫案件單／費用單，跳過下拉、時間選擇器、核取方塊點擊；完整規格見 [`docs/LMS_AI_AGENT_BRIDGE_2026-06.md`](docs/LMS_AI_AGENT_BRIDGE_2026-06.md)。
 
 ### (B) 功能與路徑
@@ -80,6 +81,8 @@
 - [`docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md`](docs/CAT_SORT_AND_DISPLAY_ORDER_SPEC_2026-06.md) — **B-0** 檔序、句段集排序、左欄顯示序、篩選 A、Workflow 列號對齊
 - [`docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md`](docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) — **測試模式（環境隔離）實作規劃**：執行長專用、身分綁定 `env`（假帳號＝test）、假人團隊專區、CAT 補 env 與 RLS 把關、Slack 測試分流、一鍵重置（**規劃中，尚未動程式**）
 - [`docs/LMS_AI_AGENT_BRIDGE_2026-06.md`](docs/LMS_AI_AGENT_BRIDGE_2026-06.md) — **LMS AI 操作切入點**（`window.__lmsAgent`）：案件／費用單腳本讀寫、驗證層、草稿守門、開發／驗收紀錄（**已實作並驗收** `82644f0`；Claude 10/10）
+- [`docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md) — **Claude 技能書**（`__lmsAgent` 速查）
+- [`docs/bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](docs/bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md) — `fee.update` 部分 `clientInfo` 誤清空營收列（**已修**；`mergeClientInfoPatch`）
 - **1UP CAT／LMS 整合 UX 大計畫**（Cursor plan `1up_ux_與遷移`）— **唯一完整主紀錄**（第二波 UX、B+D2、UX 微調、加號）；Git 摘要 [`docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md)
 
 ## 回覆與推送慣例
@@ -93,6 +96,18 @@
 - 技術術語可出現，但對專案擁有者須**首次白話解釋**；同一則對話不重複定義。
 - 細節與 Cursor 常駐規則：[`/.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)（`alwaysApply: true`）。
 - 除非使用者另有明確指示，否則每次完成可提交的變更後，預設流程為：**直接推送**，並依下方「變更完成並推送後的回報」結構回覆。
+
+### Claude AI 驗收（Slack）
+
+當專案擁有者表示**某次變更的驗收要由 Claude（或 AI）處理**（或語意相同，例如「請 Claude 驗收」「AI 驗收」）時，Cursor 代理**必須**：
+
+1. 以**驗收執行者為 AI 代理**（Claude + 瀏覽器自動化／`Runtime.evaluate`）為前提撰寫驗收要求——**不是**給人類手動點擊的步驟而已。
+2. 將驗收任務**發送到 Slack 頻道 `#development`**（channel id：`C0BDSDCT9B5`），內容含：變更摘要、commit、規格文件連結、分批測項（T1…）、每項可程式化通過條件、回報格式（請 Claude 在 thread 回覆通過／失敗表）。
+3. 發送後在對話中回報 **Slack 訊息連結**。
+
+**環境預設**：`https://talk-hanzi-joy.vercel.app`；**登入預設**：威儀（PM）。LMS 腳本驗收見 [`docs/LMS_AI_AGENT_BRIDGE_2026-06.md`](docs/LMS_AI_AGENT_BRIDGE_2026-06.md) §7；CAT 見各功能 `docs/CAT_*` 驗收章節。
+
+常駐規則細節：[`.cursor/rules/claude-ai-acceptance-slack.mdc`](.cursor/rules/claude-ai-acceptance-slack.mdc)。
 
 ## 與專案擁有者溝通
 

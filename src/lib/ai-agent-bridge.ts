@@ -283,37 +283,80 @@ function validateFeeTaskItems(value: unknown): AgentResult<FeeTaskItem[]> {
   return ok(out);
 }
 
-function validateClientInfo(value: unknown): AgentResult<ClientInfo> {
-  if (!value || typeof value !== "object") return fail("clientInfo 必須為物件");
-  const obj = value as Record<string, unknown>;
-  const validated = validateRecordFields("clientInfo.", CLIENT_INFO_FIELDS, obj);
-  if (validated.ok === false) return failFrom(validated);
-  const base = { ...defaultClientInfo, ...validated.data } as ClientInfo;
-  if (obj.clientTaskItems !== undefined) {
-    if (!Array.isArray(obj.clientTaskItems)) return fail("clientInfo.clientTaskItems 必須為陣列");
-    const items = [];
-    for (let i = 0; i < obj.clientTaskItems.length; i++) {
-      const row = obj.clientTaskItems[i];
-      if (!row || typeof row !== "object") return fail(`clientInfo.clientTaskItems[${i}] 必須為物件`);
-      const itemObj = row as Record<string, unknown>;
-      const itemId = typeof itemObj.id === "string" ? itemObj.id : `ci-${Date.now()}-${i}`;
-      const itemValidated = validateRecordFields(
-        `clientInfo.clientTaskItems[${i}].`,
-        FEE_CLIENT_TASK_FIELDS,
-        itemObj,
-      );
-      if (itemValidated.ok === false) return failFrom(itemValidated);
-      items.push({
-        id: itemId,
-        taskType: "翻譯",
-        billingUnit: "字",
-        unitCount: 0,
-        clientPrice: 0,
-        ...itemValidated.data,
-      });
-    }
-    base.clientTaskItems = items as ClientInfo["clientTaskItems"];
+function validateClientTaskItemsArray(value: unknown): AgentResult<ClientInfo["clientTaskItems"]> {
+  if (!Array.isArray(value)) return fail("clientInfo.clientTaskItems 必須為陣列");
+  const items: ClientInfo["clientTaskItems"] = [];
+  for (let i = 0; i < value.length; i++) {
+    const row = value[i];
+    if (!row || typeof row !== "object") return fail(`clientInfo.clientTaskItems[${i}] 必須為物件`);
+    const itemObj = row as Record<string, unknown>;
+    const itemId = typeof itemObj.id === "string" ? itemObj.id : `ci-${Date.now()}-${i}`;
+    const itemValidated = validateRecordFields(
+      `clientInfo.clientTaskItems[${i}].`,
+      FEE_CLIENT_TASK_FIELDS,
+      itemObj,
+    );
+    if (itemValidated.ok === false) return failFrom(itemValidated);
+    items.push({
+      id: itemId,
+      taskType: "翻譯",
+      billingUnit: "字",
+      unitCount: 0,
+      clientPrice: 0,
+      ...itemValidated.data,
+    } as ClientInfo["clientTaskItems"][number]);
   }
+  return ok(items);
+}
+
+/** 將 clientInfo patch 深層合併到既有值（供 fee.update / 測試使用） */
+export function mergeClientInfoPatch(
+  existing: ClientInfo,
+  patch: Record<string, unknown>,
+): AgentResult<ClientInfo> {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return fail("clientInfo 必須為物件");
+  }
+
+  const {
+    clientTaskItems: patchTaskItems,
+    clientCaseLink: patchLink,
+    ...scalarPatch
+  } = patch;
+
+  const validated = validateRecordFields("clientInfo.", CLIENT_INFO_FIELDS, scalarPatch);
+  if (validated.ok === false) return failFrom(validated);
+
+  const base: ClientInfo = {
+    ...existing,
+    ...validated.data,
+    clientCaseLink: { ...existing.clientCaseLink },
+    clientTaskItems: existing.clientTaskItems.map((item) => ({ ...item })),
+  };
+
+  if (patchLink !== undefined) {
+    if (typeof patchLink !== "object" || patchLink === null || Array.isArray(patchLink)) {
+      return fail("clientInfo.clientCaseLink 必須為物件");
+    }
+    const linkObj = patchLink as Record<string, unknown>;
+    if (linkObj.url !== undefined && typeof linkObj.url !== "string") {
+      return fail("clientInfo.clientCaseLink.url 必須為字串");
+    }
+    if (linkObj.label !== undefined && typeof linkObj.label !== "string") {
+      return fail("clientInfo.clientCaseLink.label 必須為字串");
+    }
+    base.clientCaseLink = {
+      url: typeof linkObj.url === "string" ? linkObj.url : existing.clientCaseLink.url,
+      label: typeof linkObj.label === "string" ? linkObj.label : existing.clientCaseLink.label,
+    };
+  }
+
+  if (patchTaskItems !== undefined) {
+    const itemsResult = validateClientTaskItemsArray(patchTaskItems);
+    if (itemsResult.ok === false) return failFrom(itemsResult);
+    base.clientTaskItems = itemsResult.data;
+  }
+
   return ok(base);
 }
 
@@ -343,7 +386,10 @@ function validateCasePatch(patch: Record<string, unknown>): AgentResult<Partial<
   return ok(out);
 }
 
-function validateFeePatch(patch: Record<string, unknown>): AgentResult<Partial<TranslatorFee>> {
+function validateFeePatch(
+  patch: Record<string, unknown>,
+  existingFee?: Partial<TranslatorFee>,
+): AgentResult<Partial<TranslatorFee>> {
   const out: Partial<TranslatorFee> = {};
   for (const [key, value] of Object.entries(patch)) {
     if (key === "taskItems") {
@@ -353,7 +399,11 @@ function validateFeePatch(patch: Record<string, unknown>): AgentResult<Partial<T
       continue;
     }
     if (key === "clientInfo") {
-      const ci = validateClientInfo(value);
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return fail("clientInfo 必須為物件");
+      }
+      const existingCi = existingFee?.clientInfo ?? defaultClientInfo;
+      const ci = mergeClientInfoPatch(existingCi, value as Record<string, unknown>);
       if (ci.ok === false) return failFrom(ci);
       out.clientInfo = ci.data;
       continue;
@@ -556,7 +606,7 @@ function buildAgentApi(): LmsAgentApi {
       create: (initial = {}) => {
         const draft = feeStore.createDraft();
         if (Object.keys(initial).length === 0) return ok(draft);
-        const validated = validateFeePatch(initial as Record<string, unknown>);
+        const validated = validateFeePatch(initial as Record<string, unknown>, draft);
         if (validated.ok === false) return failFrom(validated);
         feeStore.updateFee(draft.id, validated.data);
         const created = feeStore.getFeeById(draft.id);
@@ -569,7 +619,7 @@ function buildAgentApi(): LmsAgentApi {
         if (existing.status === "finalized") {
           return fail("此費用單已定案（finalized），AI 切入點不可修改");
         }
-        const validated = validateFeePatch(patch as Record<string, unknown>);
+        const validated = validateFeePatch(patch as Record<string, unknown>, existing);
         if (validated.ok === false) return failFrom(validated);
         feeStore.updateFee(id, validated.data);
         const updated = feeStore.getFeeById(id);

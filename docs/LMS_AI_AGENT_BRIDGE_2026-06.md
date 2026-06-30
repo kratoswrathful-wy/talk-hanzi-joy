@@ -157,6 +157,19 @@ const updated = await window.__lmsAgent.case.update("案件-uuid", {
 
 - 此頁為 Notion 匯入精靈，**未**直接呼叫 store 儲存；AI 應使用 `fee.create` / `fee.update`，不必模擬此頁流程。
 
+## 部分更新語意（PATCH）
+
+| 欄位類型 | `fee.update` / `case.update` 行為 |
+|----------|-----------------------------------|
+| **頂層單欄**（`title`、`assignee`、`client`、交期等） | 安全：只改 patch 內 key，其餘頂層欄位不動 |
+| **`clientInfo` 物件** | **深層合併**（`mergeClientInfoPatch`）：未提及子欄位保留現值；`clientTaskItems` 未傳則保留營收列 |
+| **`clientInfo.clientTaskItems`** | 有傳 → **整包陣列取代**（須傳完整列或接受覆寫） |
+| **`taskItems` / `workGroups` / `collabRows`** | 有傳 → **整包陣列取代**（Phase 2 可改依 id 合併） |
+
+### Bug 紀錄：`clientInfo` 誤清空（2026-06-30，已修）
+
+修復前部分 `clientInfo` patch 會套用 `defaultClientInfo` 導致營收歸零。詳見 [`bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md)。回歸測試：[`ai-agent-bridge.clientInfo.test.ts`](../src/lib/ai-agent-bridge.clientInfo.test.ts)。
+
 ## 下拉選項自動更新
 
 驗證層讀 [`selectOptionsStore`](../src/stores/select-options-store.ts) 的 `getSortedOptions(fieldKey)`。在設定頁新增／刪除選項後，**不需改 bridge 程式**，`options.get` 與 `describe` 即反映最新清單。
@@ -315,6 +328,7 @@ window.__lmsAgent.case.list({ search: "[AI驗收]" });
 | 正式環境常駐 | 已登入且能執行 JS 的 session 即可呼叫；RLS 仍把關 |
 | 無 delete API | 刪除須走 UI 或日後擴充 |
 | 案件重複標題 | bridge 不檢查；公布流程才檢查 |
+| 陣列整包取代 | `taskItems` / `workGroups` / `collabRows` 有傳則整包換（見 § 部分更新語意） |
 
 **後續可選**（未排程）：
 
@@ -322,6 +336,7 @@ window.__lmsAgent.case.list({ search: "[AI驗收]" });
 - `data-testid` 作 UI 自動化後備
 - 補 `edit_logs` 合併（若 AI 也需留變更紀錄）
 - 驗收腳本收進 `scripts/` 供 CI 或重跑
+- **Phase 2**：陣列欄位依 `id` 合併列
 
 ## 相關檔案
 

@@ -61,6 +61,8 @@ window.__lmsAgent.options.listKeys();
 4. **不提供 delete**：刪除須請使用者走 UI。
 5. **錯誤自我修正**：`{ ok: false, error, allowed }` → 用 `allowed` 重試。
 6. **不走 UI 的副作用**：Slack、變更紀錄、連結案件自動帶入、重複標題檢查等**不會**觸發（見完整文件）。
+7. **`clientInfo` 可部分更新**（2026-06-30 起）：只傳要改的欄位即可；**未傳的 `clientTaskItems` 會保留**。若 patch 含 `clientTaskItems`，則**整包陣列取代**（須傳完整營收列）。
+8. **陣列欄位**（`taskItems`、`workGroups`、`collabRows`）：有傳則**整包取代**，未傳則不動。
 
 ### 常用 options key
 
@@ -104,6 +106,28 @@ if (cases.ok && cases.data.length) {
 }
 ```
 
+### 改費用客戶資訊（部分更新 OK）
+
+```javascript
+// 只改 PO 與對帳；client、clientTaskItems 營收列會保留
+const r = window.__lmsAgent.fee.update(feeId, {
+  clientInfo: {
+    clientPoNumber: "ECI_JAS_202606_018788",
+    reconciled: true,
+  },
+});
+if (!r.ok) console.error(r.error, r.allowed);
+
+// 若要改營收列，須傳完整 clientTaskItems 陣列（整包取代）
+const r2 = window.__lmsAgent.fee.update(feeId, {
+  clientInfo: {
+    clientTaskItems: [
+      { taskType: "翻譯", billingUnit: "字", unitCount: 507, clientPrice: 0.05 },
+    ],
+  },
+});
+```
+
 ### 處理非法下拉值
 
 ```javascript
@@ -120,7 +144,8 @@ const bad = window.__lmsAgent.fee.update(feeId, {
 |------|----------|
 | 新建費用草稿 | `fee.create({ title, assignee, taskItems })` |
 | 改費用工作項目 | `fee.update(id, { taskItems: [...] })` |
-| 改費用客戶資訊核取 | `fee.update(id, { clientInfo: { reconciled: true, ... } })` |
+| 改費用客戶資訊／對帳 | `fee.update(id, { clientInfo: { reconciled: true, clientPoNumber: "..." } })` — 部分 patch |
+| 改營收 clientTaskItems | `fee.update(id, { clientInfo: { clientTaskItems: [完整陣列] } })` — 整包取代 |
 | 新建案件草稿 | `case.create({ title: "..." })` |
 | 派案前填欄 | `case.update(id, { client, translator: ["甲"], workGroups: [...] })` |
 | 設譯者／審稿交期 | `case.update(id, { translationDeadline, reviewDeadline })` |
