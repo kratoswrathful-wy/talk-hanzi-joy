@@ -1,6 +1,6 @@
 # LMS 技能書：Claude 操作 `window.__lmsAgent`
 
-> **給 AI 代理的速查手冊**（非完整規格）。完整開發紀錄、欄位清單與副作用盤點見 [`LMS_AI_AGENT_BRIDGE_2026-06.md`](LMS_AI_AGENT_BRIDGE_2026-06.md)。
+> **給 AI 代理的速查手冊**（非完整規格）。完整開發紀錄、欄位清單與副作用盤點見 [`LMS_AI_AGENT_BRIDGE_2026-06.md`](LMS_AI_AGENT_BRIDGE_2026-06.md)（含 §8 `clientInfo` 修復與 C1–C5 驗收紀錄）。
 
 ## 何時用 `__lmsAgent`、何時才點 UI
 

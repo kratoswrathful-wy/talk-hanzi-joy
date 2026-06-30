@@ -4,7 +4,10 @@
 
 **Claude 速查技能書**：[`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)（本檔為完整規格與驗收紀錄）。
 
-**狀態**：**已實作並驗收**（2026-06-30；Claude AI 代理 10/10 通過，commit `82644f0`）
+**狀態**：**已實作並驗收**（2026-06-30）
+
+- **初版 bridge**：Claude AI 代理 **T1–T10 全過**（commit `82644f0`）
+- **`clientInfo` 深層合併修復**：Vitest 5 項全過 + Claude **C1–C5 全過**（`18fdf0a`；部署含建置修正 `f295746`）
 
 ## 目的
 
@@ -166,9 +169,9 @@ const updated = await window.__lmsAgent.case.update("案件-uuid", {
 | **`clientInfo.clientTaskItems`** | 有傳 → **整包陣列取代**（須傳完整列或接受覆寫） |
 | **`taskItems` / `workGroups` / `collabRows`** | 有傳 → **整包陣列取代**（Phase 2 可改依 id 合併） |
 
-### Bug 紀錄：`clientInfo` 誤清空（2026-06-30，已修）
+### Bug 紀錄：`clientInfo` 誤清空（2026-06-30，已修並驗收）
 
-修復前部分 `clientInfo` patch 會套用 `defaultClientInfo` 導致營收歸零。詳見 [`bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md)。回歸測試：[`ai-agent-bridge.clientInfo.test.ts`](../src/lib/ai-agent-bridge.clientInfo.test.ts)。
+修復前部分 `clientInfo` patch 會套用 `defaultClientInfo` 導致營收歸零。詳見 [`bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md)。回歸測試：[`ai-agent-bridge.clientInfo.test.ts`](../src/lib/ai-agent-bridge.clientInfo.test.ts)。正式環境 AI 驗收 **C1–C5 全過**（§8.4）。
 
 ## 下拉選項自動更新
 
@@ -188,7 +191,7 @@ const updated = await window.__lmsAgent.case.update("案件-uuid", {
 4. 對已定案費用執行 `fee.update` 應回 `{ ok: false, error: '...已定案...' }`。
 5. `case.update(id, { status: 'delivered' })` 應被拒絕並附 `allowed` 清單。
 
-正式環境 AI 代理驗收腳本（T1–T10）見下方 §7.2；Slack `#development` thread（2026-06-30 08:41 CST）已執行完畢。
+正式環境 AI 代理驗收腳本（T1–T10）見 §7.2；`clientInfo` 回歸（C1–C5）見 §8.4。
 
 ## 開發與驗收紀錄
 
@@ -253,8 +256,12 @@ LMS 案件單、費用單表單含大量 **Radix UI 下拉**、自訂 **`DateTim
 
 | 時間（約） | Commit | 說明 |
 |------------|--------|------|
-| 2026-06-30 | `3d5c3e1` | 初版：`ai-agent-bridge.ts`、`App.tsx` 掛載、本文件、`AGENTS.md` 索引 |
-| 2026-06-30 | `82644f0` | **fix**：Vercel `tsc -b` 失敗；`AgentResult` union 窄化問題，改 `result.ok === false` + `failFrom()` |
+| 2026-06-30 上午 | `3d5c3e1` | **feat**：初版 `ai-agent-bridge.ts`、`App.tsx` 掛載、本文件、`AGENTS.md` 索引 |
+| 2026-06-30 上午 | `82644f0` | **fix**：Vercel `tsc -b` 失敗；`AgentResult` union 窄化，改 `result.ok === false` + `failFrom()` |
+| 2026-06-30 上午 | `76bc9b7` | **docs**：補 § 開發與驗收紀錄（T1–T10 流程與結果） |
+| 2026-06-30 上午 | `29185c4` | **docs**：新增 [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)（Claude 技能書） |
+| 2026-06-30 下午 | `18fdf0a` | **fix**：`mergeClientInfoPatch` 深層合併；Vitest；bug report；更新技能書 § clientInfo |
+| 2026-06-30 下午 | `f295746` | **fix(build)**：`cat_user_segment_markers` 型別斷言（**非 bridge 功能**，但阻擋 `18fdf0a` 部署） |
 
 ### 6. 建置問題與修正
 
@@ -268,6 +275,14 @@ LMS 案件單、費用單表單含大量 **Radix UI 下拉**、自訂 **`DateTim
 - 所有失敗分支改為 `if (result.ok === false) return failFrom(result)`
 
 本機 `npx tsc -b` 通過後重新推送，Vercel 部署成功。
+
+#### 6.2 第二次建置阻擋（`18fdf0a` 部署，`f295746` 修正）
+
+**現象**：推送 `clientInfo` 修復後 Vercel `tsc -b` 失敗。錯誤在 `src/lib/cat-cloud-rpc.ts`：`cat_user_segment_markers` 表已在 migration（`3d6030d` 大檔色點）使用，但尚未寫入 Supabase 產生的 `Database` 型別。
+
+**與 bridge 的關係**：無功能耦合；純粹阻擋含 `18fdf0a` 的 main 建置。
+
+**修正**（`f295746`）：三處 `.from("cat_user_segment_markers" as any)`，與同檔其他未入型別表寫法一致。本機 `tsc -b` 通過後推送，Vercel 部署成功，`clientInfo` 修復方上正式環境。
 
 ### 7. 驗收流程
 
@@ -311,16 +326,86 @@ LMS 案件單、費用單表單含大量 **Radix UI 下拉**、自訂 **`DateTim
 
 #### 7.4 測試資料清理
 
-Claude 回覆未附具體 UUID。請在 LMS 搜尋標題 **`[AI驗收]`**，或於主控台：
+| 前綴 | 來源 | 清理方式 |
+|------|------|----------|
+| `[AI驗收]` | T1–T10（2026-06-30 上午） | LMS 搜尋或 `fee.list` / `case.list` 後手動刪除 T4 費用、T7 案件 |
+| `[AI驗收-ci]` | C1–C5（2026-06-30 下午） | 刪除 feeId `6145f23c-1f5b-4a18-81a3-d1d8be7aa3b9`（標題 `[AI驗收-ci] clientInfo 深層合併`） |
 
 ```javascript
 window.__lmsAgent.fee.list({ search: "[AI驗收]" });
+window.__lmsAgent.fee.list({ search: "[AI驗收-ci]" });
 window.__lmsAgent.case.list({ search: "[AI驗收]" });
 ```
 
-刪除 T4（費用）、T7（案件）建立的草稿即可。
+### 8. `clientInfo` 回歸修復（2026-06-30 下午）
 
-### 8. 已知限制與後續可選項
+本節記錄初版 bridge 驗收（§7）**之後**，正式使用時發現的高嚴重度 bug、修正、部署與第二輪 AI 驗收。**本聊天室（Cursor）工作範圍止於此**；CAT 等其他待驗項目不在此文件追蹤。
+
+#### 8.1 發現經過
+
+- **誰發現**：威儀透過 Claude 開單助理，在正式環境對真實 ECI 費用單只 patch PO 與對帳勾選。
+- **現象**：`client`、`contact`、`clientCaseId`、`dispatchRoute` 被清空；`clientTaskItems` 的 `unitCount`／`clientPrice` 歸零，營收 USD 消失。對帳勾選後 UI 鎖定，不易當場發現。
+- **外部報告**：本機 Claude 專案 `BUG_fee_update_clientInfo_overwrite.md`；專案內 bug report 見 [`bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md)。
+
+#### 8.2 根因與修正
+
+| 項目 | 修復前 | 修復後 |
+|------|--------|--------|
+| 合併策略 | `validateClientInfo` 以 `{ ...defaultClientInfo, ...patch }` 為底 | **`mergeClientInfoPatch(existing, patch)`** 讀取該筆現有 `clientInfo` |
+| 純量子欄位 | patch 未提及 → 被 default 空字串覆蓋 | 僅覆寫 patch 內出現的 key |
+| `clientCaseLink` | 整物件替換 | 淺層合併 |
+| `clientTaskItems` | 未傳 → default 零列 | **未傳保留 existing**；有傳 → 驗證後整包取代 |
+| `fee.update` / `fee.create` | 未傳 existing | `validateFeePatch(patch, existingFee)` |
+
+**程式觸點**：[`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts) — export `mergeClientInfoPatch` 供測試。
+
+#### 8.3 單元測試（本機 Vitest）
+
+檔案：[`src/lib/ai-agent-bridge.clientInfo.test.ts`](../src/lib/ai-agent-bridge.clientInfo.test.ts)
+
+| 案例 | 驗證重點 |
+|------|----------|
+| A | 部分 patch（PO + reconciled）保留 client／contact／clientTaskItems 507／0.05（Claude 報告重現） |
+| B | 刻意傳 `clientTaskItems` 整包取代為 200／0.08 |
+| C | 新建單以 default 為底的部分 patch |
+| — | `clientCaseLink` 淺層合併 |
+| — | 非法 taskType 回傳 `allowed` |
+
+指令：`npm test -- src/lib/ai-agent-bridge.clientInfo.test.ts` — **5 項全過**（commit `18fdf0a`）。
+
+#### 8.4 正式環境 AI 驗收（C1–C5）
+
+| 項目 | 內容 |
+|------|------|
+| 執行者 | Claude AI（瀏覽器自動化 + `Runtime.evaluate`） |
+| 環境 | `https://talk-hanzi-joy.vercel.app`（含 `f295746`） |
+| 登入 | 威儀（PM） |
+| 任務張貼 | Slack `#development` 2026-06-30 14:29 CST — https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782800951571309 |
+| Claude 回覆 | 2026-06-30 18:21 CST — https://1up-studio.slack.com/archives/C0BDSDCT9B5/p1782814864919499 |
+| 總結 | **C1–C5 全過（5/5）** |
+| 測試 feeId | `6145f23c-1f5b-4a18-81a3-d1d8be7aa3b9` |
+
+| 項 | 內容 | 結果 |
+|----|------|------|
+| C1 | `fee.create` 含完整 `clientInfo` + `taskItems`，標題 `[AI驗收-ci]` | pass |
+| C2 | **核心回歸**：只 patch `clientPoNumber` + `reconciled`；`unitCount` 仍 507、`clientPrice` 仍 0.05 | pass |
+| C3 | `fee.get` 持久化與 C2 一致 | pass |
+| C4 | 整包改 `clientTaskItems` 為 200／0.08；`client` 仍 ECI | pass |
+| C5 | 非法 taskType → `{ ok: false, allowed }` | pass |
+
+**解讀**：正式環境已確認「只改 PO／對帳」不會再靜默清空客戶資訊與營收列；刻意整包改營收列與驗證守門仍正常。
+
+#### 8.5 文件同步（同批 `18fdf0a`）
+
+- [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md) — § clientInfo 部分更新、範例腳本
+- [`bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md)
+- [`AGENTS.md`](../AGENTS.md) — 索引與技能書連結
+
+#### 8.6 刻意未含（Phase 2）
+
+`taskItems` / `workGroups` / `collabRows` 仍為「有傳則整包陣列取代」，未做依 `id` 合併列（見 §9 已知限制）。
+
+### 9. 已知限制與後續可選項
 
 | 限制 | 說明 |
 |------|------|
@@ -341,7 +426,10 @@ window.__lmsAgent.case.list({ search: "[AI驗收]" });
 ## 相關檔案
 
 - [`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts)
+- [`src/lib/ai-agent-bridge.clientInfo.test.ts`](../src/lib/ai-agent-bridge.clientInfo.test.ts)
 - [`src/App.tsx`](../src/App.tsx)
 - [`src/stores/case-store.ts`](../src/stores/case-store.ts)
 - [`src/stores/fee-store.ts`](../src/stores/fee-store.ts)
 - [`src/stores/select-options-store.ts`](../src/stores/select-options-store.ts)
+- [`bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md)
+- [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)
