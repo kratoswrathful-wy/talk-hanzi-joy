@@ -6,7 +6,7 @@
 
 **TB（術語庫）**：全部術語放進 **system message** 的 `【術語規範（原文 → 譯文）】` 區塊，每筆格式為 `- "原文" → "譯文"（備註）`。來源是記憶體中的 `window.ActiveTbTerms`，由 `_buildAiOptions` 組裝。
 
-**TM（翻譯記憶）**：每個句段送出前，用 `calculateSimilarity` 找 `window.ActiveTmCache` 中分數最高且 ≥ 門檻的那一筆，附在 **user message** 每個句段下方，格式為 `TM 參考（N%）：[譯文]`。只送一筆，且已和 CAT 欄的比對邏輯一致。
+**TM（翻譯記憶）**：每個句段送出前，在 **參考門檻**（`tmRefThreshold`）路徑以 `calculateSimilarity` 自候選池取最高分且 ≥ 門檻的一筆，附在 **user message** 每個句段下方，格式為 `TM 參考（N%）：[譯文]`。候選池含 **`window.ActiveTmCache`** 與 mqxliff 句段之 **`seg.mqInsertedMatch`**（`<mq:insertedmatch>` 完整紀錄）；分數一律為算法結果（不用 memoQ 檔案 `matchrate`）。只送單行。詳見 [`CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md`](CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md)。
 
 **TB 命中比對**：沿用 CAT 欄現有的 `termMatches(haystack, needle, flags)` 函式，支援大小寫不分（預設）與全詞比對，各術語的 `matchFlags` 儲存於 `window.ActiveTbTerms` 每筆之中。
 

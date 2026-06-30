@@ -294,6 +294,7 @@ if (document.activeElement?.classList.contains('grid-textarea')) {
 | [`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) | `buildPrompt`、`translate`、`buildTranslatePromptMessages` |
 | [`cat-tool/app.js`](../cat-tool/app.js) | `runAiBatchTranslate`、`_nextBatchByRowsAndChars`、`_segmentSourceCharCount`、`_computeAiBatchRefTokens`、`rerenderCurrentSegments` |
 | [`docs/CAT_AI_BATCH_TOKEN_UX_2026-05.md`](CAT_AI_BATCH_TOKEN_UX_2026-05.md) | 批次 Modal token UX、參照來源勾選 |
+| [`docs/CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md`](CAT_AI_BATCH_MQ_TM_REF_PLAN_2026-06.md) | memoQ insertedmatch 併入參考門檻候選池（與 A–D 獨立） |
 | [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](bug-report_ai-batch-parse-error-no-retry_2026-06.md) | parse_error 重試、逐批 rerender（已修） |
 
 ---

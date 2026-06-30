@@ -35152,23 +35152,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         return c;
     }
 
+    function _resolveAiBatchTmHintForSegment(seg, tmRefThreshold) {
+        if (!(tmRefThreshold > 0) || !seg) return null;
+        const calcSim = window.calculateSimilarity || (() => 0);
+        const tmCache = window.ActiveTmCache || [];
+        const penalties = window.ActiveTmPenalties || {};
+        let bestScore = 0;
+        let bestTargetText = null;
+        for (const tm of tmCache) {
+            const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
+            const penalty = penalties[tm._tmId] ?? 0;
+            const score = Math.max(0, rawScore - penalty);
+            if (score > bestScore) {
+                bestScore = score;
+                bestTargetText = tm.targetText;
+            }
+        }
+        const mqi = seg.mqInsertedMatch;
+        if (mqi && mqi.sourceText) {
+            const mqScore = calcSim(seg.sourceText || '', mqi.sourceText || '');
+            if (mqScore > bestScore) {
+                bestScore = mqScore;
+                bestTargetText = mqi.targetText || '';
+            }
+        }
+        if (bestScore >= tmRefThreshold && bestTargetText != null && bestTargetText !== '') {
+            return { score: Math.round(bestScore), targetText: bestTargetText };
+        }
+        return null;
+    }
+
     function _attachAiBatchTmHints(segments, tmRefThreshold, useTm) {
         if (!useTm || !(tmRefThreshold > 0) || !segments?.length) return;
-        const tmCache = window.ActiveTmCache || [];
-        const calcSim = window.calculateSimilarity || (() => 0);
-        const penalties = window.ActiveTmPenalties || {};
         for (const seg of segments) {
-            let bestMatch = null;
-            let bestScore = 0;
-            for (const tm of tmCache) {
-                const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
-                const penalty = penalties[tm._tmId] ?? 0;
-                const score = Math.max(0, rawScore - penalty);
-                if (score > bestScore) { bestScore = score; bestMatch = tm; }
-            }
-            seg._tmHint = (bestScore >= tmRefThreshold && bestMatch)
-                ? { score: Math.round(bestScore), targetText: bestMatch.targetText }
-                : null;
+            seg._tmHint = _resolveAiBatchTmHintForSegment(seg, tmRefThreshold);
         }
     }
 
@@ -35591,22 +35608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tmRefThreshold = parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10);
         const refTm = !!document.getElementById('aiBatchRefTm')?.checked;
         if (refTm && tmRefThreshold > 0 && batch.length) {
-            const tmCache = window.ActiveTmCache || [];
-            const calcSim = window.calculateSimilarity || (() => 0);
-            const _aiPenalties = window.ActiveTmPenalties || {};
-            for (const seg of batch) {
-                let bestMatch = null;
-                let bestScore = 0;
-                for (const tm of tmCache) {
-                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
-                    const penalty = _aiPenalties[tm._tmId] ?? 0;
-                    const score = Math.max(0, rawScore - penalty);
-                    if (score > bestScore) { bestScore = score; bestMatch = tm; }
-                }
-                seg._tmHint = (bestScore >= tmRefThreshold && bestMatch)
-                    ? { score: Math.round(bestScore), targetText: bestMatch.targetText }
-                    : null;
-            }
+            _attachAiBatchTmHints(batch, tmRefThreshold, refTm);
         }
         const refOptions = {
             useTm: !!document.getElementById('aiBatchRefTm')?.checked,
@@ -35867,19 +35869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tmRefThreshold = parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10);
         const refTm = !!document.getElementById('aiBatchRefTm')?.checked;
         if (refTm && tmRefThreshold > 0) {
-            const tmCache = window.ActiveTmCache || [];
-            const calcSim = window.calculateSimilarity || (() => 0);
-            const _aiPenalties = window.ActiveTmPenalties || {};
-            for (const seg of batchCopy) {
-                let bestMatch = null, bestScore = 0;
-                for (const tm of tmCache) {
-                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
-                    const penalty = _aiPenalties[tm._tmId] ?? 0;
-                    const score = Math.max(0, rawScore - penalty);
-                    if (score > bestScore) { bestScore = score; bestMatch = tm; }
-                }
-                seg._tmHint = (bestScore >= tmRefThreshold && bestMatch) ? { score: Math.round(bestScore), targetText: bestMatch.targetText } : null;
-            }
+            _attachAiBatchTmHints(batchCopy, tmRefThreshold, refTm);
         }
         try {
             const settings = await DBService.getAiSettings();
@@ -36181,21 +36171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Attach TM reference hints for segments going to AI
         if (config.refOptions?.useTm !== false && config.tmRefThreshold > 0) {
-            const tmCache = window.ActiveTmCache || [];
-            const calcSim = window.calculateSimilarity || (() => 0);
-            const _aiPenalties = window.ActiveTmPenalties || {};
-            for (const seg of segsForAi) {
-                let bestMatch = null, bestScore = 0;
-                for (const tm of tmCache) {
-                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
-                    const penalty = _aiPenalties[tm._tmId] ?? 0;
-                    const score = Math.max(0, rawScore - penalty);
-                    if (score > bestScore) { bestScore = score; bestMatch = tm; }
-                }
-                seg._tmHint = (bestScore >= config.tmRefThreshold && bestMatch)
-                    ? { score: Math.round(bestScore), targetText: bestMatch.targetText }
-                    : null;
-            }
+            _attachAiBatchTmHints(segsForAi, config.tmRefThreshold, true);
         }
 
         // Batch-ask for confirmed/unconfirmed segments where asked
