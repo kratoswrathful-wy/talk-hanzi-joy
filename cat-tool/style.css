@@ -986,6 +986,7 @@ button:disabled { cursor: not-allowed; }
     height: 100%;
 }
 .grid-header-cell:last-child { border-right: none;}
+.grid-header-cell[data-col-id="col-status"] { border-right: 1px solid #e2e8f0; }
 
 /* Vertical Text Headers for narrow fixed columns */
 .grid-header-cell[data-col-id="col-status"],
@@ -1548,14 +1549,15 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 
 /* Phase B B-3：Workflow 三層狀態欄（內部綠點／綠外圈 + mqxliff 白字） */
 .col-status {
-    min-width: 56px;
-    width: 56px;
+    min-width: 0;
+    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
     flex-wrap: nowrap;
+    border-right: 1px solid #e2e8f0;
 }
 .seg-user-markers {
     display: grid;
@@ -1670,7 +1672,7 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     border-color: var(--success-color);
 }
 .status-icon-stack.wf-review .status-wf-core {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--success-color);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 2px var(--success-color);
 }
 /* B-7g：審稿確認須實心綠內圓（不再空心） */
 .status-icon-stack.wf-review.wf-trans .status-wf-core {

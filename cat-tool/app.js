@@ -7534,7 +7534,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             defaultCols.push({ id: 'col-extra', name: '額外資訊', visible: true, width: '100px' });
             defaultCols.push({ id: 'col-repetition', name: '重複', visible: true, width: '35px' });
             defaultCols.push({ id: 'col-match', name: '相符度', visible: true, width: '35px' });
-            defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
+            defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '56px' });
 
             const savedData = JSON.parse(localStorage.getItem('catToolColSettings') || '[]');
             const savedColIds = savedData.map((c) => c.id);
@@ -17674,7 +17674,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         defaultCols.push({ id: 'col-extra', name: '額外資訊', visible: true, width: '100px' });
         defaultCols.push({ id: 'col-repetition', name: '重複', visible: true, width: '35px' });
         defaultCols.push({ id: 'col-match', name: '相符度', visible: true, width: '35px' });
-        defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
+        defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '56px' });
 
         const savedData = JSON.parse(localStorage.getItem('catToolColSettings')) || [];
         const savedColIds = savedData.map(c => c.id);
@@ -18136,18 +18136,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function toggleUserSegmentMarkerColor(segId, color) {
         if (segId == null || !USER_MARKER_COLORS.includes(color) || currentFileId == null) return;
         const key = String(segId);
-        const cur = getUserSegmentMarkerColors(segId);
+        const prev = getUserSegmentMarkerColors(segId);
+        const cur = prev;
         let next;
         if (cur.includes(color)) next = cur.filter((c) => c !== color);
         else next = [...cur, color];
         if (next.length) _userSegmentMarkerMap.set(key, next);
         else _userSegmentMarkerMap.delete(key);
-        try {
-            await DBService.upsertUserSegmentMarker(currentFileId, segId, next);
-        } catch (err) {
-            console.warn('[markers] upsert failed', err);
-        }
         refreshUserMarkerStatusCell(segId);
+        void DBService.upsertUserSegmentMarker(currentFileId, segId, next).catch((err) => {
+            console.warn('[markers] upsert failed', err);
+            if (prev.length) _userSegmentMarkerMap.set(key, prev);
+            else _userSegmentMarkerMap.delete(key);
+            refreshUserMarkerStatusCell(segId);
+            showCatToast('色點儲存失敗，已還原', 'error');
+        });
     }
 
     /**
@@ -18160,9 +18163,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!USER_MARKER_COLORS.includes(color) || currentFileId == null) return;
         const ids = [...segIds].map((id) => String(id));
         if (!ids.length) return;
+        const prevMap = new Map();
         const upserts = [];
         for (const sid of ids) {
             const cur = getUserSegmentMarkerColors(sid);
+            prevMap.set(sid, cur.slice());
             let next;
             if (mode === 'remove') {
                 next = cur.filter((c) => c !== color);
@@ -18173,15 +18178,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             else _userSegmentMarkerMap.delete(sid);
             upserts.push({ segId: sid, colors: next });
         }
-        try {
-            await Promise.all(upserts.map((u) => DBService.upsertUserSegmentMarker(currentFileId, u.segId, u.colors)));
-        } catch (err) {
-            console.warn('[markers] batch upsert failed', err);
-        }
         ids.forEach((sid) => refreshUserMarkerStatusCell(sid));
         if (sfMode === 'filter' && readSfMarkerColorsFromDom().length > 0) {
             runSearchAndFilter({ keepFilterSnapshot: true });
         }
+        void Promise.all(upserts.map((u) => DBService.upsertUserSegmentMarker(currentFileId, u.segId, u.colors))).catch((err) => {
+            console.warn('[markers] batch upsert failed', err);
+            for (const sid of ids) {
+                const prev = prevMap.get(sid) || [];
+                if (prev.length) _userSegmentMarkerMap.set(sid, prev);
+                else _userSegmentMarkerMap.delete(sid);
+                refreshUserMarkerStatusCell(sid);
+            }
+            if (sfMode === 'filter' && readSfMarkerColorsFromDom().length > 0) {
+                runSearchAndFilter({ keepFilterSnapshot: true });
+            }
+            showCatToast('色點批次儲存失敗，已還原', 'error');
+        });
     }
 
     function buildMarkerDotHtml(color, extraClass) {
@@ -18222,6 +18235,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfPresets = JSON.parse(localStorage.getItem('catToolSfPresets') || '{}');
     let lastEditedRowIdx = null; // Track cursor position
     let selectedRowIds = new Set(); // Track selected segment IDs
+    /** 右鍵選單開啟前多選快照（避免 focusin 清掉多選） */
+    let _ctxMenuSelectionSnapshot = null;
       /** Phase 2.3c：virt 重畫後再 focus／還原游標（取代 _pendingFocusSegIdxAfterRender） */
     /** @type {{ segId: *, plainOffset?: number|null, scrollBehavior?: string, scrollBlock?: string, restoreCaret?: boolean, afterConfirmPanel?: boolean, caretAtStart?: boolean, skipVirtScroll?: boolean, gen?: number } | null} */
     let _pendingEditorFocus = null;
@@ -24033,11 +24048,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 選取狀態更新原則：批次操作進行中時不更新選取；
                 // 其餘情況（包含點選多選範圍內的句段）均清除選取並改為只選當前句段
                 if (!isBatchOpInProgress) {
-                    selectedRowIds.clear();
-                    selectedRowIds.add(seg.id);
-                    syncSelectedRowClassesFromIds();
-                    updateSfReplaceAllButtonLabel();
-                    syncSelectedRowAbutmentTopClass();
+                    if (!(_ctxMenuSelectionSnapshot && _ctxMenuSelectionSnapshot.has(seg.id))) {
+                        selectedRowIds.clear();
+                        selectedRowIds.add(seg.id);
+                        syncSelectedRowClassesFromIds();
+                        updateSfReplaceAllButtonLabel();
+                        syncSelectedRowAbutmentTopClass();
+                    }
                 }
                 const tabQaEl = document.getElementById('tabQA');
                 if (!tabQaEl || !tabQaEl.classList.contains('active')) {
@@ -26250,6 +26267,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Grid Level Context Menu for Batch Actions (確認 / 鎖定)
     let contextMenu = null;
+
+    function getContextMenuSelectedIds() {
+        if (_ctxMenuSelectionSnapshot && _ctxMenuSelectionSnapshot.size > 0) {
+            return Array.from(_ctxMenuSelectionSnapshot);
+        }
+        return Array.from(selectedRowIds);
+    }
+
+    gridBody.addEventListener('mousedown', (e) => {
+        if (e.button !== 2) return;
+        const targetRow = e.target.closest('.grid-data-row');
+        if (!targetRow) return;
+        _ctxMenuSelectionSnapshot = new Set(selectedRowIds);
+    }, true);
+
     gridBody.addEventListener('contextmenu', (e) => {
         const targetRow = e.target.closest('.grid-data-row');
         if (!targetRow) return;
@@ -26262,11 +26294,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!selectedRowIds.has(targetId)) {
             selectedRowIds.clear();
             selectedRowIds.add(targetId);
+            _ctxMenuSelectionSnapshot = new Set([targetId]);
             document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('selected-row'));
             targetRow.classList.add('selected-row');
             updateSfReplaceAllButtonLabel();
             syncSelectedRowAbutmentTopClass();
         }
+
+        const ctxSelectedIds = getContextMenuSelectedIds();
+        const ctxSelectedIdSet = new Set(ctxSelectedIds);
 
         e.preventDefault();
         
@@ -26278,13 +26314,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         contextMenu.style.top = `${e.pageY}px`;
 
         // anyUserLocked：有手動鎖定（才能解除）; anyEffectiveLocked：有任何鎖定; anyUnlocked：有非完全鎖定的句段（可供手動鎖定）
-        const anyUserLocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && s.isLockedUser);
-        const anyEffectiveLocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && (isDynamicForbidden(s) || s.isLockedUser));
-        const anyUnlocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+        const anyUserLocked = currentSegmentsList.some(s => ctxSelectedIdSet.has(s.id) && s.isLockedUser);
+        const anyEffectiveLocked = currentSegmentsList.some(s => ctxSelectedIdSet.has(s.id) && (isDynamicForbidden(s) || s.isLockedUser));
+        const anyUnlocked = currentSegmentsList.some(s => ctxSelectedIdSet.has(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
 
         let markerMenuHtml = '<div class="context-menu-divider"></div>';
         USER_MARKER_COLORS.forEach((color) => {
-            const allHave = selectedSegsAllHaveMarkerColor(color);
+            const allHave = ctxSelectedIds.length > 0 && ctxSelectedIds.every((id) => getUserSegmentMarkerColors(id).includes(color));
             const verb = allHave ? '移除' : '附加';
             const label = USER_MARKER_LABELS[color] || color;
             markerMenuHtml += `<div class="context-menu-item ctx-marker-action" data-marker-color="${color}" data-marker-mode="${allHave ? 'remove' : 'add'}"><span class="ctx-marker-dot" data-marker-color="${color}"></span> ${verb}（${label}色圓點）</div>`;
@@ -26300,7 +26336,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         document.body.appendChild(contextMenu);
         
-        const closeMenu = () => { if(contextMenu) contextMenu.remove(); document.removeEventListener('click', closeMenu); };
+        const closeMenu = () => {
+            if (contextMenu) contextMenu.remove();
+            _ctxMenuSelectionSnapshot = null;
+            document.removeEventListener('click', closeMenu);
+        };
         document.addEventListener('click', closeMenu);
 
         const filterBatchIdsToVisible = (idList) => {
@@ -26313,7 +26353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('ctxBatchConfirm').addEventListener('click', () => {
             void (async () => {
-            const rawIds = Array.from(selectedRowIds);
+            const rawIds = getContextMenuSelectedIds();
             const skippedSystemLocked = collectSystemLockedSkipsFromSelectedIds(rawIds);
             const ids = filterBatchIdsToVisible(rawIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
@@ -26325,7 +26365,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.getElementById('ctxBatchUnconfirm').addEventListener('click', () => {
-            const rawIds = Array.from(selectedRowIds);
+            const rawIds = getContextMenuSelectedIds();
             const skippedSystemLocked = collectSystemLockedSkipsFromSelectedIds(rawIds);
             const ids = filterBatchIdsToVisible(rawIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
@@ -26346,7 +26386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.getElementById('ctxLockSegments').addEventListener('click', () => {
-            const ids = filterBatchIdsToVisible(Array.from(selectedRowIds));
+            const ids = filterBatchIdsToVisible(getContextMenuSelectedIds());
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const items = [];
             const dbWaits = [];
@@ -26364,7 +26404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.getElementById('ctxUnlockSegments').addEventListener('click', () => {
-            const rawIds = Array.from(selectedRowIds);
+            const rawIds = getContextMenuSelectedIds();
             const allRowsU = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             const toUpdate = currentSegmentsList.filter((s) => {
                 if (!rawIds.includes(s.id) || !s.isLockedUser) return false;
@@ -26393,7 +26433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const color = el.getAttribute('data-marker-color');
                 const mode = el.getAttribute('data-marker-mode');
                 if (!color || !mode) return;
-                void batchSetUserSegmentMarkerColor(selectedRowIds, color, mode);
+                void batchSetUserSegmentMarkerColor(getContextMenuSelectedIds(), color, mode);
             });
         });
     });
@@ -28510,7 +28550,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const finalCols = statusCol ? [...otherCols, statusCol] : otherCols;
 
         const widths = finalCols.map(c => {
-            if (['col-status', 'col-match', 'col-repetition'].includes(c.id)) return '35px';
+            if (c.id === 'col-status') return '56px';
+            if (['col-match', 'col-repetition'].includes(c.id)) return '35px';
             return c.width;
         }).join(' ');
         root.style.setProperty('--grid-cols', widths);
@@ -28774,7 +28815,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         defaultCols.push({ id: 'col-extra', name: '額外資訊', visible: true, width: '100px' });
         defaultCols.push({ id: 'col-repetition', name: '重複', visible: true, width: '35px' });
         defaultCols.push({ id: 'col-match', name: '相符度', visible: true, width: '35px' });
-        defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
+        defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '56px' });
 
         colSettings = defaultCols;
         localStorage.setItem('catToolEmptySegMode', 'off');

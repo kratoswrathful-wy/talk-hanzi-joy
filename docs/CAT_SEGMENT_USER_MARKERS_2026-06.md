@@ -1,6 +1,6 @@
 # CAT 編輯器：個人句段色點（Phase 2.3k → 2.3l）
 
-> **狀態**：**Phase 2.3l 已實作，待 Claude AI 驗收**（2026-06-30）
+> **狀態**：**Phase 2.3m 已實作，待 Claude AI 驗收**（2026-07-01）
 > **觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/db.js`](../cat-tool/db.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)、[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)  
 > **相關**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.12
 
@@ -42,9 +42,10 @@
 
 | 項目 | 規格 |
 |------|------|
-| 位置 | `.col-status` 直向：上方 2×2 色點，下方 Workflow 綠圈 |
+| 位置 | `.col-status` 直向：上方 2×2 色點，下方 Workflow 綠圈；**欄寬 56px、內容置中** |
 | 尺寸 | `.seg-user-marker-dot` **9×9px**（原 7px 之 1.3 倍） |
-| 點擊 | 各 dot 切換該色 on/off（保留） |
+| 右緣 | 與相符度欄相同 `#e2e8f0` 灰實線 |
+| 點擊 | 各 dot 切換該色 on/off；**樂觀更新**（瞬間 DOM，背景 upsert） |
 | 右鍵 | 多選句段 → 「附加／移除（X色圓點）」；**全部**已有該色 → 移除，**任一**沒有 → 附加 |
 
 ### 2.6 篩選
@@ -69,6 +70,19 @@
 - `batchSetUserSegmentMarkerColor()` + context menu。
 - CSS：`.col-status` column、`.seg-user-markers` grid 2×2、`.sf-adv-status-row-markers` 分隔線。
 
+### 2.10 Phase 2.3m — 樂觀更新與 UI 微調
+
+- `toggleUserSegmentMarkerColor`：更新 `_userSegmentMarkerMap` → `refreshUserMarkerStatusCell` → `void upsert`；失敗還原 + `showCatToast`。
+- `batchSetUserSegmentMarkerColor`：同上，批次先全量 DOM 再背景 `Promise.all`。
+- 多選右鍵：`_ctxMenuSelectionSnapshot` 避免 `focusin` 清掉多選。
+- 審稿確認外圈：`box-shadow` 外環 **2px**。
+
+### 2.11 驗收（2.3m）
+
+1. 色點點擊瞬間變色（無明顯等待）。
+2. 多選右鍵附加／移除色點作用於**全部**已選句段。
+3. 狀態欄內容置中、右緣分隔線可見。
+
 ---
 
 ## 開發時序
@@ -76,4 +90,5 @@
 | 日期 | 事項 |
 |------|------|
 | 2026-06-30 | Phase 2.3k 五色 + Supabase（`3d6030d`） |
-| 2026-06-30 | Phase 2.3l 四色改版 + 右鍵批次 + 橘灰移除；**待驗收** |
+| 2026-06-30 | Phase 2.3l 四色改版 + 右鍵批次 + 橘灰移除；**第一輪部分通過** |
+| 2026-07-01 | Phase 2.3m 樂觀更新 + 狀態欄 UI + 多選右鍵修正；**待驗收** |

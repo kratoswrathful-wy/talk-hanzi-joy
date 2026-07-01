@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3l 已實作，待 Claude AI 驗收**（2026-06-30；2.3k `3d6030d` → 2.3l；見 §3.12）
+> **狀態**：**Phase 2.3m 已實作，待 Claude AI 驗收**（2026-07-01；2.3l `09737ab` → 2.3m；見 §3.14）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)、[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md)
@@ -73,6 +73,10 @@
 43. **色點右鍵批次（2.3l）**：多選右鍵「附加／移除」各色；全有→移除、缺一→附加。
 44. **色點 Team 持久化（2.3l）**：upsert 後 reload 仍在（`cat_user_segment_markers`）。
 45. **2.3k 回歸整合（2.3l）**：項 26–33、37 與 §3.11 補測一併驗（見 Slack 新版任務）。
+46. **狀態欄置中（2.3m）**：四色點 + 確認標記在狀態欄內水平垂直置中。
+47. **狀態欄右緣線（2.3m）**：狀態欄右側與捲軸間有與相符度欄相同灰實線。
+48. **審稿外圈 2px（2.3m）**：審稿已確認外環約 2px（較 2.3l 細）。
+49. **色點瞬間回應（2.3m）**：點擊色點無 0.5–1s 等待；多選右鍵批次確認／色點作用於**全部**已選句段。
 
 **2.3b regression（2.3d～2.3h 一併驗）**：自由捲動不拉回第一行；Ctrl+G 838 仍有效；**Ctrl+Alt+↓ 一次**還原可打字。
 
@@ -456,7 +460,7 @@
 
 ### 3.12 Phase 2.3l — 篩選 bug、重複句 ✕、色點改版（2026-06-30）
 
-**狀態**：**已實作，待 Claude AI 驗收**（**忽略** 2026-06-30 00:05 舊 Slack 補測訊息，以新版 `#development` 父訊息為準）
+**狀態**：**第一輪部分通過**（2026-07-01，commit `09737ab`；見 §3.13）
 
 | # | 修正 | 觸點 |
 |---|------|------|
@@ -466,6 +470,42 @@
 | 4 | 色點四色改版 | 紅黃藍紫、9px、2×2、`#sfMarkerFilterRow` 分隔線＋色點 checkbox、右鍵批次附加／移除 |
 
 詳細色點規格：[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md) §2.9。
+
+### 3.13 Phase 2.3l 驗收紀錄（2026-07-01，`09737ab`）
+
+| # | 結果 | 備註 |
+|---|------|------|
+| 38 | 通過 | 離開篩選 Virt 刷新 |
+| 39 | 部分 | 篩選快照保留 OK；**多選右鍵批次確認只作用右鍵列** → 2.3m 修 |
+| 40 | 未測 | 操作在「重複」欄 ▼/⇳/✕，非右鍵；待補測 |
+| 41–42 | 通過 | 四色 2×2、篩選列 UI |
+| 43 | 失敗 | **多選右鍵色點只作用右鍵列** → 2.3m 修 |
+| 44 | 通過 | Team 色點 reload 持久化 |
+| 45 | 部分 | 31、32、36、37 通過；26、29上、30、33 測試檔殘留未結 |
+| — | 附帶 | 頂端列 + TM 點擊後滾輪卡死（待調查） |
+
+### 3.14 Phase 2.3m — 狀態欄 UI、色點即時、多選批次（2026-07-01）
+
+**狀態**：**已實作，待 Claude AI 驗收**
+
+| # | 修正 | 觸點 |
+|---|------|------|
+| 1 | 狀態欄置中 | `applyColSettings` `col-status` **56px**；`.col-status` `width:100%` |
+| 2 | 右緣灰實線 | `.col-status` + 表頭 `col-status` `border-right: 1px solid #e2e8f0` |
+| 3 | 審稿外圈 2px | `.status-icon-stack.wf-review` `box-shadow` 外環 4px→**2px** |
+| 4 | 色點樂觀更新 | `toggleUserSegmentMarkerColor`／`batchSetUserSegmentMarkerColor`：先 DOM，背景 upsert，失敗還原 + toast |
+| 5 | 多選右鍵批次 | `mousedown` 右鍵 snapshot + `focusin` 跳過 collapse；批次用完整選取 |
+
+**驗收項**（§1.3 新增）：
+
+| # | 項目 |
+|---|------|
+| 46 | 狀態欄四色點 + 確認標記水平垂直置中 |
+| 47 | 狀態欄右緣與捲軸間灰實線 |
+| 48 | 審稿已確認外環約 2px |
+| 49 | 點擊色點瞬間變色（無 0.5–1s 等待） |
+| 39′ | 多選右鍵「已確認」→ 全部已選句段 |
+| 43′ | 多選右鍵「附加色點」→ 全部已選句段 |
 
 ---
 
@@ -484,4 +524,5 @@
 | 2026-06-29 | Phase 2.3i：離窗不硬抓焦點、篩選置中／被篩掉置頂；字數 memoQ 預翻 `max(TM%,rate%)`；**已推送 `e17ff35`，部分驗收通過** |
 | 2026-06-29 | Phase 2.3j：浮層死結就地建立、導覽錨點保護、篩選置中與聚焦分流；**已推送 `e147c10`，部分驗收通過** |
 | 2026-06-30 | Phase 2.3k：大檔捲動穩定、搜尋／TB 換窗裝飾、個人句段色點（`3d6030d`）；**第一輪 Claude AI 驗收部分通過**（§3.11） |
-| 2026-06-30 | Phase 2.3l：篩選 Virt 刷新、批次確認快照、重複 ✕ 雙向、色點四色改版；**待 Claude AI 驗收**（§3.12） |
+| 2026-06-30 | Phase 2.3l：篩選 Virt 刷新、批次確認快照、重複 ✕ 雙向、色點四色改版；**第一輪部分通過**（§3.13） |
+| 2026-07-01 | Phase 2.3m：狀態欄置中／右緣線、審稿外圈 2px、色點樂觀更新、多選右鍵批次；**待 Claude AI 驗收**（§3.14） |
