@@ -21795,7 +21795,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 doScroll();
             }
         }
-        return document.activeElement === ed;
+        const a = document.activeElement;
+        return !!(a && a === ed
+            && a.classList.contains('grid-textarea')
+            && a.closest('.col-target'));
     }
 
     function flushPendingEditorFocus() {
@@ -21848,21 +21851,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             return;
         }
-        if (virtOn && scrollBlock === 'center' && window.CatVirtGrid) {
-            const centered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
-                && window.CatVirtGrid.isSegIdCentered(pending.segId, 16);
-            if (!centered) {
-                window.CatVirtGrid.scrollToSegId(pending.segId, 'center');
+        const active = document.activeElement;
+        const activeRow = active?.closest?.('.grid-data-row');
+        const focusLanded =
+            !!active
+            && active.classList.contains('grid-textarea')
+            && !!active.closest('.col-target')
+            && activeRow?.dataset?.segId === String(pending.segId);
+        if (!focusLanded) {
+            if (_pendingEditorFocusRetry < 3) {
+                _pendingEditorFocusRetry++;
+                requestAnimationFrame(() => flushPendingEditorFocus());
             }
+            return;
         }
         if (CAT_NAV_DEBUG()) {
-            const active = document.activeElement;
-            const activeRow = active?.closest?.('.grid-data-row');
             const finalRow = getGridRowBySegId(pending.segId, false);
             let rowCenterDeltaPx = null;
-            if (finalRow && virtOn && window.CatVirtGrid?.cfg?.scrollEl) {
+            const gridEl = document.getElementById('editorGrid');
+            if (finalRow && gridEl) {
                 const rb = finalRow.getBoundingClientRect();
-                const gb = window.CatVirtGrid.cfg.scrollEl.getBoundingClientRect();
+                const gb = gridEl.getBoundingClientRect();
                 rowCenterDeltaPx = Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
             }
             console.log('[catNav] flush done', {
