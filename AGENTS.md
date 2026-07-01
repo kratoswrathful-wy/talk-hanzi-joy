@@ -55,7 +55,7 @@
 - [`docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md`](docs/bug-report_mqxliff-mq-rxt-val-mismatch_2026-06.md) — **Bug #12** mq:rxt `val` 屬性不符（reconcile 短路；**已修並驗收** `2a88a48`）；樣本 `36432` 列 203
 - [`docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md`](docs/CAT_MQXLIFF_INSERTED_MATCH_UI_2026-06.md) — mqxliff **memoQ 預翻／機翻**（`<mq:insertedmatch>`）右欄比對表第一列、百分比與 `MT /` 分色；開發／驗收紀錄
 - [`docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](docs/CAT_EDITOR_LARGE_FILE_PERF_2026-06.md) — 編輯器**大檔效能**；Phase 1～2.2 首批**已驗收**（主紀錄 §開發與驗收時序）
-- [`docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **Phase 2.3** … + **2.3n 產品驗收通過**（`5e9925a`／hotfix `f3e4365`；§3.15–§3.16）；2.3k／2.3l 部分項仍見 §3.11／§3.13 — 色點見 [`CAT_SEGMENT_USER_MARKERS_2026-06.md`](docs/CAT_SEGMENT_USER_MARKERS_2026-06.md)
+- [`docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](docs/CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) — **Phase 2.3** … + **2.3o 審稿外圈 2.5px 待驗收**（§3.17）；2.3n 已通過（§3.15–§3.16）；2.3k／2.3l 部分項仍見 §3.11／§3.13 — 色點見 [`CAT_SEGMENT_USER_MARKERS_2026-06.md`](docs/CAT_SEGMENT_USER_MARKERS_2026-06.md)
 - [`docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](docs/bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md) — 大檔虛擬捲動 **rowIdx 污染**、確認後不跳行、重複句 DOM；**已修並驗收** `51815db`（Phase 2.3 延伸見上）
 - [`docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md`](docs/bug-report_ai-batch-parse-error-no-retry_2026-06.md) — AI 批次翻譯 **parse_error 不重試**、逐批 UI 刷新、**提示語開頭** Team 專案共用（`batch_introduction` migration）
 - [`docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md`](docs/CAT_AI_BATCH_SURROUNDING_CONTEXT_PLAN_2026-06.md) — AI 批次 **參照來源「上下文」**（上下各 10 句原文＋譯文）

@@ -1672,7 +1672,7 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     border-color: var(--success-color);
 }
 .status-icon-stack.wf-review .status-wf-core {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--success-color);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4.5px var(--success-color);
 }
 /* B-7g：審稿確認須實心綠內圓（不再空心） */
 .status-icon-stack.wf-review.wf-trans .status-wf-core {
@@ -1702,13 +1702,13 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .status-icon-stack.wf-review-revoked::before {
     content: '';
     position: absolute;
-    width: 24px;
-    height: 24px;
+    width: 23px;
+    height: 23px;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    border: 3px dashed var(--success-color);
+    border: 2.5px dashed var(--success-color);
     box-sizing: border-box;
     pointer-events: none;
 }
@@ -1720,13 +1720,13 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 .status-icon-stack.wf-post-review-trans::before {
     content: '';
     position: absolute;
-    width: 24px;
-    height: 24px;
+    width: 23px;
+    height: 23px;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    border: 3px dashed var(--success-color);
+    border: 2.5px dashed var(--success-color);
     box-sizing: border-box;
     pointer-events: none;
 }

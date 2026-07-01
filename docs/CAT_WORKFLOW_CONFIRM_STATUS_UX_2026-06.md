@@ -81,6 +81,8 @@
 
 **`post_review_trans`／`wf-review-revoked` 虛線外環 CSS**：`.status-icon-stack.wf-post-review-trans::before`（及 revoked 同尺寸）使用 `width/height: 22px; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 2px dashed var(--success-color)`；**不**縮容器為 14px。
 
+**實作註記（2026-07，Phase 2.3）**：2.3n 曾暫用 3px 可見外圈／24px 虛線（修 2.3m 外圈不可見後產品驗收通過）；**2.3o 產品微調為 2.5px 折衷**（`box-shadow` spread `4.5px`、虛線 `23px`／`2.5px dashed`）。本節設計基線仍為 2px／22px；以 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.17 為準。
+
 ---
 
 ## 4. 編輯取消確認（譯文變更觸發）
