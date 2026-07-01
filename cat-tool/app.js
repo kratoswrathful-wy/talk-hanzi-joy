@@ -18267,8 +18267,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       /** Phase 2.3c：virt 重畫後再 focus／還原游標（取代 _pendingFocusSegIdxAfterRender） */
     /** @type {{ segId: *, plainOffset?: number|null, scrollBehavior?: string, scrollBlock?: string, restoreCaret?: boolean, afterConfirmPanel?: boolean, caretAtStart?: boolean, skipVirtScroll?: boolean, gen?: number } | null} */
     let _pendingEditorFocus = null;
-    let _pendingEditorFocusRetry = false;
+    let _pendingEditorFocusRetry = 0;
     let _pendingEditorFocusGen = 0;
+    const CAT_NAV_DEBUG = () => localStorage.getItem('catNavDebug') === '1';
     /** Phase 2.3f：使用者滾輪編輯中就地還原（不 scroll） */
     /** @type {{ segId: *, plainOffset?: number|null } | null} */
     let _preserveEditingAcrossVirtRender = null;
@@ -21617,11 +21618,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function notifyVirtUserScroll() {
+        if (CAT_NAV_DEBUG() && _pendingEditorFocus?.explicitNav) {
+            console.warn('[catNav] userScroll cancelled pending nav', {
+                pendingSegId: _pendingEditorFocus.segId,
+                navGen: _pendingEditorFocus.gen,
+            });
+        }
         _userScrollGen++;
         _preserveEditingAcrossVirtRender = null;
         if (_pendingEditorFocus && _pendingEditorFocus.explicitNav) {
             _pendingEditorFocus = null;
-            _pendingEditorFocusRetry = false;
+            _pendingEditorFocusRetry = 0;
         }
     }
 
@@ -21745,7 +21752,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!row && virtOn && !o.skipVirtScroll) {
             row = window.CatVirtGrid.scrollToSegId(segId, scrollBlock);
         }
-        if (!row && !o.skipVirtScroll) row = getGridRowBySegId(segId, true);
+        if (!row && !o.skipVirtScroll) {
+            row = getGridRowBySegId(segId, !virtOn);
+        }
         if (!row) return false;
         const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
         if (!ed || ed.contentEditable === 'false') return false;
@@ -21794,18 +21803,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!pending || pending.segId == null) return;
         if (pending.explicitNav && pending.scrollGenAtSchedule !== _userScrollGen) {
             _pendingEditorFocus = null;
-            _pendingEditorFocusRetry = false;
+            _pendingEditorFocusRetry = 0;
             return;
         }
         const gen = pending.gen;
         const seg = currentSegmentsList.find((s) => s && String(s.id) === String(pending.segId));
         if (!seg || !isSegmentVisibleInEditor(seg)) {
             _pendingEditorFocus = null;
-            _pendingEditorFocusRetry = false;
+            _pendingEditorFocusRetry = 0;
             return;
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
+        if (CAT_NAV_DEBUG()) {
+            console.log('[catNav] flush start', {
+                navGen: pending.gen,
+                retryCount: _pendingEditorFocusRetry,
+                targetSegId: pending.segId,
+                intent: pending.explicitNav ? 'explicitNav' : 'preserve',
+                requestedScrollBlock: scrollBlock,
+                rowMountedBefore: !!getGridRowBySegId(pending.segId, false),
+                virtOn,
+                userScrollGenMatch: pending.scrollGenAtSchedule === _userScrollGen,
+            });
+        }
         let row = getGridRowBySegId(pending.segId, false);
         if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
             const isCentered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
@@ -21821,16 +21842,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const ok = applyEditorFocusAtSegId(pending.segId, { ...pending, skipVirtScroll: true });
         if (!ok) {
-            if (!_pendingEditorFocusRetry) {
-                _pendingEditorFocusRetry = true;
+            if (_pendingEditorFocusRetry < 3) {
+                _pendingEditorFocusRetry++;
                 requestAnimationFrame(() => flushPendingEditorFocus());
             }
             return;
         }
+        if (virtOn && scrollBlock === 'center' && window.CatVirtGrid) {
+            const centered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
+                && window.CatVirtGrid.isSegIdCentered(pending.segId, 16);
+            if (!centered) {
+                window.CatVirtGrid.scrollToSegId(pending.segId, 'center');
+            }
+        }
+        if (CAT_NAV_DEBUG()) {
+            const active = document.activeElement;
+            const activeRow = active?.closest?.('.grid-data-row');
+            const finalRow = getGridRowBySegId(pending.segId, false);
+            let rowCenterDeltaPx = null;
+            if (finalRow && virtOn && window.CatVirtGrid?.cfg?.scrollEl) {
+                const rb = finalRow.getBoundingClientRect();
+                const gb = window.CatVirtGrid.cfg.scrollEl.getBoundingClientRect();
+                rowCenterDeltaPx = Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
+            }
+            console.log('[catNav] flush done', {
+                navGen: pending.gen,
+                retryCount: _pendingEditorFocusRetry,
+                targetSegId: pending.segId,
+                requestedScrollBlock: scrollBlock,
+                rowMountedAfter: !!finalRow,
+                activeInTargetCol: !!active?.closest?.('.col-target'),
+                activeIsGridTextarea: !!active?.classList?.contains('grid-textarea'),
+                activeSegId: activeRow?.dataset?.segId,
+                activeIsTarget: activeRow?.dataset?.segId === String(pending.segId),
+                rowCenterDeltaPx,
+                centeredOk: rowCenterDeltaPx != null && Math.abs(rowCenterDeltaPx) <= 16,
+            });
+        }
         if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
         if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
             _pendingEditorFocus = null;
-            _pendingEditorFocusRetry = false;
+            _pendingEditorFocusRetry = 0;
             if (pending.explicitNav) releaseVirtNavigationAnchor();
         }
     }
@@ -21854,7 +21906,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             scrollGenAtSchedule: _userScrollGen,
             gen: _pendingEditorFocusGen,
         };
-        _pendingEditorFocusRetry = false;
+        _pendingEditorFocusRetry = 0;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         if (virtOn) {
             requestAnimationFrame(() => requestAnimationFrame(() => flushPendingEditorFocus()));
