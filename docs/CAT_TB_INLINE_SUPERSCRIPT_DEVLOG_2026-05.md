@@ -244,3 +244,9 @@
 1. 大檔（virt 啟用）選有 TB 的句段。
 2. 連續滚轮 3–5 秒（句段仍在視窗內）。
 3. 原文 TB 底線／上標全程可見，不停頓才出現。
+
+**狀態**：**產品驗收通過**（2026-07-01；對應主紀錄 [`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.15 項 50）。
+
+### 10.6 Hotfix — `segId` 重複宣告（`f3e4365`）
+
+`5e9925a` 引入 `decorateTbInlineHintsForSegId(segId)` 時，函式內殘留 `const segId = …` 與參數同名，導致整支 `app.js` SyntaxError、CAT 卡在「載入中…」。`f3e4365` 刪除內層宣告，改以參數查句段。驗收 2.3n 項 50 前須確認主控台無語法錯。詳見主紀錄 §3.16。

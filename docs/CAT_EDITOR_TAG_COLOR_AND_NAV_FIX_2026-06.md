@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3n 已實作，待驗收**（2026-07-01；2.3m `a68814c` → 2.3n；見 §3.15）
+> **狀態**：**Phase 2.3n 產品驗收通過**（2026-07-01；`5e9925a` + hotfix `f3e4365`；見 §3.15–§3.16）
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)、[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md)
@@ -508,7 +508,7 @@
 
 ### 3.15 Phase 2.3n — 審稿外圈 3px + TB 捲動不閃（2026-07-01）
 
-**狀態**：**已實作，待驗收**
+**狀態**：**產品驗收通過**
 
 | # | 修正 | 觸點 |
 |---|------|------|
@@ -527,7 +527,32 @@
 | 50 | 大檔 active 句在視窗內，連續捲動 TB 不消失 |
 | 回歸 | 2.3m 46–47、49、39′、43′ |
 
+**產品驗收紀錄**：
+
+| # | 結果 | 備註 |
+|---|------|------|
+| 48′ | 通過 | 審稿確認實線外環約 3px 肉眼可見（2.3m 項 48 由此結案） |
+| 48″ | 通過 | 審稿後再編輯虛線外環 3px 可辨 |
+| 50 | 通過 | 大檔 virt 連續捲動，active 句 TB 底線／上標不閃 |
+| 回歸 | 通過 | 2.3m 項 46–47、49、39′、43′ 無回歸 |
+
 詳細 TB virt 觸點：[`CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md`](./CAT_TB_INLINE_SUPERSCRIPT_DEVLOG_2026-05.md) §10。
+
+### 3.16 Hotfix — `decorateTbInlineHintsForSegId` `segId` 重複宣告（`f3e4365`）
+
+**現象**：`5e9925a` 部署後 CAT 全頁卡在「載入中…」；主控台 `Uncaught SyntaxError: Identifier 'segId' has already been declared (app.js:11323)`。
+
+**根因**：重構 `decorateTbInlineHintsForActiveRow` → `decorateTbInlineHintsForSegId(segId)` 時，函式參數已有 `segId`，函式內舊碼仍保留：
+
+```javascript
+const segId = rowIdEl ? rowIdEl.getAttribute('data-id') : null; // 與參數同名
+```
+
+整支 [`cat-tool/app.js`](../cat-tool/app.js) 無法執行 → 與後端／IndexedDB 無關。
+
+**修正**：刪除內層 `const segId`，改以參數 `segId` 查 `currentSegmentsList`（`f3e4365`）。
+
+**驗收**：強制重新整理後主控台無 SyntaxError；CAT 可進、可開檔；2.3n 項 48′／48″／50 可正常驗。
 
 ---
 
@@ -548,4 +573,5 @@
 | 2026-06-30 | Phase 2.3k：大檔捲動穩定、搜尋／TB 換窗裝飾、個人句段色點（`3d6030d`）；**第一輪 Claude AI 驗收部分通過**（§3.11） |
 | 2026-06-30 | Phase 2.3l：篩選 Virt 刷新、批次確認快照、重複 ✕ 雙向、色點四色改版；**第一輪部分通過**（§3.13） |
 | 2026-07-01 | Phase 2.3m：狀態欄 UI、色點樂觀更新、多選右鍵批次；**產品驗收通過**（§3.14；項 48 外圈待修） |
-| 2026-07-01 | Phase 2.3n：審稿外圈 3px、TB virt 捲動不閃；**待驗收**（§3.15） |
+| 2026-07-01 | Phase 2.3n：`5e9925a` 審稿外圈 3px、TB virt 捲動不閃；**產品驗收通過**（§3.15） |
+| 2026-07-01 | Hotfix：`f3e4365` 修 `decorateTbInlineHintsForSegId` `segId` 重複宣告阻斷載入（§3.16） |
