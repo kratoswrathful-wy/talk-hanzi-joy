@@ -11258,11 +11258,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    function decorateTbInlineHintsForActiveRow() {
+    function getActiveSegIdForTbDecor() {
+        if (lastEditedRowIdx != null) {
+            const seg = currentSegmentsList[lastEditedRowIdx];
+            if (seg && seg.id != null) return seg.id;
+        }
+        if (_preserveEditingAcrossVirtRender && _preserveEditingAcrossVirtRender.segId != null) {
+            return _preserveEditingAcrossVirtRender.segId;
+        }
+        if (_activeGridRowEl && _activeGridRowEl.dataset.segId != null) {
+            return _activeGridRowEl.dataset.segId;
+        }
+        const activeRow = document.querySelector('.grid-data-row.active-row');
+        if (activeRow && activeRow.dataset.segId != null) return activeRow.dataset.segId;
+        return null;
+    }
+
+    function syncActiveRowAfterVirtRender() {
+        const segId = getActiveSegIdForTbDecor();
+        if (segId == null) return null;
+        const row = getGridRowBySegId(segId, false);
+        if (row) setActiveGridRow(row);
+        return segId;
+    }
+
+    function decorateTbInlineHintsForSegId(segId) {
+        if (segId == null) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
 
-        const row = document.querySelector('.grid-data-row.active-row');
+        const row = getGridRowBySegId(segId, false);
         if (!row) return;
 
         clearTbInlineHintsInRow(row);
@@ -11496,6 +11521,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             list.appendChild(item);
         });
         sub.appendChild(list);
+    }
+
+    function decorateTbInlineHintsForActiveRow() {
+        decorateTbInlineHintsForSegId(getActiveSegIdForTbDecor());
     }
 
     function syncTbTermSelectAllLabel() {
@@ -25202,6 +25231,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (targetInput) targetInput.addEventListener('mousedown', activateLockedRowInteraction);
                 if (sourceInput) sourceInput.addEventListener('mousedown', activateLockedRowInteraction);
             }
+            try {
+                const activeSegId = getActiveSegIdForTbDecor();
+                if (activeSegId != null && String(seg.id) === String(activeSegId)
+                    && window.currentTmMatches && window.currentTmMatches.length) {
+                    decorateTbInlineHintsForSegId(seg.id);
+                }
+            } catch (_) { /* ignore */ }
             return row;
         }
 
@@ -25239,6 +25275,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 onAfterRender: () => {
                     syncSelectedRowClassesFromIds();
+                    try {
+                        const activeSegId = syncActiveRowAfterVirtRender();
+                        if (activeSegId != null) decorateTbInlineHintsForSegId(activeSegId);
+                    } catch (_) { /* ignore */ }
                     flushEditorFocusAfterVirtRender();
                     flushFilterAnchorAfterVirtRender();
                     if (catFakeCaret && typeof catFakeCaret.refreshAfterVirtRender === 'function') {

@@ -214,3 +214,33 @@
 - 重新整理／部署後行為符合預期（必要時硬重新整理排除快取）。
 - **文件索引**：本檔 §9；[`docs/CODEMAP.md`](CODEMAP.md)（CAT 內嵌表新增「原文格 TB 內嵌提示」列）；[`docs/CAT_TB_INLINE_SUPERSCRIPT_IMPLEMENTATION_PLAN.md`](CAT_TB_INLINE_SUPERSCRIPT_IMPLEMENTATION_PLAN.md) §9；根目錄 [`AGENTS.md`](../AGENTS.md) 深文件索引。
 
+---
+
+## §10 Phase 2.3n — virt 捲動時 TB 不閃（2026-07-01）
+
+### 10.1 現象
+
+大檔 virt 連續捲動時，使用中句段原文 TB 底線／上標消失，停下後才恢復（§3.10 項 7）。
+
+### 10.2 根因
+
+`CatVirtGrid.renderWindow` → `replaceChildren` 清掉 `.tb-inline-*`；`onBeforeRender` 執行 `resetGridRowUiTracking()`；`decorateTbInlineHintsForActiveRow` 依 `.active-row`，但 `onAfterRender` 時 active 尚未還原。
+
+### 10.3 修正（方案 A）
+
+| 觸點 | 作法 |
+|------|------|
+| `getActiveSegIdForTbDecor()` | `lastEditedRowIdx` → `_preserveEditingAcrossVirtRender` → `_activeGridRowEl` |
+| `decorateTbInlineHintsForSegId(segId)` | 以 segId 取列，取代僅查 `.active-row` |
+| `buildGridDataRow` 結尾 | active 列掛載且已有 `currentTmMatches` 時立即 decorate |
+| `onAfterRender` | 先 `syncActiveRowAfterVirtRender`，再 `decorateTbInlineHintsForSegId` |
+
+### 10.4 邊界
+
+使用中列**完全捲出 virt 窗口**（DOM 未掛載）仍無法顯示 TB。
+
+### 10.5 驗收
+
+1. 大檔（virt 啟用）選有 TB 的句段。
+2. 連續滚轮 3–5 秒（句段仍在視窗內）。
+3. 原文 TB 底線／上標全程可見，不停頓才出現。
