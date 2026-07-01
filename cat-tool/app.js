@@ -11319,9 +11319,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Build a quick lookup for subline generation.
         const subItems = [];
         const srcPlain = (rt.textContent || '').trim();
-        const rowIdEl = row.querySelector('.col-id');
-        const segId = rowIdEl ? rowIdEl.getAttribute('data-id') : null;
-        const seg = segId ? currentSegmentsList.find((s) => String(s.id) === String(segId)) : null;
+        const seg = currentSegmentsList.find((s) => s && String(s.id) === String(segId)) || null;
         const tgtPlain = seg ? String(seg.targetText || '').trim() : '';
 
         // Decorate only text nodes; do not attempt to match across tag-pill boundaries.
