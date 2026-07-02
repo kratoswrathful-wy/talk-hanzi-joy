@@ -583,6 +583,12 @@
         function refreshAfterVirtRender() {
             if (!saved || saved.segId == null) return;
             if (!syncChromeLayerRect()) return;
+            // Phase 2.3q Layer C：如果 nav pipeline 正在導覽此句段，先 defer 不 show 假游標。
+            const navState = window.__catNavState;
+            if (navState && typeof navState.hasPendingEditorFocusForSeg === 'function'
+                && navState.hasPendingEditorFocusForSeg(saved.segId)) {
+                return;
+            }
             const active = document.activeElement;
             if (active && active.classList && active.classList.contains('grid-textarea')) {
                 const activeSegId = getEditorSegId(active);

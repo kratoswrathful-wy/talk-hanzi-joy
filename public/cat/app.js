@@ -4067,10 +4067,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
     }
+    // Phase 2.3q Layer D：capture pointerdown 記錄最近一次使用者 pointer 觸發 editor focus 的時間；
+    // 用於 focusin 判斷是否為手動點擊（需取消 stale pending nav）。
+    document.addEventListener('pointerdown', (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains('grid-textarea')) {
+            _lastUserPointerEditorFocus = { time: performance.now(), segId: e.target?.closest?.('.grid-data-row')?.dataset?.segId };
+        } else {
+            _lastUserPointerEditorFocus = null;
+        }
+    }, true);
+
     // 焦點移入／移出編輯格時更新真游標提示（改到正確格子時重新判斷，離開時隱藏）
+    // Phase 2.3q Layer D：非 programmatic + 近期 pointer → 取消 stale pending nav。
     document.addEventListener('focusin', (e) => {
         if (e.target && e.target.classList && e.target.classList.contains('grid-textarea')) {
             showRealCaretScrollTipIfNeeded();
+            // 取消 stale pending nav（手動點擊時才觸發，不含鍵盤 / programmatic）
+            const isProgrammatic = _programmaticEditorFocusDepth > 0;
+            const isRecentPointer = !!_lastUserPointerEditorFocus
+                && (performance.now() - _lastUserPointerEditorFocus.time) < 1000;
+            if (!isProgrammatic && isRecentPointer && _pendingEditorFocus) {
+                const manualSegId = e.target?.closest?.('.grid-data-row')?.dataset?.segId;
+                cancelPendingNavigationForUserInteraction('manual-editor-click', manualSegId);
+            }
         } else {
             hideCatRealCaretScrollTip();
         }
@@ -18279,6 +18298,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** @type {{ segId: *, plainOffset?: number|null, phase: string, gen: number } | null} */
     let _filterAnchorPending = null;
     let _filterAnchorGen = 0;
+    /** Phase 2.3q：center retry 計數（與 focusRetry 分軌） */
+    let _pendingEditorCenterRetry = 0;
+    /** Phase 2.3q：手動取消世代（使 stale rAF callback 失效） */
+    let _navigationCancelGen = 0;
+    /** Phase 2.3q：programmatic focus 深度（區分程式觸發 vs. 使用者點擊） */
+    let _programmaticEditorFocusDepth = 0;
+    /** Phase 2.3q：最近一次使用者 pointer 觸發 editor focusin 的時間戳 */
+    let _lastUserPointerEditorFocus = null;
     /** 確認跳行 blur 時略過一次假游標（避免舊列殘留） */
     let _skipFakeCaretOnBlurOnce = false;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
@@ -21633,10 +21660,130 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function releaseVirtNavigationAnchor() {
-        if (window.CatVirtGrid && typeof window.CatVirtGrid.releaseNavigationAnchor === 'function') {
-            window.CatVirtGrid.releaseNavigationAnchor();
+        if (window.CatVirtGrid) {
+            if (typeof window.CatVirtGrid.cancelNavigationAnchor === 'function') {
+                window.CatVirtGrid.cancelNavigationAnchor('nav-complete');
+            } else if (typeof window.CatVirtGrid.releaseNavigationAnchor === 'function') {
+                window.CatVirtGrid.releaseNavigationAnchor();
+            }
         }
     }
+
+    /**
+     * Phase 2.3q：計算目標 row 中心與 #editorGrid 可視中心的偏差（px）。
+     * @param {*} segId
+     * @returns {number|null}
+     */
+    function measureRowCenterDeltaPx(segId) {
+        const row = getGridRowBySegId(segId, false);
+        const gridEl = document.getElementById('editorGrid');
+        if (!row || !gridEl) return null;
+        const rb = row.getBoundingClientRect();
+        const gb = gridEl.getBoundingClientRect();
+        return Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
+    }
+
+    /**
+     * Phase 2.3q：row 中心與 viewport 中心差距是否在 16px 容差內。
+     * @param {*} segId
+     * @returns {boolean}
+     */
+    function isCenterOk(segId) {
+        const delta = measureRowCenterDeltaPx(segId);
+        if (delta === null) return false;
+        return Math.abs(delta) <= 16;
+    }
+
+    /**
+     * Phase 2.3q：包裝一次 programmatic editor focus 呼叫，
+     * 讓 focusin handler 知道這是程式觸發，不應取消 pending nav。
+     * @param {() => void} fn
+     */
+    function withProgrammaticEditorFocus(fn) {
+        _programmaticEditorFocusDepth++;
+        try { fn(); } finally { _programmaticEditorFocusDepth--; }
+    }
+
+    /**
+     * Phase 2.3q：在下一幀再次嘗試 flushPendingEditorFocus，
+     * 雙重守衛（navGen + cancelGen）避免 stale rAF 干擾。
+     * @param {number} gen  發起時的 pending.gen
+     */
+    function scheduleNavRetryRaf(gen) {
+        const snapCancelGen = _navigationCancelGen;
+        requestAnimationFrame(() => {
+            if (_navigationCancelGen !== snapCancelGen) {
+                if (CAT_NAV_DEBUG()) console.warn('[catNav] stale raf ignored (cancelGen mismatch)', { gen, snapCancelGen, currentCancelGen: _navigationCancelGen });
+                return;
+            }
+            if (!_pendingEditorFocus || _pendingEditorFocus.gen !== gen) return;
+            flushPendingEditorFocus();
+        });
+    }
+
+    /**
+     * Phase 2.3q：flush 達上限後的安全收尾：
+     * 釋放 virt lock，清 pending，但**不**搶焦點。
+     * @param {number} gen
+     * @param {{ explicitNav?: boolean } | null} pending
+     */
+    function _navFlushSafeCleanup(gen, pending) {
+        if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
+            _pendingEditorFocus = null;
+            _pendingEditorFocusRetry = 0;
+            _pendingEditorCenterRetry = 0;
+        }
+        if (pending && pending.explicitNav) releaseVirtNavigationAnchor();
+    }
+
+    /**
+     * Phase 2.3q：使用者手動點擊時取消 stale pending 導覽（含 filter anchor + virt lock）。
+     * @param {string} reason
+     * @param {*}      manualSegId  使用者點到的 segId
+     */
+    function cancelPendingNavigationForUserInteraction(reason, manualSegId) {
+        if (CAT_NAV_DEBUG()) {
+            console.warn('[catNav] manual cancel', {
+                reason,
+                manualSegId,
+                pendingSegId: _pendingEditorFocus?.segId,
+                pendingGen: _pendingEditorFocus?.gen,
+                filterAnchorSegId: _filterAnchorPending?.segId,
+            });
+        }
+        _navigationCancelGen++;
+        _pendingEditorFocus = null;
+        _pendingEditorFocusRetry = 0;
+        _pendingEditorCenterRetry = 0;
+        _filterAnchorPending = null;
+        _preserveEditingAcrossVirtRender = null;
+        if (window.CatVirtGrid && typeof window.CatVirtGrid.cancelNavigationAnchor === 'function') {
+            window.CatVirtGrid.cancelNavigationAnchor(reason);
+        } else if (window.CatVirtGrid && typeof window.CatVirtGrid.releaseNavigationAnchor === 'function') {
+            window.CatVirtGrid.releaseNavigationAnchor();
+        }
+        if (catFakeCaret && typeof catFakeCaret.hide === 'function') catFakeCaret.hide();
+    }
+
+    /**
+     * Phase 2.3q：供 cat-fake-caret.js 查詢 pending nav 與 real focus 狀態。
+     * 在 CatVirtGrid mount 後初始化（此處宣告，值在 initCatFakeCaret 後可讀）。
+     */
+    window.__catNavState = {
+        hasPendingEditorFocusForSeg(segId) {
+            return !!(_pendingEditorFocus && _pendingEditorFocus.segId != null
+                && String(_pendingEditorFocus.segId) === String(segId));
+        },
+        isRealTargetEditorFocused(segId) {
+            const active = document.activeElement;
+            const row = active?.closest?.('.grid-data-row');
+            return !!(
+                row && row.dataset.segId === String(segId)
+                && active.classList.contains('grid-textarea')
+                && active.closest('.col-target')
+            );
+        },
+    };
 
     /** Phase 2.3g：篩選錨定前驗證 segId 在目前可渲染清單內 */
     function resolveFilterScrollAnchor() {
@@ -21678,21 +21825,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             _filterAnchorPending = null;
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 if (focusEditor) {
+                    // Phase 2.3q Layer A：升級為 explicitNav + forceVirtScroll，
+                    // 確保走 completion gate（focusOk + centerOk），不可單獨 deploy。
                     scheduleEditorFocus({
                         segId,
                         plainOffset,
                         restoreCaret: plainOffset != null,
                         scrollBehavior: 'auto',
                         scrollBlock: 'center',
-                        skipVirtScroll: true,
-                        forceVirtScroll: false,
+                        explicitNav: true,
+                        forceVirtScroll: true,
+                        skipVirtScroll: false,
                     });
                 } else if (window.CatVirtGrid && typeof window.CatVirtGrid.scrollToSegId === 'function') {
-                    const centered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
-                        && window.CatVirtGrid.isSegIdCentered(segId);
-                    if (!centered) window.CatVirtGrid.scrollToSegId(segId, 'center');
+                    if (!isCenterOk(segId)) window.CatVirtGrid.scrollToSegId(segId, 'center');
+                    releaseVirtNavigationAnchor();
                 }
-                releaseVirtNavigationAnchor();
             }));
         }
     }
@@ -21778,10 +21926,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             } catch (_) { /* ignore */ }
-            if (catFakeCaret && typeof catFakeCaret.hide === 'function') catFakeCaret.hide();
         } else if (o.caretAtStart) {
             setCaretAtEditorStart(ed);
         }
+        // Phase 2.3q Layer C：focus 成功一律 hide 假游標（不限 restoreCaret 路徑）
+        if (catFakeCaret && typeof catFakeCaret.hide === 'function') catFakeCaret.hide();
         if (!virtOn) {
             const block = getAfterConfirmScrollBlock();
             const doScroll = () => {
@@ -21807,6 +21956,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (pending.explicitNav && pending.scrollGenAtSchedule !== _userScrollGen) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
+            _pendingEditorCenterRetry = 0;
             return;
         }
         const gen = pending.gen;
@@ -21814,84 +21964,148 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!seg || !isSegmentVisibleInEditor(seg)) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
+            _pendingEditorCenterRetry = 0;
             return;
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
+        // explicitNav + center = 需要 focusOk AND centerOk 兩者皆 true 才算完成
+        const wantCenter = virtOn && scrollBlock === 'center' && (pending.explicitNav || pending.forceVirtScroll);
+
         if (CAT_NAV_DEBUG()) {
             console.log('[catNav] flush start', {
-                navGen: pending.gen,
-                retryCount: _pendingEditorFocusRetry,
+                navGen: gen,
+                focusRetryCount: _pendingEditorFocusRetry,
+                centerRetryCount: _pendingEditorCenterRetry,
                 targetSegId: pending.segId,
                 intent: pending.explicitNav ? 'explicitNav' : 'preserve',
                 requestedScrollBlock: scrollBlock,
+                wantCenter,
                 rowMountedBefore: !!getGridRowBySegId(pending.segId, false),
                 virtOn,
                 userScrollGenMatch: pending.scrollGenAtSchedule === _userScrollGen,
             });
         }
+
+        // ── Step 1：pre-focus centering（virt + center 路徑）──
+        // 規則：先 scroll，不在同一 stack 做 focus；
+        //       scroll 完由 onAfterRender chain 或 scheduleNavRetryRaf 觸發下一次 flush。
         let row = getGridRowBySegId(pending.segId, false);
-        if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
-            const isCentered = typeof window.CatVirtGrid.isSegIdCentered === 'function'
-                && window.CatVirtGrid.isSegIdCentered(pending.segId);
-            const needsScroll = pending.forceVirtScroll
-                || !row
-                || (scrollBlock === 'center' && !isCentered);
+        if (wantCenter && !pending.skipVirtScroll) {
+            const needsScroll = pending.forceVirtScroll || !row || !isCenterOk(pending.segId);
             if (needsScroll) {
+                window.CatVirtGrid.scrollToSegId(pending.segId, 'center');
+                row = getGridRowBySegId(pending.segId, false);
+                if (!row) {
+                    // row 尚未掛載，等 onAfterRender 觸發；也排一個備用 rAF
+                    scheduleNavRetryRaf(gen);
+                    return;
+                }
+                // scrollTop 已同步設定，但若 height 估算不準仍可能有殘差；
+                // 先繼續 focus，step 4 再驗 centerOk，不達標則 center retry
+            }
+        } else if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
+            // 非 center 路徑（nearest / preserve）
+            if (!row) {
                 window.CatVirtGrid.scrollToSegId(pending.segId, scrollBlock);
                 row = getGridRowBySegId(pending.segId, false);
                 if (!row) return;
             }
         }
-        const ok = applyEditorFocusAtSegId(pending.segId, { ...pending, skipVirtScroll: true });
+
+        // ── Step 2：focus（wrapped，讓 focusin handler 知道是 programmatic）──
+        let ok = false;
+        withProgrammaticEditorFocus(() => {
+            ok = applyEditorFocusAtSegId(pending.segId, { ...pending, skipVirtScroll: true });
+        });
         if (!ok) {
             if (_pendingEditorFocusRetry < 3) {
                 _pendingEditorFocusRetry++;
-                requestAnimationFrame(() => flushPendingEditorFocus());
+                scheduleNavRetryRaf(gen);
+            } else {
+                if (CAT_NAV_DEBUG()) console.warn('[catNav] flush failed', { navGen: gen, failureReason: 'focus-apply', focusRetryCount: _pendingEditorFocusRetry });
+                _navFlushSafeCleanup(gen, pending);
             }
             return;
         }
+
+        // ── Step 3：驗 focusOk ──
         const active = document.activeElement;
         const activeRow = active?.closest?.('.grid-data-row');
-        const focusLanded =
+        const focusOk =
             !!active
             && active.classList.contains('grid-textarea')
             && !!active.closest('.col-target')
             && activeRow?.dataset?.segId === String(pending.segId);
-        if (!focusLanded) {
+        if (!focusOk) {
             if (_pendingEditorFocusRetry < 3) {
                 _pendingEditorFocusRetry++;
-                requestAnimationFrame(() => flushPendingEditorFocus());
+                scheduleNavRetryRaf(gen);
+            } else {
+                if (CAT_NAV_DEBUG()) console.warn('[catNav] flush failed', { navGen: gen, failureReason: 'focus-landed', focusRetryCount: _pendingEditorFocusRetry });
+                _navFlushSafeCleanup(gen, pending);
             }
             return;
         }
-        if (CAT_NAV_DEBUG()) {
-            const finalRow = getGridRowBySegId(pending.segId, false);
-            let rowCenterDeltaPx = null;
-            const gridEl = document.getElementById('editorGrid');
-            if (finalRow && gridEl) {
-                const rb = finalRow.getBoundingClientRect();
-                const gb = gridEl.getBoundingClientRect();
-                rowCenterDeltaPx = Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
+
+        // ── Step 4：驗 centerOk（focus 後不得 scroll，2.3p 規則） ──
+        let rowCenterDeltaPx = null;
+        let centerOkNow = true;
+        if (wantCenter) {
+            rowCenterDeltaPx = measureRowCenterDeltaPx(pending.segId);
+            centerOkNow = rowCenterDeltaPx != null && Math.abs(rowCenterDeltaPx) <= 16;
+            if (!centerOkNow) {
+                if (_pendingEditorCenterRetry < 3) {
+                    _pendingEditorCenterRetry++;
+                    if (CAT_NAV_DEBUG()) {
+                        console.log('[catNav] flush incomplete - center retry', {
+                            navGen: gen, rowCenterDeltaPx,
+                            centerRetryCount: _pendingEditorCenterRetry, completed: false,
+                        });
+                    }
+                    // 回到 step 1：下一幀會先 scroll，再 focus
+                    scheduleNavRetryRaf(gen);
+                } else {
+                    if (CAT_NAV_DEBUG()) {
+                        console.warn('[catNav] flush failed', {
+                            navGen: gen, failureReason: 'center',
+                            rowCenterDeltaPx, centerRetryCount: _pendingEditorCenterRetry, completed: false,
+                        });
+                    }
+                    _navFlushSafeCleanup(gen, pending);
+                }
+                return;
             }
+        }
+
+        // ── Step 5：SUCCESS — focusOk + centerOk ──
+        if (CAT_NAV_DEBUG()) {
+            if (rowCenterDeltaPx == null) rowCenterDeltaPx = measureRowCenterDeltaPx(pending.segId);
             console.log('[catNav] flush done', {
-                navGen: pending.gen,
-                retryCount: _pendingEditorFocusRetry,
+                navGen: gen,
                 targetSegId: pending.segId,
+                intent: pending.explicitNav ? 'explicitNav' : 'preserve',
                 requestedScrollBlock: scrollBlock,
-                rowMountedAfter: !!finalRow,
+                focusOk: true,
+                centerOk: centerOkNow,
+                rowMountedAfter: !!getGridRowBySegId(pending.segId, false),
                 activeInTargetCol: !!active?.closest?.('.col-target'),
                 activeIsGridTextarea: !!active?.classList?.contains('grid-textarea'),
                 activeSegId: activeRow?.dataset?.segId,
-                activeIsTarget: activeRow?.dataset?.segId === String(pending.segId),
+                activeIsTarget: true,
                 rowCenterDeltaPx,
                 centeredOk: rowCenterDeltaPx != null && Math.abs(rowCenterDeltaPx) <= 16,
+                focusRetryCount: _pendingEditorFocusRetry,
+                centerRetryCount: _pendingEditorCenterRetry,
+                centerMeasureViewport: 'editorGrid',
+                completed: true,
             });
         }
         if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
         if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
+            _pendingEditorCenterRetry = 0;
             if (pending.explicitNav) releaseVirtNavigationAnchor();
         }
     }
@@ -21916,6 +22130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             gen: _pendingEditorFocusGen,
         };
         _pendingEditorFocusRetry = 0;
+        _pendingEditorCenterRetry = 0;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         if (virtOn) {
             requestAnimationFrame(() => requestAnimationFrame(() => flushPendingEditorFocus()));

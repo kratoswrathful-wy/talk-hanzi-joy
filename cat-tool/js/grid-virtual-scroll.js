@@ -540,6 +540,36 @@
         _anchorOffsetPx = 0;
     }
 
+    /**
+     * Phase 2.3q：完全取消導覽錨點（含 lock timer + coalesce key），
+     * 避免 resize / repaint 把 viewport 拉回舊錨點。
+     * @param {string} [reason] 取消原因（供 debug log 用）
+     */
+    function cancelNavigationAnchor(reason) {
+        const hadLock = _navAnchorLock;
+        _anchorSegId = null;
+        _anchorOffsetPx = 0;
+        releaseNavAnchorLock();
+        _lastNavScrollKey = null;
+        if (typeof console !== 'undefined' && console && localStorage && localStorage.getItem('catNavDebug') === '1') {
+            console.log('[catVirt] cancelNavigationAnchor', { reason, hadLock });
+        }
+    }
+
+    /** Phase 2.3q：供除錯用，回傳 virt 內部核心狀態快照。 */
+    function getDebugState() {
+        return {
+            enabled,
+            anchorSegId: _anchorSegId,
+            anchorOffsetPx: _anchorOffsetPx,
+            navAnchorLock: _navAnchorLock,
+            navAnchorBlock: _navAnchorBlock,
+            lastStartIdx: _lastStartIdx,
+            lastEndIdx: _lastEndIdx,
+            lastNavScrollKey: _lastNavScrollKey,
+        };
+    }
+
     function getWindowStartIdx() {
         return _lastStartIdx >= 0 ? _lastStartIdx : -1;
     }
@@ -557,6 +587,8 @@
         isSegIdCentered,
         centerOnSegId,
         invalidateHeights,
-        releaseNavigationAnchor
+        releaseNavigationAnchor,
+        cancelNavigationAnchor,
+        getDebugState,
     };
 })(typeof window !== 'undefined' ? window : globalThis);
