@@ -1,6 +1,6 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**初版已實作**（2026-07-02）— `playwright.config.ts`、`tests/cat-navigation-2-3q.spec.ts`、helpers；執行需 `PLAYWRIGHT_TEST_EMAIL`／`PASSWORD`；**首輪本機執行報告見 §測試執行報告**（D／G／H／I 通過；A 未通過；B／C／E 未跑）
+> **狀態**：**初版已實作並推送**（`70a807d` Playwright 程式、`08709df` 測試報告、`c442196` 建置修正）— **下一波見 §下一波執行計畫（Wave 1／Wave 2）**；首輪結果見 §測試執行報告（D／G／H／I 通過；A 未通過；B／C／E 未跑）
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -442,7 +442,7 @@ pollViewportStable === true
 > **執行者**：Cursor 代理（本機 Windows + PowerShell）  
 > **環境**：`PLAYWRIGHT_BASE_URL` 預設 `http://localhost:8080`；`webServer` 自動 `npm run dev`；帳密自 `.env`（`PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`，**勿 commit**）  
 > **大檔 fixture**：`Test_Big.mqxliff`（6333 句）；小檔 `tests/fixtures/Test_Small.mqxliff`  
-> **程式狀態**：helpers／spec 修正已寫入工作區；**截至本報告撰寫時尚未 git commit／push**
+> **程式狀態**：已推送 `main`（`70a807d` tests／helpers、`c442196` `tsconfig.playwright.json`）；執行需 `.env` 帳密與大檔 `PLAYWRIGHT_CAT_LARGE_FIXTURE`（**勿 commit `.env`**）
 
 ### 失敗分類（審查時請先讀）
 
@@ -536,16 +536,279 @@ expect.poll(getCatNavigationState).toMatchObject({
 
 ### 給 GPT 5.5 的接續任務（建議優先序）
 
-1. **Test A 根因**：讀 A 的 trace／snapshot；在 iframe 內 log `rowCenterDeltaPx`、`virt.getDebugState()`；判定修產品或修測試等待
-2. **拆 serial 或單跑 B**：`npx playwright test -g "Test B —"`；B 亦要求 `centeredOk`，可能與 A 同源
-3. **補跑 C、E**：`npx playwright test -g "Test C —|Test E —"`
-4. **commit**：helpers + spec + 本報告；**排除** `.env`
-5. **若 A/B 確認產品 bug**：對照 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md) 開修復；G～I 作為 F8 路徑回歸網
+**已整併至 §下一波執行計畫（Wave 1／Wave 2）**；請以該節為執行權威，本節僅保留首輪紀錄。
+
+1. ~~Test A 根因~~ → Wave 1 §W1-1～W1-2
+2. ~~拆 serial、單跑 B/C/E~~ → Wave 1 §W1-3～W1-4
+3. ~~commit~~ → 已完成（`70a807d`、`c442196`）
+4. Wave 2 壓力擴網 → §Wave 2
 
 ### 與 Slack Claude 驗收的邊界
 
 - 本 Playwright 套件：**本機／CI 回歸**；目前**未**接 Slack `#development` AI 驗收流程
 - 部署後全量驗收仍依 [`.cursor/rules/claude-ai-acceptance-slack.mdc`](../.cursor/rules/claude-ai-acceptance-slack.mdc)；若 PM 要 AI 驗收 2.3q，須另發任務並含 commit 短碼
+
+---
+
+## 下一波執行計畫（Wave 1／Wave 2）
+
+> **審查對象**：GPT 5.5／後續 AI 代理 — **本節為下一階段執行權威**（整合 PM 回報、首輪測試報告、GPT 5.5 Wave 建議，2026-07-02 定案）。  
+> **目標**：用 Playwright **畫出失敗分布**，再決定是否修產品；**Wave 1 完成前不開始改 `cat-tool/` 產品碼**（helpers／spec 除外）。
+
+### 總決策
+
+| 要做 | 不做 |
+|------|------|
+| Wave 1：診斷 Test A、補跑 B/C/E、更新報告 | 整包重寫 virt／導覽架構 |
+| Wave 2：I′ 壓力、Test N、最小 J/K | 一次實作 J～N 全套 |
+| 測試修正（點錯列、拆 serial） | 在 trace 未證明前當成產品 bug 大改 |
+
+**優先序**：P0 Test A trace／點擊目標 → P1 B/C/E + 報告 → P2 I′ → P3 N → P4 最小 J/K → **Backlog** L/M
+
+---
+
+### Wave 1 — 診斷與補齊證據
+
+**目標**：釐清 Test A 是 (1) 大檔 virt explicit 置中產品 bug、(2) 量測／poll 時序、(3) 測試點錯 virt 列。
+
+#### W1-1 分析 Test A trace
+
+讀取首輪失敗 trace（或重跑後新 trace），記錄：
+
+```text
+rowCenterDeltaPx
+activeSegId / targetSegId
+scrollTop / firstVisibleDisplayId
+CatVirtGrid.getDebugState()（navAnchorLock、anchorSegId 等）
+最近 50 筆 [catNav] / [catVirt] / [catFakeCaret]
+```
+
+**必答**：
+
+```text
+activeSegId 是否為預期句段？
+rowCenterDeltaPx 是否穩定偏大（>>16）還是在門檻附近抖動？
+navAnchorLock 是否仍為 true？
+測試是否點到意圖的 display 列？
+```
+
+指令（重現）：
+
+```powershell
+Set-Location "c:\Homemade Apps\1UP TMS"
+npx playwright test -g "Test A —" --project=chromium
+npx playwright show-trace test-results\**\trace.zip
+```
+
+#### W1-2 修正 Test A 點擊目標（若 trace 支持）
+
+**已知風險**：目前 spec 為 `scrollToDisplayIndex(20)` 後點 `.first()`，virt 下**不保證**為 display #20。
+
+**對齊 G/H/I 的可靠寫法**：
+
+```text
+jumpToDisplayIndex(frame, 20) → segId
+點 `.grid-data-row[data-seg-id="${segId}"] .col-target .grid-textarea`
+assert activeSegId === segId
+再 Control+Enter ×3（或對齊規格 ×5）
+```
+
+若修正後 **A pass** → 歸類為 **L1 測試寫法**；若仍 `centeredOk: false` → 歸類為 **L2 產品向**，進入產品修復評估（仍須記錄 `rowCenterDeltaPx` 數值）。
+
+#### W1-3 單跑 Test B
+
+```powershell
+npx playwright test -g "Test B —" --project=chromium
+```
+
+| 結果 | 解讀 |
+|------|------|
+| B 也 `centeredOk: false` | A/B 可能共用大檔 virt explicit 置中問題 |
+| 僅 A fail | 偏 Ctrl+Enter confirm-jump 或 A 寫法差異 |
+| B pass | 清除篩選路徑可能正常；勿誤判為「篩選壞掉」 |
+
+**注意**：B 與 A 同要求 `centeredOk`；B fail 不一定是「清除篩選邏輯」壞掉。
+
+#### W1-4 跑 Test C、E
+
+```powershell
+npx playwright test -g "Test C —|Test E —" --project=chromium
+```
+
+| 測項 | fail 意義 |
+|------|-----------|
+| C | stale nav 取消／`navAnchorLock` 清除仍可疑 |
+| E | 導覽管線可能搶 `#sfInput` 焦點 |
+
+#### W1-5 拆 serial（建議）
+
+大檔 `describe.serial` 導致 A fail 時 B 被 skip。Wave 1 應：
+
+- 將 A/B 改為可獨立執行，或
+- 至少文件註明「B 須 `-g` 單跑」
+
+#### W1-6 回歸已通過測項
+
+若 Wave 1 改 helpers／spec，重跑：
+
+```powershell
+npx playwright test -g "Test D" --project=chromium
+npx playwright test -g "Test G —|Test H —|Test I —" --project=chromium
+```
+
+#### Wave 1 交付物
+
+```text
+1. Test A trace 診斷表（含 rowCenterDeltaPx 數值與分類結論）
+2. Test A spec 修正（若為點錯列）
+3. Test B / C / E 結果表
+4. 更新 §測試執行報告（新增 Wave 1 小節）
+5. 無 cat-tool 產品碼變更（除非 trace 明確證明且 PM 同意開修復波）
+```
+
+---
+
+### Wave 2 — 擴充壓力覆蓋（repaint／機率性手動點擊）
+
+**前提**：Wave 1 報告完成；**仍不建議整包重寫 virt**。
+
+PM 補充：任何重畫都可能 viewport／焦點亂跳；**手動點譯文格也有機率觸發**。A～I 是**代表性回歸網**，不是全面 repaint stress suite。
+
+#### W2-1 Test I′ — 重複手動點擊壓力（優先）
+
+取代現有弱 Test I（reset + 點一次 `nth(3)` ≈3s）。
+
+**第一版規模**（避免 CI 過長／flaky）：
+
+```text
+3 display ranges × 3 clicks = 9 attempts
+ranges: 20、1500、3200
+```
+
+穩定後可擴至 `5×5=25`（20、500、1500、3200、5000）。
+
+**實作規則**：
+
+- 每 range：`jumpToDisplayIndex` → 點**可見**列時先解析 `data-seg-id` 再點
+- **禁止** virt 跳轉後裸用 `.first()`／`.nth(n)` 猜列
+- 失敗 log 須含：`range`、`attempt #`、`clickedSegId`、`getCatNavSnapshot()`、最近 console
+
+**通過條件**（不要求 `centeredOk`）：
+
+```js
+activeSegId === clickedSegId
+activeIsGridTextarea === true
+activeInTargetCol === true
+pollViewportStable === true
+CatVirtGrid.getDebugState().navAnchorLock === false
+fakeOffScreenTipVisible === false
+// 或：real focus 在 clickedSegId 時，假游標／離屏 tip 不得指向不同 savedSegId
+```
+
+機率性失敗可選：`test.describe.configure({ retries: 1 })` **僅套 I′ stress 區塊**。
+
+#### W2-2 Test N — explicit jump 後手動點擊
+
+在 J/K/L/M 之前實作（與 C／I 相關、較易寫穩）。
+
+**最小路徑**：
+
+```text
+Ctrl+G（jumpToDisplayIndex）到句段 A
+手動點另一可見譯文格 B
+舊 explicit nav 不得再改 viewport／activeSegId
+```
+
+**通過**：同 I′（`activeSegId === clickedSegId`、viewport stable、`navAnchorLock === false`）。
+
+**延後**：F3、QA jump → manual click。
+
+#### W2-3 Test J / K — 最小輸入重畫（條件式）
+
+**僅在** I′、N 穩定且 fixture 句段可穩定選定後：
+
+| 測項 | 意圖 |
+|------|------|
+| **J** | 已確認句輸入 1～2 字 → workflow revoke／列重畫 → **activeSegId 不變**、viewport stable |
+| **K** | 未確認句輸入（對照組）→ 同樣不跳 |
+
+不要求 `centeredOk`。
+
+#### W2-4 Backlog — Test L / M
+
+| 測項 | 暫緩原因 |
+|------|----------|
+| **L** TM／高相符 guard 後編輯 | fixture／TM 依賴、flaky |
+| **M** tag／行高壓力 | 與 G/H 重疊、需已知 tag 列 |
+
+Wave 1／2 證據指向時再開。
+
+---
+
+### 測試原則（Wave 1／2 共用）
+
+**1. virt 下目標列須 deterministic**
+
+```text
+jumpToDisplayIndex → data-seg-id → click → assert activeSegId
+```
+
+**2. 僅 explicit navigation 要求 `centeredOk`**
+
+要求置中：Ctrl+Enter、清除篩選回句、規格要求置中的 Ctrl+G／F3／QA jump。  
+不要求置中：手動點擊、輸入、F8、TM、workflow revoke、假游標顯示。
+
+**3. assert 以 DOM／debug 為主**
+
+`getCatNavigationState`、`getCatNavSnapshot`、`CatVirtGrid.getDebugState()`；console 僅作失敗附件。
+
+**4. Typecheck 邊界**
+
+- `npm run typecheck` → `tsc -b`（**不含** `tests/`）
+- `npm run typecheck:e2e` → `tsconfig.playwright.json`
+
+---
+
+### 風險與限制
+
+| 風險 | 緩解 |
+|------|------|
+| 大檔 `beforeAll` 匯入 3～10+ min | 大檔 describe 共用 context；CI 可只跑 D + 抽樣 |
+| I′ 機率性 flaky | 先 9 attempts；失敗附 range／attempt；stress 區塊 retries |
+| B fail 誤判為篩選 bug | 先看是否同 `centeredOk` 斷言 |
+| Test A 修寫法後 pass | 勿誤以為產品已全修；仍須跑 I′／N |
+| Team 模式 | 本計畫仍僅 `/cat/offline`；Team 另波 |
+
+---
+
+### 暫不做
+
+```text
+- 重寫 grid-virtual-scroll 或整條 navigation 架構
+- 一次實作 L/M 或全部 J～N
+- Wave 1 未完成就改 cat-tool 產品碼
+- 把 console log 字串當唯一 pass/fail
+- production URL 跑破壞性測試
+```
+
+---
+
+### Agent 執行指令範本（複製給下一個 Cursor／GPT 5.5）
+
+```markdown
+請執行 CAT 2.3q Playwright Wave 1（見 docs/CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md §下一波執行計畫）。
+
+Wave 1：
+1. 分析 Test A trace（rowCenterDeltaPx、navAnchorLock、是否點錯列）
+2. 若點錯列：修正 Test A 為 jumpToDisplayIndex → data-seg-id 點擊
+3. 單跑 Test B、Test C、Test E
+4. 建議拆大檔 describe.serial 使 B 可獨立跑
+5. 更新 §測試執行報告 Wave 1 小節
+6. 勿改 cat-tool 產品碼，除非 trace 明確證明且結論寫入報告
+
+Wave 1 通過後再開 Wave 2：I′（3×3）、Test N、條件式 J/K。
+規格權威：同一文件 §Wave 2 與 §測試原則。
+```
 
 ---
 
