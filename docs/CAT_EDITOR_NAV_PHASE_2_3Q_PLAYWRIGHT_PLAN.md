@@ -1,6 +1,6 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**Wave 1 已完成**（見 §測試執行報告 Wave 1）— `f6ccb70` 計畫、`70a807d` 初版測試；**A L2 產品向 fail，B/C/E/D/G/H/I pass**
+> **狀態**：**Wave 1 已完成**（見 §測試執行報告 Wave 1）— `516566d` 實作；**A、B 皆 L2 fail（驗收重跑）**；C/E/D/G/H/I 首輪 pass
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -851,13 +851,51 @@ Wave 1 通過後再開 Wave 2：I′（3×3）、Test N、條件式 J/K。
 
 ### Test B / C / E 結果
 
-| 測項 | 結果 | 備註 |
-|------|------|------|
-| Test B | ✅ pass (~4s) | `centeredOk: true`；清除篩選回編輯句 **可置中** |
-| Test C | ✅ pass (~7s) | stale nav 取消、`navAnchorLock: false` |
-| Test E | ✅ pass (~1s) | `#sfInput` 保持焦點 |
+| 測項 | Wave 1 批次跑 | 驗收重跑（單獨 `-g`） | 備註 |
+|------|---------------|----------------------|------|
+| Test B | ✅ pass (~4s) | ❌ **fail** (~23s) | `activeSegId=25` 正確，但 `centeredOk: false`；`rowCenterDeltaPx ≈ -32`；`flush failed { failureReason: center }` |
+| Test C | ✅ pass (~7s) | （未重跑） | stale nav 取消、`navAnchorLock: false` |
+| Test E | ✅ pass (~1s) | （未重跑） | `#sfInput` 保持焦點 |
 
-**解讀**：B pass 表示「清除篩選回句」置中路徑可用；A fail **較偏 Ctrl+Enter confirm-jump**，非大檔 virt 置中全面失效。
+**解讀（更新）**：Test A 穩定 fail（`|delta| ≈ 71`）。Test B 在 Wave 1 批次曾 pass，但**驗收重跑單獨執行時也 fail** → 大檔 virt **explicit 置中**問題可能**不限於 Ctrl+Enter**，清除篩選回句路徑亦可能失敗（間歇或環境敏感，待 Wave 2／產品修復時再釐清）。
+
+### 驗收重跑（2026-07-02，PM 請求）
+
+指令：
+
+```powershell
+npx playwright test -g "Test B —" --project=chromium
+npx playwright test -g "Test A —" --project=chromium
+```
+
+| 測項 | 結果 | 關鍵數值 |
+|------|------|----------|
+| Test B | ❌ fail | `centeredOk: false`；`activeSegId=25`；`rowCenterDeltaPx ≈ -32` |
+| Test A | ❌ fail（符合預期） | `centeredOk: false`；`activeSegId=21`；`rowCenterDeltaPx ≈ 71.6`（與 Wave 1 一致） |
+
+**本機 artifact**（`test-results/` 在 `.gitignore`，**不會隨 git 推送**；給 GPT 5.5 需另傳檔）：
+
+| 類型 | Test A | Test B |
+|------|--------|--------|
+| 失敗截圖 | `c:\Homemade Apps\1UP TMS\test-results\cat-navigation-2-3q-Phase--4627d-檔-Test-A-—-Ctrl-Enter-×3-置中-chromium\test-failed-1.png` | `c:\Homemade Apps\1UP TMS\test-results\cat-navigation-2-3q-Phase--957aa-A–I-—-大檔-Test-B-—-清除篩選回到編輯句-chromium\test-failed-1.png` |
+| trace | `c:\Homemade Apps\1UP TMS\test-results\cat-navigation-2-3q-Phase--4627d-檔-Test-A-—-Ctrl-Enter-×3-置中-chromium\trace.zip` | `c:\Homemade Apps\1UP TMS\test-results\cat-navigation-2-3q-Phase--957aa-A–I-—-大檔-Test-B-—-清除篩選回到編輯句-chromium\trace.zip` |
+
+#### trace 是什麼？GPT 5.5 如何讀？
+
+**trace**（`trace.zip`）是 Playwright 在測試失敗時錄下的**互動回放包**：含每一步截圖、DOM 快照、console、網路請求與時間軸，可在瀏覽器裡逐步重播，比單張失敗截圖更完整。
+
+GPT 5.5 **無法直接讀 git 裡的路徑**（artifact 未入庫）。可行做法：
+
+1. **線上 Trace Viewer**（推薦）：開 [https://trace.playwright.dev](https://trace.playwright.dev)，把 `trace.zip` 拖進去；人類或代理在瀏覽器逐步查看後，把關鍵畫面／console 摘要貼給 GPT。
+2. **上傳給 GPT**：在 ChatGPT／支援附件的介面直接上傳 `trace.zip` 或 `test-failed-1.png`（zip 支援度因產品而異；截圖最穩）。
+3. **請 GPT 5.5 自己重跑**：在有 `.env`、大檔 fixture 的環境執行相同 `-g` 指令，失敗後用 `npx playwright show-trace <path>\trace.zip` 本機檢視。
+4. **Slack／雲端**：將 `trace.zip` 上傳 Slack thread 或雲端連結，再請 GPT 依連結下載（若其環境允許）。
+
+本機開啟 trace：
+
+```powershell
+npx playwright show-trace "c:\Homemade Apps\1UP TMS\test-results\cat-navigation-2-3q-Phase--4627d-檔-Test-A-—-Ctrl-Enter-×3-置中-chromium\trace.zip"
+```
 
 ### 回歸（spec/helpers 變更後）
 
@@ -869,19 +907,20 @@ Wave 1 通過後再開 Wave 2：I′（3×3）、Test N、條件式 J/K。
 ### Wave 1 結論
 
 ```text
-是否進入 cat-tool 產品修復：是（Test A L2；對照 CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md，PM 同意後開修復波）
-修復焦點：大檔 virt 下 Ctrl+Enter confirm-jump 置中（flush center retry 耗盡）
+是否進入 cat-tool 產品修復：是（Test A L2 穩定 fail；Test B 驗收重跑亦 fail）
+修復焦點：大檔 virt 下 explicit 置中（flush center retry 耗盡）；含 Ctrl+Enter confirm-jump，清除篩選回句路徑亦需納入
 是否開 Wave 2（I′、N）：是（與產品修復可並行；I′ 驗證 PM 機率性手動點擊）
-本輪變更：拆 serial、clickTargetAtDisplay、Test A/B/C/I  deterministic 點擊
-本輪 commit：516566d
+本輪變更：拆 serial、clickTargetAtDisplay、Test A/B/C/I deterministic 點擊
+Wave 1 commit：516566d、3b4bf02
+驗收重跑：2026-07-02（A/B 皆 fail；見上表 artifact 路徑）
 ```
 
 ### 分類決策樹（本輪落地）
 
 ```text
-A 修正點擊後仍 fail → L2 產品向（本輪已證實）
-B pass、A fail      → 偏 Ctrl+Enter confirm-jump，非清除篩選路徑
-C/E pass           → stale 取消、Ctrl+F 路徑目前可接受
+A 修正點擊後仍 fail → L2 產品向（本輪已證實，可穩定重現）
+B 批次 pass、驗收重跑 fail → 置中問題可能間歇或單跑／批次狀態差異；不再假設「僅 Ctrl+Enter 路徑」
+C/E pass（首輪）     → stale 取消、Ctrl+F 路徑目前可接受（未在驗收重跑覆測）
 ```
 
 ---
