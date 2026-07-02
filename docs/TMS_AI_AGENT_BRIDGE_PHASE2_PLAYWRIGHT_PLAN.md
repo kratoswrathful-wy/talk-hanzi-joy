@@ -121,7 +121,7 @@ npx playwright test tests/auth.setup.ts
 | 欄位 | 值 |
 |------|-----|
 | 日期 | 2026-07-02 |
-| Commit | （本輪推送） |
+| Commit | `a2d2837` |
 | 環境 | 線上 `https://talk-hanzi-joy.vercel.app` + **測試模式**（`PLAYWRIGHT_ENTER_TEST_MODE=1`；假執行長 `test-exec@test.local`，`env=test`） |
 | 指令 | `npm run test:e2e -- tests/ai-bridge-phase2.spec.ts` |
 | 總結 | **10 passed / 0 failed**（約 54s；線上**測試模式**，非正式區） |
