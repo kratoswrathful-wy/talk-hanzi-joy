@@ -735,6 +735,39 @@ db.version(27).stores({
     userSegmentMarkers: '[fileId+segmentId], fileId, segmentId',
 });
 
+// v28：每人每專案 AI 批次 prefs（Offline）
+db.version(28).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiUserBatchPrefs: '[userId+projectId], userId, projectId, updatedAt',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt',
+    workflowTemplates: '++id, projectId, isDefault',
+    workflowTemplateStages: '++id, templateId, stageOrder',
+    fileWorkflowStages: '++id, fileId, stageOrder',
+    stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
+    stageSnapshots: '++id, segmentId, fileId, [segmentId+snapshotReason]',
+    segmentAnnotations: '++id, segmentId, fileId, parentAnnotationId',
+    annotationOptions: '++id, optionType, sortOrder',
+    userSegmentMarkers: '[fileId+segmentId], fileId, segmentId',
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -2109,6 +2142,32 @@ const DBService = {
         }
         return result;
     },
+
+    // ---- AI User Batch Prefs（每人每專案）----
+    async getAiUserBatchPrefs(projectId, userId) {
+        if (!projectId || !userId) return { prefs: {} };
+        const row = await db.aiUserBatchPrefs.get([String(userId), String(projectId)]);
+        if (row && row.prefs && typeof row.prefs === 'object') {
+            return { prefs: row.prefs, updatedAt: row.updatedAt || null };
+        }
+        return { prefs: {} };
+    },
+    async saveAiUserBatchPrefs(projectId, userId, prefsPatch) {
+        if (!projectId || !userId) return;
+        const uid = String(userId);
+        const pid = String(projectId);
+        const existing = await db.aiUserBatchPrefs.get([uid, pid]);
+        const basePrefs = existing && existing.prefs && typeof existing.prefs === 'object' ? existing.prefs : {};
+        const mergedPrefs = { ...basePrefs, ...(prefsPatch && typeof prefsPatch === 'object' ? prefsPatch : {}) };
+        const updatedAt = new Date().toISOString();
+        if (existing) {
+            await db.aiUserBatchPrefs.update([uid, pid], { prefs: mergedPrefs, updatedAt });
+        } else {
+            await db.aiUserBatchPrefs.put({ userId: uid, projectId: pid, prefs: mergedPrefs, updatedAt });
+        }
+        return mergedPrefs;
+    },
+
     /** 新專案依庫內 isDefault 帶入勾選的準則／文風 id */
     async applyDefaultAiProjectSettingsForNewProject(projectId) {
         if (!projectId) return;
@@ -2446,6 +2505,8 @@ const DBService = {
     DBService.saveAiSettings = async (settings) => rpc('db.saveAiSettings', { settings });
     DBService.getAiProjectSettings = async (projectId) => rpc('db.getAiProjectSettings', { projectId });
     DBService.saveAiProjectSettings = async (projectId, patch) => rpc('db.saveAiProjectSettings', { projectId, patch });
+    DBService.getAiUserBatchPrefs = async (projectId, userId) => rpc('db.getAiUserBatchPrefs', { projectId, userId });
+    DBService.saveAiUserBatchPrefs = async (projectId, userId, prefs) => rpc('db.saveAiUserBatchPrefs', { projectId, userId, prefs });
     DBService.getAiIssueGroups = async (params) => rpc('db.getAiIssueGroups', params || {});
     DBService.addAiIssueGroup = async (payload) => rpc('db.addAiIssueGroup', payload);
     DBService.updateAiIssueGroup = async (id, patch) => rpc('db.updateAiIssueGroup', { id, ...patch });

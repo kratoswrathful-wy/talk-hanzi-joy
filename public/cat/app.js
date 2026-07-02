@@ -35527,9 +35527,91 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentProjectId) return;
         const opts = _readAiBatchRefOptionsFromDom();
         delete opts.tbIncludeHidden;
-        await DBService.saveAiProjectSettings(currentProjectId, {
-            batchRefOptions: opts
-        }).catch(() => {});
+        const uid = String(window._tmsCurrentUserId || 'local');
+        if (typeof DBService.saveAiUserBatchPrefs === 'function') {
+            await DBService.saveAiUserBatchPrefs(currentProjectId, uid, { batchRefOptions: opts }).catch(() => {});
+        } else {
+            await DBService.saveAiProjectSettings(currentProjectId, { batchRefOptions: opts }).catch(() => {});
+        }
+    }
+
+    async function _loadAndApplyAiUserBatchPrefs() {
+        if (!currentProjectId) return null;
+        const uid = String(window._tmsCurrentUserId || 'local');
+        let loaded = { prefs: {} };
+        if (typeof DBService.getAiUserBatchPrefs === 'function') {
+            loaded = await DBService.getAiUserBatchPrefs(currentProjectId, uid).catch(() => ({ prefs: {} }));
+        }
+        const prefs = loaded.prefs && typeof loaded.prefs === 'object' ? loaded.prefs : {};
+        if (prefs.batchRefOptions && typeof prefs.batchRefOptions === 'object') {
+            _applyAiBatchRefOptionsToDom(prefs.batchRefOptions);
+        } else {
+            const ps = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
+            if (ps?.batchRefOptions) _applyAiBatchRefOptionsToDom(ps.batchRefOptions);
+            else _applyAiBatchRefOptionsToDom({});
+        }
+        if (prefs.rangeMode) {
+            window.__catAiBatchRangeMode = prefs.rangeMode;
+            _setAiBatchRangeMode(prefs.rangeMode);
+        }
+        const exprEl = document.getElementById('aiBatchRangeExpr');
+        if (exprEl && prefs.rangeExpr !== undefined) exprEl.value = String(prefs.rangeExpr || '');
+        const rowLimitEl = document.getElementById('aiBatchLimitRows');
+        const charLimitEl = document.getElementById('aiBatchLimitChars');
+        if (rowLimitEl && prefs.batchRowLimit) rowLimitEl.value = String(prefs.batchRowLimit);
+        if (charLimitEl && prefs.batchCharLimit) charLimitEl.value = String(prefs.batchCharLimit);
+        const introEl = document.getElementById('aiBatchIntroduction');
+        if (introEl && typeof prefs.batchIntroduction === 'string') introEl.value = prefs.batchIntroduction;
+        const domSelects = {
+            handleConfirmed: 'aiBatchHandleConfirmed',
+            handleUnconfirmed: 'aiBatchHandleUnconfirmed',
+            tmAction: 'aiBatchTmAction',
+            handleRepetitions: 'aiBatchHandleRepetitions',
+        };
+        Object.entries(domSelects).forEach(([key, elId]) => {
+            if (prefs[key] !== undefined) {
+                const el = document.getElementById(elId);
+                if (el) el.value = String(prefs[key]);
+            }
+        });
+        if (prefs.tmThreshold !== undefined) {
+            const tmEl = document.getElementById('aiBatchTmThreshold');
+            if (tmEl) tmEl.value = String(prefs.tmThreshold);
+        }
+        return prefs;
+    }
+
+    async function _persistAiUserBatchPrefsFromDom() {
+        if (!currentProjectId) return;
+        const uid = String(window._tmsCurrentUserId || 'local');
+        const opts = _readAiBatchRefOptionsFromDom();
+        delete opts.tbIncludeHidden;
+        const patch = {
+            batchRefOptions: opts,
+            rangeMode: window.__catAiBatchRangeMode || 'all',
+            rangeExpr: document.getElementById('aiBatchRangeExpr')?.value || '',
+            batchRowLimit: parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20,
+            batchCharLimit: parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500,
+            batchIntroduction: document.getElementById('aiBatchIntroduction')?.value || '',
+            handleConfirmed: document.getElementById('aiBatchHandleConfirmed')?.value || 'skip',
+            handleUnconfirmed: document.getElementById('aiBatchHandleUnconfirmed')?.value || 'skip',
+            tmThreshold: parseInt(document.getElementById('aiBatchTmThreshold')?.value || '102', 10),
+            tmAction: document.getElementById('aiBatchTmAction')?.value || 'direct',
+            handleRepetitions: document.getElementById('aiBatchHandleRepetitions')?.value || 'yes',
+            candidatePool: _snapshotAiBatchPool(),
+        };
+        if (typeof DBService.saveAiUserBatchPrefs === 'function') {
+            await DBService.saveAiUserBatchPrefs(currentProjectId, uid, patch).catch(() => {});
+        }
+    }
+
+    let __aiBatchUserPrefsSaveTimer = null;
+    function _queueSaveAiUserBatchPrefs() {
+        if (__aiBatchUserPrefsSaveTimer) clearTimeout(__aiBatchUserPrefsSaveTimer);
+        __aiBatchUserPrefsSaveTimer = setTimeout(() => {
+            __aiBatchUserPrefsSaveTimer = null;
+            void _persistAiUserBatchPrefsFromDom();
+        }, 220);
     }
 
     function _queueSaveAiBatchRefOptions() {
@@ -35537,6 +35619,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         __aiBatchRefOptionsSaveTimer = setTimeout(() => {
             __aiBatchRefOptionsSaveTimer = null;
             void _saveAiBatchRefOptions();
+            _queueSaveAiUserBatchPrefs();
         }, 180);
     }
     let __aiBatchProjectSiSaving = false;
@@ -35626,6 +35709,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             fileAp = new Set(_normalizeApplicableSiIds(f));
         }
         __aiBatchPool = _defaultAiBatchPoolFromProjectData(psettings, allGuidelines, fileAp);
+        const uid = String(window._tmsCurrentUserId || 'local');
+        if (typeof DBService.getAiUserBatchPrefs === 'function') {
+            const loaded = await DBService.getAiUserBatchPrefs(currentProjectId, uid).catch(() => null);
+            const savedPool = loaded?.prefs?.candidatePool;
+            if (savedPool && typeof savedPool === 'object') {
+                __aiBatchPool = savedPool;
+            }
+        }
         _renderAiBatchCandidatePool();
     }
 
@@ -36563,11 +36654,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rowLimitEl) rowLimitEl.value = String((s && s.batchSize && s.batchSize >= 1) ? s.batchSize : 20);
             if (charLimitEl) charLimitEl.value = String((s && s.batchChars && s.batchChars >= 200) ? s.batchChars : 2500);
         }).catch(() => {});
-        _applyAiBatchRefOptionsToDom(null);
         void (async () => {
+            const userPrefs = await _loadAndApplyAiUserBatchPrefs();
             if (currentProjectId) {
                 const ps = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
-                if (ps?.batchRefOptions) _applyAiBatchRefOptionsToDom(ps.batchRefOptions);
+                if (ps?.batchRefOptions && !(userPrefs && userPrefs.batchRefOptions)) {
+                    _applyAiBatchRefOptionsToDom(ps.batchRefOptions);
+                }
             }
             _updateBatchStats();
         })();
@@ -36621,7 +36714,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (introEl) {
             void (async () => {
                 let saved = '';
-                if (currentProjectId) {
+                const uid = String(window._tmsCurrentUserId || 'local');
+                if (currentProjectId && typeof DBService.getAiUserBatchPrefs === 'function') {
+                    const up = await DBService.getAiUserBatchPrefs(currentProjectId, uid).catch(() => null);
+                    if (typeof up?.prefs?.batchIntroduction === 'string') saved = up.prefs.batchIntroduction;
+                }
+                if (!saved && currentProjectId) {
                     const ps = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
                     saved = ps?.batchIntroduction ?? '';
                 }
@@ -36644,6 +36742,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 clearTimeout(_introDebounceTmr);
                 _introDebounceTmr = setTimeout(() => {
                     if (currentProjectId) {
+                        const uid = String(window._tmsCurrentUserId || 'local');
+                        if (typeof DBService.saveAiUserBatchPrefs === 'function') {
+                            DBService.saveAiUserBatchPrefs(currentProjectId, uid, { batchIntroduction: introEl.value }).catch(() => {});
+                        }
                         DBService.saveAiProjectSettings(currentProjectId, { batchIntroduction: introEl.value }).catch(() => {});
                     } else {
                         try { localStorage.setItem('catAiBatchIntroduction', introEl.value); } catch (_) {}
@@ -37813,5 +37915,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         await _refreshRevMgmtLists();
         if (window.CatRevTrack) await window.CatRevTrack.reload();
     });
+
+    window.runBatchImport = runBatchImport;
+    window.openAiBatchModal = openAiBatchModal;
+    window._openAiBatchPromptPreview = _openAiBatchPromptPreview;
+    window._snapshotAiBatchPool = _snapshotAiBatchPool;
+    window._readAiBatchRefOptionsFromDom = _readAiBatchRefOptionsFromDom;
+    window._applyAiBatchRefOptionsToDom = _applyAiBatchRefOptionsToDom;
+    if (typeof installCatAgentBridge === 'function') installCatAgentBridge();
 
 });

@@ -1,29 +1,67 @@
 /**
- * LMS AI 操作切入點：掛載 window.__lmsAgent，供 AI 以腳本讀寫案件單／費用單。
- * 複用 caseStore / feeStore 寫入路徑；下拉合法值讀 selectOptionsStore。
+ * LMS AI 操作切入點：掛載 window.__lmsAgent / window.__tmsAgent。
+ * 複用 store 寫入路徑；下拉合法值讀 selectOptionsStore。
  */
 import { caseStore } from "@/stores/case-store";
 import { feeStore } from "@/stores/fee-store";
+import { invoiceStore } from "@/stores/invoice-store";
+import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import { selectOptionsStore } from "@/stores/select-options-store";
-import type { CaseRecord, CaseStatus, CollabRow, WorkGroup } from "@/data/case-types";
+import type {
+  CaseRecord,
+  CaseStatus,
+  CaseComment,
+  CollabRow,
+  ToolEntry,
+  WorkGroup,
+} from "@/data/case-types";
 import type { ClientInfo, FeeTaskItem, TranslatorFee } from "@/data/fee-mock-data";
 import { defaultClientInfo } from "@/data/fee-mock-data";
+import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types";
+import type {
+  ClientInvoice,
+  ClientInvoiceStatus,
+  ClientInvoiceAdjustmentLine,
+  ClientPaymentRecord,
+} from "@/data/client-invoice-types";
+import { generateFeesForCase } from "@/lib/generate-case-fees";
+import { uploadFromBytes, type UploadFromBytesInput, type UploadedFileItem } from "@/lib/ai-agent-upload";
+import { mergeArrayById, resolveArrayPatch } from "@/lib/ai-agent-array-merge";
+import {
+  type AgentResult,
+  agentOk as ok,
+  agentFail as fail,
+  agentFailFrom as failFrom,
+} from "@/lib/ai-agent-types";
+import { supabase } from "@/integrations/supabase/client";
 
-/** 結構化回傳 */
-export type AgentResult<T = unknown> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; allowed?: string[] };
+export type { AgentResult } from "@/lib/ai-agent-types";
 
-/** 案件／費用可寫入的 workflow 狀態（不含定案／交件等敏感態） */
-export const CASE_STATUS_ALLOWED: readonly CaseStatus[] = ["draft", "inquiry", "dispatched"];
-export const CASE_STATUS_BLOCKED: readonly CaseStatus[] = [
+const ALL_CASE_STATUSES: readonly CaseStatus[] = [
+  "draft",
+  "inquiry",
+  "dispatched",
   "task_completed",
   "delivered",
   "feedback",
   "feedback_completed",
 ];
 
-type FieldKind = "text" | "number" | "boolean" | "isoDate" | "select" | "status" | "stringArray";
+const FEE_STATUSES = ["draft", "finalized"] as const;
+const INVOICE_STATUSES: InvoiceStatus[] = ["pending", "partial", "paid"];
+const CLIENT_INVOICE_STATUSES: ClientInvoiceStatus[] = ["pending", "partial_collected", "collected"];
+
+type FieldKind =
+  | "text"
+  | "number"
+  | "boolean"
+  | "isoDate"
+  | "select"
+  | "status"
+  | "stringArray"
+  | "fileItems"
+  | "linkObject"
+  | "json";
 
 interface FieldMeta {
   kind: FieldKind;
@@ -31,13 +69,20 @@ interface FieldMeta {
   statusAllowed?: readonly string[];
 }
 
+interface FileItemShape {
+  name: string;
+  url: string;
+  size?: number;
+}
+
 const CASE_TOP_FIELDS: Record<string, FieldMeta> = {
   title: { kind: "text" },
-  status: { kind: "status", statusAllowed: CASE_STATUS_ALLOWED },
+  status: { kind: "status", statusAllowed: ALL_CASE_STATUSES },
   client: { kind: "select", optionsKey: "client" },
   contact: { kind: "select", optionsKey: "contact" },
   keyword: { kind: "text" },
   clientPoNumber: { kind: "text" },
+  clientCaseLink: { kind: "linkObject" },
   dispatchRoute: { kind: "select", optionsKey: "dispatchRoute" },
   category: { kind: "select", optionsKey: "caseCategory" },
   processNote: { kind: "text" },
@@ -49,26 +94,46 @@ const CASE_TOP_FIELDS: Record<string, FieldMeta> = {
   reviewer: { kind: "select", optionsKey: "assignee" },
   reviewDeadline: { kind: "isoDate" },
   executionTool: { kind: "select", optionsKey: "executionTool" },
+  toolFieldValues: { kind: "json" },
   deliveryMethod: { kind: "text" },
+  deliveryMethodFiles: { kind: "fileItems" },
   clientReceipt: { kind: "text" },
+  clientReceiptFiles: { kind: "fileItems" },
+  customGuidelinesUrl: { kind: "fileItems" },
+  clientGuidelines: { kind: "fileItems" },
+  commonInfo: { kind: "json" },
+  commonLinks: { kind: "json" },
   feeEntry: { kind: "text" },
   multiCollab: { kind: "boolean" },
   collabCount: { kind: "number" },
   internalNoteForm: { kind: "boolean" },
   clientQuestionForm: { kind: "boolean" },
   catToolEnabled: { kind: "boolean" },
+  workingFiles: { kind: "fileItems" },
+  sourceFiles: { kind: "fileItems" },
+  seriesReferenceMaterials: { kind: "fileItems" },
+  caseReferenceMaterials: { kind: "fileItems" },
+  referenceMaterials: { kind: "fileItems" },
+  translatorFinal: { kind: "fileItems" },
+  internalReviewFinal: { kind: "fileItems" },
+  trackChanges: { kind: "fileItems" },
+  questionForm: { kind: "text" },
   otherLoginInfo: { kind: "text" },
   loginAccount: { kind: "text" },
   loginPassword: { kind: "text" },
   onlineToolProject: { kind: "text" },
   onlineToolFilename: { kind: "text" },
-  questionForm: { kind: "text" },
+  iconUrl: { kind: "text" },
+  bodyContent: { kind: "json" },
+  internalRecords: { kind: "json" },
+  declineRecords: { kind: "json" },
+  inquirySlackRecords: { kind: "json" },
 };
 
 const FEE_TOP_FIELDS: Record<string, FieldMeta> = {
   title: { kind: "text" },
   assignee: { kind: "select", optionsKey: "assignee" },
-  status: { kind: "status", statusAllowed: ["draft"] },
+  status: { kind: "status", statusAllowed: FEE_STATUSES },
   internalNote: { kind: "text" },
   internalNoteUrl: { kind: "text" },
 };
@@ -120,18 +185,30 @@ const FEE_CLIENT_TASK_FIELDS: Record<string, FieldMeta> = {
   clientPrice: { kind: "number" },
 };
 
-function ok<T>(data: T): AgentResult<T> {
-  return { ok: true, data };
-}
+const INVOICE_FIELDS: Record<string, FieldMeta> = {
+  title: { kind: "text" },
+  translator: { kind: "select", optionsKey: "assignee" },
+  status: { kind: "status", statusAllowed: INVOICE_STATUSES },
+  transferDate: { kind: "text" },
+  note: { kind: "text" },
+  payments: { kind: "json" },
+};
 
-function fail(error: string, allowed?: string[]): AgentResult<never> {
-  return { ok: false, error, allowed };
-}
-
-/** 從失敗結果轉發 error（避免 union 窄化問題） */
-function failFrom(result: Extract<AgentResult<unknown>, { ok: false }>): AgentResult<never> {
-  return fail(result.error, result.allowed);
-}
+const CLIENT_INVOICE_FIELDS: Record<string, FieldMeta> = {
+  title: { kind: "text" },
+  invoiceNumber: { kind: "text" },
+  client: { kind: "select", optionsKey: "client" },
+  status: { kind: "status", statusAllowed: CLIENT_INVOICE_STATUSES },
+  transferDate: { kind: "text" },
+  note: { kind: "text" },
+  payments: { kind: "json" },
+  isRecordOnly: { kind: "boolean" },
+  recordAmount: { kind: "number" },
+  recordCurrency: { kind: "text" },
+  billingChannel: { kind: "select", optionsKey: "billingChannel" },
+  expectedCollectionDate: { kind: "text" },
+  adjustmentLines: { kind: "json" },
+};
 
 function getOptionLabels(fieldKey: string): string[] {
   return selectOptionsStore.getSortedOptions(fieldKey).map((o) => o.label);
@@ -140,8 +217,37 @@ function getOptionLabels(fieldKey: string): string[] {
 function isValidIsoDate(value: unknown): boolean {
   if (value === null) return true;
   if (typeof value !== "string" || !value.trim()) return false;
-  const ts = Date.parse(value);
-  return !Number.isNaN(ts);
+  return !Number.isNaN(Date.parse(value));
+}
+
+function validateFileItems(path: string, value: unknown): AgentResult<FileItemShape[]> {
+  if (!Array.isArray(value)) return fail(`${path} 必須為陣列`);
+  const out: FileItemShape[] = [];
+  for (let i = 0; i < value.length; i++) {
+    const row = value[i];
+    if (!row || typeof row !== "object") return fail(`${path}[${i}] 必須為物件`);
+    const o = row as Record<string, unknown>;
+    if (typeof o.name !== "string" || typeof o.url !== "string") {
+      return fail(`${path}[${i}] 需含 name 與 url 字串`);
+    }
+    out.push({
+      name: o.name,
+      url: o.url,
+      size: typeof o.size === "number" ? o.size : undefined,
+    });
+  }
+  return ok(out);
+}
+
+function validateLinkObject(path: string, value: unknown): AgentResult<{ url: string; label: string }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fail(`${path} 必須為 { url, label } 物件`);
+  }
+  const o = value as Record<string, unknown>;
+  if (typeof o.url !== "string" || typeof o.label !== "string") {
+    return fail(`${path}.url 與 .label 必須為字串`);
+  }
+  return ok({ url: o.url, label: o.label });
 }
 
 function validateScalar(path: string, meta: FieldMeta, value: unknown): AgentResult<unknown> {
@@ -186,11 +292,14 @@ function validateScalar(path: string, meta: FieldMeta, value: unknown): AgentRes
       if (!allowed.includes(value)) {
         return fail(`${path} 不允許設為「${value}」`, allowed);
       }
-      if ((CASE_STATUS_BLOCKED as readonly string[]).includes(value)) {
-        return fail(`${path} 為敏感 workflow 狀態，AI 切入點不可寫入`, [...CASE_STATUS_ALLOWED]);
-      }
       return ok(value);
     }
+    case "fileItems":
+      return validateFileItems(path, value);
+    case "linkObject":
+      return validateLinkObject(path, value);
+    case "json":
+      return ok(value);
     default:
       return fail(`${path} 未知欄位型別`);
   }
@@ -219,13 +328,77 @@ function validateRecordFields(
   return ok(out);
 }
 
-function validateWorkGroups(value: unknown): AgentResult<WorkGroup[]> {
-  if (!Array.isArray(value)) return fail("workGroups 必須為陣列");
-  const out: WorkGroup[] = [];
+function validateToolEntries(
+  path: string,
+  value: unknown,
+  toolOptionsKey: string,
+): AgentResult<ToolEntry[]> {
+  if (!Array.isArray(value)) return fail(`${path} 必須為陣列`);
+  const toolLabels = getOptionLabels(toolOptionsKey);
+  const out: ToolEntry[] = [];
   for (let i = 0; i < value.length; i++) {
     const row = value[i];
+    if (!row || typeof row !== "object") return fail(`${path}[${i}] 必須為物件`);
+    const obj = row as unknown as Record<string, unknown>;
+    const id = typeof obj.id === "string" ? obj.id : `te-${Date.now()}-${i}`;
+    const tool = typeof obj.tool === "string" ? obj.tool : "";
+    if (tool && toolLabels.length > 0 && !toolLabels.includes(tool)) {
+      return fail(`${path}[${i}].tool「${tool}」不在合法選項中`, toolLabels);
+    }
+    const fieldValues =
+      obj.fieldValues && typeof obj.fieldValues === "object" && !Array.isArray(obj.fieldValues)
+        ? (obj.fieldValues as Record<string, string>)
+        : {};
+    let fileValues: ToolEntry["fileValues"] = {};
+    if (obj.fileValues && typeof obj.fileValues === "object" && !Array.isArray(obj.fileValues)) {
+      for (const [fk, fv] of Object.entries(obj.fileValues as Record<string, unknown>)) {
+        const fi = validateFileItems(`${path}[${i}].fileValues.${fk}`, fv);
+        if (fi.ok === false) return failFrom(fi);
+        fileValues[fk] = fi.data;
+      }
+    }
+    out.push({
+      id,
+      tool,
+      fieldValues,
+      fileValues,
+      fields: Array.isArray(obj.fields) ? (obj.fields as ToolEntry["fields"]) : undefined,
+    });
+  }
+  return ok(out);
+}
+
+function validateComments(value: unknown): AgentResult<CaseComment[]> {
+  if (!Array.isArray(value)) return fail("comments 必須為陣列");
+  const out: CaseComment[] = [];
+  for (let i = 0; i < value.length; i++) {
+    const row = value[i];
+    if (!row || typeof row !== "object") return fail(`comments[${i}] 必須為物件`);
+    const o = row as Record<string, unknown>;
+    if (typeof o.content !== "string" || typeof o.author !== "string") {
+      return fail(`comments[${i}] 需含 author 與 content`);
+    }
+    out.push({
+      id: typeof o.id === "string" ? o.id : `cmt-${Date.now()}-${i}`,
+      author: o.author,
+      content: o.content,
+      createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date().toISOString(),
+      imageUrls: Array.isArray(o.imageUrls) ? (o.imageUrls as string[]) : undefined,
+      fileUrls: Array.isArray(o.fileUrls) ? (o.fileUrls as CaseComment["fileUrls"]) : undefined,
+      replyTo: typeof o.replyTo === "string" ? o.replyTo : undefined,
+    });
+  }
+  return ok(out);
+}
+
+function validateWorkGroups(value: unknown, existing?: WorkGroup[]): AgentResult<WorkGroup[]> {
+  const resolved = resolveArrayPatch(existing ?? [], value);
+  if (!resolved) return fail("workGroups 必須為陣列或 { mergeById: true, items: [...] }");
+  const out: WorkGroup[] = [];
+  for (let i = 0; i < resolved.length; i++) {
+    const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`workGroups[${i}] 必須為物件`);
-    const obj = row as Record<string, unknown>;
+    const obj = row as unknown as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `wg-${Date.now()}-${i}`;
     const validated = validateRecordFields(`workGroups[${i}].`, WORK_GROUP_FIELDS, obj);
     if (validated.ok === false) return failFrom(validated);
@@ -234,13 +407,14 @@ function validateWorkGroups(value: unknown): AgentResult<WorkGroup[]> {
   return ok(out);
 }
 
-function validateCollabRows(value: unknown): AgentResult<CollabRow[]> {
-  if (!Array.isArray(value)) return fail("collabRows 必須為陣列");
+function validateCollabRows(value: unknown, existing?: CollabRow[]): AgentResult<CollabRow[]> {
+  const resolved = resolveArrayPatch(existing ?? [], value);
+  if (!resolved) return fail("collabRows 必須為陣列或 { mergeById: true, items: [...] }");
   const out: CollabRow[] = [];
-  for (let i = 0; i < value.length; i++) {
-    const row = value[i];
+  for (let i = 0; i < resolved.length; i++) {
+    const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`collabRows[${i}] 必須為物件`);
-    const obj = row as Record<string, unknown>;
+    const obj = row as unknown as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `cr-${Date.now()}-${i}`;
     const validated = validateRecordFields(`collabRows[${i}].`, COLLAB_ROW_FIELDS, obj);
     if (validated.ok === false) return failFrom(validated);
@@ -261,13 +435,14 @@ function validateCollabRows(value: unknown): AgentResult<CollabRow[]> {
   return ok(out);
 }
 
-function validateFeeTaskItems(value: unknown): AgentResult<FeeTaskItem[]> {
-  if (!Array.isArray(value)) return fail("taskItems 必須為陣列");
+function validateFeeTaskItems(value: unknown, existing?: FeeTaskItem[]): AgentResult<FeeTaskItem[]> {
+  const resolved = resolveArrayPatch(existing ?? [], value);
+  if (!resolved) return fail("taskItems 必須為陣列或 { mergeById: true, items: [...] }");
   const out: FeeTaskItem[] = [];
-  for (let i = 0; i < value.length; i++) {
-    const row = value[i];
+  for (let i = 0; i < resolved.length; i++) {
+    const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`taskItems[${i}] 必須為物件`);
-    const obj = row as Record<string, unknown>;
+    const obj = row as unknown as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `item-${Date.now()}-${i}`;
     const validated = validateRecordFields(`taskItems[${i}].`, FEE_TASK_ITEM_FIELDS, obj);
     if (validated.ok === false) return failFrom(validated);
@@ -283,13 +458,17 @@ function validateFeeTaskItems(value: unknown): AgentResult<FeeTaskItem[]> {
   return ok(out);
 }
 
-function validateClientTaskItemsArray(value: unknown): AgentResult<ClientInfo["clientTaskItems"]> {
-  if (!Array.isArray(value)) return fail("clientInfo.clientTaskItems 必須為陣列");
+function validateClientTaskItemsArray(
+  value: unknown,
+  existing?: ClientInfo["clientTaskItems"],
+): AgentResult<ClientInfo["clientTaskItems"]> {
+  const resolved = resolveArrayPatch(existing ?? [], value);
+  if (!resolved) return fail("clientInfo.clientTaskItems 必須為陣列或 { mergeById: true, items: [...] }");
   const items: ClientInfo["clientTaskItems"] = [];
-  for (let i = 0; i < value.length; i++) {
-    const row = value[i];
+  for (let i = 0; i < resolved.length; i++) {
+    const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`clientInfo.clientTaskItems[${i}] 必須為物件`);
-    const itemObj = row as Record<string, unknown>;
+    const itemObj = row as unknown as Record<string, unknown>;
     const itemId = typeof itemObj.id === "string" ? itemObj.id : `ci-${Date.now()}-${i}`;
     const itemValidated = validateRecordFields(
       `clientInfo.clientTaskItems[${i}].`,
@@ -352,7 +531,7 @@ export function mergeClientInfoPatch(
   }
 
   if (patchTaskItems !== undefined) {
-    const itemsResult = validateClientTaskItemsArray(patchTaskItems);
+    const itemsResult = validateClientTaskItemsArray(patchTaskItems, existing.clientTaskItems);
     if (itemsResult.ok === false) return failFrom(itemsResult);
     base.clientTaskItems = itemsResult.data;
   }
@@ -360,19 +539,40 @@ export function mergeClientInfoPatch(
   return ok(base);
 }
 
-function validateCasePatch(patch: Record<string, unknown>): AgentResult<Partial<CaseRecord>> {
+function validateCasePatch(
+  patch: Record<string, unknown>,
+  existing?: CaseRecord,
+): AgentResult<Partial<CaseRecord>> {
   const out: Partial<CaseRecord> = {};
   for (const [key, value] of Object.entries(patch)) {
     if (key === "workGroups") {
-      const wg = validateWorkGroups(value);
+      const wg = validateWorkGroups(value, existing?.workGroups);
       if (wg.ok === false) return failFrom(wg);
       out.workGroups = wg.data;
       continue;
     }
     if (key === "collabRows") {
-      const cr = validateCollabRows(value);
+      const cr = validateCollabRows(value, existing?.collabRows);
       if (cr.ok === false) return failFrom(cr);
       out.collabRows = cr.data;
+      continue;
+    }
+    if (key === "tools") {
+      const t = validateToolEntries("case.tools", value, "executionTool");
+      if (t.ok === false) return failFrom(t);
+      out.tools = t.data;
+      continue;
+    }
+    if (key === "questionTools") {
+      const t = validateToolEntries("case.questionTools", value, "questionTool");
+      if (t.ok === false) return failFrom(t);
+      out.questionTools = t.data;
+      continue;
+    }
+    if (key === "comments" || key === "internalComments") {
+      const c = validateComments(value);
+      if (c.ok === false) return failFrom(c);
+      (out as Record<string, unknown>)[key] = c.data;
       continue;
     }
     const meta = CASE_TOP_FIELDS[key];
@@ -393,7 +593,7 @@ function validateFeePatch(
   const out: Partial<TranslatorFee> = {};
   for (const [key, value] of Object.entries(patch)) {
     if (key === "taskItems") {
-      const ti = validateFeeTaskItems(value);
+      const ti = validateFeeTaskItems(value, existingFee?.taskItems);
       if (ti.ok === false) return failFrom(ti);
       out.taskItems = ti.data;
       continue;
@@ -419,6 +619,14 @@ function validateFeePatch(
   return ok(out);
 }
 
+function validateInvoicePatch(patch: Record<string, unknown>): AgentResult<Record<string, unknown>> {
+  return validateRecordFields("invoice.", INVOICE_FIELDS, patch, true);
+}
+
+function validateClientInvoicePatch(patch: Record<string, unknown>): AgentResult<Record<string, unknown>> {
+  return validateRecordFields("clientInvoice.", CLIENT_INVOICE_FIELDS, patch, true);
+}
+
 function buildFieldCatalog() {
   const selectFields = (fields: Record<string, FieldMeta>) =>
     Object.entries(fields)
@@ -439,6 +647,11 @@ function buildFieldCatalog() {
     Object.entries(fields).map(([name, m]) => ({ field: name, kind: m.kind }));
 
   return {
+    governance: [
+      "API 能力完整；實際任務範圍以 Slack／驗收提示為準",
+      "仍依賴 Supabase RLS 與登入 session",
+      "元件層副作用（Slack、部分 edit_logs）可能不會自動觸發",
+    ],
     case: {
       topLevel: scalarFields(CASE_TOP_FIELDS),
       selectFields: selectFields(CASE_TOP_FIELDS),
@@ -446,28 +659,26 @@ function buildFieldCatalog() {
       nested: {
         workGroups: scalarFields(WORK_GROUP_FIELDS),
         collabRows: scalarFields(COLLAB_ROW_FIELDS),
+        tools: "ToolEntry[]（tool, fieldValues, fileValues）",
+        questionTools: "ToolEntry[]",
+        comments: "CaseComment[]",
       },
-      datetimeFields: [
-        "translationDeadline",
-        "reviewDeadline",
-        "collabRows[].translationDeadline",
-        "collabRows[].reviewDeadline",
+      fileArrayFields: [
+        "workingFiles",
+        "sourceFiles",
+        "deliveryMethodFiles",
+        "clientReceiptFiles",
+        "clientGuidelines",
+        "customGuidelinesUrl",
+        "referenceMaterials",
+        "translatorFinal",
+        "internalReviewFinal",
+        "trackChanges",
       ],
-      booleanFields: [
-        "multiCollab",
-        "internalNoteForm",
-        "clientQuestionForm",
-        "catToolEnabled",
-        "collabRows[].accepted",
-        "collabRows[].taskCompleted",
-        "collabRows[].delivered",
-      ],
-      blockedStatuses: [...CASE_STATUS_BLOCKED],
-      allowedStatuses: [...CASE_STATUS_ALLOWED],
+      arrayMerge: "workGroups / collabRows 可傳 { mergeById: true, items: [...] }",
       limitations: [
-        "不提供 delete",
         "變更紀錄（edit_logs）與 Slack 通知等元件層副作用不會自動觸發",
-        "重複標題檢查僅在 UI 公布流程執行，AI 直接寫入 title 不會彈對話框",
+        "重複標題檢查僅在 UI 公布流程執行",
       ],
     },
     fee: {
@@ -479,18 +690,28 @@ function buildFieldCatalog() {
         clientInfo: scalarFields(CLIENT_INFO_FIELDS),
         clientTaskItems: scalarFields(FEE_CLIENT_TASK_FIELDS),
       },
-      booleanFields: Object.keys(CLIENT_INFO_FIELDS).filter((k) => CLIENT_INFO_FIELDS[k].kind === "boolean"),
-      limitations: [
-        "不可定案（status 不可設為 finalized）",
-        "已 finalized 的費用單不可修改",
-        "不提供 delete",
-        "連結案件自動帶入等 UI 連動需手動填欄位",
-      ],
+      arrayMerge: "taskItems / clientInfo.clientTaskItems 可傳 { mergeById: true, items: [...] }",
+      limitations: ["連結案件自動帶入等 UI 連動需手動填欄位"],
+    },
+    invoice: {
+      fields: scalarFields(INVOICE_FIELDS),
+      statusFields: statusFields(INVOICE_FIELDS),
+    },
+    clientInvoice: {
+      fields: scalarFields(CLIENT_INVOICE_FIELDS),
+      statusFields: statusFields(CLIENT_INVOICE_FIELDS),
+    },
+    upload: {
+      method: "upload.fromBytes({ fileName, base64|bytes, contentType?, bucket?, pathPrefix? })",
+    },
+    navigate: {
+      method: "navigate.urlFor({ type, id })",
     },
     datetimeFormat: "ISO 8601 字串，例如 2026-06-30T14:30:00.000Z；null 表示清空",
     usage: [
       "先呼叫 describe() 或 options.get(fieldKey) 查合法值",
-      "再呼叫 case.update / fee.update 或 create",
+      "檔案先 upload.fromBytes，再將 { name, url } 寫入欄位",
+      "再呼叫 case.update / fee.update / invoice.update 等",
     ],
   };
 }
@@ -500,18 +721,60 @@ export interface LmsAgentApi {
   options: {
     get: (fieldKey: string) => AgentResult<{ fieldKey: string; labels: string[] }>;
     listKeys: () => AgentResult<string[]>;
+    getToolSchema: (toolLabel: string, toolFieldKey?: string) => AgentResult<{
+      toolLabel: string;
+      toolFields: { id: string; label: string; type?: string }[];
+    }>;
+  };
+  upload: {
+    fromBytes: (input: UploadFromBytesInput) => Promise<AgentResult<UploadedFileItem>>;
+  };
+  navigate: {
+    urlFor: (input: {
+      type: "case" | "fee" | "invoice" | "clientInvoice";
+      id: string;
+    }) => AgentResult<{ path: string; fullUrl: string }>;
   };
   case: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<CaseRecord[]>;
     get: (id: string) => AgentResult<CaseRecord>;
     create: (initial?: Partial<CaseRecord>) => Promise<AgentResult<CaseRecord>>;
     update: (id: string, patch: Partial<CaseRecord>) => Promise<AgentResult<CaseRecord>>;
+    generateFees: (caseId: string) => Promise<
+      AgentResult<{
+        caseId: string;
+        caseUrl: string;
+        fees: { id: string; title: string; path: string; fullUrl: string }[];
+      }>
+    >;
   };
   fee: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<TranslatorFee[]>;
     get: (id: string) => AgentResult<TranslatorFee>;
     create: (initial?: Partial<TranslatorFee>) => AgentResult<TranslatorFee>;
-    update: (id: string, patch: Partial<TranslatorFee>) => AgentResult<TranslatorFee>;
+    update: (id: string, patch: Partial<TranslatorFee>) => Promise<AgentResult<TranslatorFee>>;
+  };
+  invoice: {
+    list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<Invoice[]>;
+    get: (id: string) => AgentResult<Invoice>;
+    create: (input: {
+      translator: string;
+      feeIds?: string[];
+      title?: string;
+    }) => Promise<AgentResult<Invoice>>;
+    update: (id: string, patch: Record<string, unknown>) => AgentResult<Invoice>;
+    delete: (id: string) => AgentResult<{ id: string }>;
+    addFees: (invoiceId: string, feeIds: string[]) => Promise<AgentResult<Invoice>>;
+    removeFee: (invoiceId: string, feeId: string) => Promise<AgentResult<Invoice>>;
+  };
+  clientInvoice: {
+    list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<ClientInvoice[]>;
+    get: (id: string) => AgentResult<ClientInvoice>;
+    create: (input: { client: string; feeIds?: string[]; title?: string }) => Promise<AgentResult<ClientInvoice>>;
+    update: (id: string, patch: Record<string, unknown>) => AgentResult<ClientInvoice>;
+    delete: (id: string) => AgentResult<{ id: string }>;
+    addFees: (invoiceId: string, feeIds: string[]) => Promise<AgentResult<ClientInvoice>>;
+    removeFee: (invoiceId: string, feeId: string) => Promise<AgentResult<ClientInvoice>>;
   };
 }
 
@@ -531,7 +794,7 @@ const OPTION_FIELD_KEYS = [
   "noteNature",
 ] as const;
 
-function filterList<T extends { title?: string; status?: string }>(
+function filterList<T extends { title?: string; status?: string; client?: string }>(
   items: T[],
   filter?: { search?: string; status?: string; limit?: number },
 ): T[] {
@@ -541,13 +804,37 @@ function filterList<T extends { title?: string; status?: string }>(
   }
   if (filter?.search?.trim()) {
     const q = filter.search.trim().toLowerCase();
-    result = result.filter((x) => (x.title ?? "").toLowerCase().includes(q));
+    result = result.filter((x) => {
+      const title = (x.title ?? "").toLowerCase();
+      const client = ("client" in x && typeof x.client === "string" ? x.client : "").toLowerCase();
+      return title.includes(q) || client.includes(q);
+    });
   }
   const limit = filter?.limit ?? 50;
   return result.slice(0, Math.max(1, limit));
 }
 
-function buildAgentApi(): LmsAgentApi {
+function pathForType(type: string, id: string): string {
+  switch (type) {
+    case "case":
+      return `/cases/${id}`;
+    case "fee":
+      return `/fees/${id}`;
+    case "invoice":
+      return `/invoices/${id}`;
+    case "clientInvoice":
+      return `/client-invoices/${id}`;
+    default:
+      return `/`;
+  }
+}
+
+async function getCurrentUserId(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.user?.id ?? "";
+}
+
+export function buildLmsAgentApi(): LmsAgentApi {
   return {
     describe: () => ok(buildFieldCatalog()),
 
@@ -559,6 +846,31 @@ function buildAgentApi(): LmsAgentApi {
         return ok({ fieldKey, labels: getOptionLabels(fieldKey) });
       },
       listKeys: () => ok([...OPTION_FIELD_KEYS]),
+      getToolSchema: (toolLabel: string, toolFieldKey = "executionTool") => {
+        const opts = selectOptionsStore.getSortedOptions(toolFieldKey);
+        const match = opts.find((o) => o.label === toolLabel);
+        if (!match) {
+          return fail(`找不到工具「${toolLabel}」`, opts.map((o) => o.label));
+        }
+        const toolFields = (match.toolFields ?? []).map((f) => ({
+          id: f.id,
+          label: f.label,
+          type: f.type ?? "text",
+        }));
+        return ok({ toolLabel, toolFields });
+      },
+    },
+
+    upload: {
+      fromBytes: (input) => uploadFromBytes(input),
+    },
+
+    navigate: {
+      urlFor: ({ type, id }) => {
+        const path = pathForType(type, id);
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        return ok({ path, fullUrl: `${origin}${path}` });
+      },
     },
 
     case: {
@@ -571,7 +883,7 @@ function buildAgentApi(): LmsAgentApi {
       },
 
       create: async (initial = {}) => {
-        const patch = { ...initial, status: "draft" as CaseStatus };
+        const patch = { ...initial, status: (initial.status ?? "draft") as CaseStatus };
         const validated = validateCasePatch(patch as Record<string, unknown>);
         if (validated.ok === false) return failFrom(validated);
         const created = await caseStore.create({
@@ -586,11 +898,33 @@ function buildAgentApi(): LmsAgentApi {
       update: async (id, patch) => {
         const existing = caseStore.getById(id);
         if (!existing) return fail(`找不到案件 id=${id}`);
-        const validated = validateCasePatch(patch as Record<string, unknown>);
+        const validated = validateCasePatch(patch as Record<string, unknown>, existing);
         if (validated.ok === false) return failFrom(validated);
         await caseStore.update(id, validated.data);
         const updated = caseStore.getById(id);
         return updated ? ok(updated) : fail("更新後讀取案件失敗");
+      },
+
+      generateFees: async (caseId) => {
+        const caseData = caseStore.getById(caseId);
+        if (!caseData) return fail(`找不到案件 id=${caseId}`);
+        const uid = await getCurrentUserId();
+        const result = generateFeesForCase(caseData, uid);
+        if (!result || result.feeCount === 0) {
+          return fail("無法產生費用單（請確認案件 workGroups／譯者）");
+        }
+        const caseUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/cases/${caseId}`;
+        const fees = result.feeIds.map((fid) => {
+          const f = feeStore.getFeeById(fid);
+          const path = `/fees/${fid}`;
+          return {
+            id: fid,
+            title: f?.title ?? "",
+            path,
+            fullUrl: `${typeof window !== "undefined" ? window.location.origin : ""}${path}`,
+          };
+        });
+        return ok({ caseId, caseUrl, fees });
       },
     },
 
@@ -613,29 +947,212 @@ function buildAgentApi(): LmsAgentApi {
         return created ? ok(created) : fail("建立費用後讀取失敗");
       },
 
-      update: (id, patch) => {
+      update: async (id, patch) => {
         const existing = feeStore.getFeeById(id);
         if (!existing) return fail(`找不到費用 id=${id}`);
-        if (existing.status === "finalized") {
-          return fail("此費用單已定案（finalized），AI 切入點不可修改");
-        }
         const validated = validateFeePatch(patch as Record<string, unknown>, existing);
         if (validated.ok === false) return failFrom(validated);
-        feeStore.updateFee(id, validated.data);
+        const updates = { ...validated.data };
+        if (updates.status === "finalized" && existing.status !== "finalized") {
+          const uid = await getCurrentUserId();
+          updates.finalizedBy = uid || undefined;
+          updates.finalizedAt = new Date().toISOString();
+        }
+        feeStore.updateFee(id, updates);
         const updated = feeStore.getFeeById(id);
         return updated ? ok(updated) : fail("更新後讀取費用失敗");
       },
     },
+
+    invoice: {
+      list: (filter) => ok(filterList(invoiceStore.getInvoices(), filter)),
+
+      get: (id) => {
+        const inv = invoiceStore.getInvoiceById(id);
+        if (!inv) return fail(`找不到譯者請款 id=${id}`);
+        return ok(inv);
+      },
+
+      create: async ({ translator, feeIds = [], title }) => {
+        const created = await invoiceStore.createInvoice(translator, feeIds);
+        if (!created) return fail("建立譯者請款失敗");
+        if (title) invoiceStore.updateInvoice(created.id, { title });
+        const final = invoiceStore.getInvoiceById(created.id);
+        return final ? ok(final) : fail("建立後讀取請款失敗");
+      },
+
+      update: (id, patch) => {
+        const existing = invoiceStore.getInvoiceById(id);
+        if (!existing) return fail(`找不到譯者請款 id=${id}`);
+        const validated = validateInvoicePatch(patch);
+        if (validated.ok === false) return failFrom(validated);
+        invoiceStore.updateInvoice(id, validated.data);
+        const updated = invoiceStore.getInvoiceById(id);
+        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+
+      delete: (id) => {
+        if (!invoiceStore.getInvoiceById(id)) return fail(`找不到譯者請款 id=${id}`);
+        invoiceStore.deleteInvoice(id);
+        return ok({ id });
+      },
+
+      addFees: async (invoiceId, feeIds) => {
+        if (!invoiceStore.getInvoiceById(invoiceId)) return fail(`找不到譯者請款 id=${invoiceId}`);
+        await invoiceStore.addFeesToInvoice(invoiceId, feeIds);
+        const updated = invoiceStore.getInvoiceById(invoiceId);
+        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+
+      removeFee: async (invoiceId, feeId) => {
+        if (!invoiceStore.getInvoiceById(invoiceId)) return fail(`找不到譯者請款 id=${invoiceId}`);
+        await invoiceStore.removeFeeFromInvoice(invoiceId, feeId);
+        const updated = invoiceStore.getInvoiceById(invoiceId);
+        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+    },
+
+    clientInvoice: {
+      list: (filter) => ok(filterList(clientInvoiceStore.getInvoices(), filter)),
+
+      get: (id) => {
+        const inv = clientInvoiceStore.getInvoiceById(id);
+        if (!inv) return fail(`找不到客戶請款 id=${id}`);
+        return ok(inv);
+      },
+
+      create: async ({ client, feeIds = [], title }) => {
+        const created = await clientInvoiceStore.createInvoice(client, feeIds);
+        if (!created) return fail("建立客戶請款失敗");
+        if (title) clientInvoiceStore.updateInvoice(created.id, { title });
+        const final = clientInvoiceStore.getInvoiceById(created.id);
+        return final ? ok(final) : fail("建立後讀取請款失敗");
+      },
+
+      update: (id, patch) => {
+        const existing = clientInvoiceStore.getInvoiceById(id);
+        if (!existing) return fail(`找不到客戶請款 id=${id}`);
+        const validated = validateClientInvoicePatch(patch);
+        if (validated.ok === false) return failFrom(validated);
+        clientInvoiceStore.updateInvoice(id, validated.data);
+        const updated = clientInvoiceStore.getInvoiceById(id);
+        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+
+      delete: (id) => {
+        if (!clientInvoiceStore.getInvoiceById(id)) return fail(`找不到客戶請款 id=${id}`);
+        clientInvoiceStore.deleteInvoice(id);
+        return ok({ id });
+      },
+
+      addFees: async (invoiceId, feeIds) => {
+        if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
+        await clientInvoiceStore.addFeesToInvoice(invoiceId, feeIds);
+        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+
+      removeFee: async (invoiceId, feeId) => {
+        if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
+        await clientInvoiceStore.removeFeeFromInvoice(invoiceId, feeId);
+        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+    },
+  };
+}
+
+export interface TmsAgentApi extends LmsAgentApi {
+  lms: LmsAgentApi;
+  cat: {
+    invoke: (
+      method: string,
+      args?: unknown[],
+    ) => Promise<AgentResult<unknown>>;
+    describe: () => AgentResult<{ note: string; iframeRequired: boolean }>;
   };
 }
 
 declare global {
   interface Window {
     __lmsAgent?: LmsAgentApi;
+    __tmsAgent?: TmsAgentApi;
+    __catAgentInvokePending?: Map<string, { resolve: (v: AgentResult<unknown>) => void; reject: (e: Error) => void }>;
   }
+}
+
+function buildTmsAgentApi(lms: LmsAgentApi): TmsAgentApi {
+  return {
+    ...lms,
+    lms,
+    cat: {
+      describe: () =>
+        ok({
+          note: "CAT 操作請在 iframe 內使用 window.__catAgent，或呼叫 __tmsAgent.cat.invoke",
+          iframeRequired: true,
+        }),
+      invoke: (method, args = []) =>
+        new Promise((resolve) => {
+          if (typeof window === "undefined") {
+            resolve(fail("僅瀏覽器環境可用"));
+            return;
+          }
+          const iframe = document.querySelector<HTMLIFrameElement>('iframe[src*="/cat/"]');
+          if (!iframe?.contentWindow) {
+            resolve(fail("找不到 CAT iframe；請先開啟 /cat 頁面"));
+            return;
+          }
+          const requestId = `cat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+          if (!window.__catAgentInvokePending) {
+            window.__catAgentInvokePending = new Map();
+          }
+          const timer = window.setTimeout(() => {
+            window.__catAgentInvokePending?.delete(requestId);
+            resolve(fail("CAT invoke 逾時"));
+          }, 120000);
+          window.__catAgentInvokePending.set(requestId, {
+            resolve: (v) => {
+              window.clearTimeout(timer);
+              resolve(v);
+            },
+            reject: (e) => {
+              window.clearTimeout(timer);
+              resolve(fail(e.message));
+            },
+          });
+          iframe.contentWindow.postMessage(
+            { type: "CAT_AGENT_INVOKE", requestId, method, args },
+            window.location.origin,
+          );
+        }),
+    },
+  };
 }
 
 export function installAiAgentBridge(): void {
   if (typeof window === "undefined") return;
-  window.__lmsAgent = buildAgentApi();
+  const lms = buildLmsAgentApi();
+  window.__lmsAgent = lms;
+  window.__tmsAgent = buildTmsAgentApi(lms);
+
+  if (!window.__catAgentInvokePending) {
+    window.__catAgentInvokePending = new Map();
+  }
+  window.addEventListener("message", (ev) => {
+    if (ev.origin !== window.location.origin) return;
+    const data = ev.data;
+    if (!data || data.type !== "CAT_AGENT_INVOKE_RESULT") return;
+    const pending = window.__catAgentInvokePending?.get(data.requestId);
+    if (!pending) return;
+    window.__catAgentInvokePending?.delete(data.requestId);
+    if (data.ok === false) {
+      pending.resolve({ ok: false, error: data.error || "CAT invoke 失敗", allowed: data.allowed });
+    } else {
+      pending.resolve({ ok: true, data: data.data });
+    }
+  });
 }
+
+// 向後相容匯出（測試與舊文件）
+export const CASE_STATUS_ALLOWED = ALL_CASE_STATUSES;
+export const CASE_STATUS_BLOCKED: readonly CaseStatus[] = [];

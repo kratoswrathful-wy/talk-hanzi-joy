@@ -605,6 +605,7 @@ const mapAiProjectSettingsRow = (r: any) => ({
   projectAiInstructions: Array.isArray(r.project_ai_instructions) ? r.project_ai_instructions : [],
   projectGuidelines: Array.isArray(r.project_guidelines) ? r.project_guidelines : [],
   batchIntroduction: typeof r.batch_introduction === "string" ? r.batch_introduction : "",
+  batchRefOptions: r.batch_ref_options && typeof r.batch_ref_options === "object" ? r.batch_ref_options : {},
   updatedAt: r.updated_at,
 });
 
@@ -2145,6 +2146,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         projectAiInstructions: [],
         projectGuidelines: [],
         batchIntroduction: "",
+        batchRefOptions: {},
       };
     }
     case "db.saveAiProjectSettings": {
@@ -2169,6 +2171,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         batch_introduction: patch.batchIntroduction !== undefined
           ? String(patch.batchIntroduction ?? "")
           : (typeof currentAny?.batch_introduction === "string" ? currentAny.batch_introduction : ""),
+        batch_ref_options: patch.batchRefOptions !== undefined
+          ? (patch.batchRefOptions && typeof patch.batchRefOptions === "object" ? patch.batchRefOptions : {})
+          : (currentAny?.batch_ref_options && typeof currentAny.batch_ref_options === "object" ? currentAny.batch_ref_options : {}),
         updated_at: nowIso(),
         updated_by: userId,
       };
@@ -2176,6 +2181,54 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (error) throw error;
       await cleanupEmptyIssueGroups({ scope: "project", projectId }).catch(() => {});
       return true;
+    }
+    case "db.getAiUserBatchPrefs": {
+      const env = getEnvironment();
+      const projectId = String(payload.projectId || "");
+      const prefsUserId = String(payload.userId || userId || "");
+      if (!projectId || !prefsUserId) return { prefs: {} };
+      const { data, error } = await supabase
+        .from("cat_ai_user_batch_prefs" as any)
+        .select("prefs, updated_at")
+        .eq("user_id", prefsUserId)
+        .eq("project_id", projectId)
+        .eq("env", env)
+        .maybeSingle();
+      if (error) throw error;
+      return {
+        prefs: data && (data as any).prefs && typeof (data as any).prefs === "object" ? (data as any).prefs : {},
+        updatedAt: (data as any)?.updated_at ?? null,
+      };
+    }
+    case "db.saveAiUserBatchPrefs": {
+      const env = getEnvironment();
+      const projectId = String(payload.projectId || "");
+      const prefsUserId = String(payload.userId || userId || "");
+      const patch = payload.prefs && typeof payload.prefs === "object" ? payload.prefs : {};
+      if (!projectId || !prefsUserId) return null;
+      const { data: current } = await supabase
+        .from("cat_ai_user_batch_prefs" as any)
+        .select("prefs")
+        .eq("user_id", prefsUserId)
+        .eq("project_id", projectId)
+        .eq("env", env)
+        .maybeSingle();
+      const merged = {
+        ...((current as any)?.prefs && typeof (current as any).prefs === "object" ? (current as any).prefs : {}),
+        ...patch,
+      };
+      const row = {
+        user_id: prefsUserId,
+        project_id: projectId,
+        env,
+        prefs: merged,
+        updated_at: nowIso(),
+      };
+      const { error } = await supabase
+        .from("cat_ai_user_batch_prefs" as any)
+        .upsert(row as any, { onConflict: "user_id,project_id,env" });
+      if (error) throw error;
+      return merged;
     }
     case "db.replaceAiDataset":
       // 已停用：以本機快照整批覆寫雲端曾導致誤清空，不再支援此 RPC。

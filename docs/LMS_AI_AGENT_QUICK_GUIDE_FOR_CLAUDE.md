@@ -1,17 +1,29 @@
-# LMS 技能書：Claude 操作 `window.__lmsAgent`
+# LMS 技能書：Claude 操作 `window.__lmsAgent` / `__tmsAgent`
 
-> **給 AI 代理的速查手冊**（非完整規格）。完整開發紀錄、欄位清單與副作用盤點見 [`LMS_AI_AGENT_BRIDGE_2026-06.md`](LMS_AI_AGENT_BRIDGE_2026-06.md)（含 §8 `clientInfo` 修復與 C1–C5 驗收紀錄）。
+> **給 AI 代理的速查手冊**。Phase 2 擴充：[`TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md)；CAT iframe：[`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)。初版紀錄：[`LMS_AI_AGENT_BRIDGE_2026-06.md`](LMS_AI_AGENT_BRIDGE_2026-06.md)。
 
-## 何時用 `__lmsAgent`、何時才點 UI
+## Phase 2 速查（2026-07）
+
+```javascript
+const agent = window.__tmsAgent || window.__lmsAgent;
+await agent.upload.fromBytes({ fileName: "a.pdf", base64: "..." });
+await agent.case.generateFees(caseId);
+await agent.invoice.create({ translator: "譯者甲", feeIds: [] });
+await agent.clientInvoice.create({ client: "CCJK", feeIds: [] });
+agent.navigate.urlFor({ type: "fee", id });
+// CAT（需開 /cat iframe）：
+await window.__tmsAgent.cat.invoke("aiBatch.getSettings");
+```
+
+## 何時用 bridge、何時才點 UI
 
 | 情境 | 做法 |
 |------|------|
-| 填寫／修改**案件單**、**費用單**欄位（下拉、時間、核取、文字、陣列） | **`Runtime.evaluate` 呼叫 `window.__lmsAgent`** |
-| 查合法下拉選項 | `options.get('taskType')` 等，**不要**截圖點 Radix 下拉 |
-| 設交期／審稿期限 | 直接傳 **ISO 字串**，**不要**操作 `DateTimePicker` |
-| 核取方塊（`multiCollab`、`reconciled` 等） | patch 傳 `true` / `false` |
-| 定案費用、刪除單據、公布案件、Slack 通知 | **必須走 UI**（API 不提供或刻意阻擋） |
-| 瀏覽其他頁面、CAT 編輯器、登入 | 照常瀏覽器自動化 |
+| 填寫／修改**案件、費用、請款**欄位 | **`__lmsAgent` / `__tmsAgent`** |
+| **上傳檔案** | `upload.fromBytes`（勿點原生選檔） |
+| **產生費用單** | `case.generateFees(caseId)` |
+| **CAT AI 批次設定** | iframe `__catAgent` 或 `__tmsAgent.cat.invoke` |
+| 公布案件、Slack 通知 | 仍可能無 bridge 副作用；依任務提示 |
 
 **前提**：使用者已登入 LMS；`__lmsAgent` 在 App 啟動後掛在 `window` 上（所有環境常駐）。
 
@@ -55,14 +67,11 @@ window.__lmsAgent.options.listKeys();
 
 1. **先探索再寫入**：不確定選項時先 `options.get` 或 `describe()`。
 2. **時間用 ISO 8601**：例如 `2026-06-30T14:30:00.000Z`；清空傳 `null`。
-3. **僅草稿／早期 workflow**：
-   - 費用：`status` 只能 `draft`；**不可定案**（`finalized`）；已定案單據 `update` 會被拒。
-   - 案件：只允許 `draft` / `inquiry` / `dispatched`；`delivered` 等敏感狀態會被拒。
-4. **不提供 delete**：刪除須請使用者走 UI。
-5. **錯誤自我修正**：`{ ok: false, error, allowed }` → 用 `allowed` 重試。
-6. **不走 UI 的副作用**：Slack、變更紀錄、連結案件自動帶入、重複標題檢查等**不會**觸發（見完整文件）。
-7. **`clientInfo` 可部分更新**（2026-06-30 起）：只傳要改的欄位即可；**未傳的 `clientTaskItems` 會保留**。若 patch 含 `clientTaskItems`，則**整包陣列取代**（須傳完整營收列）。
-8. **陣列欄位**（`taskItems`、`workGroups`、`collabRows`）：有傳則**整包取代**，未傳則不動。
+3. **狀態與刪除**：API 支援全 workflow 狀態、費用定案、請款 CRUD；**實際任務**以驗收提示限制範圍。
+4. **錯誤自我修正**：`{ ok: false, error, allowed }` → 用 `allowed` 重試。
+5. **治理**：元件層副作用（Slack、部分 edit_logs）可能不會自動觸發。
+6. **`clientInfo` 可部分更新**（2026-06-30 起）：只傳要改的欄位即可；**未傳的 `clientTaskItems` 會保留**。若 patch 含 `clientTaskItems`，則**整包陣列取代**（須傳完整營收列），或使用 `{ mergeById: true, items: [...] }`。
+7. **陣列欄位**：可整包取代，或 `{ mergeById: true, items: [...] }` 合併單列。
 
 ### 常用 options key
 
