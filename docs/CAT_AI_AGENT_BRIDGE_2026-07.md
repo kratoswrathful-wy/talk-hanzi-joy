@@ -35,6 +35,19 @@
 4. 換分頁重開 Modal，勾選仍保留（同 user×project）
 5. Team：換瀏覽器同帳號 prefs 一致（需 migration 已 push）
 
+### Playwright 對照
+
+| 手動／AI 項 | Playwright ID | 自動化 |
+|-------------|---------------|--------|
+| 1 | P2-C1 | 是（離線 iframe） |
+| 2 | P2-C2 | 是 |
+| 3 | P2-C3 | 是 |
+| 4 | P2-C4 | 是（關閉再開 Modal；跨 reload 手動） |
+| 5 | P2-C6 | **手動**（Team 跨瀏覽器） |
+| 父頁 `cat.invoke` | P2-C5 | 是 |
+
+完整規格與執行方式：[`TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md)（含 §開發紀錄、線上測試模式說明）
+
 ## 相關檔案
 
 - [`cat-tool/app.js`](../cat-tool/app.js) — `openAiBatchModal`、prefs 讀寫

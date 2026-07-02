@@ -66,6 +66,23 @@ __lmsAgent.navigate.urlFor({ type: "fee", id: "..." });
 4. `invoice.create` / `clientInvoice.create` 可建立並 `get`
 5. 費用 `update` 設 `finalized` 成功
 
+### Playwright 自動驗收
+
+可程式化回歸見 **[`TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md)**：
+
+- LMS：**P2-L1～P2-L8**（`tests/ai-bridge-phase2.spec.ts`）
+- 執行：`npm run test:e2e -- tests/ai-bridge-phase2.spec.ts`
+- 測試資料前綴 **`[PW] ai-bridge`**（測完不自動刪）
+
+> **注意**：P2-L8 驗證費用可定案；與初版 LMS bridge T6（應阻擋 `finalized`）行為已不同，屬 Phase 2 治理放寬。
+
 ## CAT 相關
 
-見 [`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)；父頁 `__tmsAgent.cat.invoke('aiBatch.getSettings')` 需已開啟 `/cat` iframe。
+見 [`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)；父頁 `__tmsAgent.cat.invoke('aiBatch.getSettings')` 需已開啟 `/cat` iframe。CAT Playwright 測項 **P2-C1～P2-C5** 見上列 Playwright 計畫。
+
+## 開發紀錄
+
+| 日期 | 內容 |
+|------|------|
+| 2026-07-02 | Phase 2 功能落地（`0f87353`）：`__tmsAgent`、upload、請款、CAT prefs |
+| 2026-07-02 | Playwright 驗收 spec + **線上測試模式**整合；詳見 [`TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md) §開發紀錄 |

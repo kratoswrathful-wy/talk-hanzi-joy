@@ -116,6 +116,11 @@ async function waitForEditorSegments(frame: FrameLocator, timeoutMs: number) {
   await frame.locator(".grid-data-row").first().waitFor({ state: "visible", timeout: 60_000 });
 }
 
+/** 重開已匯入檔案之編輯器（reload 後用） */
+export async function waitForCatEditorReady(frame: FrameLocator, timeoutMs = 180_000) {
+  await waitForEditorSegments(frame, timeoutMs);
+}
+
 async function createProjectIfNeeded(frame: FrameLocator, projectName: string) {
   await frame.locator('[data-view="viewProjects"]').click();
   await frame.locator("#viewProjects").waitFor({ state: "visible", timeout: 15_000 });

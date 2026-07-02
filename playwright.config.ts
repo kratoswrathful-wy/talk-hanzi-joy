@@ -25,6 +25,7 @@ function loadDotEnv() {
 loadDotEnv();
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:8080";
+const isLocalBase = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(baseURL);
 
 export default defineConfig({
   testDir: "./tests",
@@ -52,16 +53,20 @@ export default defineConfig({
     {
       name: "chromium",
       dependencies: ["setup"],
-      testMatch: /cat-navigation-2-3q\.spec\.ts/,
+      testMatch: /(cat-navigation-2-3q|ai-bridge-phase2)\.spec\.ts/,
       use: {
         storageState: "playwright/.auth/user.json",
       },
     },
   ],
-  webServer: {
-    command: "npm run dev",
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  ...(isLocalBase
+    ? {
+        webServer: {
+          command: "npm run dev",
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        },
+      }
+    : {}),
 });
