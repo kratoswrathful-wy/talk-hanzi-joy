@@ -1,6 +1,6 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**規劃定案，未實作**（2026-07-02）  
+> **狀態**：**初版已實作**（2026-07-02）— `playwright.config.ts`、`tests/cat-navigation-2-3q.spec.ts`、helpers；執行需 `PLAYWRIGHT_TEST_EMAIL`／`PASSWORD`；**首輪本機執行報告見 §測試執行報告**（D／G／H／I 通過；A 未通過；B／C／E 未跑）
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -30,7 +30,7 @@
 | 大檔樣本 | `Test_Big.mqxliff` — **6333 句**，~10.7 MB，`CatVirtGrid.isEnabled() === true` |
 | 小檔樣本 | `Test_Small.mqxliff` — **33 句**，~64 KB，非 virt 路徑 |
 | 測試環境 | **強制**只在測試環境跑；禁止預設打 production |
-| 本文件範圍 | 計畫與規格；**Playwright 程式尚未安裝** |
+| 本文件範圍 | 計畫 + **初版 Playwright 程式**（`npm run test:e2e`） |
 
 樣本來源（PM 提供）：本機 `Downloads/Test_Big.mqxliff`、`Downloads/Test_Small.mqxliff`，可匯入離線版 CAT。`Test_Big`（6333 句）與產品樣本 `54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff` 同屬大檔 virt 路徑；可選 `PLAYWRIGHT_CAT_RIFTBOUND_FIXTURE` 指向後者做手動對照。
 
@@ -69,7 +69,7 @@ Playwright **可以且應該**指定只在測試環境工作。三層隔離：
 
 | 項目 | 設定 |
 |------|------|
-| 預設 baseURL | `http://localhost:5173` |
+| 預設 baseURL | `http://localhost:8080`（與 `vite.config.ts` 一致） |
 | 啟動方式 | `playwright.config.ts` 的 `webServer` 自動跑 `npm run dev` |
 | CAT 路徑 | `/cat/offline` only |
 | 資料 | 本機 IndexedDB + 匯入 fixture |
@@ -159,13 +159,19 @@ if (isProd && process.env.PLAYWRIGHT_ALLOW_PRODUCTION !== '1') {
 
 ---
 
-## Playwright 基礎建設（下階段實作）
+## Playwright 基礎建設（已實作）
 
-**依賴**（尚未安裝）：
+**依賴**：
 
 ```bash
 npm install -D @playwright/test
 npx playwright install chromium
+```
+
+**執行前**：在 `.env` 加入 `PLAYWRIGHT_TEST_EMAIL`、`PLAYWRIGHT_TEST_PASSWORD`（TMS 登入帳密）。
+
+```bash
+npm run test:e2e
 ```
 
 **建議檔案結構**：
@@ -243,6 +249,21 @@ Test C 須 assert `navAnchorLock === false`。
 ### `pollViewportStable(frame, ms?, interval?)`
 
 在 iframe 內每 `interval`（預設 100ms）記錄 `#editorGrid.scrollTop` 與第一個可見 `.grid-data-row` 的 `data-seg-id`；於 `ms`（預設 2000）內若 scrollTop 或 firstVisibleSegId **變動超過 2 次** → `stable: false`。
+
+### `jumpToDisplayIndex(frame, displayId)`（2026-07-02 實作）
+
+大檔 virt 下手動捲動不可靠；改點 `#btnJumpToSegmentToolbar`（Ctrl+G）→ `#catGenericPromptModal` 填 display # → `#btnCatGenericPromptOk`。跳轉後 `pollViewportStable` 再回傳該列 `data-seg-id`。呼叫前須 `dismissBlockingModals`。
+
+### `dismissBlockingModals(frame)`（2026-07-02 實作）
+
+依序關閉擋住點擊的 overlay：
+
+- `#highMatchGuardModal` → `#btnHighMatchGuardOk`（高相符度句段編輯確認）
+- `#catGenericConfirmModal` → `#btnCatGenericConfirmCancel`（Workflow「檔案準備中」；標題「檔案準備中」，不阻擋編輯）
+
+### `clickConfirmedTargetNearDisplay(frame, centerDisplay, radius?)`（2026-07-02 實作）
+
+`jumpToDisplayIndex` 後在可見 DOM 掃 `.grid-data-row.row-bg-confirmed`（display 落在 `center ± radius`；fallback 掃 display # 小於 500），點該列 `.col-target .grid-textarea`，回傳 `segId`。Test G／H 前置步驟 2 用此取代僅 `findConfirmedTargetSegId`。
 
 ### `getCatNavSnapshot(frame)`
 
@@ -412,6 +433,119 @@ pollViewportStable === true
 6. Test E → F（第二輪）
 7. 可選 GitHub Actions（preview URL + fixture artifact）
 ```
+
+---
+
+## 測試執行報告（2026-07-02）
+
+> **審查對象**：GPT 5.5（或後續 AI 代理）— 本節為可機讀的執行紀錄與接續指引，非給 PM 手動點 UI 的步驟清單。  
+> **執行者**：Cursor 代理（本機 Windows + PowerShell）  
+> **環境**：`PLAYWRIGHT_BASE_URL` 預設 `http://localhost:8080`；`webServer` 自動 `npm run dev`；帳密自 `.env`（`PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`，**勿 commit**）  
+> **大檔 fixture**：`Test_Big.mqxliff`（6333 句）；小檔 `tests/fixtures/Test_Small.mqxliff`  
+> **程式狀態**：helpers／spec 修正已寫入工作區；**截至本報告撰寫時尚未 git commit／push**
+
+### 失敗分類（審查時請先讀）
+
+| 類型 | 定義 | 本輪是否出現 |
+|------|------|--------------|
+| **L0 跑不起來** | 語法錯誤、`No tests found`、登入失敗、fixture 缺失 | 早期 G 輪有（重複 import）；已修 |
+| **L1 基礎設施 timeout** | 測試腳本／selector／modal 未處理導致 180s timeout | 早期 G 輪有；已修（見 §基礎設施修正） |
+| **L2 斷言未通過** | 流程跑完，`expect`／`expect.poll` 條件不成立 | **Test A**（`centeredOk: false`） |
+| **L3 未執行** | `describe.serial` 前項失敗而 skip | **Test B**（A 失敗後）；**C／E** 本輪未單獨 invoke |
+
+**結論（給審查者）**：本輪**不是**「Playwright 整體跑不起來」；多數測項已完成驗收流程並得出 pass／fail。**唯一產品向 fail 為 Test A**（大檔 explicit 置中）。G／H／I pass 表示 F8→virt 重畫路徑在目前 fixture 上可接受。
+
+### 執行結果總表
+
+| 測項 | 結果 | 耗時（約） | 備註 |
+|------|------|-----------|------|
+| `auth.setup` | ✅ pass | ~3s | 等 `iframe[title="CAT 個人離線版"]`，勿用 `not.toHaveURL(/login/)` |
+| **Test D** | ✅ pass | ~29s | 小檔；`CatVirtGrid.isEnabled() === false`；`centeredOk === true` |
+| **Test A** | ❌ fail | ~33s | 大檔；`Ctrl+Enter` 後 30s poll：`centeredOk` 仍 `false`；焦點在譯文格 |
+| **Test B** | ⏭ skip | — | 與 A 同 `describe.serial` |
+| **Test C** | ⏭ 未跑 | — | 本輪未 `-g` 單獨執行 |
+| **Test G** | ✅ pass | ~11s | 見 §GHI 最終輪 |
+| **Test H** | ✅ pass | ~11s | |
+| **Test I** | ✅ pass | ~3s | |
+| **Test E** | ⏭ 未跑 | — | |
+
+**最終可宣告通過**：setup + D + G + H + I（**5+1 項**）。  
+**明確未通過**：A。**待跑**：B（依賴 A 或拆 serial）、C、E。
+
+### 代表性指令與 exit code
+
+```powershell
+Set-Location "c:\Homemade Apps\1UP TMS"
+npx playwright test -g "Test D" --project=chromium                    # exit 0
+npx playwright test -g "Test G —|Test H —|Test I —" --project=chromium  # exit 0（最終輪）
+npx playwright test -g "Test A —|Test B —" --project=chromium          # exit 1（A fail）
+npm run test:e2e                                                      # 全套；大檔 beforeAll 可達 3～10+ min
+```
+
+失敗 trace（Test A）：`test-results/cat-navigation-2-3q-Phase--4627d-*-Test-A-*-chromium/trace.zip`  
+診斷：`npx playwright show-trace <path>` → 查 `rowCenterDeltaPx`、`getCatNavSnapshot`。
+
+### Test A 失敗細節（L2，產品／量測待釐清）
+
+- **檔案**：`tests/cat-navigation-2-3q.spec.ts` Test A
+- **前置**：`openOfflineCatWithFile` + `assertVirtEnabled(true)`；`scrollToDisplayIndex(20)`；點譯文格
+- **動作**：`Control+Enter`（規格寫 ×5；spec 實作 ×3）
+- **失敗斷言**：
+
+```js
+expect.poll(getCatNavigationState).toMatchObject({
+  activeIsGridTextarea: true,
+  activeInTargetCol: true,
+  centeredOk: true,   // 收到 false
+});
+```
+
+- **已排除**：登入、開檔、virt 啟用、焦點不在譯文格
+- **審查假說**（擇一或並存）：
+  1. **產品**：大檔 virt 下 `flushPendingEditorFocus`／置中捲動在 headless 仍未在 30s 內收斂（2.3q 置中回歸）
+  2. **測試**：`measureRowCenterDeltaPx` 與 virt 重畫時序競態；可試拉長 poll、先 `pollViewportStable`、或記錄 `rowCenterDeltaPx` 數值再定門檻
+  3. **環境**：`resetEditorView` 每測前 `scrollTop=0` 是否干擾 A（GHI 未要求 `centeredOk` 故不受影響）
+
+**與 G/H/I 的關係**：G/H/I 依計畫**不要求** `centeredOk`；A fail **不推翻** G/H/I pass 對 F8／viewport 的結論。
+
+### 基礎設施修正（L1，已寫入 helpers／spec）
+
+審查接續時請假設下列已存在於 `tests/helpers/` 與 `cat-navigation-2-3q.spec.ts`：
+
+| 問題 | 症狀 | 修正 |
+|------|------|------|
+| 專案歡迎 Modal | 擋「匯入檔案」 | `dismissProjectWelcome` → `#btnProjectWelcomeSkip` |
+| 語言對不符 | 匯入 wizard 卡住 | 匯入選 `en-us`／`zh-tw`；`#batchImportLangMismatchDialog` 確定 |
+| mq 身分 Modal 晚出現 | 句段 0/0 | `confirmMqRoleOnOpen` 輪詢至 120s |
+| 大檔 virt 捲動 | `scrollToDisplayIndex` 回傳 null | 改 `jumpToDisplayIndex`（Ctrl+G） |
+| 高相符度 guard | `#highMatchGuardModal` 擋點擊 | `dismissHighMatchGuard` → 仍要編輯 |
+| Workflow 檔案準備中 | `#catGenericConfirmModal` 擋工具列 | `dismissCatGenericConfirm` → 取消 |
+| G 找不到已確認句 | `findConfirmedTargetSegId` 僅掃可見列且範圍過窄 | `clickConfirmedTargetNearDisplay(frame, 17, 10)` |
+| virt 點 `.first()` 譯文格 | DOM detach 重試至 timeout | 改以 `jumpToDisplayIndex` 回傳之 `data-seg-id` 點擊 |
+
+`describe.serial` 僅套在 **Test A–I 大檔**區塊；Test D 獨立。
+
+### G/H/I 迭代紀錄（供審查者略讀）
+
+| 輪次 | exit | 主因 |
+|------|------|------|
+| 1 | 1 | `clickTargetTextareaAtDisplay(3100)` → virt DOM detach |
+| 2 | 1 | `#catGenericConfirmModal`（檔案準備中）擋 `#btnJumpToSegmentToolbar` |
+| 3 | 1 | `findConfirmedTargetSegId` 回傳 null（jump 至 15 後可見列無綠底） |
+| **4** | **0** | 上述修正 + `clickConfirmedTargetNearDisplay`；**4 passed ~1.1 min** |
+
+### 給 GPT 5.5 的接續任務（建議優先序）
+
+1. **Test A 根因**：讀 A 的 trace／snapshot；在 iframe 內 log `rowCenterDeltaPx`、`virt.getDebugState()`；判定修產品或修測試等待
+2. **拆 serial 或單跑 B**：`npx playwright test -g "Test B —"`；B 亦要求 `centeredOk`，可能與 A 同源
+3. **補跑 C、E**：`npx playwright test -g "Test C —|Test E —"`
+4. **commit**：helpers + spec + 本報告；**排除** `.env`
+5. **若 A/B 確認產品 bug**：對照 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md) 開修復；G～I 作為 F8 路徑回歸網
+
+### 與 Slack Claude 驗收的邊界
+
+- 本 Playwright 套件：**本機／CI 回歸**；目前**未**接 Slack `#development` AI 驗收流程
+- 部署後全量驗收仍依 [`.cursor/rules/claude-ai-acceptance-slack.mdc`](../.cursor/rules/claude-ai-acceptance-slack.mdc)；若 PM 要 AI 驗收 2.3q，須另發任務並含 commit 短碼
 
 ---
 
