@@ -1111,7 +1111,7 @@ before flush failed → failureReason: center
 Test A：穩定 reproducer（0/3）
 Test B：間歇 sibling（本輪 3/3 pass；不可視為已修復）
 次要項：flush failed 時 cancelNavigationAnchor reason 仍為 nav-complete（Phase R 可改 nav-failed-center）
-本輪 commit：（推送後填入）
+本輪 commit：b665c1f
 ```
 
 ---
