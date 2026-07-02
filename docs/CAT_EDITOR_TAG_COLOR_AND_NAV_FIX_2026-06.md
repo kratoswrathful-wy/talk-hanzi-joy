@@ -587,7 +587,7 @@ B-7g 規格實作註記：[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WO
 
 ### 3.18 Phase 2.3q — 共用 explicit 導覽完成條件 + stale 導覽取消（2026-07-02）
 
-**狀態**：**規劃定案，未實作**（完整計畫：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）
+**狀態**：**已實作 `6344baa`，待驗收**（完整計畫：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)；Playwright 驗收規劃：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）
 
 **背景（2.3p 後仍殘留）**：`649ef70` hotfix 改善 confirm-jump 焦點驗證，但產品回報仍見：
 
@@ -630,7 +630,7 @@ focusOk && centerOk  // centerOk: Math.abs(rowCenterDeltaPx) <= 16
 
 **禁令**：禁止 focus 成功後同一 call stack 再 `scrollToSegId('center')`（2.3p 已證明吃焦點）。
 
-**驗收**（詳見計畫書）：大檔 confirm-jump／clear filter（A–B）、手動點擊不跳位且 nav lock 已清（C）、小檔回歸（D）、Ctrl+F／F3／QA（E）、`flush failed` 可見（F）。
+**驗收**（詳見計畫書）：大檔 confirm-jump／clear filter（A–B）、手動點擊不跳位且 nav lock 已清（C）、小檔回歸（D）、Ctrl+F／F3／QA（E）、`flush failed` 可見（F）。Playwright 自動化規格：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)。
 
 **觸點**：[`cat-tool/app.js`](../cat-tool/app.js) `flushPendingEditorFocus`、`flushFilterAnchorAfterVirtRender`、`focusin` L4071；[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)；[`cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js) `refreshAfterVirtRender`。
 
@@ -658,3 +658,4 @@ focusOk && centerOk  // centerOk: Math.abs(rowCenterDeltaPx) <= 16
 | 2026-07-01 | Phase 2.3o：審稿外圈 2.5px 視覺微調；**待驗收**（§3.17） |
 | 2026-07-02 | Phase 2.3p：`b34496f` 方案 A+B；`649ef70` hotfix 焦點驗證；置中／假游標／手動點擊 stale 仍待修 |
 | 2026-07-02 | Phase 2.3q：**已實作 `6344baa`，待驗收**（§3.18、[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）；Layer 0+B+D+A+C 全上 |
+| 2026-07-02 | Phase 2.3q Playwright 驗收計畫定案（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）；離線版 + Test_Big／Test_Small；**未實作測試碼** |
