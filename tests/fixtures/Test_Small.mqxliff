@@ -1,0 +1,471 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:mq="MQXliff" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
+<file original="[zho-TW][16553350][EventLink Guide (…)nned Events List][wpn_eventlink_pinned-events_en.html].xlf" mq:id="99ebae60-a96e-4830-af59-f0b55085f0ae" mq:projectid="56e01ce0-b2da-467d-a6d5-d0b4db1eb0bf" source-language="en-us" target-language="zh-tw" datatype="x-xliff">
+<header>
+<tool tool-id="MQ" tool-name="MemoQ" tool-version="9.9.10" tool-company="Kilgray" />
+<mq:export-path>\zh-TW\[zho-TW][16553350][EventLink Guide (…)nned Events List][wpn_eventlink_pinned-events_en.html].xlf</mq:export-path>
+<mq:docinformation mq:isabstract="isabstract" mq:hashistory="false" mq:docname="[zho-TW][16553350][EventLink Guide (…)nned Events List][wpn_eventlink_pinned-events_en.html].xlf" mq:majorversion="1" mq:minorversion="1" mq:nosplitjoin="false" mq:langindepgroupid="8b71eb45-cace-4ecd-a05e-6745f66a2f54" mq:multidocgroupid="a59c0ff6-22ae-4281-aa53-844fc1429969" mq:origfile="Q:\WIZA\00144063\source_CC\720\16553249\[zho-TW][16553350][EventLink Guide (…)nned Events List][wpn_eventlink_pinned-events_en.html].xlf" mq:numberofwords="289" mq:filterconfigname="WIZA XTM w Match and Tags" mq:filterconfigserverurl="" mq:changetrackingenabledstates="Off,Off,Off,Off"><mq:tagdefinition alignhighlight="false" caseinsensitive="false" oeid="65001" oename="utf-8" rawhtml="false" showitags="true" basicformat="false" supersubscript="false" xmlcommands="false"><mq:tagdefelement name="x" placeholder="false" tagrequired="Normal"><mq:tagdefattribute name="id" filtered="false" required="false" translatable="false" /></mq:tagdefelement><mq:tagdefelement name="mq:ch" placeholder="false" tagrequired="Normal"><mq:tagdefattribute name="val" filtered="false" required="false" translatable="false" /></mq:tagdefelement><mq:tagdefelement name="mq:nt" placeholder="false" tagrequired="Normal"><mq:tagdefattribute name="val" filtered="false" required="false" translatable="false" /></mq:tagdefelement><mq:tagdefelement name="mq:cmt" placeholder="false" tagrequired="Normal"><mq:tagdefattribute name="val" filtered="false" required="false" translatable="false" /><mq:tagdefattribute name="prv" filtered="false" required="false" translatable="false" /><mq:tagdefattribute name="id" filtered="true" required="false" translatable="false" /></mq:tagdefelement><mq:tagdefelement name="mq:pi" placeholder="false" tagrequired="Normal"><mq:tagdefattribute name="instruction" filtered="false" required="false" translatable="false" /></mq:tagdefelement><mq:tagdefelement name="mq:rxt" placeholder="false" tagrequired="Normal"><mq:tagdefattribute name="displaytext" filtered="true" required="true" translatable="false" /><mq:tagdefattribute name="val" filtered="true" required="true" translatable="false" /><mq:tagdefattribute name="fmt_b" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_i" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_u" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_sup" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_sub" filtered="true" required="false" translatable="false" /></mq:tagdefelement><mq:tagdefelement name="mq:rxt-req" placeholder="true" tagrequired="Required"><mq:tagdefattribute name="displaytext" filtered="true" required="true" translatable="false" /><mq:tagdefattribute name="val" filtered="true" required="true" translatable="false" /><mq:tagdefattribute name="fmt_b" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_i" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_u" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_sup" filtered="true" required="false" translatable="false" /><mq:tagdefattribute name="fmt_sub" filtered="true" required="false" translatable="false" /></mq:tagdefelement></mq:tagdefinition>
+<mq:doccomments />
+<mq:lqamodel><![CDATA[<XMLSerializedLQAModel xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><Version>1</Version><Name>Alpha LQA model - v2</Name><RevisionID>d7c4fe66-7221-4df5-abdd-bbf51a739ba7</RevisionID><UseSeverityLevels>true</UseSeverityLevels><UsePenaltyPoints>true</UsePenaltyPoints><RequiresReviewerCommenting>true</RequiresReviewerCommenting><SeverityLevelNames><string>Minor</string><string>Stylistic</string><string>Major</string><string>Formal Fail</string><string>Kudos</string></SeverityLevelNames><ModelEntries><ModelEntry><CategoryName>Error</CategoryName><SubcategoryName /><CatSubcatDescriptor><ErrorCategoryComment /><SeveritiesAndPenalties><SeverityWithPenalty><SeverityIdx>0</SeverityIdx><PenaltyPoint>2</PenaltyPoint></SeverityWithPenalty><SeverityWithPenalty><SeverityIdx>1</SeverityIdx><PenaltyPoint>1</PenaltyPoint></SeverityWithPenalty><SeverityWithPenalty><SeverityIdx>2</SeverityIdx><PenaltyPoint>10</PenaltyPoint></SeverityWithPenalty><SeverityWithPenalty><SeverityIdx>3</SeverityIdx><PenaltyPoint>250</PenaltyPoint></SeverityWithPenalty></SeveritiesAndPenalties></CatSubcatDescriptor></ModelEntry><ModelEntry><CategoryName>Kudos</CategoryName><SubcategoryName /><CatSubcatDescriptor><ErrorCategoryComment /><SeveritiesAndPenalties><SeverityWithPenalty><SeverityIdx>4</SeverityIdx><PenaltyPoint>0</PenaltyPoint></SeverityWithPenalty></SeveritiesAndPenalties></CatSubcatDescriptor></ModelEntry></ModelEntries><PassFailCriterion><CountMultipleErrorOccuranceAsOne>true</CountMultipleErrorOccuranceAsOne><CritDefType>PenaltyPoints</CritDefType><PenaltyPointsNominator>12</PenaltyPointsNominator><PenaltyPointPerWordsDenominator>1000</PenaltyPointPerWordsDenominator><NormalizedPenaltyScoreLimit>0.9</NormalizedPenaltyScoreLimit><CritDefinitionRules /></PassFailCriterion><QALQAMapping><QALQAMappingItem><QAErrorWarningID>3085</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3010</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>2015</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3093</QAErrorWarningID><CategoryIdx>1</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>1002</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>2011</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3094</QAErrorWarningID><CategoryIdx>1</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>2004</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>2006</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3062</QAErrorWarningID><CategoryIdx>1</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>2003</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3161</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3084</QAErrorWarningID><CategoryIdx>1</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3082</QAErrorWarningID><CategoryIdx>1</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3081</QAErrorWarningID><CategoryIdx>1</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>2007</QAErrorWarningID><CategoryIdx>0</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem><QALQAMappingItem><QAErrorWarningID>3083</QAErrorWarningID><CategoryIdx>1</CategoryIdx><SubcategoryIdx>-1</SubcategoryIdx></QALQAMappingItem></QALQAMapping><Timestamp>0001-01-01T00:00:00</Timestamp></XMLSerializedLQAModel>]]></mq:lqamodel>
+<mq:externalpreviewinfo>
+<mq:previewidsbylabels>
+<mq:previewidbylabel mq:label="1" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-1" />
+<mq:previewidbylabel mq:label="2" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-2" />
+<mq:previewidbylabel mq:label="3" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-3" />
+<mq:previewidbylabel mq:label="4" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-4" />
+<mq:previewidbylabel mq:label="5" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-5" />
+<mq:previewidbylabel mq:label="6" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-6" />
+<mq:previewidbylabel mq:label="7" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-7" />
+<mq:previewidbylabel mq:label="8" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-8" />
+<mq:previewidbylabel mq:label="9" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-9" />
+<mq:previewidbylabel mq:label="10" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-10" />
+<mq:previewidbylabel mq:label="11" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-11" />
+<mq:previewidbylabel mq:label="12" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-12" />
+<mq:previewidbylabel mq:label="13" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-13" />
+<mq:previewidbylabel mq:label="14" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-14" />
+<mq:previewidbylabel mq:label="15" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-15" />
+<mq:previewidbylabel mq:label="16" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-16" />
+<mq:previewidbylabel mq:label="17" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-17" />
+<mq:previewidbylabel mq:label="18" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-18" />
+<mq:previewidbylabel mq:label="19" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-19" />
+<mq:previewidbylabel mq:label="20" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-20" />
+<mq:previewidbylabel mq:label="21" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-21" />
+<mq:previewidbylabel mq:label="22" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-22" />
+<mq:previewidbylabel mq:label="23" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-23" />
+<mq:previewidbylabel mq:label="24" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-24" />
+<mq:previewidbylabel mq:label="25" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-25" />
+<mq:previewidbylabel mq:label="26" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-26" />
+<mq:previewidbylabel mq:label="27" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-27" />
+<mq:previewidbylabel mq:label="28" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-28" />
+<mq:previewidbylabel mq:label="29" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-29" />
+<mq:previewidbylabel mq:label="30" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-30" />
+<mq:previewidbylabel mq:label="31" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-31" />
+<mq:previewidbylabel mq:label="32" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-32" />
+<mq:previewidbylabel mq:label="33" mq:previewid="mQ-default-9f5b8471-eef2-4a61-9b8e-61f4ba9eb634-33" />
+</mq:previewidsbylabels>
+</mq:externalpreviewinfo>
+</mq:docinformation>
+</header>
+<body>
+<trans-unit id="1" mq:status="PreTranslated" mq:percent="79" mq:segmentguid="08d49f87-cfe1-4135-a71a-84d07230d83f" mq:translatorcommitmatchrate="0" mq:translatorcommitusername="" mq:translatorcommittimestamp="0001-01-01T00:00:00Z" mq:lastchangedtimestamp="2026-06-29T13:31:43Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="1" mq:lastlabel="1" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="1" mq:hasfollowingobject="hasfollowingobject">There are several ways to register players in your events:</source>
+<target xml:space="preserve">   為玩家報名   為玩家報名參加您的賽事有三種方式：</target>
+<note>* proposal 為玩家報名參加您的賽事有三種方式："
+* proposal  
+
+為玩家報名 
+
+為玩家報名參加您的賽事有三種方式："</note>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03050" mq:errorwarning-categoryid="5" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Several consecutive whitespaces" mq:errorwarning-problemname="multiple consecutive whitespaces" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="-482218179" mq:errorwarning-combinedposstart="0" mq:errorwarning-combinedposlength="3" mq:errorwarning-correction="AQEgAAA=" />
+<mq:errorwarning mq:errorwarning-code="03050" mq:errorwarning-categoryid="5" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Several consecutive whitespaces" mq:errorwarning-problemname="multiple consecutive whitespaces" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="-482218179" mq:errorwarning-combinedposstart="8" mq:errorwarning-combinedposlength="3" mq:errorwarning-correction="AQEgAAA=" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff"><commitinfo matchrate="0" role="1000" timestamp="0001-01-01T00:00:00Z" username="" editingtime="18872" /></mq:commitinfos><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+<mq:comments>
+<mq:comment id="c8b2321a-e6d9-4225-aa59-c58f28955c20" creatoruser="XLIFF 1 filter" time="2026-06-29T02:34:19Z" deleted="false" category="0" appliesto="Row" origin="SourceFile">* proposal 為玩家報名參加您的賽事有三種方式："
+* proposal  
+
+為玩家報名 
+
+為玩家報名參加您的賽事有三種方式："</mq:comment>
+</mq:comments>
+<mq:insertedmatch matchtype="0" source="WIZA - Web &amp; Marketing - Master - en-us-zh-TW / MCLL. TradChinese2" matchrate="79" originalmatchrate="0" ambiguousexact="false" setsegmentswhensplittingintorows="false" hitfororiginalsegementversion="false"><source xml:space="preserve"><ph id="1">&lt;ph x=&quot;313&quot; /&gt;</ph><ph id="2">&lt;ph x=&quot;314&quot; /&gt;</ph><ph id="3">&lt;ph x=&quot;315&quot; /&gt;</ph>   <ph id="4">&lt;ph x=&quot;316&quot; /&gt;</ph>Registering Players<ph id="5">&lt;ph x=&quot;317&quot; /&gt;</ph>   <ph id="6">&lt;ph x=&quot;318&quot; /&gt;</ph>There are three ways to register players in your events:<ph id="7">&lt;ph x=&quot;319&quot; /&gt;</ph></source>
+<target xml:space="preserve">   為玩家報名   為玩家報名參加您的賽事有三種方式：</target>
+</mq:insertedmatch>
+</trans-unit>
+<trans-unit id="2" mq:status="NotStarted" mq:segmentguid="f53cdd37-cdd3-4ed4-bc14-9c768d2b6017" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="2" mq:lastlabel="2" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="2" mq:hasfollowingobject="hasfollowingobject">Pinned Events List Registration</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="3" mq:status="NotStarted" mq:segmentguid="2dfc4342-014f-40b9-acc7-84ca24a2c2b0" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="3" mq:lastlabel="3" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="3" mq:hasfollowingobject="hasfollowingobject">Use the pinned events list to keep frequently accessed events readily available while working in EventLink.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="4" mq:status="NotStarted" mq:segmentguid="6ef4fd57-e6d9-454f-a06d-0ce4c3a7ea62" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="4" mq:lastlabel="4" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="4" mq:hasfollowingobject="hasfollowingobject">This feature is especially useful when you're managing multiple events and registering players throughout the day.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="5" mq:status="NotStarted" mq:segmentguid="69e3cba2-f5ec-47aa-b445-70028b98c528" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="5" mq:lastlabel="5" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="5" mq:hasfollowingobject="hasfollowingobject">Open the Pinned Events List</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="6" mq:status="NotStarted" mq:segmentguid="5c462d0d-fa8c-4361-b71c-c586e1488149" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="6" mq:lastlabel="6" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="6" mq:hasfollowingobject="hasfollowingobject">In the calendar view, select <ph id="1">&lt;x id=&quot;x8&quot; /&gt;</ph>Pinned<ph id="2">&lt;x id=&quot;x9&quot; /&gt;</ph> at the top of the page to open the pinned events side panel.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="110942806" mq:errorwarning-combinedposstart="36" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="110942806" mq:errorwarning-combinedposstart="29" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="7" mq:status="NotStarted" mq:segmentguid="d21478d3-7496-4c7d-a25f-53046ef46da3" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="7" mq:lastlabel="7" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="7" mq:hasfollowingobject="hasfollowingobject">The <ph id="1">&lt;x id=&quot;x10&quot; /&gt;</ph>Pinned<ph id="2">&lt;x id=&quot;x11&quot; /&gt;</ph> button also displays the number of events currently pinned.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-1036878365" mq:errorwarning-combinedposstart="11" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-1036878365" mq:errorwarning-combinedposstart="4" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="8" mq:status="PreTranslated" mq:percent="84" mq:segmentguid="ec57b893-f684-46cc-890e-1d26c2210331" mq:lastchangedtimestamp="2026-06-29T13:31:43Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="8" mq:lastlabel="8" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="8" mq:hasfollowingobject="hasfollowingobject">Pin an Event</source>
+<target xml:space="preserve">搜尋賽事</target>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+<mq:insertedmatch matchtype="0" source="WIZA - Web &amp; Marketing - Master - en-us-zh-TW / MCLL. TradChinese2" matchrate="84" originalmatchrate="0" ambiguousexact="false" setsegmentswhensplittingintorows="false" hitfororiginalsegementversion="false"><source xml:space="preserve">Find an Event</source>
+<target xml:space="preserve">搜尋賽事</target>
+</mq:insertedmatch>
+</trans-unit>
+<trans-unit id="9" mq:status="NotStarted" mq:segmentguid="16014702-36ac-4d21-b223-ec1f186ff571" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="9" mq:lastlabel="9" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="9" mq:hasfollowingobject="hasfollowingobject">To add an event to your pinned list:</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="10" mq:status="NotStarted" mq:segmentguid="59047361-a884-4b04-87e4-d4d58faae9ca" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="10" mq:lastlabel="10" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="10" mq:hasfollowingobject="hasfollowingobject">In the calendar view, hover over an event.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="11" mq:status="NotStarted" mq:segmentguid="3ca039d7-0ae9-4d60-a983-3870a864d68d" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="11" mq:lastlabel="11" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="11" mq:hasfollowingobject="hasfollowingobject">Select the pin icon.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="12" mq:status="NotStarted" mq:segmentguid="242fb375-c9b6-4752-bfe4-47101a9aa807" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="12" mq:lastlabel="12" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="12" mq:hasfollowingobject="hasfollowingobject">The event is added to the pinned events side panel, and the pin icon will turn orange.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="13" mq:status="NotStarted" mq:segmentguid="c2d82994-db58-4ee3-bca5-921625950dae" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="13" mq:lastlabel="13" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="13" mq:hasfollowingobject="hasfollowingobject">View Pinned Event Information</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="14" mq:status="NotStarted" mq:segmentguid="842a138a-90ab-473c-8a08-f9e93727b9d5" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="14" mq:lastlabel="14" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="14" mq:hasfollowingobject="hasfollowingobject">The pinned events side panel displays all currently pinned events.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="15" mq:status="NotStarted" mq:segmentguid="c86ea751-59e7-4f91-b4e2-27ff9f981d5a" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="15" mq:lastlabel="15" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="15" mq:hasfollowingobject="hasfollowingobject">For each event, you can view:</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="16" mq:status="PreTranslated" mq:percent="99" mq:segmentguid="994d27c6-7a73-44e7-bd48-7c2f6793cedc" mq:lastchangedtimestamp="2026-06-29T13:31:43Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="16" mq:lastlabel="16" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="16" mq:hasfollowingobject="hasfollowingobject">Event name</source>
+<target xml:space="preserve">賽事名稱</target>
+<note>* proposal 賽事名稱"
+* proposal 賽事名稱："
+* proposal 賽事名稱"
+* proposal 比賽名稱："</note>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+<mq:comments>
+<mq:comment id="8d84e2b5-5df1-41f0-8a2b-d9b825a56ce2" creatoruser="XLIFF 1 filter" time="2026-06-29T02:34:19Z" deleted="false" category="0" appliesto="Row" origin="SourceFile">* proposal 賽事名稱"
+* proposal 賽事名稱："
+* proposal 賽事名稱"
+* proposal 比賽名稱："</mq:comment>
+</mq:comments>
+<mq:insertedmatch matchtype="0" source="WIZA - Web &amp; Marketing - Master - en-us-zh-TW / System" matchrate="99" originalmatchrate="0" ambiguousexact="false" setsegmentswhensplittingintorows="false" hitfororiginalsegementversion="false"><source xml:space="preserve">Event Name</source>
+<target xml:space="preserve">賽事名稱</target>
+</mq:insertedmatch>
+</trans-unit>
+<trans-unit id="17" mq:status="ManuallyConfirmed" mq:percent="100" mq:segmentguid="51cc811b-450e-41c1-9af1-48d00f55bec3" mq:lastchangedtimestamp="0001-01-01T00:00:00Z" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="17" mq:lastlabel="17" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="17" mq:hasfollowingobject="hasfollowingobject">Event date</source>
+<target xml:space="preserve">賽事日期</target>
+<note>* proposal 賽事日期"</note>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+<mq:comments>
+<mq:comment id="d24fa256-eabb-41aa-b018-a94b69d25768" creatoruser="XLIFF 1 filter" time="2026-06-29T02:34:19Z" deleted="false" category="0" appliesto="Row" origin="SourceFile">* proposal 賽事日期"</mq:comment>
+</mq:comments>
+<mq:insertedmatch matchtype="0" source="" matchrate="100" originalmatchrate="0" ambiguousexact="false" setsegmentswhensplittingintorows="false" hitfororiginalsegementversion="false" />
+</trans-unit>
+<trans-unit id="18" mq:status="NotStarted" mq:segmentguid="50468a72-3f1b-4229-bf89-cd3020c6f599" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="18" mq:lastlabel="18" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="18" mq:hasfollowingobject="hasfollowingobject">Number of registered players (select this to open the event registration page)</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="19" mq:status="NotStarted" mq:segmentguid="2faf502a-e0df-40dd-94e7-6512cddac2f7" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="19" mq:lastlabel="19" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="19" mq:hasfollowingobject="hasfollowingobject"><ph id="1">&lt;x id=&quot;x12&quot; /&gt;</ph>ADD EMAIL<ph id="2">&lt;x id=&quot;x13&quot; /&gt;</ph> button</source>
+<target xml:space="preserve"></target>
+<note>* proposal 新增按鈕"</note>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-496238517" mq:errorwarning-combinedposstart="10" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-496238517" mq:errorwarning-combinedposstart="0" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+<mq:comments>
+<mq:comment id="968c7cd1-8955-41da-a699-bb6485243e2f" creatoruser="XLIFF 1 filter" time="2026-06-29T02:34:19Z" deleted="false" category="0" appliesto="Row" origin="SourceFile">* proposal 新增按鈕"</mq:comment>
+</mq:comments>
+</trans-unit>
+<trans-unit id="20" mq:status="NotStarted" mq:segmentguid="a511a213-4f6f-4c60-a21d-a80f833d5da9" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="20" mq:lastlabel="20" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="20" mq:hasfollowingobject="hasfollowingobject"><ph id="1">&lt;x id=&quot;x14&quot; /&gt;</ph>ADD GUEST NAME<ph id="2">&lt;x id=&quot;x15&quot; /&gt;</ph> button</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="961998935" mq:errorwarning-combinedposstart="15" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="961998935" mq:errorwarning-combinedposstart="0" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="21" mq:status="NotStarted" mq:segmentguid="fc9a09f1-f541-4835-a8ec-74fc271f151a" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="21" mq:lastlabel="21" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="21" mq:hasfollowingobject="hasfollowingobject"><ph id="1">&lt;x id=&quot;x16&quot; /&gt;</ph>View details<ph id="2">&lt;x id=&quot;x17&quot; /&gt;</ph> link, which opens event details in a side panel</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="191830841" mq:errorwarning-combinedposstart="13" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="191830841" mq:errorwarning-combinedposstart="0" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="22" mq:status="NotStarted" mq:segmentguid="12283a0f-1fad-4403-8f0f-f52f55eaff1d" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="22" mq:lastlabel="22" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="22" mq:hasfollowingobject="hasfollowingobject">Register Players from the Pinned Events List</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="23" mq:status="NotStarted" mq:segmentguid="2abd1963-5ec4-4d55-85aa-c28291a6e6e3" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="23" mq:lastlabel="23" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="23" mq:hasfollowingobject="hasfollowingobject">You can quickly register players without leaving the pinned events side panel.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="24" mq:status="NotStarted" mq:segmentguid="8b0d5831-8c88-44f6-8369-0d64f07fc5df" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="24" mq:lastlabel="24" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="24" mq:hasfollowingobject="hasfollowingobject">To register a player:</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="25" mq:status="NotStarted" mq:segmentguid="65148318-40e9-407e-b154-95d1e2ebf14b" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="25" mq:lastlabel="25" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="25" mq:hasfollowingobject="hasfollowingobject">Select <ph id="1">&lt;x id=&quot;x18&quot; /&gt;</ph>ADD EMAIL<ph id="2">&lt;x id=&quot;x19&quot; /&gt;</ph> to register a player using their Wizards Account or <ph id="3">&lt;x id=&quot;x20&quot; /&gt;</ph>ADD GUEST NAME<ph id="4">&lt;x id=&quot;x21&quot; /&gt;</ph> to register a player who does not have an account.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="781135643" mq:errorwarning-combinedposstart="86" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="781135643" mq:errorwarning-combinedposstart="71" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="781135643" mq:errorwarning-combinedposstart="17" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="781135643" mq:errorwarning-combinedposstart="7" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="26" mq:status="NotStarted" mq:segmentguid="98220f8a-3b91-4a3b-8aef-2d2d4c1be5d9" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="26" mq:lastlabel="26" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="26" mq:hasfollowingobject="hasfollowingobject">Enter the player's information.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="27" mq:status="NotStarted" mq:segmentguid="1b801570-e4ce-4571-8518-154870923adc" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="27" mq:lastlabel="27" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="27" mq:hasfollowingobject="hasfollowingobject">Press <ph id="1">&lt;x id=&quot;x22&quot; /&gt;</ph>ENTER<ph id="2">&lt;x id=&quot;x23&quot; /&gt;</ph> or select <ph id="3">&lt;x id=&quot;x24&quot; /&gt;</ph>Press ENTER to register<ph id="4">&lt;x id=&quot;x25&quot; /&gt;</ph> at the top of the side panel.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-1920183527" mq:errorwarning-combinedposstart="48" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-1920183527" mq:errorwarning-combinedposstart="24" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-1920183527" mq:errorwarning-combinedposstart="12" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="02011" mq:errorwarning-categoryid="8" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Tag &quot;x&quot; is missing from the target" mq:errorwarning-problemname="missing inline tag" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="x" mq:errorwarning-dataspecific="errorwarning-dataspecific" mq:errorwarning-segmenthash="-1920183527" mq:errorwarning-combinedposstart="6" mq:errorwarning-combinedposlength="1" mq:errorwarning-posinsource="errorwarning-posinsource" />
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="28" mq:status="NotStarted" mq:segmentguid="f7209591-96a2-4be7-a20c-5c4a22d3182a" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="28" mq:lastlabel="28" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="28" mq:hasfollowingobject="hasfollowingobject">The player is added to the selected event.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="29" mq:status="NotStarted" mq:segmentguid="97414f42-cd86-4f75-a975-c28efc850a92" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="29" mq:lastlabel="29" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="29" mq:hasfollowingobject="hasfollowingobject">Remove a Pinned Event</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="30" mq:status="NotStarted" mq:segmentguid="474ea652-1f85-476f-87d7-a8e65cf56bbf" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="30" mq:lastlabel="30" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="30" mq:hasfollowingobject="hasfollowingobject">To remove an event from your pinned list, select the orange pin icon next to the event in either:</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="31" mq:status="NotStarted" mq:segmentguid="1d0fa70d-456e-41fb-98cf-e01a2be6c460" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="31" mq:lastlabel="31" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="31" mq:hasfollowingobject="hasfollowingobject">The pinned events side panel</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+<trans-unit id="32" mq:status="NotStarted" mq:segmentguid="c0b94c45-a504-46d7-ba14-83ecc5a504b7" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="32" mq:lastlabel="32" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="32" mq:hasfollowingobject="hasfollowingobject">The calendar view</source>
+<target xml:space="preserve"></target>
+<note>* proposal 日曆顯示"</note>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+<mq:comments>
+<mq:comment id="c1ff90ac-36b2-4c1f-87f4-6ed0b3df01a5" creatoruser="XLIFF 1 filter" time="2026-06-29T02:34:19Z" deleted="false" category="0" appliesto="Row" origin="SourceFile">* proposal 日曆顯示"</mq:comment>
+</mq:comments>
+</trans-unit>
+<trans-unit id="33" mq:status="NotStarted" mq:segmentguid="1c23a511-caa2-4cd0-ae84-e2713d0e7485" mq:lastchangedtimestamp="2026-06-29T13:31:59Z" mq:lastchanginguser="CCJK" mq:maxlengthchars="-1" mq:nosplitjoin="false" mq:firstlabel="33" mq:lastlabel="33" mq:autosplitjoinstate="0" mq:lastmodifrole="0" mq:multipleexactmatch="false">
+<source xml:space="preserve" mq:segpart="33" mq:hasfollowingobject="hasfollowingobject">The event is removed from the pinned list.</source>
+<target xml:space="preserve"></target>
+<mq:warnings40>
+<mq:errorwarning mq:errorwarning-code="03010" mq:errorwarning-categoryid="6" mq:errorwarning-ignorable="errorwarning-ignorable" mq:errorwarning-shorttext="Target segment is empty" mq:errorwarning-problemname="empty target segment" mq:errorwarning-longdesc="" mq:errorwarning-localizationargs="" mq:errorwarning-segmenthash="0" mq:errorwarning-combinedposstart="-1" mq:errorwarning-combinedposlength="0" />
+</mq:warnings40>
+<mq:startingws xml:space="preserve" />
+<mq:endingws xml:space="preserve" />
+<mq:commitinfos xmlns="MQXliff" /><mq:nosplitjoins />
+<mq:originalsource edited="false" />
+</trans-unit>
+</body>
+</file>
+</xliff>

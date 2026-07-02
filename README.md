@@ -1,6 +1,6 @@
 # Welcome to your Lovable project
 
-協作與 AI 助理的行為規範（含 CAT 單一來源、文件索引）見根目錄 [`AGENTS.md`](AGENTS.md)。
+協作與 AI 助理的行為規範（含 CAT 單一來源、文件索引）見根目錄 [`AGENTS.md`](AGENTS.md)。若某次變更指定由 **Claude／AI 驗收**，代理會依 [`AGENTS.md`](AGENTS.md) 與 [`.cursor/rules/claude-ai-acceptance-slack.mdc`](.cursor/rules/claude-ai-acceptance-slack.mdc) 自動將驗收任務發到 Slack `#development`。
 
 ## Project info
 

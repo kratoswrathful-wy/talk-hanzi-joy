@@ -107,7 +107,7 @@ focusOk && centerOk  // centerOk: |rowCenterDeltaPx| <= 16
 
 Debug：`localStorage.setItem('catNavDebug', '1')`（CAT iframe Console）。
 
-**Playwright 自動化驗收**（規劃定案、未實作）：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — 離線版、`Test_Big`／`Test_Small` fixture、localhost、**A～I**（含 G～I F8／viewport 穩定）。
+**Playwright 自動化驗收**（初版已實作）：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — `npm run test:e2e`；離線版、`Test_Big`／`Test_Small`、localhost、**A～I**
 
 ---
 

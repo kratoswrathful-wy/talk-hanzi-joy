@@ -42,3 +42,9 @@ scripts/profiles-migrate-users.csv
 downloads/
 
 .vercel
+
+# Playwright
+playwright/.auth/
+test-results/
+playwright-report/
+blob-report/
