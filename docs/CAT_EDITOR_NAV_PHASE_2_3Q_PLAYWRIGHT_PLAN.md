@@ -1,6 +1,6 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**初版已實作並推送**（`70a807d` Playwright 程式、`08709df` 測試報告、`c442196` 建置修正）— **下一波見 §下一波執行計畫（Wave 1／Wave 2）**；首輪結果見 §測試執行報告（D／G／H／I 通過；A 未通過；B／C／E 未跑）
+> **狀態**：**Wave 1 已完成**（見 §測試執行報告 Wave 1）— `f6ccb70` 計畫、`70a807d` 初版測試；**A L2 產品向 fail，B/C/E/D/G/H/I pass**
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -88,19 +88,20 @@ Playwright **可以且應該**指定只在測試環境工作。三層隔離：
 - `https://talk-hanzi-joy.vercel.app`（production）
 
 ```ts
-// tests/global-setup.ts（下階段實作）
-const url = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173';
+// tests/global-setup.ts（已實作）
+const url = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080';
 const isProd = /^https:\/\/talk-hanzi-joy\.vercel\.app/.test(url);
 if (isProd && process.env.PLAYWRIGHT_ALLOW_PRODUCTION !== '1') {
   throw new Error('Playwright 禁止對 production 執行；請設 PLAYWRIGHT_BASE_URL=localhost');
 }
 ```
 
-`package.json` 腳本建議：
+`package.json` 腳本：
 
 ```json
 "test:e2e": "playwright test",
-"test:e2e:local": "cross-env PLAYWRIGHT_BASE_URL=http://localhost:5173 playwright test"
+"test:e2e:ui": "playwright test --ui",
+"typecheck:e2e": "tsc -p tsconfig.playwright.json"
 ```
 
 ### 第二階段（Team 模式）
@@ -145,7 +146,7 @@ if (isProd && process.env.PLAYWRIGHT_ALLOW_PRODUCTION !== '1') {
 
 | 議題 | GPT5-5 草稿 | 本計畫定案 |
 |------|-------------|------------|
-| 預設 baseURL | production | **`http://localhost:5173`** + URL 守門 |
+| 預設 baseURL | production | **`http://localhost:8080`** + URL 守門 |
 | webServer | 未提及 | **自動 `npm run dev`** |
 | 假游標 selector | 多個不存在 id/class | **`.cat-fake-caret:not(.hidden)`** |
 | 手動取消 log | `user interaction cancelled...` | **`[catNav] manual cancel`** + `[catVirt] cancelNavigationAnchor` |
@@ -196,12 +197,13 @@ playwright/.auth/             # 第二階段 Team；加入 .gitignore
 
 - `testDir: './tests'`
 - `globalSetup: './tests/global-setup.ts'`
-- `webServer: { command: 'npm run dev', url: 'http://localhost:5173', reuseExistingServer: !process.env.CI }`
-- `timeout: 60_000`；`expect.timeout: 10_000`
+- `webServer: { command: 'npm run dev', url: 'http://localhost:8080', reuseExistingServer: !process.env.CI }`
+- `timeout: 120_000`；`expect.timeout: 15_000`
 - `retries: process.env.CI ? 1 : 0`
 - `use.trace / screenshot / video: 'retain-on-failure'`
-- `baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173'`
-- 單一 project `chromium` Desktop Chrome
+- `baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080'`
+- `workers: 1`；`fullyParallel: false`
+- Typecheck：`npm run typecheck`（`tsc -b`，不含 tests）；`npm run typecheck:e2e`（[`tsconfig.playwright.json`](../tsconfig.playwright.json)）
 
 **`.gitignore` 增項**：`playwright/.auth/`、`test-results/`、`playwright-report/`
 
@@ -310,12 +312,12 @@ pollViewportStable === true
 
 使用 `expect.poll`（timeout 5～8s），失敗訊息附 `getCatNavSnapshot` + console dump。
 
-### Test A — 大檔 Ctrl+Enter ×5
+### Test A — 大檔 Ctrl+Enter 置中
 
 - Fixture：`Test_Big.mqxliff`
-- 前置：`CatVirtGrid.isEnabled() === true`；可選中段捲動後再測
+- 前置：`CatVirtGrid.isEnabled() === true`；`jumpToDisplayIndex` 至 display #20 並以 `data-seg-id` 點譯文格
 - 每輪：iframe 內 `Control+Enter` → poll 置中 + 焦點
-- 可選 debug log：`completed: true`、`focusOk`、`centerOk`
+- **spec 初版 ×3**（規格原稿 ×5；Wave 1 維持 ×3 以縮短大檔耗時）
 
 ### Test B — 大檔清除篩選
 
@@ -397,7 +399,23 @@ pollViewportStable === true
 
 與 Test C：C 測「取消 stale explicit nav」；I 測「日常手動點擊不亂跳」。
 
-**第一版實作優先序**：D（冒煙）→ A → B → C → **G → H → I** → E → F
+### Test I′ — 重複手動點擊壓力（**規劃中**，Wave 2）
+
+取代現有弱 Test I：3 range × 3 click（20、1500、3200）；不要求 `centeredOk`。詳見 §Wave 2 W2-1。
+
+### Test N — explicit jump 後手動點擊（**規劃中**，Wave 2）
+
+Ctrl+G 跳句後手動點另一可見譯文格；舊 nav 不得覆蓋。詳見 §Wave 2 W2-2。
+
+### Test J / K — 輸入觸發重畫（**規劃中**，Wave 2）
+
+已確認／未確認句輸入 1～2 字；`activeSegId` 不變、viewport stable。詳見 §Wave 2 W2-3。
+
+### Test L / M — backlog
+
+TM／高相符 guard（L）、tag 行高（M）；待 Wave 1／2 證據再開。詳見 §Wave 2 W2-4。
+
+**第一版實作優先序**：D（冒煙）→ A → B → C → **G → H → I** → E → F。**現行接續**：§下一波執行計畫 Wave 1 → Wave 2。
 
 ---
 
@@ -424,15 +442,15 @@ pollViewportStable === true
 
 ## 實作順序（Playwright 本身）
 
+**初版（已完成，`70a807d`）**：
+
 ```text
 1. 安裝 @playwright/test + config + globalSetup 守門
-2. helpers + fixtures（Test_Small commit；Test_Big 依 PM 決定）
-3. Test D 冒煙
-4. Test A → B → C
-5. Test G → H → I（F8／viewport 穩定）
-6. Test E → F（第二輪）
-7. 可選 GitHub Actions（preview URL + fixture artifact）
+2. helpers + fixtures（Test_Small commit；Test_Big 依 env）
+3. Test D 冒煙 → A～I 初版
 ```
+
+**現行接續（權威）**：§下一波執行計畫（Wave 1 診斷 → Wave 2 壓力擴網）
 
 ---
 
@@ -808,6 +826,61 @@ Wave 1：
 
 Wave 1 通過後再開 Wave 2：I′（3×3）、Test N、條件式 J/K。
 規格權威：同一文件 §Wave 2 與 §測試原則。
+```
+
+---
+
+## 測試執行報告 Wave 1
+
+> **狀態**：**已完成**（2026-07-02）  
+> **執行者**：Cursor 代理  
+> **前置報告**：§測試執行報告（2026-07-02）首輪結果
+
+### Test A 診斷
+
+| 項目 | 修正前（首輪） | Wave 1 修正後 |
+|------|----------------|---------------|
+| 點擊方式 | `scrollToDisplayIndex(20)` + `.first()` | `clickTargetAtDisplay(20)` → `data-seg-id` |
+| 結果 | fail `centeredOk: false` | **仍 fail** `centeredOk: false` |
+| `rowCenterDeltaPx`（失敗時） | 未記錄 | **約 71px**（穩定偏大，非門檻抖動） |
+| `activeSegId` | 在譯文格 | 確認後 **21**（`targetSegId: 20` → 跳至下一句） |
+| console | — | `[catNav] flush failed { failureReason: center, centerRetryCount: 3 }` ×2 |
+| 分類 | L2 疑似 | **L2 產品向**（測試點擊已排除） |
+
+**解讀**：修正點擊目標後仍無法置中 → **非** L1 測試寫法問題。大檔 virt 下 `Ctrl+Enter` confirm-jump 的 explicit 置中管線在 30s 內無法收斂（`|delta| ≈ 71` >> 16）。
+
+### Test B / C / E 結果
+
+| 測項 | 結果 | 備註 |
+|------|------|------|
+| Test B | ✅ pass (~4s) | `centeredOk: true`；清除篩選回編輯句 **可置中** |
+| Test C | ✅ pass (~7s) | stale nav 取消、`navAnchorLock: false` |
+| Test E | ✅ pass (~1s) | `#sfInput` 保持焦點 |
+
+**解讀**：B pass 表示「清除篩選回句」置中路徑可用；A fail **較偏 Ctrl+Enter confirm-jump**，非大檔 virt 置中全面失效。
+
+### 回歸（spec/helpers 變更後）
+
+| 測項 | 結果 |
+|------|------|
+| Test D | ✅ pass (~29s) |
+| Test G / H / I | ✅ pass（4 passed ~1.1min） |
+
+### Wave 1 結論
+
+```text
+是否進入 cat-tool 產品修復：是（Test A L2；對照 CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md，PM 同意後開修復波）
+修復焦點：大檔 virt 下 Ctrl+Enter confirm-jump 置中（flush center retry 耗盡）
+是否開 Wave 2（I′、N）：是（與產品修復可並行；I′ 驗證 PM 機率性手動點擊）
+本輪變更：拆 serial、clickTargetAtDisplay、Test A/B/C/I  deterministic 點擊
+```
+
+### 分類決策樹（本輪落地）
+
+```text
+A 修正點擊後仍 fail → L2 產品向（本輪已證實）
+B pass、A fail      → 偏 Ctrl+Enter confirm-jump，非清除篩選路徑
+C/E pass           → stale 取消、Ctrl+F 路徑目前可接受
 ```
 
 ---

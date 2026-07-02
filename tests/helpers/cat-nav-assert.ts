@@ -376,6 +376,33 @@ export async function clickConfirmedTargetNearDisplay(
   return segId;
 }
 
+/** jumpToDisplayIndex 後點該列譯文格；回傳 segId。 */
+export async function clickTargetAtDisplay(
+  frame: FrameLocator,
+  displayId: number,
+): Promise<string | null> {
+  const segId = await jumpToDisplayIndex(frame, displayId);
+  if (!segId) return null;
+  await frame
+    .locator(`.grid-data-row[data-seg-id="${segId}"] .col-target .grid-textarea`)
+    .click();
+  return segId;
+}
+
+export function formatWave1Diagnosis(snapshot: CatNavSnapshot, extra?: string): string {
+  const lines = [
+    `activeSegId=${snapshot.activeSegId}`,
+    `rowCenterDeltaPx=${snapshot.rowCenterDeltaPx}`,
+    `centeredOk=${snapshot.centeredOk}`,
+    `scrollTop=${snapshot.scrollTop}`,
+    `firstVisibleDisplayId=${snapshot.firstVisibleDisplayId}`,
+    `navAnchorLock=${snapshot.virt?.navAnchorLock ?? "n/a"}`,
+    formatSnapshot(snapshot),
+  ];
+  if (extra) lines.push(extra);
+  return lines.join("\n");
+}
+
 export function formatSnapshot(snapshot: CatNavSnapshot): string {
   return JSON.stringify(snapshot, null, 2);
 }

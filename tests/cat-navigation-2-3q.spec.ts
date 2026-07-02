@@ -1,24 +1,30 @@
 import { test, expect, type FrameLocator, type Page } from "@playwright/test";
 import { resolveCatFixture } from "./helpers/cat-fixtures";
 import {
-  clickTargetTextareaAtDisplay,
-  dismissHighMatchGuard,
   clickConfirmedTargetNearDisplay,
+  clickTargetAtDisplay,
   dismissBlockingModals,
-  findConfirmedTargetSegId,
+  dismissHighMatchGuard,
+  formatWave1Diagnosis,
   getCatNavSnapshot,
   getCatNavigationState,
   getVirtDebugState,
   jumpToDisplayIndex,
   pollScrollTopChanges,
   pollViewportStable,
-  scrollToDisplayIndex,
 } from "./helpers/cat-nav-assert";
-import { attachCatConsoleCollector } from "./helpers/cat-nav-debug";
+import { attachCatConsoleCollector, type CatConsoleCollector } from "./helpers/cat-nav-debug";
 import { assertVirtEnabled, openOfflineCatWithFile } from "./helpers/cat-offline-open";
 
 const SMALL_FIXTURE = resolveCatFixture("small");
 const LARGE_FIXTURE = resolveCatFixture("large");
+
+let largeFileConsole: CatConsoleCollector | null = null;
+
+function navPollMessage(label: string): string {
+  const tail = largeFileConsole?.dumpRecent(30);
+  return tail ? `${label}\n--- console ---\n${tail}` : label;
+}
 
 async function resetEditorView(frame: FrameLocator) {
   await dismissBlockingModals(frame);
@@ -27,10 +33,27 @@ async function resetEditorView(frame: FrameLocator) {
     await clearBtn.click();
   }
   await frame.locator("#editorGrid").evaluate((el) => {
-    el.scrollTop = 0;
+    (el as HTMLElement).scrollTop = 0;
     el.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
   await frame.locator(".grid-data-row .col-target .grid-textarea").first().click();
+}
+
+async function expectCenteredNavigation(frame: FrameLocator, timeoutMs = 30_000) {
+  try {
+    await expect
+      .poll(async () => getCatNavigationState(frame), { timeout: timeoutMs })
+      .toMatchObject({
+        activeIsGridTextarea: true,
+        activeInTargetCol: true,
+        centeredOk: true,
+      });
+  } catch (err) {
+    const snap = await getCatNavSnapshot(frame);
+    throw new Error(
+      `${formatWave1Diagnosis(snap, largeFileConsole?.dumpRecent(30))}\n${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
@@ -62,7 +85,6 @@ test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
   });
 
   test.describe("Test A–I — 大檔", () => {
-    test.describe.configure({ mode: "serial" });
     let sharedPage: Page;
     let sharedFrame: FrameLocator;
 
@@ -72,7 +94,7 @@ test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
         storageState: "playwright/.auth/user.json",
       });
       sharedPage = await context.newPage();
-      attachCatConsoleCollector(sharedPage);
+      largeFileConsole = attachCatConsoleCollector(sharedPage);
       sharedFrame = await openOfflineCatWithFile(sharedPage, {
         fixturePath: LARGE_FIXTURE,
         projectName: `[PW] Nav Big ${Date.now()}`,
@@ -92,34 +114,33 @@ test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
     });
 
     test("Test A — Ctrl+Enter ×3 置中", async () => {
-      await scrollToDisplayIndex(sharedFrame, 20);
-      await sharedFrame.locator(".grid-data-row .col-target .grid-textarea").first().click();
+      const targetSegId = await clickTargetAtDisplay(sharedFrame, 20);
+      expect(targetSegId, "jumpToDisplayIndex(20) 失敗").toBeTruthy();
+      expect((await getCatNavigationState(sharedFrame)).activeSegId).toBe(targetSegId);
+
       for (let i = 0; i < 3; i++) {
         await sharedFrame.locator(".grid-textarea:focus").press("Control+Enter");
-        await expect
-          .poll(async () => getCatNavigationState(sharedFrame), { timeout: 30_000 })
-          .toMatchObject({
-            activeIsGridTextarea: true,
-            activeInTargetCol: true,
-            centeredOk: true,
-          });
+        await expectCenteredNavigation(sharedFrame);
       }
     });
 
     test("Test B — 清除篩選回到編輯句", async () => {
-      const row = sharedFrame.locator(".grid-data-row").nth(2);
-      await row.locator(".col-target .grid-textarea").click();
+      const editedSegId = await clickTargetAtDisplay(sharedFrame, 25);
+      expect(editedSegId).toBeTruthy();
       const edited = await getCatNavigationState(sharedFrame);
-      expect(edited.activeSegId).toBeTruthy();
+      expect(edited.activeSegId).toBe(editedSegId);
 
       await sharedFrame.locator("#sfModeFilter").click();
       await sharedFrame.locator("#sfInput").fill("zzz_unlikely_term_pw");
       await sharedFrame.locator("#btnSfClearNav").click();
 
       await expect
-        .poll(async () => getCatNavigationState(sharedFrame), { timeout: 20_000 })
+        .poll(async () => getCatNavigationState(sharedFrame), {
+          timeout: 20_000,
+          message: navPollMessage("清除篩選後未回到編輯句／未置中"),
+        })
         .toMatchObject({
-          activeSegId: edited.activeSegId,
+          activeSegId: editedSegId,
           activeIsGridTextarea: true,
           centeredOk: true,
           fakeCaretVisible: false,
@@ -127,16 +148,13 @@ test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
     });
 
     test("Test C — 手動取消 stale nav", async () => {
-      await sharedFrame.locator(".col-target .grid-textarea").first().click();
+      const firstSegId = await clickTargetAtDisplay(sharedFrame, 20);
+      expect(firstSegId).toBeTruthy();
       await sharedFrame.locator(".grid-textarea:focus").press("Control+Enter");
 
-      const other = sharedFrame.locator(".grid-data-row .col-target .grid-textarea").nth(1);
-      await other.click({ force: true });
-      const clickedSegId = await other.evaluate((el) => {
-        const row = el.closest(".grid-data-row") as HTMLElement | null;
-        return row?.dataset?.segId ?? null;
-      });
+      const clickedSegId = await clickTargetAtDisplay(sharedFrame, 21);
       expect(clickedSegId).toBeTruthy();
+      expect(clickedSegId).not.toBe(firstSegId);
 
       await expect
         .poll(async () => getCatNavigationState(sharedFrame), { timeout: 8_000 })
@@ -211,16 +229,12 @@ test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
       await sharedFrame.locator(".col-target .grid-textarea").first().click();
       await sharedFrame.locator(".grid-textarea:focus").press("Control+Enter");
       await sharedFrame.locator("#editorGrid").evaluate((el) => {
-        el.scrollTop += 400;
+        (el as HTMLElement).scrollTop += 400;
         el.dispatchEvent(new Event("scroll", { bubbles: true }));
       });
 
-      const target = sharedFrame.locator(".grid-data-row .col-target .grid-textarea").nth(3);
-      const clickedSegId = await target.evaluate((el) => {
-        const row = el.closest(".grid-data-row") as HTMLElement | null;
-        return row?.dataset?.segId ?? null;
-      });
-      await target.click();
+      const clickedSegId = await clickTargetAtDisplay(sharedFrame, 22);
+      expect(clickedSegId).toBeTruthy();
 
       const stable = await pollViewportStable(sharedFrame, 2000, 100);
       expect(stable.stable).toBe(true);
