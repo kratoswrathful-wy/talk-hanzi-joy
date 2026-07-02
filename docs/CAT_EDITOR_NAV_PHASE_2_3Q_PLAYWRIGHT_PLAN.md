@@ -873,6 +873,7 @@ Wave 1 通過後再開 Wave 2：I′（3×3）、Test N、條件式 J/K。
 修復焦點：大檔 virt 下 Ctrl+Enter confirm-jump 置中（flush center retry 耗盡）
 是否開 Wave 2（I′、N）：是（與產品修復可並行；I′ 驗證 PM 機率性手動點擊）
 本輪變更：拆 serial、clickTargetAtDisplay、Test A/B/C/I  deterministic 點擊
+本輪 commit：516566d
 ```
 
 ### 分類決策樹（本輪落地）
