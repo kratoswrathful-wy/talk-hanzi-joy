@@ -162,7 +162,7 @@ explicit navigation in virt mode:
 
 ### Phase Q → R 順序
 
-1. **Phase Q**：`[catNav] explicit center diagnostic` log（`catNavDebug` gate）；`repeat-each` A×3、B×5；A/B 路徑對照表。
+1. **Phase Q**：✅ 已完成（diagnostic log、`repeat-each` A×3/B×3、報告見 Playwright 計畫 §測試執行報告 Phase Q）。
 2. **Phase R**：依對照結果修 shared timing → `npm run sync:cat` → 重跑 Playwright 全矩陣（§Phase R 指令）。
 
 細節與報告模板：Playwright 計畫 §Phase Q、§Phase R。

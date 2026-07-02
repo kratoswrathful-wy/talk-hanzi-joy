@@ -21694,6 +21694,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Math.abs(delta) <= 16;
     }
 
+    /** Phase Q：explicit center 診斷 log（僅 catNavDebug） */
+    function getFirstVisibleDisplayIdInGrid() {
+        const idCell = document.querySelector('.grid-data-row[data-seg-id] .col-id');
+        if (!idCell) return null;
+        const n = parseInt(String(idCell.textContent || '').trim(), 10);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function logExplicitCenterDiagnostic(phase, pending, extra) {
+        if (!CAT_NAV_DEBUG() || !pending) return;
+        if (!pending.explicitNav && !pending.forceVirtScroll) return;
+        const segId = pending.segId;
+        const row = getGridRowBySegId(segId, false);
+        const gridEl = document.getElementById('editorGrid');
+        const active = document.activeElement;
+        const activeRow = active?.closest?.('.grid-data-row');
+        const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
+        const rowCenterDeltaPx = measureRowCenterDeltaPx(segId);
+        const rb = row?.getBoundingClientRect();
+        const gb = gridEl?.getBoundingClientRect();
+        const focusOk = !!active
+            && active.classList?.contains('grid-textarea')
+            && !!active.closest('.col-target')
+            && activeRow?.dataset?.segId === String(segId);
+        const centerOk = rowCenterDeltaPx != null && Math.abs(rowCenterDeltaPx) <= 16;
+        console.log('[catNav] explicit center diagnostic', {
+            phase,
+            intent: pending.explicitNav ? 'explicitNav' : 'preserve',
+            navGen: pending.gen,
+            targetSegId: segId,
+            activeSegId: activeRow?.dataset?.segId ?? null,
+            requestedScrollBlock: scrollBlock,
+            scrollTop: gridEl?.scrollTop ?? null,
+            firstVisibleDisplayId: getFirstVisibleDisplayIdInGrid(),
+            rowCenterDeltaPx,
+            rowRect: rb ? { top: Math.round(rb.top), height: Math.round(rb.height) } : null,
+            gridRect: gb ? { top: Math.round(gb.top), height: Math.round(gb.height) } : null,
+            centerRetryCount: _pendingEditorCenterRetry,
+            focusRetryCount: _pendingEditorFocusRetry,
+            focusOk,
+            centerOk,
+            virt: window.CatVirtGrid?.getDebugState?.() ?? null,
+            ...(extra || {}),
+        });
+    }
+
     /**
      * Phase 2.3q：包裝一次 programmatic editor focus 呼叫，
      * 讓 focusin handler 知道這是程式觸發，不應取消 pending nav。
@@ -21995,6 +22041,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const needsScroll = pending.forceVirtScroll || !row || !isCenterOk(pending.segId);
             if (needsScroll) {
                 window.CatVirtGrid.scrollToSegId(pending.segId, 'center');
+                logExplicitCenterDiagnostic('after scrollToSegId', pending, { scrollBlock: 'center' });
                 row = getGridRowBySegId(pending.segId, false);
                 if (!row) {
                     // row 尚未掛載，等 onAfterRender 觸發；也排一個備用 rAF
@@ -22018,6 +22065,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         withProgrammaticEditorFocus(() => {
             ok = applyEditorFocusAtSegId(pending.segId, { ...pending, skipVirtScroll: true });
         });
+        logExplicitCenterDiagnostic('after focus preventScroll', pending, { focusApplied: ok });
         if (!ok) {
             if (_pendingEditorFocusRetry < 3) {
                 _pendingEditorFocusRetry++;
@@ -22052,11 +22100,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         let rowCenterDeltaPx = null;
         let centerOkNow = true;
         if (wantCenter) {
+            logExplicitCenterDiagnostic('before center measure', pending);
             rowCenterDeltaPx = measureRowCenterDeltaPx(pending.segId);
             centerOkNow = rowCenterDeltaPx != null && Math.abs(rowCenterDeltaPx) <= 16;
             if (!centerOkNow) {
                 if (_pendingEditorCenterRetry < 3) {
                     _pendingEditorCenterRetry++;
+                    logExplicitCenterDiagnostic('before center retry', pending, {
+                        rowCenterDeltaPx,
+                        centerOk: false,
+                    });
                     if (CAT_NAV_DEBUG()) {
                         console.log('[catNav] flush incomplete - center retry', {
                             navGen: gen, rowCenterDeltaPx,
@@ -22066,6 +22119,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // 回到 step 1：下一幀會先 scroll，再 focus
                     scheduleNavRetryRaf(gen);
                 } else {
+                    logExplicitCenterDiagnostic('before flush failed', pending, {
+                        failureReason: 'center',
+                        rowCenterDeltaPx,
+                    });
                     if (CAT_NAV_DEBUG()) {
                         console.warn('[catNav] flush failed', {
                             navGen: gen, failureReason: 'center',
@@ -22133,6 +22190,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         _pendingEditorCenterRetry = 0;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         if (virtOn) {
+            logExplicitCenterDiagnostic('before navigation scheduled', _pendingEditorFocus, {
+                explicitNav: !!opts.explicitNav,
+                forceVirtScroll: !!opts.forceVirtScroll,
+                skipVirtScroll: !!opts.skipVirtScroll,
+            });
             requestAnimationFrame(() => requestAnimationFrame(() => flushPendingEditorFocus()));
             return true;
         }
