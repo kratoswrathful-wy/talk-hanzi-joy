@@ -1,7 +1,7 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**Phase Q 已完成** — 見 §測試執行報告 Phase Q；**現行接續 Phase R**  
-> **定案問題**：大檔 virt explicit centering 不穩；Phase Q：Test A 0/3 fail、Test B 3/3 pass（單跑，仍屬間歇）
+> **狀態**：**Phase Q 已完成**（含補跑）— 見 §測試執行報告 Phase Q；**現行接續 Phase R**  
+> **定案問題**：大檔 virt explicit centering 不穩；Phase Q：Test A **6/6 fail**（穩定）；Test B **3/8 pass**（高度間歇，fail 時 delta 多為 **+72px**）
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -695,17 +695,29 @@ console.log('[catNav] explicit center diagnostic', {
 
 **建議 phase**：`before navigation scheduled` → `after target selected` → `after scrollToSegId/centerOnSegId` → `after renderWindow` → `after setScrollTopDeferred` → `after focus preventScroll` → `after ResizeObserver/invalidateHeights` → `before retry` → `before flush failed`
 
-**觸點**：[`cat-tool/app.js`](../cat-tool/app.js) `flushPendingEditorFocus`、`scheduleEditorFocus`；必要時 [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)。
+**觸點**：[`cat-tool/app.js`](../cat-tool/app.js) `flushPendingEditorFocus`、`scheduleEditorFocus`；[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js) `renderWindow`、`setScrollTopDeferred`、`invalidateHeights`、ResizeObserver。
+
+**Phase 覆蓋狀態**（`b665c1f` 起 app.js；補跑起 grid-virtual-scroll）：
+
+| phase | 觸點 |
+|-------|------|
+| before navigation scheduled | `scheduleEditorFocus` |
+| after scrollToSegId | `flushPendingEditorFocus` |
+| after renderWindow | `CatVirtGrid.renderWindow` |
+| after setScrollTopDeferred | `CatVirtGrid.setScrollTopDeferred` |
+| after focus preventScroll | `flushPendingEditorFocus` |
+| after ResizeObserver/invalidateHeights | `onResizeEntries`、`invalidateHeights` |
+| before center retry / before flush failed | `flushPendingEditorFocus` |
 
 #### Q-2 repeat-each 量化
 
 ```powershell
 Set-Location "c:\Homemade Apps\1UP TMS"
 npx playwright test -g "Test A —" --project=chromium --repeat-each=3
-npx playwright test -g "Test B —" --project=chromium --repeat-each=3
+npx playwright test -g "Test B —" --project=chromium --repeat-each=5
 ```
 
-（B 規格原為 ×5；耗時考量先 ×3，必要時補跑至 5。）
+（首輪 Phase Q 曾 B×3 省時；**補跑須 B×5** 以對齊 GPT 建議與間歇統計。）
 
 每次記錄：`pass/fail`、`activeSegId`、`targetSegId`、`rowCenterDeltaPx`、`scrollTop`、`navAnchorLock`、`centerRetryCount`、`failureReason`。
 
@@ -752,7 +764,15 @@ A fail、B 全 pass → B 可能狀態污染；仍以 repeat 統計為準，單�
 
 ---
 
-### Phase R — 產品修復與驗收（**Phase Q 後**）
+### Phase R — 產品修復與驗收（**待執行**）
+
+**前置（Phase Q 交付）**：
+
+```text
+1. repeat-each：A×3、B×5（見 §測試執行報告 Phase Q）
+2. diagnostic 覆蓋 renderWindow / setScrollTopDeferred / RO（見 Q-1 phase 表）
+3. A/B 路徑對照摘要（架構級；B fail 時 -32px phase 待 R 重現或對照程式）
+```
 
 **範圍**：`pending.explicitNav && scrollBlock === 'center'` 的 **shared** 路徑；**不是**只修 Ctrl+Enter。
 
@@ -1038,56 +1058,89 @@ C/E pass（首輪）     → stale 取消、Ctrl+F 路徑目前可接受（產�
 
 ## 測試執行報告 Phase Q
 
-> **狀態**：**已完成**（2026-07-02）  
+> **狀態**：**已完成**（2026-07-02；含補跑）  
 > **執行者**：Cursor 代理  
 > **前置**：§測試執行報告 Wave 1；§Phase Q 規格  
-> **本輪變更**：`[catNav] explicit center diagnostic`（`catNavDebug` gate）；`npm run sync:cat`
+> **變更時序**：`b665c1f`（app.js diagnostic）→ **本 commit**（`grid-virtual-scroll.js` virt phase log 補齊 + B×5 補跑）
 
-### repeat-each 結果
+### repeat-each 結果（兩輪合計）
+
+#### 首輪（`b665c1f`，app.js diagnostic；B 曾 ×3 省時）
 
 | 測項 | repeat | pass | fail | pass rate | `rowCenterDeltaPx`（失敗時） |
 |------|--------|------|------|-----------|------------------------------|
-| Test A | 3 | 0 | 3 | **0%** | **≈ +71.6**（3/3 一致；`activeSegId=21`） |
-| Test B | 3 | 3 | 0 | **100%** | —（本輪全 pass，無 fail artifact） |
-
-**指令**：
+| Test A | 3 | 0 | 3 | **0%** | **≈ +71.6**（3/3；`activeSegId=21`） |
+| Test B | 3 | 3 | 0 | **100%** | —（全 pass，無 fail artifact） |
 
 ```powershell
-npx playwright test -g "Test A —" --project=chromium --repeat-each=3   # exit 1；3.5min
-npx playwright test -g "Test B —" --project=chromium --repeat-each=3   # exit 0；1.9min
+npx playwright test -g "Test A —" --project=chromium --repeat-each=3   # exit 1；~3.5min
+npx playwright test -g "Test B —" --project=chromium --repeat-each=3   # exit 0；~1.9min
 ```
 
-**與 Wave 1 對照**：B 仍為**間歇**——Wave 1 單跑 fail（`≈-32`）、同批曾 pass；Phase Q 單獨 `-g` ×3 全 pass。**不得以單次 B pass 排除 shared 問題**；A 0/3 為穩定主症狀。
+#### 補跑（grid-virtual-scroll virt phase log；B 改 ×5）
 
-### Phase Q 必答 8 題
+| 測項 | repeat | pass | fail | pass rate | `rowCenterDeltaPx`（失敗時） |
+|------|--------|------|------|-----------|------------------------------|
+| Test A | 3 | 0 | 3 | **0%** | **≈ +71.6**（3/3 一致） |
+| Test B | 5 | 0 | 5 | **0%** | **≈ +72**（5/5；`activeSegId=25`） |
+
+```powershell
+npx playwright test -g "Test A —" --project=chromium --repeat-each=3   # exit 1；~3.5min
+npx playwright test -g "Test B —" --project=chromium --repeat-each=5   # exit 1；~5.0min
+```
+
+**合計 pass rate**：Test A **0/6**（穩定 reproducer）；Test B **3/8**（37.5%，高度間歇）。
+
+**與 Wave 1 對照**：B 間歇性已量化——首輪 B×3 全 pass、補跑 B×5 全 fail；Wave 1 驗收重跑曾 **≈ -32px**（偏上）。補跑 fail 時 delta 與 A **同向（+72）**，顯示 shared centering 問題，非獨立 Ctrl+Enter bug。**不得以單次 B pass 排除 shared 問題**。
+
+### Phase Q 必答 8 題（兩輪合併結論）
 
 | # | 問題 | 結論 |
 |---|------|------|
-| 1 | A pass/fail 分布 | **3/3 fail** |
-| 2 | B pass/fail 分布 | **3/3 pass**（本輪；間歇性仍成立） |
-| 3 | A delta 是否穩定 ≈ +71 | **是**（`71.609375` ×3） |
-| 4 | B fail 時 delta ≈ -32 | 本輪無 fail；Wave 1 驗收重跑曾 **≈ -32** |
-| 5 | activeSegId / target 正確 | **是**（A：點 #20 → 確認後 #21；焦點在譯文格） |
+| 1 | A pass/fail 分布 | **6/6 fail**（兩輪各 ×3，全 fail） |
+| 2 | B pass/fail 分布 | **3/8 pass**（首輪 3/3 pass、補跑 0/5 pass；高度間歇） |
+| 3 | A delta 是否穩定 ≈ +71 | **是**（`71.609375` ×6） |
+| 4 | B fail 時 delta | 補跑 5/5 fail 皆 **≈ +72**（與 A 同向）；Wave 1 曾 **≈ -32**（不同失敗態，仍屬 centering 不穩） |
+| 5 | activeSegId / target 正確 | **是**（A：`#20`→確認後 `#21`；B：編輯 `#25` 後清除篩選回 `#25`；焦點皆在譯文格） |
 | 6 | 失敗時 navAnchorLock | **false**（`anchorSegId: null`） |
-| 7 | 哪個 phase 開始偏離 | **`before center measure`**：`after scrollToSegId` + `after focus preventScroll` 後量測仍 ≈71；retry 3 次 delta 不收斂 |
-| 8 | A/B 共用 timing 問題 | **是（高度疑似）**；A 穩定暴露；B 間歇。皆為 explicitNav + center 路徑 |
+| 7 | 哪個 phase 開始偏離 | **首輪失敗**：`before center measure`（`after scrollToSegId` + `after focus preventScroll` 後仍偏）；**補跑 B 額外觀察**：`flush failed` 後 `ResizeObserver/invalidateHeights` 連鎖，`scrollTop` 在 **1053 ↔ 1436 ↔ 1674** 間跳動，navGen 2 再排程 |
+| 8 | A/B 共用 timing 問題 | **是**；A 穩定暴露；B 間歇但 fail 時 delta 與 A 同向（+72），皆走 explicitNav + center 路徑 |
 
-### Diagnostic log 摘要（Test A，representative）
+### Diagnostic log 摘要
 
-`explicit center diagnostic` 已出現在 Playwright console（`enableCatNavDebug` 已於 `openOfflineCatWithFile` 啟用）。
+`explicit center diagnostic` 已出現在 Playwright console（`enableCatNavDebug` 於 `openOfflineCatWithFile` 啟用）。補跑起 **virt 觸點**（`grid-virtual-scroll.js`）亦會輸出 `after renderWindow`、`after setScrollTopDeferred`、`after ResizeObserver/invalidateHeights`。
 
-典型序列（confirm-jump → seg 21）：
+#### Test A（confirm-jump → seg 21，representative）
 
 ```text
-before navigation scheduled → targetSegId: 21
+after setScrollTopDeferred → targetTop: 1206.5, scrollTop: 1207
+after renderWindow → anchorSegId: 21, block: center
 after scrollToSegId → activeSegId 常為 null（列重掛載中）
-after focus preventScroll → activeSegId: 21, focusOk: true
+after focus preventScroll → activeSegId: 21
 before center measure → rowCenterDeltaPx ≈ 71, centerOk: false
 before center retry ×3 → delta 仍 ≈ 71
 before flush failed → failureReason: center
 ```
 
-**解讀**：`scrollToSegId` + `focus` 後 **center 量測仍偏 ≈71px**；同 stack rAF retry **無法收斂** → Phase R 應修 **render/deferred scroll/height settle 後再量測或再 center**，而非僅增加 retry。
+#### Test B（clear-filter → seg 25，補跑 representative）
+
+```text
+after setScrollTopDeferred → targetTop: 1435.5, scrollTop: 1436
+after renderWindow → anchorSegId: 25, block: center
+after scrollToSegId / after focus preventScroll → activeSegId: 25
+before center measure → rowCenterDeltaPx ≈ 72, centerOk: false
+flush failed → failureReason: center, rowCenterDeltaPx: 72
+（flush 失敗後）
+after ResizeObserver/invalidateHeights → trigger: invalidateHeights / resizeObserver
+after setScrollTopDeferred → scrollTop 連跳 1436 → 1053 → 1674 → 1053
+before navigation scheduled → navGen: 2, targetSegId: 25（第二輪導覽）
+```
+
+**解讀**：
+
+1. `scrollToSegId` + `focus` 後 **center 量測已偏 ≈71–72px**；rAF retry ×3 **無法收斂**。
+2. B fail 後 **ResizeObserver／invalidateHeights 仍改寫 scrollTop**，與 flush 失敗疊加，加劇「亂跳」表象。
+3. Phase R 應修 **render／deferred scroll／height settle 後再量測或再 center**，並檢視 flush 失敗後 RO 連鎖是否應暫停或延後 anchor 釋放。
 
 ### A vs B 路徑對照摘要
 
@@ -1098,8 +1151,8 @@ before flush failed → failureReason: center
 | `scrollBlock` | center | center |
 | `forceVirtScroll` | 依 confirm 路徑 | true（Layer A） |
 | focus/center 順序 | 共用 `flushPendingEditorFocus`（先 scroll → focus → measure） | 同上 |
-| Phase Q 典型 delta | **+71px**（穩定 fail） | 本輪 pass；歷史 fail **-32px** |
-| delta 偏掉 phase | `before center measure`（scroll+focus 後） | （fail 時推定同 path，待 Phase R 對照 filter 分支 log） |
+| Phase Q fail delta | **+71px**（6/6 fail） | 補跑 fail **+72px**（5/5）；Wave 1 曾 **-32px** |
+| delta 偏掉 phase | `before center measure` | 同左；fail 後另有 RO／invalidateHeights 連鎖 |
 
 **重點**：兩者皆走 **shared explicit centering**（`wantCenter` + `flushPendingEditorFocus`），非獨立 Ctrl+Enter special case。
 
@@ -1107,11 +1160,12 @@ before flush failed → failureReason: center
 
 ```text
 是否進入 Phase R 產品修復：是
-修復假說：shared explicit centering timing — scrollToSegId 後未等 render/deferred/height settle 即 focus+measure；center retry 僅 rAF 重試無效
-Test A：穩定 reproducer（0/3）
-Test B：間歇 sibling（本輪 3/3 pass；不可視為已修復）
+修復假說：shared explicit centering timing — scrollToSegId 後未等 render/deferred/height settle 即 focus+measure；
+          center retry 僅 rAF 重試無效；B fail 後 ResizeObserver/invalidateHeights 仍改寫 scrollTop
+Test A：穩定 reproducer（0/6）
+Test B：高度間歇 sibling（3/8 pass；fail 時 delta 多為 +72，與 A 同向）
 次要項：flush failed 時 cancelNavigationAnchor reason 仍為 nav-complete（Phase R 可改 nav-failed-center）
-本輪 commit：b665c1f
+commit 時序：b665c1f（首輪）→ 本 commit（virt log 補齊 + 補跑報告）
 ```
 
 ---

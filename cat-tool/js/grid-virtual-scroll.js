@@ -146,6 +146,20 @@
 
     function setScrollTopDeferred(scrollEl, targetTop) {
         scrollEl.scrollTop = targetTop;
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
+            console.log('[catNav] explicit center diagnostic', {
+                phase: 'after setScrollTopDeferred',
+                source: 'CatVirtGrid',
+                targetTop,
+                scrollTop: scrollEl.scrollTop,
+                virt: {
+                    anchorSegId: _anchorSegId,
+                    navAnchorLock: _navAnchorLock,
+                    lastStartIdx: _lastStartIdx,
+                    lastEndIdx: _lastEndIdx,
+                },
+            });
+        }
         requestAnimationFrame(() => {
             _suppressScroll = false;
         });
@@ -231,6 +245,15 @@
             }
         }
         if (dirty && !_rendering) {
+            if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
+                console.log('[catNav] explicit center diagnostic', {
+                    phase: 'after ResizeObserver/invalidateHeights',
+                    source: 'CatVirtGrid',
+                    trigger: 'resizeObserver',
+                    navAnchorLock: _navAnchorLock,
+                    anchorSegId: _anchorSegId,
+                });
+            }
             scheduleResizeRepaint();
         }
     }
@@ -349,6 +372,18 @@
                 }
                 deferSuppress = true;
                 setScrollTopDeferred(scrollEl, targetTop);
+            }
+            if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
+                console.log('[catNav] explicit center diagnostic', {
+                    phase: 'after renderWindow',
+                    source: 'CatVirtGrid',
+                    anchorSegId: explicitAnchor || _anchorSegId,
+                    block: scrollBlock,
+                    scrollTop: scrollEl ? scrollEl.scrollTop : null,
+                    lastStartIdx: _lastStartIdx,
+                    lastEndIdx: _lastEndIdx,
+                    navAnchorLock: _navAnchorLock,
+                });
             }
         } finally {
             _rendering = false;
@@ -519,6 +554,15 @@
 
     function invalidateHeights(anchorSegId, block) {
         if (!enabled) return;
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
+            console.log('[catNav] explicit center diagnostic', {
+                phase: 'after ResizeObserver/invalidateHeights',
+                source: 'CatVirtGrid',
+                trigger: 'invalidateHeights',
+                anchorSegId,
+                block,
+            });
+        }
         rowHeights.clear();
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
