@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3o 待驗收**；**Phase 2.3q 規劃定案、未實作**（2026-07-02；見 §3.18）。2.3p hotfix `649ef70` 已推送（焦點驗證；置中／假游標仍待 2.3q）。
+> **狀態**：**Phase 2.3o 待驗收**；**Phase 2.3q 已實作 `6344baa`，待驗收**（2026-07-02；見 §3.18）。2.3p hotfix `649ef70` 已推送；2.3q 修正置中／假游標／手動點擊 stale 問題。
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)、[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md)
@@ -657,4 +657,4 @@ focusOk && centerOk  // centerOk: Math.abs(rowCenterDeltaPx) <= 16
 | 2026-07-01 | Hotfix：`f3e4365` 修 `decorateTbInlineHintsForSegId` `segId` 重複宣告阻斷載入（§3.16） |
 | 2026-07-01 | Phase 2.3o：審稿外圈 2.5px 視覺微調；**待驗收**（§3.17） |
 | 2026-07-02 | Phase 2.3p：`b34496f` 方案 A+B；`649ef70` hotfix 焦點驗證；置中／假游標／手動點擊 stale 仍待修 |
-| 2026-07-02 | Phase 2.3q：規劃定案（§3.18、[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）；**未實作** |
+| 2026-07-02 | Phase 2.3q：**已實作 `6344baa`，待驗收**（§3.18、[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）；Layer 0+B+D+A+C 全上 |

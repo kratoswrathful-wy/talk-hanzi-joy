@@ -1,7 +1,7 @@
 # Phase 2.3q：共用 explicit 導覽完成條件 + stale 導覽取消（實作計畫）
 
-> **狀態**：**規劃定案，未實作**（2026-07-02）  
-> **前置**：Phase 2.3p hotfix `649ef70`（焦點驗證；置中／假游標／手動點擊 stale 導覽仍待修）  
+> **狀態**：**已實作 `6344baa`，待驗收**（2026-07-02；Layer 0 + B + D + A + C 全上）  
+> **前置**：Phase 2.3p hotfix `649ef70`（焦點驗證；置中／假游標／手動點擊 stale 導覽由本 commit 修正）  
 > **主紀錄摘要**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
 ---
