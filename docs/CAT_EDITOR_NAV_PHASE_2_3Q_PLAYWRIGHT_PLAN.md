@@ -1061,7 +1061,7 @@ C/E pass（首輪）     → stale 取消、Ctrl+F 路徑目前可接受（產�
 > **狀態**：**已完成**（2026-07-02；含補跑）  
 > **執行者**：Cursor 代理  
 > **前置**：§測試執行報告 Wave 1；§Phase Q 規格  
-> **變更時序**：`b665c1f`（app.js diagnostic）→ **本 commit**（`grid-virtual-scroll.js` virt phase log 補齊 + B×5 補跑）
+> **變更時序**：`b665c1f`（app.js diagnostic）→ `fc06da4`（`grid-virtual-scroll.js` virt phase log 補齊 + B×5 補跑）
 
 ### repeat-each 結果（兩輪合計）
 
@@ -1165,7 +1165,7 @@ before navigation scheduled → navGen: 2, targetSegId: 25（第二輪導覽）
 Test A：穩定 reproducer（0/6）
 Test B：高度間歇 sibling（3/8 pass；fail 時 delta 多為 +72，與 A 同向）
 次要項：flush failed 時 cancelNavigationAnchor reason 仍為 nav-complete（Phase R 可改 nav-failed-center）
-commit 時序：b665c1f（首輪）→ 本 commit（virt log 補齊 + 補跑報告）
+commit 時序：b665c1f（首輪）→ fc06da4（virt log 補齊 + 補跑報告）
 ```
 
 ---
