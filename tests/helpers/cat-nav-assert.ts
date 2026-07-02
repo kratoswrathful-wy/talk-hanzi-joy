@@ -270,7 +270,8 @@ export async function scrollToDisplayIndex(
   if (inEditor) {
     return jumpToDisplayIndex(frame, displayId);
   }
-  return frame.locator("body").evaluate(async (targetDisplayId) => {
+  return frame.locator("body").evaluate(
+    async (_el, { targetDisplayId }: { targetDisplayId: number }) => {
     const grid = document.getElementById("editorGrid");
     if (!grid) return null;
 
@@ -308,7 +309,9 @@ export async function scrollToDisplayIndex(
       await new Promise((r) => setTimeout(r, 16));
     }
     return findVisibleSegId();
-  }, displayId);
+  },
+    { targetDisplayId: displayId },
+  );
 }
 
 export async function clickTargetTextareaAtDisplay(
@@ -328,7 +331,7 @@ export async function findConfirmedTargetSegId(
   maxDisplay = 80,
 ): Promise<string | null> {
   return frame.locator("body").evaluate(
-    ({ minDisplay, maxDisplay }) => {
+    (_el, { minDisplay, maxDisplay }: { minDisplay: number; maxDisplay: number }) => {
       const rows = document.querySelectorAll(".grid-data-row.row-bg-confirmed");
       for (const row of rows) {
         const id = parseInt(row.querySelector(".col-id")?.textContent?.trim() || "0", 10);
