@@ -101,10 +101,13 @@ focusOk && centerOk  // centerOk: |rowCenterDeltaPx| <= 16
 | D | 小檔（≤800 句）confirm／clear filter／Ctrl+Alt+↓／手動點擊 |
 | E | Ctrl+G、F3、QA、手動捲動、Ctrl+F 不搶焦點、離屏 tip |
 | F | 達上限 `[catNav] flush failed`，不靜默 |
+| G | 大檔已確認句 F8：viewport 不甩到無關區、離屏假游標不偷換焦點（**不要求置中**） |
+| H | 大檔 F8 後無來回拉扯、`navAnchorLock` 已清、假游標不錯列 |
+| I | 大檔手動點譯文格：viewport 穩定（日常點擊；與 C 互補） |
 
 Debug：`localStorage.setItem('catNavDebug', '1')`（CAT iframe Console）。
 
-**Playwright 自動化驗收**（規劃定案、未實作）：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — 離線版、`Test_Big`／`Test_Small` fixture、localhost 測試環境、A～F 對照。
+**Playwright 自動化驗收**（規劃定案、未實作）：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — 離線版、`Test_Big`／`Test_Small` fixture、localhost、**A～I**（含 G～I F8／viewport 穩定）。
 
 ---
 

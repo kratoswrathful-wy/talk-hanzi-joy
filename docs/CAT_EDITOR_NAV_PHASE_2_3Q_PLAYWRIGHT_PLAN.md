@@ -15,6 +15,8 @@
 3. 手動點擊取消 stale 導覽
 4. 小檔非 virt 回歸
 5. （第二輪）Ctrl+F 不搶焦點、Ctrl+G／F3／QA smoke
+6. **F8 於已確認句段**：viewport 不應甩到無關區、假游標離屏 tip 不應誤導焦點（Test G／H）
+7. **手動點開譯文格**：viewport 不應「亂跳一陣」（Test I；與 Test C 互補）
 
 **禁止**只靠截圖判斷。測試須在 CAT iframe 內檢查 DOM 焦點、列置中、內部 debug 狀態與 console log。
 
@@ -30,7 +32,24 @@
 | 測試環境 | **強制**只在測試環境跑；禁止預設打 production |
 | 本文件範圍 | 計畫與規格；**Playwright 程式尚未安裝** |
 
-樣本來源（PM 提供）：本機 `Downloads/Test_Big.mqxliff`、`Downloads/Test_Small.mqxliff`，可匯入離線版 CAT。
+樣本來源（PM 提供）：本機 `Downloads/Test_Big.mqxliff`、`Downloads/Test_Small.mqxliff`，可匯入離線版 CAT。`Test_Big`（6333 句）與產品樣本 `54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff` 同屬大檔 virt 路徑；可選 `PLAYWRIGHT_CAT_RIFTBOUND_FIXTURE` 指向後者做手動對照。
+
+---
+
+## 症狀與根因（PM 回報 2026-07）
+
+**「亂跳一陣」是不是虛擬網格的副作用？**
+
+**部分是，但不只是。** 大檔（≥800 句）啟用 virt 後，任何觸發 **重畫** 的事件都可能讓 viewport 跳到別處：
+
+| 機制 | 程式觸點 | PM 回報對照 |
+|------|----------|-------------|
+| **navAnchorLock 重畫** | [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js) `scheduleResizeRepaint` L200–203 | 舊錨點在列高變化重畫時把畫面拉回遠端句（如 #3200） |
+| **假游標與 viewport 脫節** | [`cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js) `showOffScreenFakeTip` | 畫面在 ~#20，藍卡顯示「暫存游標位於第 3200 號句段」 |
+| **手動點擊 stale nav** | 2.3q `cancelPendingNavigationForUserInteraction` | 來回拉扯、最終選取與假游標錯列（Test C／I） |
+| **F8 間接重畫** | [`insertNextMissingTag`](../cat-tool/app.js) L18666 | F8 不直接 scroll；插入 tag → 列高變 → `ResizeObserver` → virt 重畫 |
+
+**F8 是觸發器，virt 重畫 + 舊錨點／假游標狀態是放大器**；與 2.3q explicit 導覽管線重疊但不完全相同，須以 Test G～I 獨立覆蓋。已確認句 F8 若觸發 workflow revoke，**允許**句段變未確認，但 **viewport 與焦點須停在同一句**（不要求 `centeredOk`）。
 
 ---
 
@@ -219,11 +238,26 @@ Test C 須 assert `navAnchorLock === false`。
 
 ### `attachCatConsoleCollector(page)`
 
-收集含 `[catNav]`、`[catVirt]`、`[catFakeCaret]` 的 console；失敗時 `dumpRecent(50)`。
+收集含 `[catNav]`、`[catVirt]`、`[catFakeCaret]` 的 console；失敗時 `dumpRecent(50)`。**僅作診斷**，不作唯一 pass／fail 依據。
+
+### `pollViewportStable(frame, ms?, interval?)`
+
+在 iframe 內每 `interval`（預設 100ms）記錄 `#editorGrid.scrollTop` 與第一個可見 `.grid-data-row` 的 `data-seg-id`；於 `ms`（預設 2000）內若 scrollTop 或 firstVisibleSegId **變動超過 2 次** → `stable: false`。
+
+### `getCatNavSnapshot(frame)`
+
+在 `getCatNavigationState` 基礎上擴充：
+
+- `savedFakeCaretSegId`：`catFakeCaret?.getSaved?.()?.segId`
+- `fakeOffScreenTipVisible`：`.cat-fake-caret-scroll-tip:not(.hidden)` 且文字含「暫存游標」
+- `virt`：`CatVirtGrid?.getDebugState?.()`
+- `scrollTop`、`firstVisibleDisplayId`（`.col-id` 文字）
+
+失敗時 dump 完整 snapshot + 最近 console。
 
 ---
 
-## 驗收測項（對應 2.3q A～F）
+## 驗收測項（對應 2.3q A～I）
 
 ### 共用通過條件
 
@@ -235,16 +269,25 @@ activeInTargetCol === true
 centeredOk === true   // |rowCenterDeltaPx| <= 16
 ```
 
-**手動點擊**（C）— **不要求置中**：
+**手動點擊**（C、I）— **不要求置中**：
 
 ```js
 activeSegId === clickedSegId
 activeIsGridTextarea === true
-fakeCaretVisible === false
+fakeCaretVisible === false   // 或無離屏 tip
 CatVirtGrid.getDebugState().navAnchorLock === false
 ```
 
-使用 `expect.poll`（timeout 5～8s），失敗訊息附 console dump。
+**F8／編輯中**（G、H）— **不要求 centeredOk**（F8 非 explicit 導覽）：
+
+```js
+activeSegId === f8SegId
+activeIsGridTextarea === true
+activeInTargetCol === true
+pollViewportStable === true
+```
+
+使用 `expect.poll`（timeout 5～8s），失敗訊息附 `getCatNavSnapshot` + console dump。
 
 ### Test A — 大檔 Ctrl+Enter ×5
 
@@ -284,7 +327,56 @@ CatVirtGrid.getDebugState().navAnchorLock === false
 - 難以穩定觸發 `[catNav] flush failed`
 - 第一版僅記錄需 debug hook；不做脆弱字串 log 斷言
 
-**第一版實作優先序**：D（冒煙）→ A → B → C → E → F
+### Test G — F8 於已確認句段：viewport 不應甩到無關區（PM 1(1)）
+
+**Fixture**：`Test_Big.mqxliff`
+
+**前置**：
+
+1. 捲到中段（display #3000–3200），點譯文格編輯（自然保存暫存游標）
+2. 捲到前段（約 display #13–22），點 **已確認**（綠底／✓）句段譯文格
+3. 記 `f8SegId` = `activeSegId`
+
+**動作**：iframe 內對 active `.grid-textarea` 按 `F8`
+
+**通過**（poll 3s）：
+
+- `activeSegId === f8SegId` 且 `activeIsGridTextarea === true`
+- `pollViewportStable` 為 stable
+- 若 `savedFakeCaretSegId !== f8SegId` 且出現離屏 tip：允許 tip，但 **不得** 在 3s 內把 `activeSegId` 改成 `savedFakeCaretSegId`
+- 可選：`firstVisibleDisplayId` 仍落在 #13–30（±5），不應整窗跳到 #3200
+
+**子項**：G-a（tag 已齊、reconcile 短路）；G-b（會插入 tag、可能 unconfirm）— 見 [`insertNextMissingTag`](../cat-tool/app.js) L18674。
+
+### Test H — F8 後來回拉扯 + 假游標錯列（PM 1(2)）
+
+**前置**：同 Test G 步驟 1–2
+
+**動作**：`F8` ×1
+
+**通過**（poll 3s，每 100ms 取樣）：
+
+- `scrollTop` 取樣變動次數 **≤ 2**
+- 最終 `activeSegId === f8SegId`
+- 焦點在 `f8SegId` 時，假游標／離屏 tip **不得** 指向步驟 1 的遠端 `savedFakeCaretSegId`
+- `getDebugState().navAnchorLock === false`
+
+### Test I — 手動點譯文格：viewport 穩定（PM 2；加強 Test C）
+
+**前置**：`Test_Big`；可選先 `Ctrl+Enter` 或僅手動捲動
+
+**動作**：點另一可見 `.col-target .grid-textarea`（**不要求**緊接 Ctrl+Enter）
+
+**通過**：
+
+- `pollViewportStable` 2s
+- `activeSegId === clickedSegId`
+- stable 後不得再跳走；**不要求** `centeredOk`
+- 焦點在 clicked 列時 `fakeOffScreenTipVisible === false`
+
+與 Test C：C 測「取消 stale explicit nav」；I 測「日常手動點擊不亂跳」。
+
+**第一版實作優先序**：D（冒煙）→ A → B → C → **G → H → I** → E → F
 
 ---
 
@@ -292,7 +384,7 @@ CatVirtGrid.getDebugState().navAnchorLock === false
 
 | 階段 | 執行者 | 用途 |
 |------|--------|------|
-| Playwright A～D | 本機／CI | 開發期回歸 |
+| Playwright A～I | 本機／CI | 開發期回歸（含 F8／viewport 穩定 G～I） |
 | Claude AI Slack | 部署後 | 全量驗收（見 [`.cursor/rules/claude-ai-acceptance-slack.mdc`](../.cursor/rules/claude-ai-acceptance-slack.mdc)） |
 
 ---
@@ -301,8 +393,8 @@ CatVirtGrid.getDebugState().navAnchorLock === false
 
 | 檔案 | 區段 |
 |------|------|
-| [`cat-tool/app.js`](../cat-tool/app.js) | `flushPendingEditorFocus`、`flushFilterAnchorAfterVirtRender`、`focusin`、confirm-jump、`window.__catNavState` |
-| [`cat-tool/js/grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js) | `cancelNavigationAnchor`、`getDebugState`、`isEnabled`（門檻 800 句） |
+| [`cat-tool/app.js`](../cat-tool/app.js) | `flushPendingEditorFocus`、`insertNextMissingTag`（F8）、`focusin`、confirm-jump、`window.__catNavState` |
+| [`cat-tool/js/grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js) | `cancelNavigationAnchor`、`getDebugState`、`scheduleResizeRepaint`（navAnchorLock） |
 | [`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js) | `.cat-fake-caret`、`refreshAfterVirtRender` |
 | [`cat-tool/index.html`](../cat-tool/index.html) | `#sourceFileInput`、`#sfInput`、`#btnSfClearNav` |
 | [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx) | `/cat/offline` iframe 嵌入 |
@@ -316,8 +408,9 @@ CatVirtGrid.getDebugState().navAnchorLock === false
 2. helpers + fixtures（Test_Small commit；Test_Big 依 PM 決定）
 3. Test D 冒煙
 4. Test A → B → C
-5. Test E → F（第二輪）
-6. 可選 GitHub Actions（preview URL + fixture artifact）
+5. Test G → H → I（F8／viewport 穩定）
+6. Test E → F（第二輪）
+7. 可選 GitHub Actions（preview URL + fixture artifact）
 ```
 
 ---
@@ -327,3 +420,6 @@ CatVirtGrid.getDebugState().navAnchorLock === false
 - **`Test_Big.mqxliff` ~10.7 MB**：commit 前請 PM 確認；可用 `PLAYWRIGHT_CAT_LARGE_FIXTURE` 備援。
 - **匯入精靈**：離線版匯入後可能有確認步驟，實作時以 codegen 記錄 selector。
 - **Debug**：CAT iframe Console：`localStorage.setItem('catNavDebug','1')`。
+- **F8 副作用**：插入 tag 可能 `unconfirmSegmentVisualAfterReplace`；G／H 須在 fixture 上跑，優先 tag 已齊句段。
+- **display # vs segId**：藍卡「第 3200 號句段」為 display index；assert 同時記 `data-seg-id` 與 `.col-id` 文字。
+- **G～I 若 6344baa 後仍失敗**：可能未涵蓋 F8→resize→`navAnchorLock` 路徑，需另開修復任務；Playwright 先鎖定回歸。

@@ -630,7 +630,7 @@ focusOk && centerOk  // centerOk: Math.abs(rowCenterDeltaPx) <= 16
 
 **禁令**：禁止 focus 成功後同一 call stack 再 `scrollToSegId('center')`（2.3p 已證明吃焦點）。
 
-**驗收**（詳見計畫書）：大檔 confirm-jump／clear filter（A–B）、手動點擊不跳位且 nav lock 已清（C）、小檔回歸（D）、Ctrl+F／F3／QA（E）、`flush failed` 可見（F）。Playwright 自動化規格：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)。
+**驗收**（詳見計畫書）：大檔 confirm-jump／clear filter（A–B）、手動點擊不跳位且 nav lock 已清（C）、小檔回歸（D）、Ctrl+F／F3／QA（E）、`flush failed` 可見（F）；**F8／viewport 穩定**（G–I，PM 2026-07 回報）。Playwright：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)。
 
 **觸點**：[`cat-tool/app.js`](../cat-tool/app.js) `flushPendingEditorFocus`、`flushFilterAnchorAfterVirtRender`、`focusin` L4071；[`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)；[`cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js) `refreshAfterVirtRender`。
 
@@ -659,3 +659,4 @@ focusOk && centerOk  // centerOk: Math.abs(rowCenterDeltaPx) <= 16
 | 2026-07-02 | Phase 2.3p：`b34496f` 方案 A+B；`649ef70` hotfix 焦點驗證；置中／假游標／手動點擊 stale 仍待修 |
 | 2026-07-02 | Phase 2.3q：**已實作 `6344baa`，待驗收**（§3.18、[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）；Layer 0+B+D+A+C 全上 |
 | 2026-07-02 | Phase 2.3q Playwright 驗收計畫定案（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）；離線版 + Test_Big／Test_Small；**未實作測試碼** |
+| 2026-07-02 | Playwright 計畫擴充 **G～I**：F8 已確認句、viewport 拉扯、手動點擊穩定（PM Riftbound 6333 句回報） |
