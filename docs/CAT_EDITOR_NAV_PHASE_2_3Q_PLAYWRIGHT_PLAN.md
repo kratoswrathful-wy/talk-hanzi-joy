@@ -579,8 +579,8 @@ expect.poll(getCatNavigationState).toMatchObject({
 
 ```text
 大檔 virtual-scroll explicit centering 管線不穩。
-Test A（Ctrl+Enter confirm-jump）：穩定 fail，rowCenterDeltaPx ≈ +71。
-Test B（clear-filter return-to-target）：間歇 fail（批次曾 pass、單跑 fail、同批又 pass），rowCenterDeltaPx ≈ -32。
+Test A（Ctrl+Enter confirm-jump）：穩定 fail，0/6 fail，rowCenterDeltaPx ≈ +71.6。
+Test B（clear-filter return-to-target）：3/8 pass（高度間歇）；fail 時 rowCenterDeltaPx 多為 ≈ +72（Wave 1 曾 ≈ -32）。
 C/E/D/G/H/I：首輪 pass（產品修後 C/E 需重跑）。
 ```
 
@@ -599,10 +599,10 @@ C/E/D/G/H/I：首輪 pass（產品修後 C/E 需重跑）。
 flowchart LR
   subgraph done [已完成]
     W1[Wave1 d15ad0b]
+    P[PhaseP 計畫]
+    Q[PhaseQ fc06da4]
   end
   subgraph next [現行]
-    P[PhaseP 計畫]
-    Q[PhaseQ 診斷]
     R[PhaseR 產品修]
     S[PhaseS Wave2]
   end
@@ -611,7 +611,7 @@ flowchart LR
 
 ---
 
-### Phase P — 計畫對齊（**本輪文件**）
+### Phase P — 計畫對齊（**已完成**）
 
 **目標**：兩份權威計畫與 Wave 1 事實一致；移除過時前提。
 
@@ -766,12 +766,12 @@ A fail、B 全 pass → B 可能狀態污染；仍以 repeat 統計為準，單�
 
 ### Phase R — 產品修復與驗收（**待執行**）
 
-**前置（Phase Q 交付）**：
+**前置（Phase Q 交付）** — 皆 ✅：
 
 ```text
 1. repeat-each：A×3、B×5（見 §測試執行報告 Phase Q）
 2. diagnostic 覆蓋 renderWindow / setScrollTopDeferred / RO（見 Q-1 phase 表）
-3. A/B 路徑對照摘要（架構級；B fail 時 -32px phase 待 R 重現或對照程式）
+3. A/B 路徑對照已完成；B fail 主態 +72，Wave 1 -32 為次要失敗態；RO 連鎖已記錄
 ```
 
 **範圍**：`pending.explicitNav && scrollBlock === 'center'` 的 **shared** 路徑；**不是**只修 Ctrl+Enter。
@@ -787,7 +787,25 @@ A fail、B 全 pass → B 可能狀態污染；仍以 repeat 統計為準，單�
 6. retry 掛在 layout 事件後，非僅同 stack rAF×3
 ```
 
+**禁止修法**（亦見 §暫不做）：
+
+```text
+- 勿把 centerRetryCount 盲目加大（如 3→10）
+- 勿放寬 centeredOk 16px 門檻
+- 勿只硬修 Ctrl+Enter handler
+- 勿把手動點擊 / F8 / typing 改成 force center
+- 勿整包重寫 CatVirtGrid
+```
+
 **次要改善**：`flush failed` 時 `cancelNavigationAnchor` 勿標 `nav-complete`；改區分 `nav-failed-center`（診斷用）。
+
+**驗收門檻**：
+
+| 測項 | 門檻 |
+|------|------|
+| Test A | **3/3** pass |
+| Test B | **5/5** pass |
+| C/E/D/G/H/I | 全 pass |
 
 **修完必跑**：
 
@@ -941,17 +959,14 @@ jumpToDisplayIndex → data-seg-id → click → assert activeSegId
 1. docs/CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md — §測試執行報告 Wave 1、§Phase P/Q/R/S
 2. docs/CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md — §產品修復波
 
-定案問題：大檔 virt explicit centering 不穩；Test A 穩定 fail；Test B 間歇 fail。
+定案問題：大檔 virt explicit centering 不穩；Test A 0/6 fail；Test B 3/8 pass（fail 時多為 +72）。
 勿用「B 穩定 pass」或「只修 Ctrl+Enter」舊前提。
 
-若執行 Phase Q：
-- 加 [catNav] explicit center diagnostic（catNavDebug gate）
-- npx playwright test -g "Test A —" --repeat-each=3
-- npx playwright test -g "Test B —" --repeat-each=5
-- 填 §測試執行報告 Phase Q
+Phase Q：✅ 已完成（見 §測試執行報告 Phase Q；fc06da4）。
 
 若執行 Phase R：
 - 修 shared explicit centering timing（非 Ctrl+Enter-only）
+- 驗收門檻：A 3/3、B 5/5、C/E/D/G/H/I 全 pass
 - npm run sync:cat；重跑 A/B/C/E/D/G/H/I
 - 更新兩份計畫驗收狀態
 

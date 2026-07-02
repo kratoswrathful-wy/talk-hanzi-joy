@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3o 待驗收**；**Phase 2.3q 已實作 `6344baa`，待驗收**（2026-07-02；見 §3.18）。2.3p hotfix `649ef70` 已推送；2.3q 修正置中／假游標／手動點擊 stale 問題。
+> **狀態**：**Phase 2.3o 待驗收**；**Phase 2.3q 已實作 `6344baa`**；Playwright Wave 1 + Phase Q 完成（`fc06da4`）；**Phase R 產品修復待執行後結案**（見 §3.18）。2.3p hotfix `649ef70` 已推送。
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)、[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md)
@@ -587,7 +587,15 @@ B-7g 規格實作註記：[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WO
 
 ### 3.18 Phase 2.3q — 共用 explicit 導覽完成條件 + stale 導覽取消（2026-07-02）
 
-**狀態**：**已實作 `6344baa`，待驗收**（完整計畫：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)；Playwright 驗收規劃：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）
+**狀態**：**已實作 `6344baa`**；Playwright Wave 1 `d15ad0b` + Phase Q `fc06da4` 完成；**2.3q 導覽驗收 blocked 於 Phase R**（完整計畫：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)；Playwright：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）
+
+**Playwright 現況**（Phase Q 後）：
+
+| 測項 | 結果 |
+|------|------|
+| Test A（confirm-jump） | **0/6 fail**（穩定 reproducer；delta ≈ +71.6） |
+| Test B（clear-filter） | **3/8 pass**（高度間歇；fail 時多為 ≈ +72） |
+| C/E/D/G/H/I | 首輪 pass；**Phase R 後須重跑** |
 
 **背景（2.3p 後仍殘留）**：`649ef70` hotfix 改善 confirm-jump 焦點驗證，但產品回報仍見：
 
@@ -657,6 +665,8 @@ focusOk && centerOk  // centerOk: Math.abs(rowCenterDeltaPx) <= 16
 | 2026-07-01 | Hotfix：`f3e4365` 修 `decorateTbInlineHintsForSegId` `segId` 重複宣告阻斷載入（§3.16） |
 | 2026-07-01 | Phase 2.3o：審稿外圈 2.5px 視覺微調；**待驗收**（§3.17） |
 | 2026-07-02 | Phase 2.3p：`b34496f` 方案 A+B；`649ef70` hotfix 焦點驗證；置中／假游標／手動點擊 stale 仍待修 |
-| 2026-07-02 | Phase 2.3q：**已實作 `6344baa`，待驗收**（§3.18、[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）；Layer 0+B+D+A+C 全上 |
-| 2026-07-02 | Phase 2.3q Playwright 驗收計畫定案（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）；離線版 + Test_Big／Test_Small；**未實作測試碼** |
+| 2026-07-02 | Phase 2.3q：**已實作 `6344baa`**（§3.18、[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）；Layer 0+B+D+A+C 全上 |
+| 2026-07-02 | Phase 2.3q Playwright 驗收計畫定案（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）；離線版 + Test_Big／Test_Small；**已實作**（`tests/cat-navigation-2-3q.spec.ts`） |
 | 2026-07-02 | Playwright 計畫擴充 **G～I**：F8 已確認句、viewport 拉扯、手動點擊穩定（PM Riftbound 6333 句回報） |
+| 2026-07-02 | Playwright Wave 1 完成 `d15ad0b`；Test A L2 產品向（`centeredOk` 穩定 fail） |
+| 2026-07-02 | Phase Q 診斷完成 `fc06da4`；A 0/6、B 3/8；進 **Phase R** shared explicit centering timing |

@@ -1,6 +1,7 @@
 # Phase 2.3q：共用 explicit 導覽完成條件 + stale 導覽取消（實作計畫）
 
-> **狀態**：**已實作 `6344baa`**；Playwright Wave 1 顯示 **Test A 穩定 L2 fail**、**Test B 間歇 fail** → **開啟產品修復波**（Phase Q/R；見 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) §Phase P/Q/R/S）  
+> **狀態**：**已實作 `6344baa`**；**Phase Q 已完成**（`fc06da4`）；**Phase R 待執行**（shared explicit centering timing）  
+> **Playwright**：Test A **0/6 fail**（穩定）；Test B **3/8 pass**（高度間歇）；見 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) §Phase P/Q/R/S  
 > **前置**：Phase 2.3p hotfix `649ef70`（焦點驗證；置中／假游標／手動點擊 stale 導覽由本 commit 修正）  
 > **主紀錄摘要**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -93,7 +94,7 @@ focusOk && centerOk  // centerOk: |rowCenterDeltaPx| <= 16
 
 ## 驗收標準（摘要）
 
-> **Playwright 現況**（Wave 1，`d15ad0b`）：**A** 穩定 fail；**B** 間歇 fail；**C/E/D/G/H/I** 首輪 pass。產品修復後須重跑全矩陣（見 Playwright 計畫 §Phase R）。
+> **Playwright 現況**（Wave 1 `d15ad0b` + Phase Q `fc06da4`）：**A** 0/6 fail（穩定）；**B** 3/8 pass（高度間歇）；**C/E/D/G/H/I** 首輪 pass。Phase R 修復後須重跑全矩陣（見 Playwright 計畫 §Phase R）。
 
 | 類別 | 要點 |
 |------|------|
@@ -109,7 +110,7 @@ focusOk && centerOk  // centerOk: |rowCenterDeltaPx| <= 16
 
 Debug：`localStorage.setItem('catNavDebug', '1')`（CAT iframe Console）。
 
-**Playwright 自動化驗收**：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — Wave 1 完成 `d15ad0b`；接續 **§Phase P/Q/R/S**。
+**Playwright 自動化驗收**：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — Wave 1 `d15ad0b`、Phase Q `fc06da4` 完成；接續 **§Phase R**。
 
 ---
 
@@ -122,8 +123,8 @@ Debug：`localStorage.setItem('catNavDebug', '1')`（CAT iframe Console）。
 
 ```text
 大檔 virtual-scroll explicit centering 管線不穩。
-Test A（Ctrl+Enter confirm-jump）：穩定 reproducer，rowCenterDeltaPx ≈ +71。
-Test B（clear-filter return-to-target）：間歇 sibling，rowCenterDeltaPx ≈ -32。
+Test A（Ctrl+Enter confirm-jump）：穩定 reproducer，0/6 fail，rowCenterDeltaPx ≈ +71.6。
+Test B（clear-filter return-to-target）：高度間歇 sibling，3/8 pass；fail 時多為 ≈ +72（Wave 1 曾 ≈ -32）。
 焦點可進入目標譯文格（focusOk），但 center 無法收斂至 ≤16px（centerOk fail）。
 ```
 
@@ -144,7 +145,7 @@ Test B（clear-filter return-to-target）：間歇 sibling，rowCenterDeltaPx �
 4. flushFilterAnchorAfterVirtRender（clear-filter）
 5. CatVirtGrid.scrollToSegId / centerOnSegId / isSegIdCentered
 6. renderWindow + setScrollTopDeferred 時序
-7. ResizeObserver / invalidateHeights（confirm 或 filter 後是否覆寫 scrollTop）
+7. ResizeObserver / invalidateHeights（confirm 或 filter 後是否覆寫 scrollTop；Phase Q：flush failed 後 RO 連鎖仍改寫 scrollTop，如 1053↔1436↔1674）
 8. cancelNavigationAnchor reason（失敗時勿標 nav-complete）
 ```
 
@@ -162,10 +163,22 @@ explicit navigation in virt mode:
 
 ### Phase Q → R 順序
 
-1. **Phase Q**：✅ 已完成（diagnostic log、`repeat-each` A×3/B×3、報告見 Playwright 計畫 §測試執行報告 Phase Q）。
-2. **Phase R**：依對照結果修 shared timing → `npm run sync:cat` → 重跑 Playwright 全矩陣（§Phase R 指令）。
+| 階段 | 狀態 |
+|------|------|
+| **Phase Q** | ✅ 已完成：`b665c1f`（app.js diagnostic）+ `fc06da4`（virt log + B×5 補跑）；報告見 Playwright 計畫 §測試執行報告 Phase Q |
+| **Phase R** | ⏳ 待執行：修 shared timing → `npm run sync:cat` → 重跑 Playwright 全矩陣（§Phase R 指令） |
 
 細節與報告模板：Playwright 計畫 §Phase Q、§Phase R。
+
+### Phase R 驗收門檻
+
+交叉引用 Playwright 計畫 §Phase R：
+
+| 測項 | 門檻 |
+|------|------|
+| Test A | **3/3** pass（`repeat-each=3`） |
+| Test B | **5/5** pass（`repeat-each=5`）；仍間歇 fail 視為**未修完** |
+| C/E/D/G/H/I | 全 pass |
 
 ---
 
