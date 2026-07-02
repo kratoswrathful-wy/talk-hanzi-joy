@@ -1,6 +1,7 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**Wave 1 已完成**（見 §測試執行報告 Wave 1）— `516566d` 實作；**A、B 皆 L2 fail（驗收重跑）**；C/E/D/G/H/I 首輪 pass
+> **狀態**：**Wave 1 已完成**（`d15ad0b`）— 見 §測試執行報告 Wave 1；**現行接續 Phase P→Q→R→S**（產品修復 + 測試擴網）  
+> **定案問題**：大檔 virt **explicit centering 不穩** — Test A 穩定 fail（`≈+71px`）；Test B 間歇 fail（`≈-32px`）；C/E/D/G/H/I 首輪 pass
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -450,7 +451,7 @@ TM／高相符 guard（L）、tag 行高（M）；待 Wave 1／2 證據再開。
 3. Test D 冒煙 → A～I 初版
 ```
 
-**現行接續（權威）**：§下一波執行計畫（Wave 1 診斷 → Wave 2 壓力擴網）
+**現行接續（權威）**：§下一波執行計畫 **Phase P→Q→R→S**（Wave 1 已完成 → 產品修復 → Wave 2 擴網）
 
 ---
 
@@ -554,7 +555,7 @@ expect.poll(getCatNavigationState).toMatchObject({
 
 ### 給 GPT 5.5 的接續任務（建議優先序）
 
-**已整併至 §下一波執行計畫（Wave 1／Wave 2）**；請以該節為執行權威，本節僅保留首輪紀錄。
+**已整併至 §下一波執行計畫 Phase P/Q/R/S**；請以該節為執行權威，本節僅保留首輪紀錄。
 
 1. ~~Test A 根因~~ → Wave 1 §W1-1～W1-2
 2. ~~拆 serial、單跑 B/C/E~~ → Wave 1 §W1-3～W1-4
@@ -568,127 +569,199 @@ expect.poll(getCatNavigationState).toMatchObject({
 
 ---
 
-## 下一波執行計畫（Wave 1／Wave 2）
+## 下一波執行計畫（Phase P／Q／R／S）
 
-> **審查對象**：GPT 5.5／後續 AI 代理 — **本節為下一階段執行權威**（整合 PM 回報、首輪測試報告、GPT 5.5 Wave 建議，2026-07-02 定案）。  
-> **目標**：用 Playwright **畫出失敗分布**，再決定是否修產品；**Wave 1 完成前不開始改 `cat-tool/` 產品碼**（helpers／spec 除外）。
+> **審查對象**：GPT 5.5／後續 AI 代理 — **本節為現行執行權威**（整併 GPT 5.5 三版建議 + Wave 1 報告，2026-07-02 定案）。  
+> **Wave 1**：**已完成**（`d15ad0b`）；見 §測試執行報告 Wave 1。  
+> **現行目標**：修復大檔 virt **explicit centering** 不穩；並行擴充 Wave 2 壓力測試。
+
+### 定案問題陳述
+
+```text
+大檔 virtual-scroll explicit centering 管線不穩。
+Test A（Ctrl+Enter confirm-jump）：穩定 fail，rowCenterDeltaPx ≈ +71。
+Test B（clear-filter return-to-target）：間歇 fail（批次曾 pass、單跑 fail、同批又 pass），rowCenterDeltaPx ≈ -32。
+C/E/D/G/H/I：首輪 pass（產品修後 C/E 需重跑）。
+```
 
 ### 總決策
 
 | 要做 | 不做 |
 |------|------|
-| Wave 1：診斷 Test A、補跑 B/C/E、更新報告 | 整包重寫 virt／導覽架構 |
-| Wave 2：I′ 壓力、Test N、最小 J/K | 一次實作 J～N 全套 |
-| 測試修正（點錯列、拆 serial） | 在 trace 未證明前當成產品 bug 大改 |
+| Phase Q：diagnostic log + `repeat-each` 量化 A/B | 整包重寫 virt／導覽架構 |
+| Phase R：修 **shared** explicit centering timing | 只硬修 Ctrl+Enter 分支、忽略 B |
+| Phase S（Wave 2）：I′、Test N、最小 J/K | 一次實作 J～N 全套 |
+| 對照 A/B 路徑差異後最小修復 | 放寬 16px 門檻或盲目增加 retry |
 
-**優先序**：P0 Test A trace／點擊目標 → P1 B/C/E + 報告 → P2 I′ → P3 N → P4 最小 J/K → **Backlog** L/M
+**優先序**：Phase P（計畫對齊）→ **Phase Q**（診斷量化）→ **Phase R**（產品修復）→ **Phase S**（Wave 2 擴網；可與 R 尾端並行）→ **Backlog** L/M
+
+```mermaid
+flowchart LR
+  subgraph done [已完成]
+    W1[Wave1 d15ad0b]
+  end
+  subgraph next [現行]
+    P[PhaseP 計畫]
+    Q[PhaseQ 診斷]
+    R[PhaseR 產品修]
+    S[PhaseS Wave2]
+  end
+  W1 --> P --> Q --> R --> S
+```
 
 ---
 
-### Wave 1 — 診斷與補齊證據
+### Phase P — 計畫對齊（**本輪文件**）
 
-**目標**：釐清 Test A 是 (1) 大檔 virt explicit 置中產品 bug、(2) 量測／poll 時序、(3) 測試點錯 virt 列。
+**目標**：兩份權威計畫與 Wave 1 事實一致；移除過時前提。
 
-#### W1-1 分析 Test A trace
-
-讀取首輪失敗 trace（或重跑後新 trace），記錄：
+**不要再使用的說法**：
 
 ```text
-rowCenterDeltaPx
-activeSegId / targetSegId
-scrollTop / firstVisibleDisplayId
-CatVirtGrid.getDebugState()（navAnchorLock、anchorSegId 等）
-最近 50 筆 [catNav] / [catVirt] / [catFakeCaret]
+Test B 穩定 pass
+B pass 表示 clear-filter 路徑安全
+這只是 Ctrl+Enter confirm-jump bug
+這不是 shared explicit-centering 問題
+因為 B pass 所以與 filter-clear 無關
+Wave 1 完成前不可改 cat-tool
 ```
 
-**必答**：
+**應採用**：
 
 ```text
-activeSegId 是否為預期句段？
-rowCenterDeltaPx 是否穩定偏大（>>16）還是在門檻附近抖動？
-navAnchorLock 是否仍為 true？
-測試是否點到意圖的 display 列？
+Test A = 穩定 reproducer（L2 產品向）
+Test B = 間歇 sibling failure
+問題範圍 = 大檔 virt explicit centering 不穩
+修復入口 = shared path（以 A 為主、B 納入對照與驗收）
 ```
 
-指令（重現）：
+**交叉引用**：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md) §產品修復波。
+
+---
+
+### Wave 1 — 診斷與補齊證據（**已完成**）
+
+| 項目 | 狀態 |
+|------|------|
+| W1-1 Test A trace 診斷 | ✅ `rowCenterDeltaPx ≈ 71`、L2 |
+| W1-2 `clickTargetAtDisplay` 修正 | ✅ 仍 fail → 非 L1 |
+| W1-3 單跑 B/C/E | ✅ B 間歇、C/E pass |
+| W1-5 拆 serial | ✅ |
+| W1-6 回歸 D/G/H/I | ✅ |
+| §測試執行報告 Wave 1 | ✅ `516566d`、`d15ad0b` |
+
+細節見 §測試執行報告 Wave 1；W1-* 步驟保留供審查追溯。
+
+---
+
+### Phase Q — 診斷量化（**下一實作代理**）
+
+**目標**：用 log + `repeat-each` 判斷 A/B 是否在同一 shared path 偏掉；填 §Phase Q 報告。
+
+#### Q-1 暫時性 diagnostic log
+
+在 shared explicit-center 路徑加 log（**僅** `localStorage.catNavDebug === '1'` 或開發期）：
+
+```js
+console.log('[catNav] explicit center diagnostic', {
+  phase,
+  intent,
+  navGen,
+  targetSegId,
+  activeSegId,
+  requestedScrollBlock,
+  scrollTop,
+  firstVisibleDisplayId,
+  rowCenterDeltaPx,
+  rowRect,
+  gridRect,
+  centerRetryCount,
+  focusOk,
+  centerOk,
+  virt: window.CatVirtGrid?.getDebugState?.(),
+});
+```
+
+**建議 phase**：`before navigation scheduled` → `after target selected` → `after scrollToSegId/centerOnSegId` → `after renderWindow` → `after setScrollTopDeferred` → `after focus preventScroll` → `after ResizeObserver/invalidateHeights` → `before retry` → `before flush failed`
+
+**觸點**：[`cat-tool/app.js`](../cat-tool/app.js) `flushPendingEditorFocus`、`scheduleEditorFocus`；必要時 [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)。
+
+#### Q-2 repeat-each 量化
 
 ```powershell
 Set-Location "c:\Homemade Apps\1UP TMS"
-npx playwright test -g "Test A —" --project=chromium
-npx playwright show-trace test-results\**\trace.zip
+npx playwright test -g "Test A —" --project=chromium --repeat-each=3
+npx playwright test -g "Test B —" --project=chromium --repeat-each=5
 ```
 
-#### W1-2 修正 Test A 點擊目標（若 trace 支持）
+每次記錄：`pass/fail`、`activeSegId`、`targetSegId`、`rowCenterDeltaPx`、`scrollTop`、`navAnchorLock`、`centerRetryCount`、`failureReason`。
 
-**已知風險**：目前 spec 為 `scrollToDisplayIndex(20)` 後點 `.first()`，virt 下**不保證**為 display #20。
-
-**對齊 G/H/I 的可靠寫法**：
+**判讀**：
 
 ```text
-jumpToDisplayIndex(frame, 20) → segId
-點 `.grid-data-row[data-seg-id="${segId}"] .col-target .grid-textarea`
-assert activeSegId === segId
-再 Control+Enter ×3（或對齊規格 ×5）
+A 全 fail、B 部分 fail → A 穩定主症狀，B 間歇 sibling
+A/B 全 fail → shared explicit-centering 問題更強
+A fail、B 全 pass → B 可能狀態污染；仍以 repeat 統計為準，單次不作結論
 ```
 
-若修正後 **A pass** → 歸類為 **L1 測試寫法**；若仍 `centeredOk: false` → 歸類為 **L2 產品向**，進入產品修復評估（仍須記錄 `rowCenterDeltaPx` 數值）。
+**注意**：B 間歇（批次 pass／單跑 fail／同批又 pass）；**以 repeat-each pass rate 為準**。
 
-#### W1-3 單跑 Test B
+#### Q-3 A vs B 路徑對照（修復前必做）
 
-```powershell
-npx playwright test -g "Test B —" --project=chromium
+| 欄位 | Test A（confirm-jump） | Test B（clear-filter） |
+|------|------------------------|------------------------|
+| 典型 delta | **+71px**（偏下） | **-32px**（偏上） |
+| intent | confirm-jump | filter-clear return |
+| 對照項 | `explicitNav`、`forceVirtScroll`、`scrollBlock`、focus/center 順序、`invalidateHeights`、anchor release 時機 |
+
+**重點問題**：delta 是否在 `setScrollTopDeferred` 後被 layout／ResizeObserver 覆蓋？center retry 是否過早（僅 rAF×3）？
+
+#### Phase Q 交付物
+
+```text
+1. diagnostic log（可關閉）
+2. §測試執行報告 Phase Q（pass rate、delta 分布）
+3. A/B 路徑對照摘要（仍無產品修復或僅 log）
 ```
 
-| 結果 | 解讀 |
-|------|------|
-| B 也 `centeredOk: false` | A/B 可能共用大檔 virt explicit 置中問題 |
-| 僅 A fail | 偏 Ctrl+Enter confirm-jump 或 A 寫法差異 |
-| B pass | 清除篩選路徑可能正常；勿誤判為「篩選壞掉」 |
+---
 
-**注意**：B 與 A 同要求 `centeredOk`；B fail 不一定是「清除篩選邏輯」壞掉。
+### Phase R — 產品修復與驗收（**Phase Q 後**）
 
-#### W1-4 跑 Test C、E
+**範圍**：`pending.explicitNav && scrollBlock === 'center'` 的 **shared** 路徑；**不是**只修 Ctrl+Enter。
+
+**修復原則**（勿違反）：
+
+```text
+1. target row mount
+2. CatVirtGrid scroll / center
+3. wait renderWindow + setScrollTopDeferred + invalidateHeights settle
+4. focus target editor（preventScroll）
+5. measure center；focusOk && centerOk 才完成
+6. retry 掛在 layout 事件後，非僅同 stack rAF×3
+```
+
+**次要改善**：`flush failed` 時 `cancelNavigationAnchor` 勿標 `nav-complete`；改區分 `nav-failed-center`（診斷用）。
+
+**修完必跑**：
 
 ```powershell
+npx playwright test -g "Test A —" --project=chromium --repeat-each=3
+npx playwright test -g "Test B —" --project=chromium --repeat-each=5
 npx playwright test -g "Test C —|Test E —" --project=chromium
-```
-
-| 測項 | fail 意義 |
-|------|-----------|
-| C | stale nav 取消／`navAnchorLock` 清除仍可疑 |
-| E | 導覽管線可能搶 `#sfInput` 焦點 |
-
-#### W1-5 拆 serial（建議）
-
-大檔 `describe.serial` 導致 A fail 時 B 被 skip。Wave 1 應：
-
-- 將 A/B 改為可獨立執行，或
-- 至少文件註明「B 須 `-g` 單跑」
-
-#### W1-6 回歸已通過測項
-
-若 Wave 1 改 helpers／spec，重跑：
-
-```powershell
 npx playwright test -g "Test D" --project=chromium
 npx playwright test -g "Test G —|Test H —|Test I —" --project=chromium
 ```
 
-#### Wave 1 交付物
+若改 `cat-tool/`：**必須** `npm run sync:cat` 並提交 `cat-tool/` + `public/cat/`。
 
-```text
-1. Test A trace 診斷表（含 rowCenterDeltaPx 數值與分類結論）
-2. Test A spec 修正（若為點錯列）
-3. Test B / C / E 結果表
-4. 更新 §測試執行報告（新增 Wave 1 小節）
-5. 無 cat-tool 產品碼變更（除非 trace 明確證明且 PM 同意開修復波）
-```
+**不要求** Wave 2 擋住 Phase R 結案。
 
 ---
 
-### Wave 2 — 擴充壓力覆蓋（repaint／機率性手動點擊）
+### Phase S — Wave 2 擴充壓力覆蓋（repaint／機率性手動點擊）
 
-**前提**：Wave 1 報告完成；**仍不建議整包重寫 virt**。
+**前提**：Wave 1 完成；Phase R 進行中或 A/B 改善後可**並行**；**仍不建議整包重寫 virt**。
 
 PM 補充：任何重畫都可能 viewport／焦點亂跳；**手動點譯文格也有機率觸發**。A～I 是**代表性回歸網**，不是全面 repaint stress suite。
 
@@ -793,7 +866,7 @@ jumpToDisplayIndex → data-seg-id → click → assert activeSegId
 |------|------|
 | 大檔 `beforeAll` 匯入 3～10+ min | 大檔 describe 共用 context；CI 可只跑 D + 抽樣 |
 | I′ 機率性 flaky | 先 9 attempts；失敗附 range／attempt；stress 區塊 retries |
-| B fail 誤判為篩選 bug | 先看是否同 `centeredOk` 斷言 |
+| B 間歇 fail | 以 `repeat-each` pass rate 為準；勿假設「B 穩定 pass」或「只限 Ctrl+Enter」 |
 | Test A 修寫法後 pass | 勿誤以為產品已全修；仍須跑 I′／N |
 | Team 模式 | 本計畫仍僅 `/cat/offline`；Team 另波 |
 
@@ -804,7 +877,9 @@ jumpToDisplayIndex → data-seg-id → click → assert activeSegId
 ```text
 - 重寫 grid-virtual-scroll 或整條 navigation 架構
 - 一次實作 L/M 或全部 J～N
-- Wave 1 未完成就改 cat-tool 產品碼
+- 只硬修 Ctrl+Enter、忽略 Test B 間歇 fail
+- 放寬 centeredOk 門檻（16px）或盲目增加 centerRetryCount
+- 把手動點擊 / F8 / typing 改成 force center
 - 把 console log 字串當唯一 pass/fail
 - production URL 跑破壞性測試
 ```
@@ -814,18 +889,27 @@ jumpToDisplayIndex → data-seg-id → click → assert activeSegId
 ### Agent 執行指令範本（複製給下一個 Cursor／GPT 5.5）
 
 ```markdown
-請執行 CAT 2.3q Playwright Wave 1（見 docs/CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md §下一波執行計畫）。
+請以 repo 為準（commit 見本檔案首狀態列）：
 
-Wave 1：
-1. 分析 Test A trace（rowCenterDeltaPx、navAnchorLock、是否點錯列）
-2. 若點錯列：修正 Test A 為 jumpToDisplayIndex → data-seg-id 點擊
-3. 單跑 Test B、Test C、Test E
-4. 建議拆大檔 describe.serial 使 B 可獨立跑
-5. 更新 §測試執行報告 Wave 1 小節
-6. 勿改 cat-tool 產品碼，除非 trace 明確證明且結論寫入報告
+必讀：
+1. docs/CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md — §測試執行報告 Wave 1、§Phase P/Q/R/S
+2. docs/CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md — §產品修復波
 
-Wave 1 通過後再開 Wave 2：I′（3×3）、Test N、條件式 J/K。
-規格權威：同一文件 §Wave 2 與 §測試原則。
+定案問題：大檔 virt explicit centering 不穩；Test A 穩定 fail；Test B 間歇 fail。
+勿用「B 穩定 pass」或「只修 Ctrl+Enter」舊前提。
+
+若執行 Phase Q：
+- 加 [catNav] explicit center diagnostic（catNavDebug gate）
+- npx playwright test -g "Test A —" --repeat-each=3
+- npx playwright test -g "Test B —" --repeat-each=5
+- 填 §測試執行報告 Phase Q
+
+若執行 Phase R：
+- 修 shared explicit centering timing（非 Ctrl+Enter-only）
+- npm run sync:cat；重跑 A/B/C/E/D/G/H/I
+- 更新兩份計畫驗收狀態
+
+Phase S（Wave 2）：I′（3×3）、Test N、最小 J/K — 可與 R 尾端並行。見 §Phase S W2-*。
 ```
 
 ---
@@ -861,17 +945,18 @@ Wave 1 通過後再開 Wave 2：I′（3×3）、Test N、條件式 J/K。
 
 ### 驗收重跑（2026-07-02，PM 請求）
 
-指令：
+指令（第二次單獨、第三次同批）：
 
 ```powershell
 npx playwright test -g "Test B —" --project=chromium
 npx playwright test -g "Test A —" --project=chromium
+npx playwright test -g "Test A —|Test B —" --project=chromium
 ```
 
-| 測項 | 結果 | 關鍵數值 |
-|------|------|----------|
-| Test B | ❌ fail | `centeredOk: false`；`activeSegId=25`；`rowCenterDeltaPx ≈ -32` |
-| Test A | ❌ fail（符合預期） | `centeredOk: false`；`activeSegId=21`；`rowCenterDeltaPx ≈ 71.6`（與 Wave 1 一致） |
+| 測項 | 第二次（單獨 `-g`） | 第三次（A+B 同批 `-g`） | 關鍵數值 |
+|------|---------------------|-------------------------|----------|
+| Test B | ❌ fail | ✅ pass | fail 時：`rowCenterDeltaPx ≈ -32`；pass 時無 artifact（僅 fail 留 trace） |
+| Test A | ❌ fail（符合預期） | ❌ fail | `rowCenterDeltaPx ≈ 71.6`（穩定） |
 
 **本機 artifact**（`test-results/` 在 `.gitignore`，**不會隨 git 推送**；給 GPT 5.5 需另傳檔）：
 
@@ -920,7 +1005,36 @@ Wave 1 commit：516566d、3b4bf02
 ```text
 A 修正點擊後仍 fail → L2 產品向（本輪已證實，可穩定重現）
 B 批次 pass、驗收重跑 fail → 置中問題可能間歇或單跑／批次狀態差異；不再假設「僅 Ctrl+Enter 路徑」
-C/E pass（首輪）     → stale 取消、Ctrl+F 路徑目前可接受（未在驗收重跑覆測）
+C/E pass（首輪）     → stale 取消、Ctrl+F 路徑目前可接受（產品修後需重跑）
+```
+
+---
+
+## 測試執行報告 Phase Q
+
+> **狀態**：**待執行**（Phase Q 代理填寫）  
+> **前置**：§測試執行報告 Wave 1；§Phase Q 規格
+
+### repeat-each 結果（模板）
+
+| 測項 | repeat | pass | fail | pass rate | 備註 |
+|------|--------|------|------|-----------|------|
+| Test A | 3 | | | | `rowCenterDeltaPx` 分布 |
+| Test B | 5 | | | | 間歇性統計 |
+
+### A vs B 路徑對照摘要（模板）
+
+```text
+（填寫 scheduleEditorFocus / scrollToSegId / renderWindow / setScrollTopDeferred 時序差異）
+delta 偏掉發生在哪個 phase：
+```
+
+### Phase Q 結論（模板）
+
+```text
+是否進入 Phase R 產品修復：
+修復假說（shared timing / height invalidate / deferred scroll）：
+本輪 commit：
 ```
 
 ---

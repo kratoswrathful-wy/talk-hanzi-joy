@@ -1,6 +1,6 @@
 # Phase 2.3q：共用 explicit 導覽完成條件 + stale 導覽取消（實作計畫）
 
-> **狀態**：**已實作 `6344baa`，待驗收**（2026-07-02；Layer 0 + B + D + A + C 全上）  
+> **狀態**：**已實作 `6344baa`**；Playwright Wave 1 顯示 **Test A 穩定 L2 fail**、**Test B 間歇 fail** → **開啟產品修復波**（Phase Q/R；見 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) §Phase P/Q/R/S）  
 > **前置**：Phase 2.3p hotfix `649ef70`（焦點驗證；置中／假游標／手動點擊 stale 導覽由本 commit 修正）  
 > **主紀錄摘要**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -93,21 +93,79 @@ focusOk && centerOk  // centerOk: |rowCenterDeltaPx| <= 16
 
 ## 驗收標準（摘要）
 
+> **Playwright 現況**（Wave 1，`d15ad0b`）：**A** 穩定 fail；**B** 間歇 fail；**C/E/D/G/H/I** 首輪 pass。產品修復後須重跑全矩陣（見 Playwright 計畫 §Phase R）。
+
 | 類別 | 要點 |
 |------|------|
-| A | 大檔 Ctrl+Enter ×5（相鄰／遠距／捲動後／篩選中）：`focusOk + centerOk + completed` |
-| B | 大檔清除篩選：同上 + 無假游標 |
-| C | 導覽進行中手動點另一列：不跳位、cancel log、舊 navGen 不再動 viewport、`nav lock` 已清 |
-| D | 小檔（≤800 句）confirm／clear filter／Ctrl+Alt+↓／手動點擊 |
-| E | Ctrl+G、F3、QA、手動捲動、Ctrl+F 不搶焦點、離屏 tip |
+| A | 大檔 Ctrl+Enter ×5（相鄰／遠距／捲動後／篩選中）：`focusOk + centerOk + completed` — **Playwright：穩定 fail** |
+| B | 大檔清除篩選：同上 + 無假游標 — **Playwright：間歇 fail** |
+| C | 導覽進行中手動點另一列：不跳位、cancel log、舊 navGen 不再動 viewport、`nav lock` 已清 — **Playwright：pass** |
+| D | 小檔（≤800 句）confirm／clear filter／Ctrl+Alt+↓／手動點擊 — **Playwright：pass** |
+| E | Ctrl+G、F3、QA、手動捲動、Ctrl+F 不搶焦點、離屏 tip — **Playwright：pass** |
 | F | 達上限 `[catNav] flush failed`，不靜默 |
-| G | 大檔已確認句 F8：viewport 不甩到無關區、離屏假游標不偷換焦點（**不要求置中**） |
-| H | 大檔 F8 後無來回拉扯、`navAnchorLock` 已清、假游標不錯列 |
-| I | 大檔手動點譯文格：viewport 穩定（日常點擊；與 C 互補） |
+| G | 大檔已確認句 F8：viewport 不甩到無關區、離屏假游標不偷換焦點（**不要求置中**）— **Playwright：pass** |
+| H | 大檔 F8 後無來回拉扯、`navAnchorLock` 已清、假游標不錯列 — **Playwright：pass** |
+| I | 大檔手動點譯文格：viewport 穩定（日常點擊；與 C 互補）— **Playwright：pass** |
 
 Debug：`localStorage.setItem('catNavDebug', '1')`（CAT iframe Console）。
 
-**Playwright 自動化驗收**（初版已實作）：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — `npm run test:e2e`；離線版、`Test_Big`／`Test_Small`、localhost、**A～I**。**下一波**：同文件 **§下一波執行計畫（Wave 1／Wave 2）**（`f6ccb70` 起）
+**Playwright 自動化驗收**：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) — Wave 1 完成 `d15ad0b`；接續 **§Phase P/Q/R/S**。
+
+---
+
+## 產品修復波（Wave 1 後）
+
+> **觸發**：Playwright Wave 1 排除 L1 點擊問題後，Test A 仍穩定 `centeredOk: false`；Test B 間歇 fail。  
+> **交叉引用**：Playwright 計畫 §測試執行報告 Wave 1、§Phase Q/R。
+
+### 問題定義（定案）
+
+```text
+大檔 virtual-scroll explicit centering 管線不穩。
+Test A（Ctrl+Enter confirm-jump）：穩定 reproducer，rowCenterDeltaPx ≈ +71。
+Test B（clear-filter return-to-target）：間歇 sibling，rowCenterDeltaPx ≈ -32。
+焦點可進入目標譯文格（focusOk），但 center 無法收斂至 ≤16px（centerOk fail）。
+```
+
+**不是**：Playwright 點錯列；純 focus bug；「只修 Ctrl+Enter 即可忽略 B」。
+
+### 修復範圍
+
+- **Shared path**：`pending.explicitNav === true` 且 `scrollBlock === 'center'`（confirm-jump、清除篩選、Ctrl+Alt+↓、Ctrl+G 等 explicit 置中）。
+- **入口**：以 Test A 為穩定 reproducer；**必須**對照 Test B 路徑，找最小共用差異。
+- **不做**：整包重寫 `CatVirtGrid`；把手動點擊／F8／typing 改成 force center；放寬 16px 門檻。
+
+### Inspect 清單
+
+```text
+1. flushPendingEditorFocus（center retry 分支）
+2. scheduleEditorFocus（explicitNav、forceVirtScroll、scrollBlock）
+3. confirm-jump handler（app.js L25106 一帶）
+4. flushFilterAnchorAfterVirtRender（clear-filter）
+5. CatVirtGrid.scrollToSegId / centerOnSegId / isSegIdCentered
+6. renderWindow + setScrollTopDeferred 時序
+7. ResizeObserver / invalidateHeights（confirm 或 filter 後是否覆寫 scrollTop）
+8. cancelNavigationAnchor reason（失敗時勿標 nav-complete）
+```
+
+### 修復原則
+
+```text
+explicit navigation in virt mode:
+1. target row mount
+2. CatVirtGrid scroll / center
+3. wait for renderWindow + setScrollTopDeferred + height invalidation settle
+4. focus target editor（preventScroll）
+5. measure center；僅 focusOk && centerOk 才完成
+6. retry 掛在 layout 事件後，非僅同 stack rAF×3
+```
+
+### Phase Q → R 順序
+
+1. **Phase Q**：`[catNav] explicit center diagnostic` log（`catNavDebug` gate）；`repeat-each` A×3、B×5；A/B 路徑對照表。
+2. **Phase R**：依對照結果修 shared timing → `npm run sync:cat` → 重跑 Playwright 全矩陣（§Phase R 指令）。
+
+細節與報告模板：Playwright 計畫 §Phase Q、§Phase R。
 
 ---
 
