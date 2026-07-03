@@ -136,7 +136,7 @@ flowchart LR
 - **W3** — 狀態：已落地待驗收 — commit：`f20ee6c`（背景分頁暫停輪詢、回前景補跑、預設 30s）
 - **W5-1 外鍵索引** — 狀態：已驗收（DB 已套用，unindexed FK 由 33 → 0）— commit：`f20ee6c`
 - **W5-2 裸 auth.uid() 快取** — 狀態：已驗收（bare policy 由 2 → 0）— commit：`f20ee6c`
-- **W5-3 合併 permissive policy** — 狀態：已落地待雙角色驗收（invoice_fees／invoices 同命令重疊已消除；行為等價）— commit：`f20ee6c`
+- **W5-3 合併 permissive policy** — 狀態：**已驗收**（Playwright `w5-phase2-billing-rls.spec.ts` 雙角色 5/5 通過，2026-07-03）— commit：`f20ee6c`；測試檔待 commit
 - **W5 殘留（另案）** — `cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments` 為 ALL 與特定命令重疊，需拆分 ALL 語意（安全語意變更），本次不處理，待評估。
 
 ### 階段三
