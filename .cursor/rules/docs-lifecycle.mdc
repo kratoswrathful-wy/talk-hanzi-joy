@@ -1,0 +1,37 @@
+---
+description: docs/ 文件生命週期：狀態標記、驗收後收斂、封存與命名慣例、同主題彙整 DEVLOG。
+alwaysApply: true
+---
+
+# 文件生命週期規則
+
+背景與工項編號見 [`docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](../../docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md)。
+
+## 1. 開頭標狀態
+
+每份 `docs/` 計畫或 bug-report 文件開頭第一行標狀態：
+
+```
+狀態：規劃中｜實作中｜已落地待驗收｜已驗收｜已封存
+```
+
+## 2. 驗收後收斂
+
+功能驗收通過後：現行行為摘要寫入 [`docs/CODEMAP.md`](../../docs/CODEMAP.md)（只記現況），原計畫檔標「已驗收，細節以程式為準」，此後不再更新該檔。
+
+## 3. 逾期封存
+
+已驗收超過 90 天的 bug-report 與計畫檔移至 `docs/archive/`（移動時 grep 全 repo 修引用路徑）。
+
+## 4. 命名慣例
+
+新文件命名沿用現制：
+
+- `bug-report_<slug>_<YYYY-MM>.md`
+- `<AREA>_<TOPIC>_<PLAN|SPEC|DEVLOG>_<YYYY-MM>.md`
+
+## 5. 同主題彙整
+
+同一主題累積超過 5 份文件時，彙整為一份敘事型 DEVLOG（時間軸總表＋commit 對照＋原文件連結），原文件保留作細節查證用。
+
+範本：[`docs/CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md`](../../docs/CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md)（2026-07-03，整合 7 份大檔捲動文件之先例）。

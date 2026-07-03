@@ -1,0 +1,43 @@
+---
+description: 使用者指定「Claude／AI 驗收」時，自動撰寫 AI 可執行的驗收要求並發送到 Slack #development。
+alwaysApply: true
+---
+
+# Claude AI 驗收 → Slack #development（強制）
+
+## 觸發條件
+
+當專案擁有者表示**本變更的驗收由 Claude（或 AI）處理**，或語意等同的說法，例如：
+
+- 「驗收要由 Claude 處理」
+- 「請 Claude 驗收」
+- 「AI 驗收」
+- 「發驗收任務給 Claude」
+- 「驗收將由 Claude AI 執行」
+
+**同一則對話內**若已明確指派 AI 驗收，後續補「發到 Slack」可視為延續，仍須完成發送。
+
+## 代理必須做的事（不可只寫在對話裡）
+
+1. **假設驗收執行者為 AI 代理**（Claude + 瀏覽器自動化），**不是**人手點 UI 的步驟清單。
+2. **撰寫驗收要求**：含前置、分批測項（T1、T2…）、每項**可程式化**的通過條件（DOM、`Runtime.evaluate`、API 回傳等）、回報格式（thread 內通過／失敗表）。
+3. **發送到 Slack** 頻道 **`#development`**（channel id：`C0BDSDCT9B5`），使用 Slack MCP `slack_send_message`（或等效工具）；**禁止**只貼在 Cursor 對話而不發 Slack。
+4. 訊息須含：**變更名稱**、**commit 短碼**（若已推送）、**規格文件連結**、**環境** `https://talk-hanzi-joy.vercel.app`、**執行者** Claude AI、**登入**威儀（PM，除非使用者另指定）。
+5. 發送成功後，在對話回覆 **Slack 訊息連結**。
+
+## 驗收內容撰寫準則
+
+| 面向 | 要求 |
+|------|------|
+| LMS | 優先 `window.__lmsAgent` + 瀏覽器腳本；見 [`docs/LMS_AI_AGENT_BRIDGE_2026-06.md`](../../docs/LMS_AI_AGENT_BRIDGE_2026-06.md) |
+| CAT | iframe 內操作；大檔須 `CatVirtGrid.isEnabled() === true`（≥800 句）；見相關 `docs/CAT_*` 驗收章節 |
+| 通過條件 | 寫成可觀測斷言，避免「看起來正常」 |
+| 測試資料 | 標題前綴 `[AI驗收]` 等慣例沿用時註明；驗收後不刪，由 PM 清理 |
+| 部署 | 未含目標 commit 時註明 **blocked**，勿硬驗 |
+
+## 參考範本
+
+- LMS：`docs/LMS_AI_AGENT_BRIDGE_2026-06.md` §7（T1–T10）
+- CAT Phase 2.3k：Slack `#development` 2026-06-30 任務（commit `3d6030d`）
+
+總則與索引：[`AGENTS.md`](../../AGENTS.md)「Claude AI 驗收（Slack）」。

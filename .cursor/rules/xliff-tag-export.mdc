@@ -112,7 +112,7 @@ sdlxliff 匯出**不可**直接替換整個 `<target>` 內容，必須：
 - sdlxliff：`<mrk mtype="seg">` 內的 `<ph>` / `<g>`
 - 一般 XLIFF：`<ph>` 元素
 
-### 6. 禁止從 `cat-cloud-rpc.ts` 移除 `source_tags` / `target_tags` 映射
+### 8. 禁止從 `cat-cloud-rpc.ts` 移除 `source_tags` / `target_tags` 映射
 
 Team 模式下，tags 透過 cloud RPC 存入 Supabase。以下兩處缺一不可：
 
