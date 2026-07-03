@@ -20,7 +20,7 @@
 |------|------|
 | 預設 URL | `http://localhost:8080`（`PLAYWRIGHT_BASE_URL` 可覆寫） |
 | 啟動 | 本地：`npm run dev`；**線上測試**：`PLAYWRIGHT_BASE_URL` + `PLAYWRIGHT_ENTER_TEST_MODE=1`（登入後自動「進入測試模式」） |
-| 登入 | `.env` 的 `PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`（線上測試用**真人執行長**帳密，setup 會切為 `test-exec@test.local`） |
+| 登入 | `.env` 的 `PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`（**Playwright 專用執行長**，見下表；setup 可再切 `test-exec@test.local`） |
 | **權限** | LMS 寫入須 `env` 與 DB `current_env()` 一致：本機 localhost → `test`；線上須**測試模式**（`@test.local` 假人），勿用真人帳號直接寫正式區 |
 | CAT 小檔 | [`tests/fixtures/Test_Small.mqxliff`](../tests/fixtures/Test_Small.mqxliff) 或 `PLAYWRIGHT_CAT_SMALL_FIXTURE` |
 | Supabase | 與 `.env` 的 `VITE_SUPABASE_*` 相同；線上測試模式寫入 **`env=test`** 測試區 |
@@ -34,6 +34,17 @@
 3. 橘色警示條出現後，LMS／CAT 寫入皆在 **`env=test`**，與正式營運資料隔離
 
 **勿**用 `PLAYWRIGHT_ALLOW_PRODUCTION=1` 搭配真人帳號直接寫正式區（曾誤跑，見 §開發紀錄）。
+
+### Playwright 專用帳號（E2E 執行長）
+
+與 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) 共用同一組帳密：
+
+| 項目 | 值 |
+|------|-----|
+| 電子郵件 | `playwright-e2e@1up.local` |
+| 密碼 | **見本機 `.env` 的 `PLAYWRIGHT_TEST_PASSWORD`（本 repo 為公開狀態，密碼不寫入文件）** |
+| 角色 | `executive` |
+| `.env` 變數 | `PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD` |
 
 ---
 

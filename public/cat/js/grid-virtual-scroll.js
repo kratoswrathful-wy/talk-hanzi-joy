@@ -34,6 +34,47 @@
     let _lastNavScrollKey = '';
     let _lastNavScrollAt = 0;
     const NAV_SCROLL_COALESCE_MS = 48;
+    let _catScrollWriteSeq = 0;
+    let _renderTrigger = 'unknown';
+    let _navAnchorLockExplicitHold = false;
+
+    function isCatNavDebug() {
+        return typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1';
+    }
+
+    /** Phase R：每次寫入 #editorGrid.scrollTop 都記錄來源與序號，供揪出「最後寫入者」。 */
+    function logScrollTopWrite(source, trigger, scrollEl, before, after, extra) {
+        if (!isCatNavDebug()) return;
+        _catScrollWriteSeq++;
+        console.log('[catNav] scrollTop write', {
+            seq: _catScrollWriteSeq,
+            t: Math.round(performance.now()),
+            source,
+            trigger: trigger || _renderTrigger,
+            before: Math.round(before),
+            after: Math.round(after),
+            delta: Math.round(after - before),
+            navAnchorLock: _navAnchorLock,
+            anchorSegId: _anchorSegId,
+            ...(extra || {}),
+        });
+    }
+
+    function assignScrollTop(scrollEl, value, source, trigger, extra) {
+        if (!scrollEl) return;
+        const before = scrollEl.scrollTop;
+        scrollEl.scrollTop = value;
+        const after = scrollEl.scrollTop;
+        logScrollTopWrite(source, trigger, scrollEl, before, after, extra);
+    }
+
+    function adjustScrollTop(scrollEl, adjust, source, trigger, extra) {
+        if (!scrollEl || !adjust) return;
+        const before = scrollEl.scrollTop;
+        scrollEl.scrollTop += adjust;
+        const after = scrollEl.scrollTop;
+        logScrollTopWrite(source, trigger, scrollEl, before, after, { adjust: Math.round(adjust), ...(extra || {}) });
+    }
 
     function shouldUse(segmentCount) {
         return segmentCount > THRESHOLD;
@@ -77,10 +118,12 @@
     }
 
     function scrollTopToStartIdx(list, scrollTop) {
+        const headerH = getGridHeaderScrollOffset();
+        const adjusted = Math.max(0, scrollTop - headerH);
         let acc = 0;
         for (let i = 0; i < list.length; i++) {
             const h = heightOf(list[i].id);
-            if (acc + h > scrollTop) return Math.max(0, i - BUFFER);
+            if (acc + h > adjusted) return Math.max(0, i - BUFFER);
             acc += h;
         }
         return Math.max(0, list.length - WINDOW - BUFFER);
@@ -149,26 +192,34 @@
         const h = heightOf(String(segId));
         const headerH = getGridHeaderScrollOffset();
         const anchorOffsetPx = vh / 2 - h / 2;
-        const targetTop = Math.max(0, sumRange(list, 0, ai) - anchorOffsetPx);
+        const targetTop = Math.max(0, headerH + sumRange(list, 0, ai) - anchorOffsetPx);
         return { targetTop, anchorOffsetPx, headerH };
     }
 
     /** Phase R：以 DOM 量測對齊 #editorGrid 中心（與 app.js measureRowCenterDeltaPx 一致）。 */
     function applyCenterScrollCorrection(segId, scrollEl, anchorRowEl) {
         if (!scrollEl || segId == null) return 0;
+        const wasSuppress = _suppressScroll;
+        _suppressScroll = true;
         let lastDelta = 0;
-        for (let pass = 0; pass < 3; pass++) {
-            const row = anchorRowEl || findRowForCenter(segId);
-            if (!row) break;
-            const rb = row.getBoundingClientRect();
-            const gb = scrollEl.getBoundingClientRect();
-            const delta = Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
-            lastDelta = delta;
-            if (Math.abs(delta) <= 1) break;
-            const adjust = -delta;
-            scrollEl.scrollTop += adjust;
+        try {
+            for (let pass = 0; pass < 6; pass++) {
+                const row = anchorRowEl || findRowForCenter(segId);
+                if (!row) break;
+                const rb = row.getBoundingClientRect();
+                const gb = scrollEl.getBoundingClientRect();
+                const delta = Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
+                lastDelta = delta;
+                if (Math.abs(delta) <= 1) break;
+                const adjust = -delta;
+                const beforeTop = scrollEl.scrollTop;
+                adjustScrollTop(scrollEl, adjust, 'applyCenterScrollCorrection', 'centerCorrection', { pass, delta });
+                if (scrollEl.scrollTop === beforeTop) break;
+            }
+        } finally {
+            _suppressScroll = wasSuppress;
         }
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1' && lastDelta !== 0) {
+        if (isCatNavDebug() && lastDelta !== 0) {
             console.log('[catNav] explicit center diagnostic', {
                 phase: 'after applyCenterScrollCorrection',
                 source: 'CatVirtGrid',
@@ -182,6 +233,7 @@
     }
 
     function releaseNavAnchorLock() {
+        _navAnchorLockExplicitHold = false;
         _navAnchorLock = false;
         if (_navAnchorLockTimer) {
             clearTimeout(_navAnchorLockTimer);
@@ -193,10 +245,25 @@
         _navAnchorLock = true;
         _navAnchorBlock = block === 'center' ? 'center' : 'start';
         if (_navAnchorLockTimer) clearTimeout(_navAnchorLockTimer);
+        if (_navAnchorLockExplicitHold) {
+            _navAnchorLockTimer = null;
+            return;
+        }
         _navAnchorLockTimer = setTimeout(() => {
             _navAnchorLockTimer = null;
             _navAnchorLock = false;
         }, NAV_ANCHOR_LOCK_MS);
+    }
+
+    /** Phase R：explicit center 導覽進行中，鎖定直到 cancelNavigationAnchor／releaseNavAnchorLock。 */
+    function holdNavAnchorLockForExplicitNav(block) {
+        _navAnchorLockExplicitHold = true;
+        _navAnchorLock = true;
+        _navAnchorBlock = block === 'center' ? 'center' : 'start';
+        if (_navAnchorLockTimer) {
+            clearTimeout(_navAnchorLockTimer);
+            _navAnchorLockTimer = null;
+        }
     }
 
     function inferAnchorFromDom(list) {
@@ -232,16 +299,15 @@
         if (bottomSpacer) bottomSpacer.style.height = sumRange(list, endIdx, list.length) + 'px';
     }
 
-    function setScrollTopDeferred(scrollEl, targetTop) {
-        scrollEl.scrollTop = targetTop;
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
+    function setScrollTopDeferred(scrollEl, targetTop, trigger) {
+        assignScrollTop(scrollEl, targetTop, 'setScrollTopDeferred', trigger || _renderTrigger, { targetTop: Math.round(targetTop) });
+        if (isCatNavDebug()) {
             console.log('[catNav] explicit center diagnostic', {
                 phase: 'after setScrollTopDeferred',
                 source: 'CatVirtGrid',
                 targetTop,
                 scrollTop: scrollEl.scrollTop,
-                headerH: typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1'
-                    ? getGridHeaderScrollOffset() : undefined,
+                headerH: getGridHeaderScrollOffset(),
                 virt: {
                     anchorSegId: _anchorSegId,
                     navAnchorLock: _navAnchorLock,
@@ -252,6 +318,33 @@
         }
         requestAnimationFrame(() => {
             _suppressScroll = false;
+        });
+    }
+
+    /**
+     * Phase R：center 路徑在 rAF 解除 suppress 後觸發 onAfterRender（flush 鏈）。
+     * 置中依 computeCenterScrollTop 模型（含 headerH）；不在 suppress 期間做 DOM 迭代修正。
+     */
+    function finishCenterAfterScroll(scrollEl, segId, anchorRowEl, startIdx, endIdx, runAfterRender) {
+        requestAnimationFrame(() => {
+            _suppressScroll = false;
+            if (isCatNavDebug() && scrollEl && segId != null) {
+                console.log('[catNav] explicit center diagnostic', {
+                    phase: 'after renderWindow',
+                    source: 'CatVirtGrid',
+                    anchorSegId: String(segId),
+                    block: 'center',
+                    scrollTop: scrollEl.scrollTop,
+                    headerH: getGridHeaderScrollOffset(),
+                    anchorRowFound: !!(anchorRowEl || findRowForCenter(segId)),
+                    lastStartIdx: _lastStartIdx,
+                    lastEndIdx: _lastEndIdx,
+                    navAnchorLock: _navAnchorLock,
+                });
+            }
+            if (runAfterRender && cfg && typeof cfg.onAfterRender === 'function') {
+                cfg.onAfterRender(startIdx, endIdx);
+            }
         });
     }
 
@@ -301,9 +394,11 @@
             const list = getRenderableList();
             const scrollEl = cfg && cfg.scrollEl;
             if (!list.length || !scrollEl) return;
+            // Phase R：explicit center 導覽鎖期間 RO 不重繪（避免 setScrollTopDeferred 蓋掉 DOM 修正）
+            if (_navAnchorLockExplicitHold && _navAnchorBlock === 'center') return;
             if (_navAnchorLock && _anchorSegId) {
                 _restoreFromAnchor = false;
-                renderWindow(_anchorSegId, _navAnchorBlock);
+                renderWindow(_anchorSegId, _navAnchorBlock, 'resizeRepaint:navLock');
                 return;
             }
             const savedScrollTop = scrollEl.scrollTop;
@@ -315,7 +410,7 @@
             }
             inferAnchorFromDom(list);
             _restoreFromAnchor = false;
-            renderWindow(null);
+            renderWindow(null, null, 'resizeRepaint');
         }, RESIZE_DEBOUNCE_MS);
     }
 
@@ -382,9 +477,13 @@
         return { startIdx, endIdx, explicitAnchor };
     }
 
-    function renderWindow(anchorSegId, block) {
+    function renderWindow(anchorSegId, block, trigger) {
         if (!enabled || !cfg || _rendering) return;
         const scrollBlock = block === 'center' ? 'center' : 'start';
+        const prevTrigger = _renderTrigger;
+        _renderTrigger = trigger || (anchorSegId != null
+            ? `renderWindow:${scrollBlock}`
+            : 'renderWindow');
         _rendering = true;
         _suppressScroll = true;
         const scrollEl = cfg.scrollEl;
@@ -416,7 +515,7 @@
                 startIdx === _lastStartIdx && endIdx === _lastEndIdx) {
                 updateSpacerHeights(list, startIdx, endIdx);
                 deferSuppress = true;
-                setScrollTopDeferred(scrollEl, savedScrollTop);
+                setScrollTopDeferred(scrollEl, savedScrollTop, 'renderWindow:sameWindow');
                 return;
             }
 
@@ -478,17 +577,28 @@
                 } else {
                     targetTop = savedScrollTop;
                 }
-                deferSuppress = true;
-                setScrollTopDeferred(scrollEl, targetTop);
                 if (explicitAnchor && scrollBlock === 'center') {
-                    if (anchorRowEl) void anchorRowEl.offsetHeight;
-                    applyCenterScrollCorrection(explicitAnchor, scrollEl, anchorRowEl);
+                    assignScrollTop(scrollEl, targetTop, 'setScrollTopDeferred', _renderTrigger, {
+                        targetTop: Math.round(targetTop),
+                    });
+                    deferSuppress = true;
+                    finishCenterAfterScroll(
+                        scrollEl,
+                        explicitAnchor,
+                        anchorRowEl,
+                        startIdx,
+                        endIdx,
+                        deferAfterRender,
+                    );
+                } else {
+                    deferSuppress = true;
+                    setScrollTopDeferred(scrollEl, targetTop, _renderTrigger);
+                    if (deferAfterRender && typeof cfg.onAfterRender === 'function') {
+                        cfg.onAfterRender(startIdx, endIdx);
+                    }
                 }
             }
-            if (deferAfterRender && typeof cfg.onAfterRender === 'function') {
-                cfg.onAfterRender(startIdx, endIdx);
-            }
-            if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
+            if (!deferAfterRender && typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
                 console.log('[catNav] explicit center diagnostic', {
                     phase: 'after renderWindow',
                     source: 'CatVirtGrid',
@@ -504,6 +614,7 @@
             }
         } finally {
             _rendering = false;
+            _renderTrigger = prevTrigger;
             if (!deferSuppress) {
                 _suppressScroll = false;
             }
@@ -528,7 +639,7 @@
                 clearTimeout(scrollDebounceTimer);
                 scrollDebounceTimer = null;
             }
-            renderWindow(null);
+            renderWindow(null, null, 'userScroll');
         });
     }
 
@@ -553,12 +664,14 @@
         _suppressScroll = true;
         try {
             if (cfg.savedScrollTop != null && cfg.scrollEl) {
-                cfg.scrollEl.scrollTop = cfg.savedScrollTop;
+                assignScrollTop(cfg.scrollEl, cfg.savedScrollTop, 'mount', 'mount:restore', {
+                    savedScrollTop: cfg.savedScrollTop,
+                });
             }
         } finally {
             _suppressScroll = false;
         }
-        renderWindow(null);
+        renderWindow(null, null, 'mount');
     }
 
     function destroy() {
@@ -609,9 +722,6 @@
         const navKey = `${String(segId)}:${scrollBlock}`;
         const now = Date.now();
         if (_lastNavScrollKey === navKey && (now - _lastNavScrollAt) < NAV_SCROLL_COALESCE_MS) {
-            if (scrollBlock === 'center' && cfg.scrollEl) {
-                applyCenterScrollCorrection(segId, cfg.scrollEl);
-            }
             return queryRow(segId);
         }
         _lastNavScrollKey = navKey;
@@ -622,7 +732,7 @@
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
-        renderWindow(segId, block);
+        renderWindow(segId, block, `scrollToSegId:${scrollBlock}`);
         return queryRow(segId);
     }
 
@@ -657,17 +767,11 @@
         if (nextStart !== _lastStartIdx || nextEnd !== _lastEndIdx) {
             return scrollToSegId(segId, 'center') != null;
         }
-        _suppressScroll = true;
-        try {
-            scrollEl.scrollTop = targetTop;
-            applyCenterScrollCorrection(segId, scrollEl);
-            _anchorSegId = String(segId);
-            _anchorOffsetPx = anchorOffsetPx;
-        } finally {
-            requestAnimationFrame(() => {
-                _suppressScroll = false;
-            });
-        }
+        _anchorSegId = String(segId);
+        _anchorOffsetPx = anchorOffsetPx;
+        assignScrollTop(scrollEl, targetTop, 'centerOnSegId', 'centerOnSegId:fastPath', {
+            targetTop: Math.round(targetTop),
+        });
         return true;
     }
 
@@ -697,7 +801,7 @@
             const ai = list.findIndex((s) => String(s.id) === String(passAnchor));
             if (ai < 0) passAnchor = null;
         }
-        renderWindow(passAnchor != null ? passAnchor : null, block);
+        renderWindow(passAnchor != null ? passAnchor : null, block, 'invalidateHeights');
     }
 
     /** Phase 2.3g：顯式導覽完成後釋放錨點，避免使用者手動捲動被拉回。 */
@@ -729,11 +833,17 @@
             anchorSegId: _anchorSegId,
             anchorOffsetPx: _anchorOffsetPx,
             navAnchorLock: _navAnchorLock,
+            navAnchorLockExplicitHold: _navAnchorLockExplicitHold,
             navAnchorBlock: _navAnchorBlock,
             lastStartIdx: _lastStartIdx,
             lastEndIdx: _lastEndIdx,
             lastNavScrollKey: _lastNavScrollKey,
+            scrollWriteSeq: _catScrollWriteSeq,
         };
+    }
+
+    function resetScrollWriteSeq() {
+        _catScrollWriteSeq = 0;
     }
 
     function getWindowStartIdx() {
@@ -760,5 +870,7 @@
         releaseNavigationAnchor,
         cancelNavigationAnchor,
         getDebugState,
+        resetScrollWriteSeq,
+        holdNavAnchorLockForExplicitNav,
     };
 })(typeof window !== 'undefined' ? window : globalThis);

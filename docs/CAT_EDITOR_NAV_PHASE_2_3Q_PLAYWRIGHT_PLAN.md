@@ -1,7 +1,7 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**Phase R 進行中** — 見 §測試執行報告 Phase R；Phase Q 已完成（`fc06da4`）  
-> **定案問題**：大檔 virt explicit centering 不穩；Phase Q：Test A **6/6 fail**（穩定）；Test B **3/8 pass**（高度間歇，fail 時 delta 多為 **+72px**）
+> **狀態**：**Phase R 已達驗收門檻** — 見 §測試執行報告 Phase R；Phase Q 已完成（`fc06da4`）  
+> **定案問題**：大檔 virt explicit centering 不穩；Phase Q：Test A **6/6 fail**（穩定）；Test B **3/8 pass**（高度間歇，fail 時 delta 多為 **+72px**）；Phase R 根因為 `flushPendingEditorFocus` 的 `forceVirtScroll` 旗標無一次性語意造成無窮重捲迴圈，修正後 Test A 3/3、Test B 5/5、C/E/D/G/H/I 全 pass
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
 
@@ -170,7 +170,27 @@ npm install -D @playwright/test
 npx playwright install chromium
 ```
 
-**執行前**：在 `.env` 加入 `PLAYWRIGHT_TEST_EMAIL`、`PLAYWRIGHT_TEST_PASSWORD`（TMS 登入帳密）。
+**執行前**：在 `.env` 加入 `PLAYWRIGHT_TEST_EMAIL`、`PLAYWRIGHT_TEST_PASSWORD`（見下節 **Playwright 專用帳號**；亦須同步寫入本機 `.env`，**勿 commit**）。
+
+### Playwright 專用帳號（E2E 執行長）
+
+後台已建立**僅供 Playwright／E2E** 使用的真人執行長帳號（`is_test=false`，可點頂欄「進入測試模式」）。帳密請寫入本機 `.env`：
+
+| 項目 | 值 |
+|------|-----|
+| 電子郵件 | `playwright-e2e@1up.local` |
+| 密碼 | **見本機 `.env` 的 `PLAYWRIGHT_TEST_PASSWORD`（本 repo 為公開狀態，密碼不寫入文件）** |
+| 角色 | `executive`（執行長） |
+| 顯示名稱 | Playwright E2E |
+| 建立方式 | Supabase `create-user` Edge Function（2026-07-03） |
+
+```env
+PLAYWRIGHT_TEST_EMAIL=playwright-e2e@1up.local
+PLAYWRIGHT_TEST_PASSWORD=<見本機 .env，勿寫入 docs／commit>
+PLAYWRIGHT_ENTER_TEST_MODE=1   # 線上站：登入後切 test-exec@test.local
+```
+
+**注意**：此帳號僅供自動化測試；勿用於日常營運。密碼若外洩請於 Supabase Auth 重設並更新本機 `.env`（**不要**把明碼寫回本文件，本 repo 為公開 repo）。
 
 ```bash
 npm run test:e2e
@@ -764,7 +784,7 @@ A fail、B 全 pass → B 可能狀態污染；仍以 repeat 統計為準，單�
 
 ---
 
-### Phase R — 產品修復與驗收（**進行中**；commit `7d181f1`，分支 `cursor/cat-nav-phase-r-shared-explicit-centering`）
+### Phase R — 產品修復與驗收（**已達驗收門檻**；commit `7d181f1` 起，分支 `cursor/cat-nav-phase-r-shared-explicit-centering`）
 
 **前置（Phase Q 交付）** — 皆 ✅：
 
@@ -831,6 +851,7 @@ npx playwright test -g "Test G —|Test H —|Test I —" --project=chromium
 | 4 | RO / invalidateHeights | **B 間歇** — `invalidateHeights` 釋放 `_navAnchorLock` | **已修** — `_navAnchorLock` 期間不 `releaseNavAnchorLock`（R3） | L674–692 |
 | 5 | focus 後 layout | 次要 — `onAfterRender` 早於 `setScrollTopDeferred` | 仍次要；+71 根因調查候選 | L356 vs L374 |
 | 6 | bottomSpacer 灌高 | （Phase Q 未列） | **已修回歸** — `applyCenterScrollCorrection`／`setScrollTopDeferred`／`nudgeExplicitCenterScroll` 在 `scrollTop` 未變時疊加膨脹 `bottomSpacer`，導致 viewport 被推到文件尾端（診斷截圖：目標第 20 句卻見 6332/6333 句）；邏輯已移除 | [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)、[`app.js`](../cat-tool/app.js) |
+| 7 | **flushPendingEditorFocus 無窮重捲**（**真正根因**） | （Phase Q 未列；本輪寫入來源追蹤法發現） | **已修** — `pending.forceVirtScroll` 旗標無一次性語意，`needsScroll` 每輪皆為 `true`，flush 卡在 pre-focus scroll、從未進入 focus 步驟；新增 `_pendingVirtScrollIssued` 一次性旗標，4 處生命週期節點重置 | [`app.js`](../cat-tool/app.js) `flushPendingEditorFocus`、`_navFlushSafeCleanup`、`cancelPendingNavigationForUserInteraction`、`scheduleEditorFocus` |
 
 #### Phase R 分波實作
 
@@ -1207,10 +1228,10 @@ commit 時序：b665c1f（首輪）→ fc06da4（virt log 補齊 + 補跑報告�
 
 ## 測試執行報告 Phase R
 
-> **狀態**：**進行中** — 回歸已修、核心 +71px 未解；全量矩陣待重跑  
+> **狀態**：**已達驗收門檻** — Test A 3/3、Test B 5/5、C/E/D/G/H/I 全 pass（見下方全量矩陣）  
 > **前置**：§測試執行報告 Phase Q  
 > **分支**：`cursor/cat-nav-phase-r-shared-explicit-centering`  
-> **採用波次**：R1（部分）／R2（沿用 2.3q）／R3 ✅／R4 ✅
+> **採用波次**：R1（部分）／R2（沿用 2.3q）／R3 ✅／R4 ✅／R5～R13（見下方寫入來源追蹤結論）
 
 ### 修復摘要
 
@@ -1236,33 +1257,51 @@ commit 時序：b665c1f（首輪）→ fc06da4（virt log 補齊 + 補跑報告�
 | 5 | 2026-07-03 | 修正 `cat-nav-assert.ts` `measureRowCenterDeltaPx` 括號 | 量測公式與產品端一致 |
 | 6 | 2026-07-03 | 實作 R3／R4；`readEditorGridHeaderPx` 整合至 `CatVirtGrid.mount` | 已併入 commit `7d181f1` |
 | 7 | 2026-07-03 | 嘗試 Test A `repeat-each=3`（`PLAYWRIGHT_BASE_URL=http://localhost:8080`） | **執行中斷／逾時**；回歸修復後尚未取得完整 pass/fail 統計 |
-| 8 | — | **待辦** | 繼續查 +71px 根因 → Test A 3/3 → 全量矩陣 → 結案 |
+| 8 | 2026-07-03 | 依 Fable 5 建議，改採**寫入來源追蹤**：在 4 個實際執行 `scrollEl.scrollTop = ...` 的地方（`applyCenterScrollCorrection`／`setScrollTopDeferred`／`mount`／`centerOnSegId`）都加上統一格式 log（`source`／`trigger`／跨函式共用序號 `_catScrollWriteSeq`／`performance.now()`／寫入前後值），取代原本只在「階段」印一次的模糊做法 | 新增 `logScrollTopWrite`／`assignScrollTop`／`adjustScrollTop` 三個共用函式，4 個寫入點全部改走這組函式 |
+| 9 | 2026-07-03 | 跑 Test A 收集完整寫入時間軸 | 觀察到 **`scrollTop` 本身很快就穩定在模型算出的正確值**（`setScrollTopDeferred` 寫入後未被任何後續寫入覆蓋）；但 `flush start` → `after scrollToSegId` 這兩行 log **無限重複**，`activeSegId` 始終是 `null`，代表卡在 `flushPendingEditorFocus` 的 pre-focus scroll 判斷、**從未進入 focus 步驟** |
+| 10 | 2026-07-03 | 追查 `flushPendingEditorFocus`（`app.js`）pre-focus scroll 判斷式 | 找到真正根因：`needsScroll = pending.forceVirtScroll \|\| !row \|\| !isCenterOk(...)`。`scheduleEditorFocusForSavedCaret` 等呼叫點會帶入 `forceVirtScroll: true`，這個旗標**沒有一次性語意**——只要 `pending.forceVirtScroll` 仍為 `true`，**每一輪 flush 都會判定 `needsScroll = true` 並重新呼叫 `scrollToSegId`**，接著 `return` 排入下一輪 `scheduleNavRetryRaf`，永遠不會走到 Step 2 的 focus。這與 Fable 5「被覆寫」假說**部分相關**（都是「修正後又被蓋掉」的表面症狀），但**真正的機制不是 RO／renderWindow 與 200ms 導覽鎖競速**，而是 `forceVirtScroll` 本身在 flush 迴圈內從未被消耗，造成無窮迴圈；原先猜測的 `+71px` 表頭高度偏移在加入 `headerH` 後已屬正確計算，只是從未有機會被量測到（因為卡在迴圈裡，`activeSegId` 一直是 `null`） |
+| 11 | 2026-07-03 | 修正：新增 `_pendingVirtScrollIssued` 旗標，`needsScroll` 改為 `!row \|\| (centerRetry>0 且未 centerOk) \|\| (forceVirtScroll 且尚未 issued)`；`scrollToSegId` 成功掛載列後才標記 `_pendingVirtScrollIssued = true`，讓 `forceVirtScroll` 只觸發一次 pre-focus scroll，後續判斷回歸 `isCenterOk` 正常重試邏輯；同時在 `_navFlushSafeCleanup`／`cancelPendingNavigationForUserInteraction`／`scheduleEditorFocus`／flush 成功收尾等 4 處重置該旗標，避免跨次導覽殘留 | `app.js` `?v=2.3r-phase-r13` |
+| 12 | 2026-07-03 | 重跑 Test A `repeat-each=3` | **3/3 pass**（每次 4.8～5.0s，遠快於先前 30s timeout fail） |
+| 13 | 2026-07-03 | 跑全量矩陣：Test B `repeat-each=5`、Test C/E、Test D、Test G/H/I | **全數 pass**（見下方 Playwright 結果表）；Test D 單獨重跑時因與 G/H/I 並行搶用同一份 `playwright/.auth/user.json` 而誤報一次失敗，序列重跑即通過，非導覽邏輯問題 |
+
+### 寫入來源追蹤法（本輪新增排查方法，供後續參考）
+
+**做法**：不要只在「階段」（如 `after scrollToSegId`、`before center measure`）印一次 log，而是在**每一個實際執行 `scrollEl.scrollTop = ...` 的地方**都加上統一格式的來源標記 log，內容至少包含：
+
+- `source`：函式名稱（`applyCenterScrollCorrection` / `setScrollTopDeferred` / `centerOnSegId` / `mount`）
+- `trigger`：呼叫來源（`explicitNav` / `resizeObserver` / `mount:restore` 等）
+- 跨函式共用的遞增序號（`_catScrollWriteSeq`），讓所有寫入可依時間排出完整時間軸
+- `performance.now()` 時間戳、寫入前後的 `scrollTop` 值
+
+**這輪的關鍵發現**：`rowCenterDeltaPx` 量不到、`activeSegId=null` 這類症狀，**不一定代表 `scrollTop` 被覆寫**——寫入時間軸顯示 `scrollTop` 其實很快就穩定在正確值，真正卡住的是**呼叫端邏輯（`flushPendingEditorFocus` 的 pre-focus scroll 判斷）陷入無窮迴圈，從未進入 focus 步驟**，導致測試一直量不到 `activeSegId`／`rowCenterDeltaPx`。這說明「畫面看起來沒置中」的表面症狀可能來自**完全不同層級**（渲染定位 vs. 流程控制），寫入來源追蹤能快速排除「被覆寫」假說並把焦點轉向呼叫端狀態機。
 
 ### Playwright 結果
 
-> **注意**：下表為截至 `7d181f1` 的**實際紀錄**；回歸修復後全量矩陣**尚未完整重跑**，不可視為驗收通過。
-
-| 測項 | repeat | pass | fail | 門檻 | `rowCenterDeltaPx`（失敗時） | 備註 |
-|------|--------|------|------|------|------------------------------|------|
-| Test A | 3 | — | — | 3/3 | ≈ +71～+72（Phase Q 基線；R1 後未變） | 回歸修復後重跑**中斷**；待補 |
-| Test B | 5 | — | — | 5/5 | Phase Q 基線 fail 時 ≈ +72 | **未重跑** |
-| Test C/E | 1 | — | — | 全 pass | — | **未重跑** |
-| Test D | 1 | 1（單次抽測） | 0 | pass | — | 小檔回歸曾 pass；正式矩陣待補 |
-| Test G/H/I | 1 | — | — | 全 pass | — | **未重跑** |
+| 測項 | repeat | pass | fail | 門檻 | 備註 |
+|------|--------|------|------|------|------|
+| Test A | 3 | 3 | 0 | 3/3 | ✅ 達標；`app.js?v=2.3r-phase-r13` |
+| Test B | 5 | 5 | 0 | 5/5 | ✅ 達標 |
+| Test C/E | 1 | 2 | 0 | 全 pass | ✅ 達標（C、E 各一次） |
+| Test D | 1 | 1 | 0 | pass | ✅ 達標（首次與 G/H/I 並行跑誤報，序列重跑通過） |
+| Test G/H/I | 1 | 3 | 0 | 全 pass | ✅ 達標（G、H、I 各一次） |
 
 ### Phase R 結論
 
 ```text
-是否達驗收門檻：否
-commit：7d181f1（分支 cursor/cat-nav-phase-r-shared-explicit-centering）
-已解：bottomSpacer 灌高回歸、測試量測括號錯誤、center correction 方向、R3 nav lock、R4 nav-failed-center
-未解：核心 rowCenterDeltaPx ≈ +71px（表頭高度假說已排除；真正成因待查）
-全量矩陣：回歸修復後尚未完整重跑
-下一步：
-  1. 在 applyCenterScrollCorrection 完成後、focus 前即時量測 scrollTop／getBoundingClientRect，找出 +71 來源
-  2. Test A repeat-each=3 確認 3/3
-  3. 全量矩陣 B×5、C/E、D、G/H/I
-  4. 達標後更新本表並 push
+是否達驗收門檻：是
+commit：待本輪提交（分支 cursor/cat-nav-phase-r-shared-explicit-centering）
+已解：
+  - bottomSpacer 灌高回歸、測試量測括號錯誤、center correction 方向、R3 nav lock、R4 nav-failed-center（前次迭代）
+  - computeCenterScrollTop 納入 headerH 的模型修正（前次迭代；本身正確，但非本輪症狀主因）
+  - 【本輪核心】flushPendingEditorFocus 的 forceVirtScroll 旗標無一次性語意，
+    導致 pre-focus scroll 判斷式每輪都重新 needsScroll=true，flush 陷入無窮重捲迴圈，
+    從未進入 focus 步驟 → activeSegId 恆為 null、rowCenterDeltaPx 量不到
+  - 修法：新增 _pendingVirtScrollIssued 旗標，forceVirtScroll 只觸發一次 pre-focus scroll，
+    4 處生命週期節點（成功收尾／安全清理／使用者手動取消／重新排程）重置旗標
+方法論：Fable 5 建議的「寫入來源追蹤法」（4 個 scrollTop 寫入點統一 log + 序號 + 時間戳）
+    成功排除「被覆寫」假說；真正問題出在呼叫端狀態機而非渲染層，供後續類似排查參考
+全量矩陣：Test A 3/3、Test B 5/5、Test C/E/D/G/H/I 全 pass（見上表）
+下一步：無（本輪結案）；後續如需擴網可進 Phase S（Wave 2：I′、Test N、最小 J/K）
 ```
 
 ---

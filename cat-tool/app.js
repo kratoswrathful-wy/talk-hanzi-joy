@@ -18321,6 +18321,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _filterAnchorGen = 0;
     /** Phase 2.3q：center retry 計數（與 focusRetry 分軌） */
     let _pendingEditorCenterRetry = 0;
+    /** Phase R：forceVirtScroll 僅觸發一次 pre-focus scroll，避免 flush 無限重捲 */
+    let _pendingVirtScrollIssued = false;
     /** Phase 2.3q：手動取消世代（使 stale rAF callback 失效） */
     let _navigationCancelGen = 0;
     /** Phase 2.3q：programmatic focus 深度（區分程式觸發 vs. 使用者點擊） */
@@ -21677,6 +21679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (_pendingEditorFocus && _pendingEditorFocus.explicitNav) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
+            _pendingVirtScrollIssued = false;
         }
     }
 
@@ -21808,6 +21811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
         }
         if (pending && pending.explicitNav) {
             const reason = opts && opts.failureReason === 'center' ? 'nav-failed-center' : 'nav-complete';
@@ -21834,6 +21838,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         _pendingEditorFocus = null;
         _pendingEditorFocusRetry = 0;
         _pendingEditorCenterRetry = 0;
+        _pendingVirtScrollIssued = false;
         _filterAnchorPending = null;
         _preserveEditingAcrossVirtRender = null;
         if (window.CatVirtGrid && typeof window.CatVirtGrid.cancelNavigationAnchor === 'function') {
@@ -22036,6 +22041,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
             return;
         }
         const gen = pending.gen;
@@ -22044,6 +22050,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
             return;
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
@@ -22071,29 +22078,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         //       scroll 完由 onAfterRender chain 或 scheduleNavRetryRaf 觸發下一次 flush。
         let row = getGridRowBySegId(pending.segId, false);
         if (wantCenter && !pending.skipVirtScroll) {
-            const needsScroll = pending.forceVirtScroll || !row || !isCenterOk(pending.segId);
+            const needsCenterRetryScroll = _pendingEditorCenterRetry > 0 && !isCenterOk(pending.segId);
+            const needsInitialForceScroll = pending.forceVirtScroll && !_pendingVirtScrollIssued;
+            const needsScroll = !row || needsCenterRetryScroll || needsInitialForceScroll;
             if (needsScroll) {
                 readEditorGridHeaderPx();
+                if (window.CatVirtGrid && typeof window.CatVirtGrid.holdNavAnchorLockForExplicitNav === 'function') {
+                    window.CatVirtGrid.holdNavAnchorLockForExplicitNav('center');
+                }
                 window.CatVirtGrid.scrollToSegId(pending.segId, 'center');
-                nudgeExplicitCenterScroll(pending.segId);
+                if (getGridRowBySegId(pending.segId, false)) _pendingVirtScrollIssued = true;
                 logExplicitCenterDiagnostic('after scrollToSegId', pending, { scrollBlock: 'center' });
-                row = getGridRowBySegId(pending.segId, false);
-                if (!row) {
-                    // row 尚未掛載，等 onAfterRender 觸發；也排一個備用 rAF
-                    scheduleNavRetryRaf(gen);
-                    return;
-                }
-                // Phase R2：scroll 後若尚未置中，等 layout settle 再 focus（避免同 stack measure 偏離）
-                if (!isCenterOk(pending.segId)) {
-                    if (CAT_NAV_DEBUG()) {
-                        console.log('[catNav] flush defer - not centered before focus', {
-                            navGen: gen,
-                            rowCenterDeltaPx: measureRowCenterDeltaPx(pending.segId),
-                        });
-                    }
-                    scheduleNavRetryRaf(gen);
-                    return;
-                }
+                // center 修正改在 renderWindow rAF 內；此處須等 onAfterRender／下一幀再 focus+measure
+                scheduleNavRetryRaf(gen);
+                return;
             }
         } else if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
             // 非 center 路徑（nearest / preserve）
@@ -22207,6 +22205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
             if (pending.explicitNav) releaseVirtNavigationAnchor();
         }
     }
@@ -22232,6 +22231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         _pendingEditorFocusRetry = 0;
         _pendingEditorCenterRetry = 0;
+        _pendingVirtScrollIssued = false;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         if (virtOn) {
             logExplicitCenterDiagnostic('before navigation scheduled', _pendingEditorFocus, {
