@@ -1,6 +1,6 @@
 # CAT 編輯器：Tag 著色、假游標、清除篩選、確認跳行（Phase 2.3）
 
-> **狀態**：**Phase 2.3o 待驗收**；**Phase 2.3q 已實作 `6344baa`**；Playwright Wave 1 + Phase Q 完成（`fc06da4`）；**Phase R 產品修復待執行後結案**（見 §3.18）。2.3p hotfix `649ef70` 已推送。
+> **狀態**：**Phase 2.3o 待驗收**；**Phase 2.3q 已實作 `6344baa`**；Playwright Wave 1 + Phase Q 完成（`fc06da4`）；**Phase R 進行中**（`7d181f1`）：已修 `bottomSpacer` 灌高回歸，核心 +71px 成因未確認，全量矩陣未驗證（見 §3.18、[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) §測試執行報告 Phase R）。2.3p hotfix `649ef70` 已推送。
 > **樣本**：`54316_02_WORDNT_RiftboundCoreRulesRUP4Sta_v2_zh_TW.docx_zho-TW.mqxliff`（6333 句）  
 > **程式觸點**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)、[`cat-tool/js/xliff-tag-pipeline.js`](../cat-tool/js/xliff-tag-pipeline.js)  
 > **相關**：[`bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md`](./bug-report_virt-scroll-confirm-nav-rowidx_2026-06.md)（`51815db` rowIdx）、[`CAT_EDITOR_LARGE_FILE_PERF_2026-06.md`](./CAT_EDITOR_LARGE_FILE_PERF_2026-06.md)、[`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md)、[`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md)
@@ -587,7 +587,7 @@ B-7g 規格實作註記：[`CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](./CAT_WO
 
 ### 3.18 Phase 2.3q — 共用 explicit 導覽完成條件 + stale 導覽取消（2026-07-02）
 
-**狀態**：**已實作 `6344baa`**；Playwright Wave 1 `d15ad0b` + Phase Q `fc06da4` 完成；**2.3q 導覽驗收 blocked 於 Phase R**（完整計畫：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)；Playwright：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）
+**狀態**：**已實作 `6344baa`**；Playwright Wave 1 `d15ad0b` + Phase Q `fc06da4` 完成；**Phase R 進行中**（commit `7d181f1`，分支 `cursor/cat-nav-phase-r-shared-explicit-centering`）：已修 `bottomSpacer` 灌高回歸與測試量測括號錯誤，表頭高度假說已排除，核心 `rowCenterDeltaPx` ≈ +71px 成因待查，全量矩陣未重跑（完整紀錄：[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) §測試執行報告 Phase R）
 
 **Playwright 現況**（Phase Q 後）：
 
@@ -670,3 +670,4 @@ focusOk && centerOk  // centerOk: Math.abs(rowCenterDeltaPx) <= 16
 | 2026-07-02 | Playwright 計畫擴充 **G～I**：F8 已確認句、viewport 拉扯、手動點擊穩定（PM Riftbound 6333 句回報） |
 | 2026-07-02 | Playwright Wave 1 完成 `d15ad0b`；Test A L2 產品向（`centeredOk` 穩定 fail） |
 | 2026-07-02 | Phase Q 診斷完成 `fc06da4`；A 0/6、B 3/8；進 **Phase R** shared explicit centering timing |
+| 2026-07-03 | **Phase R**（`7d181f1`，分支 `cursor/cat-nav-phase-r-shared-explicit-centering`）：移除 `bottomSpacer` 疊加膨脹回歸、修正測試量測括號錯誤、center correction 方向、R3 nav lock、R4 `nav-failed-center`；表頭高度假說已排除；核心置中偏移 +71px 成因待查；全量矩陣未重跑（見 Playwright 計畫 §測試執行報告 Phase R） |

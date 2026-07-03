@@ -764,7 +764,7 @@ A fail、B 全 pass → B 可能狀態污染；仍以 repeat 統計為準，單�
 
 ---
 
-### Phase R — 產品修復與驗收（**待執行**）
+### Phase R — 產品修復與驗收（**進行中**；commit `7d181f1`，分支 `cursor/cat-nav-phase-r-shared-explicit-centering`）
 
 **前置（Phase Q 交付）** — 皆 ✅：
 
@@ -823,13 +823,14 @@ npx playwright test -g "Test G —|Test H —|Test I —" --project=chromium
 
 #### Phase R 根因與檢查清單（程式對照）
 
-| # | 檢查項 | Phase Q 結論 | 觸點 |
-|---|--------|--------------|------|
-| 1 | 量測基準 | **次要** — `measureRowCenterDeltaPx` 用 `#editorGrid` 全框中心 | [`app.js`](../cat-tool/app.js) L21677 |
-| 2 | targetTop 計算 | **主因** — `scrollTopFromAnchor` 未加 `#gridHeaderRow`（sticky ≈71px） | [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js) L361–364 |
-| 3 | rowHeights stale | 次要 — 初值 48px，RO 後才精準 | `heightOf`、`onResizeEntries` |
-| 4 | RO / invalidateHeights | **B 間歇** — `invalidateHeights` 釋放 `_navAnchorLock` | L555–578 |
-| 5 | focus 後 layout | 次要 — `onAfterRender` 早於 `setScrollTopDeferred` | L356 vs L374 |
+| # | 檢查項 | Phase Q 結論 | Phase R 更新 | 觸點 |
+|---|--------|--------------|--------------|------|
+| 1 | 量測基準 | **次要** — `measureRowCenterDeltaPx` 用 `#editorGrid` 全框中心 | **已修** — `measureRowCenterDeltaPx` 括號錯誤（`Math.round` 只包住半式）已改正 | [`cat-nav-assert.ts`](../tests/helpers/cat-nav-assert.ts) |
+| 2 | targetTop 計算 | **主因** — `scrollTopFromAnchor` 未加 `#gridHeaderRow`（sticky ≈71px） | **已排除** — 已加入 `readEditorGridHeaderPx`／`getGridHeaderScrollOffset` 量測與快取；`headerH` 納入 `computeCenterScrollTop` 回傳值後 delta 仍 ≈ +71，非根因 | [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js) L96–154 |
+| 3 | rowHeights stale | 次要 — 初值 48px，RO 後才精準 | 仍次要；待 +71 根因確認後再評估 | `heightOf`、`onResizeEntries` |
+| 4 | RO / invalidateHeights | **B 間歇** — `invalidateHeights` 釋放 `_navAnchorLock` | **已修** — `_navAnchorLock` 期間不 `releaseNavAnchorLock`（R3） | L674–692 |
+| 5 | focus 後 layout | 次要 — `onAfterRender` 早於 `setScrollTopDeferred` | 仍次要；+71 根因調查候選 | L356 vs L374 |
+| 6 | bottomSpacer 灌高 | （Phase Q 未列） | **已修回歸** — `applyCenterScrollCorrection`／`setScrollTopDeferred`／`nudgeExplicitCenterScroll` 在 `scrollTop` 未變時疊加膨脹 `bottomSpacer`，導致 viewport 被推到文件尾端（診斷截圖：目標第 20 句卻見 6332/6333 句）；邏輯已移除 | [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js)、[`app.js`](../cat-tool/app.js) |
 
 #### Phase R 分波實作
 
@@ -1206,34 +1207,62 @@ commit 時序：b665c1f（首輪）→ fc06da4（virt log 補齊 + 補跑報告�
 
 ## 測試執行報告 Phase R
 
-> **狀態**：待填（實作後更新）  
+> **狀態**：**進行中** — 回歸已修、核心 +71px 未解；全量矩陣待重跑  
 > **前置**：§測試執行報告 Phase Q  
-> **採用波次**：R1 / R2 / R3 / R4（勾選）
+> **分支**：`cursor/cat-nav-phase-r-shared-explicit-centering`  
+> **採用波次**：R1（部分）／R2（沿用 2.3q）／R3 ✅／R4 ✅
 
 ### 修復摘要
 
-| 波次 | 內容 | 是否採用 |
-|------|------|----------|
-| R1 | `gridHeaderRow` 納入 center `targetTop` | |
-| R2 | layout settle 後 focus+measure | |
-| R3 | `invalidateHeights` 保留 nav lock | |
-| R4 | `nav-failed-center` reason | |
+| 波次 | 內容 | 是否採用 | 備註 |
+|------|------|----------|------|
+| R1 | `gridHeaderRow` 納入 center `targetTop` | **部分** | 已實作 `readEditorGridHeaderPx`、`getGridHeaderScrollOffset`、`dataset.layoutHeight` 快取；`computeCenterScrollTop` 量測 `headerH` 但 **未** 將其計入 `targetTop`（加入後 delta 不變）；表頭高度假說 **已排除** |
+| R2 | layout settle 後 focus+measure | **沿用 2.3q** | 本輪未額外新增；2.3q 既有 `focusOk && centerOk` completion gate 仍生效 |
+| R3 | `invalidateHeights` 保留 nav lock | **✅** | `_navAnchorLock` 期間不呼叫 `releaseNavAnchorLock` |
+| R4 | `nav-failed-center` reason | **✅** | `flushPendingEditorFocus` 失敗時 `cancelNavigationAnchor('nav-failed-center')` |
+| — | 移除 `bottomSpacer` 疊加膨脹 | **✅** | Phase R 除錯過程發現的次生回歸；非原計畫波次，但已併入 `7d181f1` |
+| — | `measureRowCenterDeltaPx` 括號修正 | **✅** | 測試 helper 運算子優先序錯誤 |
+| — | `applyCenterScrollCorrection` 方向修正 | **✅** | `scrollEl.scrollTop += -delta`（先前方向反了） |
+| — | `renderWindow` 強制 reflow | **✅** | `void anchorRowEl.offsetHeight` 於 center correction 前 |
+
+### Phase R 迭代紀錄
+
+| 序 | 日期 | 動作 | 結果 |
+|----|------|------|------|
+| 1 | 2026-07-03 | 依 Phase Q 假說實作 R1：表頭高度量測與 `computeCenterScrollTop` | `headerH` 可正確讀到（≈71px），但 `rowCenterDeltaPx` 仍穩定 **+71～+72**；假說排除 |
+| 2 | 2026-07-03 | 修正 `applyCenterScrollCorrection` 捲動方向（`+= -delta`） | delta 符號正確，但絕對值仍 ≈ +71 |
+| 3 | 2026-07-03 | 建立暫存診斷 spec `debug-center-diag.spec.ts`（已刪除） | 發現 `bottomSpacer` 在多次 center retry 中被灌高，viewport 跳到文件尾端（目標 display #20，畫面卻見 #6332/#6333） |
+| 4 | 2026-07-03 | 移除 `bottomSpacer` 灌高邏輯（`applyCenterScrollCorrection`、`setScrollTopDeferred`、`nudgeExplicitCenterScroll`） | 回歸消除；viewport 不再被推到尾端 |
+| 5 | 2026-07-03 | 修正 `cat-nav-assert.ts` `measureRowCenterDeltaPx` 括號 | 量測公式與產品端一致 |
+| 6 | 2026-07-03 | 實作 R3／R4；`readEditorGridHeaderPx` 整合至 `CatVirtGrid.mount` | 已併入 commit `7d181f1` |
+| 7 | 2026-07-03 | 嘗試 Test A `repeat-each=3`（`PLAYWRIGHT_BASE_URL=http://localhost:8080`） | **執行中斷／逾時**；回歸修復後尚未取得完整 pass/fail 統計 |
+| 8 | — | **待辦** | 繼續查 +71px 根因 → Test A 3/3 → 全量矩陣 → 結案 |
 
 ### Playwright 結果
 
-| 測項 | repeat | pass | fail | 門檻 | `rowCenterDeltaPx`（失敗時） |
-|------|--------|------|------|------|------------------------------|
-| Test A | 3 | | | 3/3 | |
-| Test B | 5 | | | 5/5 | |
-| Test C/E | 1 | | | 全 pass | |
-| Test D | 1 | | | pass | |
-| Test G/H/I | 1 | | | 全 pass | |
+> **注意**：下表為截至 `7d181f1` 的**實際紀錄**；回歸修復後全量矩陣**尚未完整重跑**，不可視為驗收通過。
+
+| 測項 | repeat | pass | fail | 門檻 | `rowCenterDeltaPx`（失敗時） | 備註 |
+|------|--------|------|------|------|------------------------------|------|
+| Test A | 3 | — | — | 3/3 | ≈ +71～+72（Phase Q 基線；R1 後未變） | 回歸修復後重跑**中斷**；待補 |
+| Test B | 5 | — | — | 5/5 | Phase Q 基線 fail 時 ≈ +72 | **未重跑** |
+| Test C/E | 1 | — | — | 全 pass | — | **未重跑** |
+| Test D | 1 | 1（單次抽測） | 0 | pass | — | 小檔回歸曾 pass；正式矩陣待補 |
+| Test G/H/I | 1 | — | — | 全 pass | — | **未重跑** |
 
 ### Phase R 結論
 
 ```text
-是否達驗收門檻：
-commit：
+是否達驗收門檻：否
+commit：7d181f1（分支 cursor/cat-nav-phase-r-shared-explicit-centering）
+已解：bottomSpacer 灌高回歸、測試量測括號錯誤、center correction 方向、R3 nav lock、R4 nav-failed-center
+未解：核心 rowCenterDeltaPx ≈ +71px（表頭高度假說已排除；真正成因待查）
+全量矩陣：回歸修復後尚未完整重跑
+下一步：
+  1. 在 applyCenterScrollCorrection 完成後、focus 前即時量測 scrollTop／getBoundingClientRect，找出 +71 來源
+  2. Test A repeat-each=3 確認 3/3
+  3. 全量矩陣 B×5、C/E、D、G/H/I
+  4. 達標後更新本表並 push
 ```
 
 ---
