@@ -153,7 +153,7 @@ flowchart LR
 - **W5-1 外鍵索引** — 狀態：已驗收（DB 已套用，unindexed FK 由 33 → 0）— commit：`f20ee6c`
 - **W5-2 裸 auth.uid() 快取** — 狀態：已驗收（bare policy 由 2 → 0）— commit：`f20ee6c`
 - **W5-3 合併 billing permissive policy** — 狀態：**已驗收（DB 層 RLS 模擬，2026-07-03）** — migration commit：`f20ee6c`；驗證腳本：[`supabase/tests/w5_billing_rls_check.sql`](../supabase/tests/w5_billing_rls_check.sql)
-  - 驗證結果（模擬「譯者一」authenticated 身分）：本人請款 `INSERT` = **ALLOW**、冒名他人請款 `INSERT` = **DENY**（合併後 `invoices_insert` WITH CHECK 正確擋下）；讀取為同 env 全體開放（可見他人請款 11 筆，非 0）。**2026-07-03 擁有者裁定此讀取開放為錯誤（非設計），須修復——修復工項見 §9「W10 譯者讀取收緊」。**
+  - 驗證結果（模擬「譯者一」authenticated 身分）：本人請款 `INSERT` = **ALLOW**、冒名他人請款 `INSERT` = **DENY**（合併後 `invoices_insert` WITH CHECK 正確擋下）；讀取為同 env 全體開放（當時可見他人請款 11 筆，非 0）。**2026-07-03 擁有者裁定此讀取開放為錯誤（非設計），須修復——修復工項見 §9「W10 譯者讀取收緊」。**~~「可見他人 11／12 筆」~~ 此數字已於 W10 批次 1 作廢：收緊後譯者讀他人 `invoices/invoice_fees/fees` 皆為 **0**（見 §9.4）。
   - **更正先前紀錄**：`2abac01`／`9a4e5af` 所稱「Playwright 雙角色 5/5 通過」**不可信**——測試模式的假人換人（`dev-switch-user`→`verifyOtp`）在自動化環境靜默失效，實際全程以假執行長（管理員）身分執行，並未真正切到譯者。故 W5-3 改以上述 DB 層模擬結案；UI 雙角色驗收待階段三修好換人流程後補（見下）。
 - **W5-B CAT 四表（另案）** — `cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments` 為 ALL 與特定命令 policy 重疊，需拆分 ALL 語意（安全語意變更），本次不處理，待評估。
 
@@ -271,23 +271,33 @@ flowchart LR
 - **無跨使用者聚合儀表板**：`/` 導向 `/cases`，無彙總全體金額的 dashboard；列表內合計會自然只反映 RLS 可見集合（即為所欲）。**風險註記（低）**：故不需分批。
 - **Realtime**：`invoice-store` 收到事件一律 `loadInvoices()` 重查（RLS 過濾）→ 安全；`fee-store` 的 postgres_changes handler **直接套用 payload.new**（非重查），依賴 Supabase Realtime 對 postgres_changes 施行 RLS（RLS 已啟用 → 他人列不會送達）。仍將**加訂閱端防禦過濾**（僅套用 `assignee = 本人 或 isAdmin`）作雙保險，並記錄原因。
 
-### 9.2 設計（待實作）
+### 9.2 擁有者裁決與完整規格（2026-07-03）
 
-- 三張表各新增／取代 **單一 SELECT policy**：`env = current_env() AND ( is_admin((select auth.uid())) OR <本人條件> )`
-  - `invoices`：本人 = `translator = (select display_name from profiles where id = (select auth.uid()))`
-  - `invoice_fees`：本人 = `EXISTS(select 1 from invoices where invoices.id = invoice_fees.invoice_id and invoices.translator = <本人 display_name>)`
-  - `fees`：本人 = `assignee = <本人 display_name>`（或 `created_by = (select auth.uid())`）
-- 維持 W5 準則：`auth.uid()` 一律 `(select auth.uid())` 包裹；每表每 cmd 單一 permissive，不製造重疊。
-- migration 拆獨立檔（`*_w10_translator_read_tighten.sql`），離峰 `supabase db push`。
+**三問裁定**：(1) `fees` 一併收緊（三張全收）；(2) 本人判定先沿用 `assignee ＝ display_name`（最小變更、與寫入政策一致），UUID 歸屬列後續獨立工項，「同名互看／改名歸屬」風險見 §9.5；(3) `fee-store` realtime 加防禦過濾並升級為重查（見批次 2）。
 
-### 9.3 驗證（缺一不可）
+**費用單（fees）可見性規格**：
 
-1. DB 層腳本擴充（沿用 `w5_billing_rls_check.sql`）：譯者讀他人 = **0**、讀本人 = 原筆數、PM/執行長讀全部 = 總數不變；寫入斷言（建自己 ALLOW／建他人 DENY）不得回歸。
-2. env=test 假人實測（換人流程未修復 → 以 DB 層＋執行長切換人工檢查替代，照實標註）。
-3. Realtime：確認譯者 client 不再收他人請款即時事件（含 fee-store 防禦過濾）。
-4. 重跑 Supabase advisors，確認無新警告。
+- **列級**（哪些單看得到）：譯者可見須同時 `assignee ＝ 本人` **且** `稿費開立狀態 ≠ 草稿`（`status <> 'draft'`）；PM／執行長全部可見。
+- **欄位級**（看得到的單裡只准看）白名單：標題、譯者、稿費請款狀態、稿費開立狀態、相關案件（連結）、稿費請款單連結、稿費內容（任務類型／計費單位／單價／單位數／小計／總額、費率無誤勾選）、費用相關備註、變更紀錄（僅白名單欄位條目）、建立者／建立時間。**禁區**：營收整區塊（客戶端任務類型／客戶報價／營收總額／利潤／關鍵字／客戶 PO#／對帳完成／請款完成／費用群組／派案途徑）、客戶／聯絡人／客戶請款狀態／客戶案件單連結、內部備註（PM 以上）。
+- **頁面／路由級**：客戶請款譯者完全不可見；工具管理／設定／內部資料一律 PM 以上。
 
-### 9.4 狀態
+**技術指引**：RLS 只管「列」；欄位級須用**遮罩層**（view 或 RPC）實作，禁止只靠前端隱藏。Realtime 非管理員 client 收到 `fees/invoices` 事件一律**重查遮罩來源**，禁止直接套 `payload.new`（比照 `invoice-store`）。變更紀錄過濾在遮罩／查詢層做，不在渲染層。
 
-- **範圍調查**：已完成（見 §9.1）。
-- **實作**：待擁有者確認後開始（見回報決策點）。
+### 9.3 實作拆批
+
+- **批次 1（快，已完成 §9.4）**：三張表列級 SELECT 收緊 ＋ fees 草稿條款 ＋ 路由守衛（工具管理／設定／內部資料／客戶請款／團隊成員／權限管理）。
+- **批次 2（大，待動工）**：欄位遮罩層（view／RPC，動工前先回報選型與前端檔案清單）＋ 前端讀取路徑切換 ＋ `fee-store` realtime 重查改造 ＋ 變更紀錄過濾（擴充 `src/lib/edit-log-permission-filter.ts`）。
+
+### 9.4 批次 1 執行結果（已落地，2026-07-03）
+
+- **migration**：`supabase/migrations/20260703140000_w10_translator_row_read_tighten.sql`（以 MCP `apply_migration` 套用；名稱 `w10_translator_row_read_tighten`）。三表各單一 SELECT policy：`env = current_env() AND ( is_admin((select auth.uid())) OR <本人條件> )`，`fees` 另加 `status <> 'draft'`。維持 W5 準則（`(select auth.uid())` 包裹、單一 permissive）。
+- **路由守衛**：[`src/App.tsx`](../src/App.tsx) 新增 `RequireModule`／`RequireExecutive`，以與 `AppSidebar` 相同的 `checkPerm` 條件擋 `/tools`、`/tools/page-template/:id`、`/field-reference`、`/internal-notes`、`/client-invoices`、`/members`（`/permissions` 為 executive）；補齊 URL 直達漏洞（側欄先前已隱藏，路由未擋）。`/settings` 沿用既有 `isAdmin`。
+- **DB 層驗證**（`supabase/tests/w10_translator_read_check.sql`，11 項全 PASS）：譯者讀他人 `invoices/invoice_fees/fees` ＝ **0**；讀自己「草稿」fees ＝ **0**；讀自己非草稿 fees ＝ 基準值；PM 讀全部 ＝ `invoices` 12／`fees` 2（總數不變）；寫入斷言（建自己 ALLOW／建他人 DENY）不回歸。
+- **advisors**：重跑 security／performance 無新增警告；billing 三表無 `multiple_permissive_policies`、無 `auth_rls_initplan`。
+- **誠實註記**：`test-t1` 於 test env 目前擁有 0 筆 invoices/fees，故「讀自己非草稿」正向為 0＝0 的 trivial pass；待有本人非草稿 fixture 後可再強化正向驗證。
+- **待批次 2**：欄位級遮罩尚未做 → 譯者目前雖只看得到本人非草稿列，但**該列仍為全欄位**（營收欄位尚未 NULL 化）；realtime `fee-store` 仍直接套 `payload.new`。批次 2 前會先回報遮罩選型。
+
+### 9.5 風險與後續
+
+- **同名互看／改名歸屬**：`display_name` 判定本人，若兩譯者同名可互看、改名後歸屬漂移。列為 UUID 歸屬獨立工項（`assignee_uid` 雙寫 → 切換判定）。
+- **UI 換人流程未修復**：批次 1 以 DB 層腳本＋執行長人工檢查替代譯者實測（照實標註）；換人流程修復見 Phase 3。
