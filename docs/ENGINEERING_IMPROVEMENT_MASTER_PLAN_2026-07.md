@@ -153,7 +153,7 @@ flowchart LR
 - **W5-1 外鍵索引** — 狀態：已驗收（DB 已套用，unindexed FK 由 33 → 0）— commit：`f20ee6c`
 - **W5-2 裸 auth.uid() 快取** — 狀態：已驗收（bare policy 由 2 → 0）— commit：`f20ee6c`
 - **W5-3 合併 billing permissive policy** — 狀態：**已驗收（DB 層 RLS 模擬，2026-07-03）** — migration commit：`f20ee6c`；驗證腳本：[`supabase/tests/w5_billing_rls_check.sql`](../supabase/tests/w5_billing_rls_check.sql)
-  - 驗證結果（模擬「譯者一」authenticated 身分）：本人請款 `INSERT` = **ALLOW**、冒名他人請款 `INSERT` = **DENY**（合併後 `invoices_insert` WITH CHECK 正確擋下）；讀取為同 env 全體開放（可見他人請款 11 筆，非 0，屬既有業務設計）。
+  - 驗證結果（模擬「譯者一」authenticated 身分）：本人請款 `INSERT` = **ALLOW**、冒名他人請款 `INSERT` = **DENY**（合併後 `invoices_insert` WITH CHECK 正確擋下）；讀取為同 env 全體開放（可見他人請款 11 筆，非 0）。**2026-07-03 擁有者裁定此讀取開放為錯誤（非設計），須修復——修復工項見 §9「W10 譯者讀取收緊」。**
   - **更正先前紀錄**：`2abac01`／`9a4e5af` 所稱「Playwright 雙角色 5/5 通過」**不可信**——測試模式的假人換人（`dev-switch-user`→`verifyOtp`）在自動化環境靜默失效，實際全程以假執行長（管理員）身分執行，並未真正切到譯者。故 W5-3 改以上述 DB 層模擬結案；UI 雙角色驗收待階段三修好換人流程後補（見下）。
 - **W5-B CAT 四表（另案）** — `cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments` 為 ALL 與特定命令 policy 重疊，需拆分 ALL 語意（安全語意變更），本次不處理，待評估。
 
@@ -244,3 +244,50 @@ flowchart LR
 | **OBS-3** | 既有 backlog 複測 | 測試模式下 CAT 儀表板／專案清單「變更紀錄」仍顯示正式環境項目（`WIZA 260703A` 等，含操作者與時間）。 | 沿用 [CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md](CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) §13.2 **FIX-1**（已補記 2026-07-03 複測仍在）。 |
 
 **方法論註記**：OBS-1 是「自動化斷言通過 ≠ 體感合格」的實證——機器人只驗跳對／置中，不會嫌慢；真人／AI 實測才會。已據此補 [`testing.mdc`](../.cursor/rules/testing.mdc) 兩條規則。
+
+---
+
+## 9. W10 譯者讀取收緊（擁有者 2026-07-03 裁定）
+
+**背景**：W5-3 驗收時記錄「譯者可見他人請款」為讀取開放；擁有者裁定此為**錯誤而非設計**，須收緊。分支 `cursor/translator-invoice-read-rls`（從 `main` 開，一題一支）。
+
+### 9.1 範圍調查結果（動手前盤點）
+
+**資料庫讀取政策現況**（5 表）：
+
+| 表 | 現行 SELECT policy | 譯者實際可見 | 需修 |
+|----|--------------------|--------------|------|
+| `invoices` | `Authenticated users can read invoices`：`env = current_env()` | **全部**（同 env） | ✅ 收緊 |
+| `invoice_fees` | `Authenticated users can read invoice_fees`：`env = current_env()` | **全部** | ✅ 收緊 |
+| `fees` | `Authenticated users can read fees`：`env = current_env()` | **全部**（含他人 client_info 營收） | ✅ 收緊 |
+| `client_invoices` | `Admins can select client_invoices`：`is_admin AND env` | 無（已限管理員） | ⛔ 已正確 |
+| `client_invoice_fees` | `Admins can select client_invoice_fees`：`is_admin AND env` | 無 | ⛔ 已正確 |
+
+**前端讀取路徑盤點**：
+
+- **路由**：僅 `/settings` 以 `isAdmin` 擋（[`src/App.tsx`](../src/App.tsx) `SettingsRoute`）；`/invoices`、`/fees`、`/client-invoices`、`/cases` **對所有登入者開放**，譯者可進入。
+- **列表載入靠 RLS**：`invoice-store`、`fee-store` 的 `load*()` 皆 `select("*").eq("env", …)`，**無使用者過濾**，完全依賴 RLS → 收緊 RLS 後自動只回本人＋管理員，前端零改動。
+- **詳情頁**：`InvoiceDetailPage` 由 `useInvoice(id)` 讀 store 清單（RLS 過濾後），直開他人 URL → store 無該筆 → 自動擋。
+- **無跨使用者聚合儀表板**：`/` 導向 `/cases`，無彙總全體金額的 dashboard；列表內合計會自然只反映 RLS 可見集合（即為所欲）。**風險註記（低）**：故不需分批。
+- **Realtime**：`invoice-store` 收到事件一律 `loadInvoices()` 重查（RLS 過濾）→ 安全；`fee-store` 的 postgres_changes handler **直接套用 payload.new**（非重查），依賴 Supabase Realtime 對 postgres_changes 施行 RLS（RLS 已啟用 → 他人列不會送達）。仍將**加訂閱端防禦過濾**（僅套用 `assignee = 本人 或 isAdmin`）作雙保險，並記錄原因。
+
+### 9.2 設計（待實作）
+
+- 三張表各新增／取代 **單一 SELECT policy**：`env = current_env() AND ( is_admin((select auth.uid())) OR <本人條件> )`
+  - `invoices`：本人 = `translator = (select display_name from profiles where id = (select auth.uid()))`
+  - `invoice_fees`：本人 = `EXISTS(select 1 from invoices where invoices.id = invoice_fees.invoice_id and invoices.translator = <本人 display_name>)`
+  - `fees`：本人 = `assignee = <本人 display_name>`（或 `created_by = (select auth.uid())`）
+- 維持 W5 準則：`auth.uid()` 一律 `(select auth.uid())` 包裹；每表每 cmd 單一 permissive，不製造重疊。
+- migration 拆獨立檔（`*_w10_translator_read_tighten.sql`），離峰 `supabase db push`。
+
+### 9.3 驗證（缺一不可）
+
+1. DB 層腳本擴充（沿用 `w5_billing_rls_check.sql`）：譯者讀他人 = **0**、讀本人 = 原筆數、PM/執行長讀全部 = 總數不變；寫入斷言（建自己 ALLOW／建他人 DENY）不得回歸。
+2. env=test 假人實測（換人流程未修復 → 以 DB 層＋執行長切換人工檢查替代，照實標註）。
+3. Realtime：確認譯者 client 不再收他人請款即時事件（含 fee-store 防禦過濾）。
+4. 重跑 Supabase advisors，確認無新警告。
+
+### 9.4 狀態
+
+- **範圍調查**：已完成（見 §9.1）。
+- **實作**：待擁有者確認後開始（見回報決策點）。
