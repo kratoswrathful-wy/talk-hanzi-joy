@@ -147,7 +147,12 @@ Test B（clear-filter return-to-target）：高度間歇 sibling，3/8 pass；fa
 6. renderWindow + setScrollTopDeferred 時序
 7. ResizeObserver / invalidateHeights（confirm 或 filter 後是否覆寫 scrollTop；Phase Q：flush failed 後 RO 連鎖仍改寫 scrollTop，如 1053↔1436↔1674）
 8. cancelNavigationAnchor reason（失敗時勿標 nav-complete）
+9. #gridHeaderRow.offsetHeight 是否應納入 center 的 scrollTopFromAnchor（Phase R R1 主修復）
 ```
+
+### Phase R 分波
+
+交叉引用 Playwright 計畫 §Phase R 分波實作：R1 header offset → R2 timing（若需）→ R3 RO guard（若需）→ R4 nav-failed-center。
 
 ### 修復原則
 
@@ -166,7 +171,7 @@ explicit navigation in virt mode:
 | 階段 | 狀態 |
 |------|------|
 | **Phase Q** | ✅ 已完成：`b665c1f`（app.js diagnostic）+ `fc06da4`（virt log + B×5 補跑）；報告見 Playwright 計畫 §測試執行報告 Phase Q |
-| **Phase R** | ⏳ 待執行：修 shared timing → `npm run sync:cat` → 重跑 Playwright 全矩陣（§Phase R 指令） |
+| **Phase R** | 🔄 進行中：R1 header offset → Playwright 全矩陣（§Phase R 指令） |
 
 細節與報告模板：Playwright 計畫 §Phase Q、§Phase R。
 

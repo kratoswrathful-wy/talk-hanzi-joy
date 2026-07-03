@@ -1,0 +1,46 @@
+---
+description: 測試與除錯規範。修 bug 必留回歸測試；Playwright 一律測試模式；含「寫入來源追蹤法」除錯規範。
+alwaysApply: true
+---
+
+# 測試規則（強制）
+
+背景與工項編號見 [`docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](../../docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md)。
+
+## 1. 修 bug 必留最小回歸測試
+
+每修一個 bug，必須同 commit 附上最小回歸測試：
+
+- **純函式邏輯**（tag pipeline、merge、mapping）→ vitest，測試檔緊鄰原始碼（比照 `ai-agent-bridge.clientInfo.test.ts`）。
+- **UI 流程** → Playwright spec（`tests/`），使用 test-mode helper 與固定 fixture（`tests/fixtures/`）。
+
+## 2. XLIFF 家族修改必測三格式
+
+依 [`xliff-tag-export.mdc`](xliff-tag-export.mdc) 既有規定測 mqxliff／sdlxliff／一般 XLIFF 三格式；將 `docs/` 中已驗收 bug 樣本逐步收進 `tests/fixtures/` 成為 regression corpus。
+
+## 3. Playwright 一律測試模式
+
+Playwright 一律於測試模式（環境隔離，見 [`docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md`](../../docs/CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md)）執行，**禁止**污染正式資料。
+
+## 4. 等待條件用確定訊號
+
+Playwright 等待條件一律用確定訊號（元素出現、狀態變更），**禁止**固定 `sleep`；虛擬捲動相關斷言以資料狀態為準，不以 DOM 列數為準。
+
+## 5. 除錯規範：寫入來源追蹤法
+
+（Phase R 2026-07 驗證有效）追查「數值被改壞」類問題時：
+
+- **禁止**只在階段點抽測；應在每一個實際寫入處加統一格式 log（source、序號、時間戳、寫入前後值），跑一次重現，讀完整時間軸再下結論。
+- 量測結果與畫面不符時，先分辨是流程控制層還是渲染定位層的問題。
+- 範例：[`docs/CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md`](../../docs/CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md) §寫入來源追蹤法。
+
+## 6. 測試模式 spec：斷言前必先驗證當前生效身分
+
+（2026-07-03 教訓）涉及多角色／權限的測試模式 spec，在跑任何斷言前，**必須先確認目前實際生效的身分**就是預期假人，**禁止**只點了切換按鈕就假設已切換：
+
+- 切換假人後，斷言「該假人為 active persona」（例如切換按鈕呈 active 樣式）才繼續；否則 `dev-switch-user`／`verifyOtp` 靜默失效時，會以原身分（假執行長／管理員）跑完「譯者」測試而**誤判通過**。
+- 權限（RLS）類負向驗證，若 UI 換人流程不可靠，改以**資料庫層模擬**（`set_config('request.jwt.claims', …)` + `SET LOCAL ROLE authenticated`，交易內驗證後 rollback／清理）；範例：[`supabase/tests/w5_billing_rls_check.sql`](../../supabase/tests/w5_billing_rls_check.sql)。
+
+## 7. 自動化通過後，體感變更仍須真人／AI 實測抽查
+
+自動化斷言只驗「對不對」（跳對、置中、資料正確），**不涵蓋延遲與順暢度**。凡涉及使用者體感的變更（導覽、確認、載入、動畫），在 Playwright／單元測試全綠後，仍須**至少一次真人或 AI 瀏覽器實測抽查**體感，並把發現（如「確認後停 4.5 秒才跳」）記入對應 DEVLOG／主計畫待排。範例實證：主計畫 §8 OBS-1。

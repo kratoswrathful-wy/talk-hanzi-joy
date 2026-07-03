@@ -429,7 +429,7 @@ Slack thread：[一～二輪](https://1up-studio.slack.com/archives/C0BDSDCT9B5/
 | 根因 | `db.getModuleLogs` 查 `cat_module_logs` 無 `.eq("env", …)`（[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 約 681–689 行）；表可能亦無 `env` 欄或寫入未帶 env |
 | 建議修法 | 為 log 寫入與查詢補 `env`；`getModuleLogs` 依 `getEnvironment()` 過濾；必要時 migration backfill |
 | 驗收條件 | 正式區開 CAT → 變更紀錄**不含**名稱含 `[測試模式驗收]` 或操作者含「測試」的列 |
-| 發現來源 | 第二輪 R1 附帶；第三輪 C2 **仍重現** |
+| 發現來源 | 第二輪 R1 附帶；第三輪 C2 **仍重現**；2026-07-03 團隊版大檔抽測（Fable 5）**複測仍在**（儀表板／專案清單「變更紀錄」顯示 `WIZA 260703A` 等正式項目，含操作者與時間） |
 
 #### FIX-8｜譯者案件清單未依指派過濾
 

@@ -210,4 +210,22 @@ export async function assertVirtEnabled(frame: FrameLocator, expected: boolean) 
   if (enabled !== expected) {
     throw new Error(`CatVirtGrid.isEnabled() 預期 ${expected}，實際 ${enabled}`);
   }
+  if (expected) {
+    const diag = await frame.locator("body").evaluate(() => {
+      const header = document.getElementById("gridHeaderRow");
+      const scripts = Array.from(document.scripts)
+        .map((s) => s.src)
+        .filter((s) => /grid-virtual-scroll|app\.js/.test(s));
+      return {
+        hasNudge: typeof (window as unknown as { CatVirtGrid?: { nudgeCenterScroll?: unknown } }).CatVirtGrid
+          ?.nudgeCenterScroll === "function",
+        layoutHeight: header?.dataset?.layoutHeight ?? null,
+        headerRectH: header ? Math.round(header.getBoundingClientRect().height) : 0,
+        scripts,
+      };
+    });
+    if (!diag.hasNudge) {
+      console.warn(`[PW] CatVirtGrid.nudgeCenterScroll 未載入 Phase R（可能測到遠端舊版）：${JSON.stringify(diag)}`);
+    }
+  }
 }

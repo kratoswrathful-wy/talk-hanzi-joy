@@ -41,7 +41,7 @@ function measureRowCenterDeltaPxInFrame(segId: string | null): number | null {
   if (!row || !gridEl) return null;
   const rb = row.getBoundingClientRect();
   const gb = gridEl.getBoundingClientRect();
-  return Math.round(rb.top + rb.bottom) / 2 - (gb.top + gb.bottom) / 2;
+  return Math.round((rb.top + rb.bottom) / 2 - (gb.top + gb.bottom) / 2);
 }
 
 function readActiveNavigationState(): CatNavigationState {
@@ -81,7 +81,7 @@ export async function getCatNavigationState(frame: FrameLocator): Promise<CatNav
       if (!row || !gridEl) return null;
       const rb = row.getBoundingClientRect();
       const gb = gridEl.getBoundingClientRect();
-      return Math.round(rb.top + rb.bottom) / 2 - (gb.top + gb.bottom) / 2;
+      return Math.round((rb.top + rb.bottom) / 2 - (gb.top + gb.bottom) / 2);
     }
     const active = document.activeElement as HTMLElement | null;
     const activeIsGridTextarea = !!(
@@ -127,7 +127,7 @@ export async function getCatNavSnapshot(frame: FrameLocator): Promise<CatNavSnap
       if (!row || !gridEl) return null;
       const rb = row.getBoundingClientRect();
       const gb = gridEl.getBoundingClientRect();
-      return Math.round(rb.top + rb.bottom) / 2 - (gb.top + gb.bottom) / 2;
+      return Math.round((rb.top + rb.bottom) / 2 - (gb.top + gb.bottom) / 2);
     }
     const active = document.activeElement as HTMLElement | null;
     const activeIsGridTextarea = !!(

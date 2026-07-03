@@ -7590,6 +7590,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     cell.style.display = c.visible ? '' : 'none';
                     gridHeaderRow.appendChild(cell);
                 });
+                readEditorGridHeaderPx();
             }
             applyColSettings();
 
@@ -17765,6 +17766,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             cell.style.display = c.visible ? '' : 'none';
             gridHeaderRow.appendChild(cell);
         });
+        readEditorGridHeaderPx();
         
         applyColSettings();
 
@@ -18289,6 +18291,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _pendingEditorFocusRetry = 0;
     let _pendingEditorFocusGen = 0;
     const CAT_NAV_DEBUG = () => localStorage.getItem('catNavDebug') === '1';
+    /** Phase R：#gridHeaderRow 高度快取（center 公式與 virt cfg 共用） */
+    let _editorGridHeaderPx = 0;
+    function readEditorGridHeaderPx() {
+        const el = document.getElementById('gridHeaderRow');
+        if (!el) return _editorGridHeaderPx;
+        let maxH = 0;
+        el.querySelectorAll('.grid-header-cell').forEach((cell) => {
+            const h = Math.max(cell.getBoundingClientRect().height, cell.offsetHeight || 0);
+            if (h > maxH) maxH = h;
+        });
+        if (maxH <= 1) {
+            maxH = el.getBoundingClientRect().height || el.offsetHeight || el.clientHeight || 0;
+        }
+        if (maxH > 1) {
+            _editorGridHeaderPx = Math.ceil(maxH);
+            el.dataset.layoutHeight = String(_editorGridHeaderPx);
+        }
+        return _editorGridHeaderPx;
+    }
     /** Phase 2.3f：使用者滾輪編輯中就地還原（不 scroll） */
     /** @type {{ segId: *, plainOffset?: number|null } | null} */
     let _preserveEditingAcrossVirtRender = null;
@@ -18300,6 +18321,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _filterAnchorGen = 0;
     /** Phase 2.3q：center retry 計數（與 focusRetry 分軌） */
     let _pendingEditorCenterRetry = 0;
+    /** Phase R：forceVirtScroll 僅觸發一次 pre-focus scroll，避免 flush 無限重捲 */
+    let _pendingVirtScrollIssued = false;
     /** Phase 2.3q：手動取消世代（使 stale rAF callback 失效） */
     let _navigationCancelGen = 0;
     /** Phase 2.3q：programmatic focus 深度（區分程式觸發 vs. 使用者點擊） */
@@ -21656,13 +21679,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (_pendingEditorFocus && _pendingEditorFocus.explicitNav) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
+            _pendingVirtScrollIssued = false;
         }
     }
 
-    function releaseVirtNavigationAnchor() {
+    function releaseVirtNavigationAnchor(reason) {
+        const navReason = reason || 'nav-complete';
         if (window.CatVirtGrid) {
             if (typeof window.CatVirtGrid.cancelNavigationAnchor === 'function') {
-                window.CatVirtGrid.cancelNavigationAnchor('nav-complete');
+                window.CatVirtGrid.cancelNavigationAnchor(navReason);
             } else if (typeof window.CatVirtGrid.releaseNavigationAnchor === 'function') {
                 window.CatVirtGrid.releaseNavigationAnchor();
             }
@@ -21692,6 +21717,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const delta = measureRowCenterDeltaPx(segId);
         if (delta === null) return false;
         return Math.abs(delta) <= 16;
+    }
+
+    /** Phase R2：scroll 後以 DOM 量測微調 scrollTop，與 virt correction 互補。 */
+    function nudgeExplicitCenterScroll(segId) {
+        if (segId == null) return;
+        if (window.CatVirtGrid && typeof window.CatVirtGrid.nudgeCenterScroll === 'function') {
+            window.CatVirtGrid.nudgeCenterScroll(segId);
+        }
     }
 
     /** Phase Q：explicit center 診斷 log（僅 catNavDebug） */
@@ -21773,13 +21806,17 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {number} gen
      * @param {{ explicitNav?: boolean } | null} pending
      */
-    function _navFlushSafeCleanup(gen, pending) {
+    function _navFlushSafeCleanup(gen, pending, opts) {
         if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
         }
-        if (pending && pending.explicitNav) releaseVirtNavigationAnchor();
+        if (pending && pending.explicitNav) {
+            const reason = opts && opts.failureReason === 'center' ? 'nav-failed-center' : 'nav-complete';
+            releaseVirtNavigationAnchor(reason);
+        }
     }
 
     /**
@@ -21801,6 +21838,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         _pendingEditorFocus = null;
         _pendingEditorFocusRetry = 0;
         _pendingEditorCenterRetry = 0;
+        _pendingVirtScrollIssued = false;
         _filterAnchorPending = null;
         _preserveEditingAcrossVirtRender = null;
         if (window.CatVirtGrid && typeof window.CatVirtGrid.cancelNavigationAnchor === 'function') {
@@ -22003,6 +22041,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
             return;
         }
         const gen = pending.gen;
@@ -22011,6 +22050,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
             return;
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
@@ -22038,18 +22078,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         //       scroll 完由 onAfterRender chain 或 scheduleNavRetryRaf 觸發下一次 flush。
         let row = getGridRowBySegId(pending.segId, false);
         if (wantCenter && !pending.skipVirtScroll) {
-            const needsScroll = pending.forceVirtScroll || !row || !isCenterOk(pending.segId);
+            const needsCenterRetryScroll = _pendingEditorCenterRetry > 0 && !isCenterOk(pending.segId);
+            const needsInitialForceScroll = pending.forceVirtScroll && !_pendingVirtScrollIssued;
+            const needsScroll = !row || needsCenterRetryScroll || needsInitialForceScroll;
             if (needsScroll) {
-                window.CatVirtGrid.scrollToSegId(pending.segId, 'center');
-                logExplicitCenterDiagnostic('after scrollToSegId', pending, { scrollBlock: 'center' });
-                row = getGridRowBySegId(pending.segId, false);
-                if (!row) {
-                    // row 尚未掛載，等 onAfterRender 觸發；也排一個備用 rAF
-                    scheduleNavRetryRaf(gen);
-                    return;
+                readEditorGridHeaderPx();
+                if (window.CatVirtGrid && typeof window.CatVirtGrid.holdNavAnchorLockForExplicitNav === 'function') {
+                    window.CatVirtGrid.holdNavAnchorLockForExplicitNav('center');
                 }
-                // scrollTop 已同步設定，但若 height 估算不準仍可能有殘差；
-                // 先繼續 focus，step 4 再驗 centerOk，不達標則 center retry
+                window.CatVirtGrid.scrollToSegId(pending.segId, 'center');
+                if (getGridRowBySegId(pending.segId, false)) _pendingVirtScrollIssued = true;
+                logExplicitCenterDiagnostic('after scrollToSegId', pending, { scrollBlock: 'center' });
+                // center 修正改在 renderWindow rAF 內；此處須等 onAfterRender／下一幀再 focus+measure
+                scheduleNavRetryRaf(gen);
+                return;
             }
         } else if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
             // 非 center 路徑（nearest / preserve）
@@ -22129,7 +22171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             rowCenterDeltaPx, centerRetryCount: _pendingEditorCenterRetry, completed: false,
                         });
                     }
-                    _navFlushSafeCleanup(gen, pending);
+                    _navFlushSafeCleanup(gen, pending, { failureReason: 'center' });
                 }
                 return;
             }
@@ -22163,6 +22205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
             _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
             if (pending.explicitNav) releaseVirtNavigationAnchor();
         }
     }
@@ -22188,6 +22231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         _pendingEditorFocusRetry = 0;
         _pendingEditorCenterRetry = 0;
+        _pendingVirtScrollIssued = false;
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         if (virtOn) {
             logExplicitCenterDiagnostic('before navigation scheduled', _pendingEditorFocus, {
@@ -25386,6 +25430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                             scrollBlock: getAfterConfirmScrollBlock(),
                                             afterConfirmPanel: true,
                                             explicitNav: true,
+                                            forceVirtScroll: true,
                                         });
                                     }
                                 } else {
@@ -25597,6 +25642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.CatVirtGrid.mount({
                 scrollEl: gridViewport,
                 gridBody,
+                getHeaderScrollOffset: () => readEditorGridHeaderPx(),
                 buildRow: buildGridDataRow,
                 getList: () => currentSegmentsList,
                 getGlobalIndex: (seg) => currentSegmentsList.findIndex((s) => s && s.id === seg.id),

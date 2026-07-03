@@ -1,0 +1,47 @@
+---
+description: 架構與模組化約束。新增程式碼（stores、table-views、工具列按鈕、列表查詢、檔案行數、cat-tool 模組）一律遵守；既有巨檔不因此重構。
+alwaysApply: true
+---
+
+# 架構規則（強制）
+
+本規則約束**新增**程式碼；既有巨檔（`cat-tool/app.js`、巨型 `.tsx` 頁面）不因此規則被動重構。背景與工項編號見 [`docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](../../docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md)。
+
+## 1. `cat-tool/app.js` 凍結：只出不進（W7）
+
+- **禁止**在 `cat-tool/app.js` 新增功能。新功能一律建立 `cat-tool/js/<feature>.js` 模組（IIFE/namespace 掛 `window`，比照 `xliff-tag-pipeline.js`），並於 `index.html` 加 `<script>`。
+- 修改既有功能時，若改動超過該功能一半，應順勢將該功能整段搬遷至 `js/` 模組。**搬遷 commit 與行為變更 commit 分開**（搬遷 commit 行為零變更）。
+- 改完執行 `npm run sync:cat`，`cat-tool` 與 `public/cat` 一併提交。
+
+## 2. `src/stores/` 一律用工廠（W1）
+
+- 新資料實體一律使用 `createEntityStore` 工廠（見 `src/stores/entity-store-factory.ts`）。
+- W1 完成前，暫比照 `fee-store` 模式，但**須包含** case-store 的 in-flight optimistic 保護（防 realtime 覆寫未落地的本地寫入）。
+
+## 3. 表格檢視一律用泛用版（W2）
+
+- 一律使用泛用 `use-table-views`（`src/hooks/use-table-views.ts`）；實體差異以參數傳入。
+- **禁止**再新增 `use-<entity>-table-views` 複製檔；泛用版做不到的行為先擴充泛用版。
+
+## 4. 工具列按鈕走註冊制
+
+- 工具列按鈕一律走 `ui-button-registry`／`module-toolbar-buttons` 註冊，**禁止**在頁面元件內手刻。
+
+## 5. 列表查詢禁止 `select("*")`（W4）
+
+- 列表查詢必須指定欄位清單常數（比照 `cat-cloud-rpc.ts` 的 `CAT_FILE_LIST_COLUMNS`，命名 `<ENTITY>_LIST_COLUMNS`）。
+- 詳情頁再抓單筆全欄位。
+
+## 6. 單檔行數警戒（W8）
+
+- 新建 `.tsx` 超過 800 行、單一元件超過 400 行時，應先拆分再繼續。
+- 既有巨檔不因此重構，僅約束新增程式碼；巨型頁面碰到才拆（抽成 `src/components/<area>/<Section>.tsx`，拆分 commit 與功能 commit 分開，禁止全頁重寫）。
+
+## 7. 分支與資料庫同步（強制）
+
+背景：Fable 5 覆核（2026-07-03）發現工程改善 commit 曾與不相關的 CAT 捲動修正混在同一分支，且已套用 DB 的 migration 檔一度只存在分支未進 `main`，造成 repo 與正式資料庫脫鉤。
+
+- **一工項一分支**：每個工項（或一組緊密相關的變更）從**最新 `main`** 切出獨立分支；**禁止**在同一 feature 分支堆疊不相關工項。
+- **DB 與版控不得脫鉤**：任何 `supabase db push`（或等效的遠端 DB 變更）所對應的 `supabase/migrations/*.sql`，**必須**與該次變更在**同一分支**、隨同一次 merge 進 `main`。禁止「DB 已套用但 migration 檔還留在別的分支」。
+- **migration 需 idempotent**：一律 `CREATE ... IF NOT EXISTS`／`DROP ... IF EXISTS` 後重建，確保檔案併入 `main` 後對已套用的 DB 重跑不出錯。
+- **合併前檢查**：merge 進 `main` 前確認該分支只含本工項相關檔案；跨工項的變更應拆分或分別 merge。
