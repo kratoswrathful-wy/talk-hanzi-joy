@@ -125,11 +125,11 @@ flowchart LR
 
 ### 階段一
 
-- **R1** — 狀態：規劃中 — commit：—
-- **R7** — 狀態：規劃中 — commit：—
-- **R3** — 狀態：規劃中 — commit：—
-- **R4** — 狀態：規劃中 — commit：—
-- **R6** — 狀態：規劃中 — commit：—
+- **R1** — 狀態：已落地待驗收 — commit：`f17cd70`（`claude-ai-acceptance-slack.mdc` 納入版控）
+- **R7** — 狀態：已落地待驗收 — commit：`f17cd70`（xliff 重複編號修正、新增 `CLAUDE.md`）
+- **R3** — 狀態：已落地待驗收 — commit：`f17cd70`（`architecture.mdc`）
+- **R4** — 狀態：已落地待驗收 — commit：`f17cd70`（`testing.mdc`）
+- **R6** — 狀態：已落地待驗收 — commit：`f17cd70`（`docs-lifecycle.mdc`）
 
 ### 階段二
 
