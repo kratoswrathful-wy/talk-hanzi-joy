@@ -1,6 +1,8 @@
 # LMS 技能書：Claude 操作 `window.__lmsAgent` / `__tmsAgent`
 
-> **給 AI 代理的速查手冊**。Phase 2 擴充：[`TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md)；CAT iframe：[`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)。初版紀錄：[`LMS_AI_AGENT_BRIDGE_2026-06.md`](LMS_AI_AGENT_BRIDGE_2026-06.md)。
+> **完整操作流程（建單、案件頁、CAT 匯入／AI 批次）請先讀**  
+> **[`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)**（Claude 首讀）。  
+> 本檔為 LMS API **速查**；Phase 2 擴充：[`TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md)；CAT iframe：[`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)；初版紀錄：[`LMS_AI_AGENT_BRIDGE_2026-06.md`](LMS_AI_AGENT_BRIDGE_2026-06.md)。
 
 ## Phase 2 速查（2026-07）
 
@@ -23,7 +25,10 @@ await window.__tmsAgent.cat.invoke("aiBatch.getSettings");
 | **上傳檔案** | `upload.fromBytes`（勿點原生選檔） |
 | **產生費用單** | `case.generateFees(caseId)` |
 | **CAT AI 批次設定** | iframe `__catAgent` 或 `__tmsAgent.cat.invoke` |
-| 公布案件、Slack 通知 | 仍可能無 bridge 副作用；依任務提示 |
+| **CAT 匯入作業檔** | `cat.invoke('import.fromBytes', [...])`（見 Operations Guide §9） |
+| **產生本案費用單** | `case.generateFees(caseId)` |
+| **譯者／客戶請款** | `invoice.*` / `clientInvoice.*` |
+| 公布案件、Slack 通知 | 狀態可 `case.update`；Slack 等副作用可能需 UI |
 
 **前提**：使用者已登入 LMS；`__lmsAgent` 在 App 啟動後掛在 `window` 上（所有環境常駐）。
 
@@ -61,7 +66,13 @@ window.__lmsAgent.options.listKeys();
 | `fee.list({ search, status, limit })` | 搜尋費用 |
 | `fee.get(id)` | 讀單筆費用 |
 | `fee.create(initial?)` | 建立草稿費用 |
-| `fee.update(id, patch)` | 修改草稿費用 |
+| `fee.update(id, patch)` | 修改費用（含 `finalized` 定案，Phase 2） |
+| `case.generateFees(caseId)` | 依案件譯者產生費用單 |
+| `invoice.list` / `get` / `create` / `update` / `delete` / `addFees` / `removeFee` | 譯者請款 |
+| `clientInvoice.*` | 客戶請款（同上結構） |
+| `upload.fromBytes` | 上傳至 Storage，回傳 `{ name, url, size }` |
+| `navigate.urlFor({ type, id })` | 產生案件／費用／請款路徑 |
+| `cat.invoke(method, args)` | 代理 CAT iframe（須已開 `/cat/*`） |
 
 ## 守則（必讀）
 
@@ -162,5 +173,6 @@ const bad = window.__lmsAgent.fee.update(feeId, {
 
 ## 相關檔案
 
+- **整合操作指南（首讀）**：[`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)
 - 程式：[`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts)
 - 完整規格與驗收紀錄：[`LMS_AI_AGENT_BRIDGE_2026-06.md`](LMS_AI_AGENT_BRIDGE_2026-06.md)

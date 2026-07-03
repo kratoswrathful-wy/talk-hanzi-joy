@@ -86,3 +86,4 @@ __lmsAgent.navigate.urlFor({ type: "fee", id: "..." });
 |------|------|
 | 2026-07-02 | Phase 2 功能落地（`0f87353`）：`__tmsAgent`、upload、請款、CAT prefs |
 | 2026-07-02 | Playwright 驗收 spec + **線上測試模式**整合；詳見 [`TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md) §開發紀錄 |
+| 2026-07-03 | **[`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)** — Claude 首讀整合操作指南（建單、案件頁、CAT 導覽／匯入／AI 批次） |

@@ -1,8 +1,11 @@
 # LMS AI 操作切入點（`window.__lmsAgent`）
 
 > 2026-06 規劃、實作與驗收。讓 AI 以瀏覽器腳本直接讀寫**案件單**與**費用單**，跳過下拉選單、時間介面、核取方塊的點擊操作。
-
-**Claude 速查技能書**：[`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)（本檔為完整規格與驗收紀錄）。
+>
+> **Claude 整合操作指南（建單流程、案件頁、CAT）**：[`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)（**首讀**）。  
+> **Claude LMS API 速查**：[`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)（本檔為完整規格與驗收紀錄）。
+>
+> **Phase 2 更新**：費用可定案（`finalized`）、案件狀態守門已放寬、請款 API 等 — 以 [`TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md) 與執行時 `describe().governance` 為準；下文 §「不可定案」等敘述若與 Phase 2 衝突，**以 Phase 2 為準**。
 
 **狀態**：**已實作並驗收**（2026-06-30）
 

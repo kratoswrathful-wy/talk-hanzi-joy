@@ -168,4 +168,8 @@ npx playwright test tests/auth.setup.ts
 3. **進測試模式時機**：`user_roles` 未載入前頂欄無「進入測試模式」→ setup 改等按鈕可見（最長 90s）並先 `goto /cases`。
 4. **P2-C4**：LMS iframe 內「重開專案檔」導覽不穩；改驗「關 Modal → 再開 Modal」同工作階段 prefs；跨 reload 列手動。
 
-**驗收結果**：線上測試模式 **10 passed / 0 failed**（見下表 §執行報告）。
+**驗收結果**：線上測試模式 **10 passed / 0 failed**（見上表 §執行報告）。
+
+### 2026-07-03 — 整合操作指南
+
+- 新增 [`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)（Claude 首讀；含 CAT 匯入 `import.fromBytes` 與 iframe 導覽說明）。

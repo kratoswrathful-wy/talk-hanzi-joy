@@ -8,6 +8,7 @@
 - **[`.cursor/rules/`](.cursor/rules/)** — 依你正在編輯的檔案路徑自動套用（例如 [`cat-tool-source.mdc`](.cursor/rules/cat-tool-source.mdc)、[`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc)）；預設非全域常駐，觸及對應 glob 時才注入。
 - **[`.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)** — **全域常駐**：對話與文件僅台灣正體中文，禁止混用其他語言書寫說明正文。
 - **[`.cursor/rules/claude-ai-acceptance-slack.mdc`](.cursor/rules/claude-ai-acceptance-slack.mdc)** — **全域常駐**：使用者指定「Claude／AI 驗收」時，自動撰寫 AI 可執行驗收要求並發送到 Slack `#development`。
+- **[`docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)** — **AI 整合操作指南（Claude 首讀）**：建單、案件頁、CAT 導覽／匯入／AI 批次；預設線上測試模式。
 - **[`docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)** — **LMS 技能書（Claude 速查）**：`window.__lmsAgent`／`__tmsAgent`；Phase 2 見 [`docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md`](docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md)、Playwright 驗收見 [`docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md)、CAT 見 [`docs/CAT_AI_AGENT_BRIDGE_2026-07.md`](docs/CAT_AI_AGENT_BRIDGE_2026-07.md)。
 
 ### (B) 功能與路徑
