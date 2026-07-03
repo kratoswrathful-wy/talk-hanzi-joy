@@ -1,0 +1,33 @@
+import type { Page } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { isInOnlineTestMode } from "./test-mode";
+
+export const TEST_MODE_BANNER = "測試模式 — 目前所有操作都在測試環境，與正式資料隔離";
+
+/** 等待已在線上測試模式（黃色橫幅可見）。 */
+export async function expectOnlineTestMode(page: Page): Promise<void> {
+  await expect(page.getByText(TEST_MODE_BANNER)).toBeVisible({ timeout: 90_000 });
+}
+
+/**
+ * 在測試模式面板切換假人（會整頁 reload）。
+ * @param personaLabel DevRoleSwitcher 按鈕前綴，例如「PM」「譯者一」（DB display_name 可能為「譯者一（測試）」）
+ */
+export async function switchToTestPersona(page: Page, personaLabel: string): Promise<void> {
+  if (!(await isInOnlineTestMode(page))) {
+    throw new Error("switchToTestPersona 僅適用於已進入線上測試模式");
+  }
+  const btn = page.getByRole("button", { name: new RegExp(`^${personaLabel}`) });
+  await expect(btn.first()).toBeVisible({ timeout: 30_000 });
+  await btn.first().click();
+  await page.waitForLoadState("load", { timeout: 120_000 });
+  await expectOnlineTestMode(page);
+}
+
+/** 列表頁載入：標題可見且無 RLS 拒絕 toast。 */
+export async function expectListPageReady(page: Page, heading: string): Promise<void> {
+  await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(page.getByText(/permission denied|權限不足|無法載入/i)).toHaveCount(0);
+}
