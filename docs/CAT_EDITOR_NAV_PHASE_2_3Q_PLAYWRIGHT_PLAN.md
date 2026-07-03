@@ -1,6 +1,6 @@
 # Phase 2.3q Playwright 驗收計畫
 
-> **狀態**：**Phase Q 已完成**（含補跑）— 見 §測試執行報告 Phase Q；**現行接續 Phase R**  
+> **狀態**：**Phase R 進行中** — 見 §測試執行報告 Phase R；Phase Q 已完成（`fc06da4`）  
 > **定案問題**：大檔 virt explicit centering 不穩；Phase Q：Test A **6/6 fail**（穩定）；Test B **3/8 pass**（高度間歇，fail 時 delta 多為 **+72px**）
 > **對應實作**：Phase 2.3q `6344baa`（[`CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAN.md)）  
 > **主紀錄**：[`CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md`](./CAT_EDITOR_TAG_COLOR_AND_NAV_FIX_2026-06.md) §3.18
@@ -821,6 +821,25 @@ npx playwright test -g "Test G —|Test H —|Test I —" --project=chromium
 
 **不要求** Wave 2 擋住 Phase R 結案。
 
+#### Phase R 根因與檢查清單（程式對照）
+
+| # | 檢查項 | Phase Q 結論 | 觸點 |
+|---|--------|--------------|------|
+| 1 | 量測基準 | **次要** — `measureRowCenterDeltaPx` 用 `#editorGrid` 全框中心 | [`app.js`](../cat-tool/app.js) L21677 |
+| 2 | targetTop 計算 | **主因** — `scrollTopFromAnchor` 未加 `#gridHeaderRow`（sticky ≈71px） | [`grid-virtual-scroll.js`](../cat-tool/js/grid-virtual-scroll.js) L361–364 |
+| 3 | rowHeights stale | 次要 — 初值 48px，RO 後才精準 | `heightOf`、`onResizeEntries` |
+| 4 | RO / invalidateHeights | **B 間歇** — `invalidateHeights` 釋放 `_navAnchorLock` | L555–578 |
+| 5 | focus 後 layout | 次要 — `onAfterRender` 早於 `setScrollTopDeferred` | L356 vs L374 |
+
+#### Phase R 分波實作
+
+| 波次 | 內容 | 條件 |
+|------|------|------|
+| **R1** | `computeCenterScrollTop` 納入 `gridHeaderRow.offsetHeight` | 必做 |
+| **R2** | `wantCenter` 路徑：scroll 後等 layout settle 再 focus+measure；center retry 掛 RO debounce | A 過、B 未過 |
+| **R3** | `invalidateHeights` 於 `_navAnchorLock` 期間不 `releaseNavAnchorLock` | B 仍間歇 |
+| **R4** | center flush 失敗 → `cancelNavigationAnchor('nav-failed-center')` | 順手 |
+
 ---
 
 ### Phase S — Wave 2 擴充壓力覆蓋（repaint／機率性手動點擊）
@@ -1181,6 +1200,40 @@ Test A：穩定 reproducer（0/6）
 Test B：高度間歇 sibling（3/8 pass；fail 時 delta 多為 +72，與 A 同向）
 次要項：flush failed 時 cancelNavigationAnchor reason 仍為 nav-complete（Phase R 可改 nav-failed-center）
 commit 時序：b665c1f（首輪）→ fc06da4（virt log 補齊 + 補跑報告）
+```
+
+---
+
+## 測試執行報告 Phase R
+
+> **狀態**：待填（實作後更新）  
+> **前置**：§測試執行報告 Phase Q  
+> **採用波次**：R1 / R2 / R3 / R4（勾選）
+
+### 修復摘要
+
+| 波次 | 內容 | 是否採用 |
+|------|------|----------|
+| R1 | `gridHeaderRow` 納入 center `targetTop` | |
+| R2 | layout settle 後 focus+measure | |
+| R3 | `invalidateHeights` 保留 nav lock | |
+| R4 | `nav-failed-center` reason | |
+
+### Playwright 結果
+
+| 測項 | repeat | pass | fail | 門檻 | `rowCenterDeltaPx`（失敗時） |
+|------|--------|------|------|------|------------------------------|
+| Test A | 3 | | | 3/3 | |
+| Test B | 5 | | | 5/5 | |
+| Test C/E | 1 | | | 全 pass | |
+| Test D | 1 | | | pass | |
+| Test G/H/I | 1 | | | 全 pass | |
+
+### Phase R 結論
+
+```text
+是否達驗收門檻：
+commit：
 ```
 
 ---

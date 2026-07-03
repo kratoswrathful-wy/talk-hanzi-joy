@@ -93,6 +93,94 @@
         return Math.max(0, sumRange(list, 0, ai) - (offsetPx || 0));
     }
 
+    /** Phase R：sticky #gridHeaderRow 在 scroll 內容頂部，center 公式須納入。 */
+    function getGridHeaderScrollOffset() {
+        const header = document.getElementById('gridHeaderRow');
+        if (header && header.dataset.layoutHeight) {
+            const fromData = parseInt(header.dataset.layoutHeight, 10);
+            if (fromData > 1) return fromData;
+        }
+        if (cfg && typeof cfg.getHeaderScrollOffset === 'function') {
+            const fromCfg = cfg.getHeaderScrollOffset();
+            if (fromCfg > 0) return fromCfg;
+        }
+        const scrollEl = (cfg && cfg.scrollEl) || document.getElementById('editorGrid');
+        const headerEl = header || document.getElementById('gridHeaderRow');
+        if (headerEl) {
+            const hb = headerEl.getBoundingClientRect();
+            if (hb.height > 1) return Math.ceil(hb.height);
+            const statusCell = headerEl.querySelector('.grid-header-cell[data-col-id="col-status"]');
+            if (statusCell) {
+                const cellH = statusCell.getBoundingClientRect().height;
+                if (cellH > 1) return Math.ceil(cellH);
+            }
+            if (headerEl.offsetHeight > 0) return headerEl.offsetHeight;
+        }
+        const top = topSpacer || document.getElementById('gridVirtualSpacerTop');
+        const topH = top ? top.offsetHeight : 0;
+        const body = (cfg && cfg.gridBody) || document.getElementById('gridBody');
+        if (body && body.offsetTop > topH) {
+            return body.offsetTop - topH;
+        }
+        if (scrollEl && headerEl) {
+            const gb = scrollEl.getBoundingClientRect();
+            const hb = headerEl.getBoundingClientRect();
+            const visibleHeader = Math.max(0, Math.min(hb.bottom, gb.bottom) - Math.max(hb.top, gb.top));
+            if (visibleHeader > 1) return Math.round(visibleHeader);
+        }
+        return 0;
+    }
+
+    function findRowForCenter(segId) {
+        let row = queryRow(segId);
+        if (row || segId == null) return row;
+        const sid = String(segId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        return document.querySelector(`.grid-data-row[data-seg-id="${sid}"]`);
+    }
+
+    /**
+     * Phase R：virt explicit center 的 scrollTop 與 anchor offset。
+     * targetTop = headerH + sumRange(0, ai) - (vh/2 - h/2)
+     */
+    function computeCenterScrollTop(list, segId, scrollEl, anchorRowEl) {
+        const ai = list.findIndex((s) => String(s.id) === String(segId));
+        if (ai < 0 || !scrollEl) return { targetTop: 0, anchorOffsetPx: 0 };
+        const vh = scrollEl.clientHeight;
+        const h = heightOf(String(segId));
+        const headerH = getGridHeaderScrollOffset();
+        const anchorOffsetPx = vh / 2 - h / 2;
+        const targetTop = Math.max(0, sumRange(list, 0, ai) - anchorOffsetPx);
+        return { targetTop, anchorOffsetPx, headerH };
+    }
+
+    /** Phase R：以 DOM 量測對齊 #editorGrid 中心（與 app.js measureRowCenterDeltaPx 一致）。 */
+    function applyCenterScrollCorrection(segId, scrollEl, anchorRowEl) {
+        if (!scrollEl || segId == null) return 0;
+        let lastDelta = 0;
+        for (let pass = 0; pass < 3; pass++) {
+            const row = anchorRowEl || findRowForCenter(segId);
+            if (!row) break;
+            const rb = row.getBoundingClientRect();
+            const gb = scrollEl.getBoundingClientRect();
+            const delta = Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
+            lastDelta = delta;
+            if (Math.abs(delta) <= 1) break;
+            const adjust = -delta;
+            scrollEl.scrollTop += adjust;
+        }
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1' && lastDelta !== 0) {
+            console.log('[catNav] explicit center diagnostic', {
+                phase: 'after applyCenterScrollCorrection',
+                source: 'CatVirtGrid',
+                segId: String(segId),
+                lastDelta,
+                scrollTop: scrollEl.scrollTop,
+                maxScroll: scrollEl.scrollHeight - scrollEl.clientHeight,
+            });
+        }
+        return lastDelta;
+    }
+
     function releaseNavAnchorLock() {
         _navAnchorLock = false;
         if (_navAnchorLockTimer) {
@@ -152,6 +240,8 @@
                 source: 'CatVirtGrid',
                 targetTop,
                 scrollTop: scrollEl.scrollTop,
+                headerH: typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1'
+                    ? getGridHeaderScrollOffset() : undefined,
                 virt: {
                     anchorSegId: _anchorSegId,
                     navAnchorLock: _navAnchorLock,
@@ -254,6 +344,8 @@
                     anchorSegId: _anchorSegId,
                 });
             }
+            // Phase R3：explicit nav 進行中僅更新高度快取，不重繪窗口（避免 focus 後 RO 洗掉 scrollTop）
+            if (_navAnchorLock) return;
             scheduleResizeRepaint();
         }
     }
@@ -350,28 +442,51 @@
                 }
             }
             gridBody.replaceChildren(frag);
+            let anchorRowEl = null;
+            if (explicitAnchor != null) {
+                const sid = String(explicitAnchor).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                anchorRowEl = gridBody.querySelector(`.grid-data-row[data-seg-id="${sid}"]`);
+            }
             _lastStartIdx = startIdx;
             _lastEndIdx = endIdx;
 
-            if (typeof cfg.onAfterRender === 'function') cfg.onAfterRender(startIdx, endIdx);
+            const deferAfterRender = !!(explicitAnchor && scrollBlock === 'center');
+            if (!deferAfterRender && typeof cfg.onAfterRender === 'function') {
+                cfg.onAfterRender(startIdx, endIdx);
+            }
 
             if (scrollEl) {
                 let targetTop;
                 if (explicitAnchor) {
                     if (scrollBlock === 'center') {
-                        const vh = scrollEl.clientHeight;
-                        const h = heightOf(explicitAnchor);
-                        targetTop = scrollTopFromAnchor(list, explicitAnchor, vh / 2 - h / 2);
+                        const center = computeCenterScrollTop(list, explicitAnchor, scrollEl, anchorRowEl);
+                        targetTop = center.targetTop;
+                        _anchorOffsetPx = center.anchorOffsetPx;
+                        if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
+                            console.log('[catNav] explicit center diagnostic', {
+                                phase: 'computeCenterScrollTop',
+                                headerH: center.headerH,
+                                targetTop: center.targetTop,
+                                anchorRowFound: !!anchorRowEl,
+                            });
+                        }
                     } else {
                         targetTop = scrollTopFromAnchor(list, explicitAnchor, 0);
+                        _anchorOffsetPx = 0;
                     }
                     _anchorSegId = explicitAnchor;
-                    _anchorOffsetPx = scrollBlock === 'center' ? scrollEl.clientHeight / 2 - heightOf(explicitAnchor) / 2 : 0;
                 } else {
                     targetTop = savedScrollTop;
                 }
                 deferSuppress = true;
                 setScrollTopDeferred(scrollEl, targetTop);
+                if (explicitAnchor && scrollBlock === 'center') {
+                    if (anchorRowEl) void anchorRowEl.offsetHeight;
+                    applyCenterScrollCorrection(explicitAnchor, scrollEl, anchorRowEl);
+                }
+            }
+            if (deferAfterRender && typeof cfg.onAfterRender === 'function') {
+                cfg.onAfterRender(startIdx, endIdx);
             }
             if (typeof localStorage !== 'undefined' && localStorage.getItem('catNavDebug') === '1') {
                 console.log('[catNav] explicit center diagnostic', {
@@ -380,6 +495,8 @@
                     anchorSegId: explicitAnchor || _anchorSegId,
                     block: scrollBlock,
                     scrollTop: scrollEl ? scrollEl.scrollTop : null,
+                    headerH: scrollBlock === 'center' && explicitAnchor ? getGridHeaderScrollOffset() : undefined,
+                    anchorRowFound: !!(explicitAnchor && anchorRowEl),
                     lastStartIdx: _lastStartIdx,
                     lastEndIdx: _lastEndIdx,
                     navAnchorLock: _navAnchorLock,
@@ -492,6 +609,9 @@
         const navKey = `${String(segId)}:${scrollBlock}`;
         const now = Date.now();
         if (_lastNavScrollKey === navKey && (now - _lastNavScrollAt) < NAV_SCROLL_COALESCE_MS) {
+            if (scrollBlock === 'center' && cfg.scrollEl) {
+                applyCenterScrollCorrection(segId, cfg.scrollEl);
+            }
             return queryRow(segId);
         }
         _lastNavScrollKey = navKey;
@@ -531,9 +651,7 @@
         const ai = list.findIndex((s) => String(s.id) === String(segId));
         if (ai < 0) return false;
         const scrollEl = cfg.scrollEl;
-        const vh = scrollEl.clientHeight;
-        const h = heightOf(String(segId));
-        const targetTop = Math.max(0, sumRange(list, 0, ai) - vh / 2 + h / 2);
+        const { targetTop, anchorOffsetPx } = computeCenterScrollTop(list, segId, scrollEl);
         const nextStart = scrollTopToStartIdx(list, targetTop);
         const nextEnd = Math.min(list.length, nextStart + WINDOW + BUFFER * 2);
         if (nextStart !== _lastStartIdx || nextEnd !== _lastEndIdx) {
@@ -542,8 +660,9 @@
         _suppressScroll = true;
         try {
             scrollEl.scrollTop = targetTop;
+            applyCenterScrollCorrection(segId, scrollEl);
             _anchorSegId = String(segId);
-            _anchorOffsetPx = vh / 2 - h / 2;
+            _anchorOffsetPx = anchorOffsetPx;
         } finally {
             requestAnimationFrame(() => {
                 _suppressScroll = false;
@@ -567,7 +686,10 @@
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
-        releaseNavAnchorLock();
+        // Phase R3：explicit nav 進行中保留 nav lock，避免 RO 連鎖釋放後 scrollTop 亂跳
+        if (!_navAnchorLock) {
+            releaseNavAnchorLock();
+        }
         _navAnchorBlock = 'center';
         const list = getRenderableList();
         let passAnchor = anchorSegId;
@@ -630,6 +752,10 @@
         ensureRowMounted,
         isSegIdCentered,
         centerOnSegId,
+        nudgeCenterScroll: (segId) => {
+            if (!cfg || !cfg.scrollEl || segId == null) return 0;
+            return applyCenterScrollCorrection(segId, cfg.scrollEl);
+        },
         invalidateHeights,
         releaseNavigationAnchor,
         cancelNavigationAnchor,
