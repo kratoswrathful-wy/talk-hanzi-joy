@@ -1304,6 +1304,22 @@ commit：待本輪提交（分支 cursor/cat-nav-phase-r-shared-explicit-centeri
 下一步：無（本輪結案）；後續如需擴網可進 Phase S（Wave 2：I′、Test N、最小 J/K）
 ```
 
+### Phase R 團隊版人工抽測（2026-07-03，Fable 5）
+
+> **執行者**：Fable 5｜**方式**：瀏覽器實測（**非 Playwright**）｜**目的**：補上 DEVLOG「團隊版未實測」缺口
+
+**環境**：分支預覽部署 `talk-hanzi-joy-git-cursor-cat-n-89b81b`（commit `9a4e5af`，含 `21af736` 修復）；測試模式（env=test）、執行長（測試）身分，全程不碰正式資料。測試檔 `Test_Big.mqxliff` 裁剪版前 2000 句（EN→zh-TW，1616 句預確認），匯入 `[測試模式驗收] CAT-R1` 專案；`CatVirtGrid.isEnabled()=true`、DOM 僅掛載 69 列。量測方式與 `cat-nav-assert.ts` 同式（`rowCenterDeltaPx` = row 中心 − `#editorGrid` 中心）。
+
+| # | 場景 | 數據 | 結果 |
+|---|------|------|------|
+| 1 | Ctrl+Enter 確認跳行（#6→#7） | 焦點落 `grid-textarea`、delta = **+7px**（≤16） | ✅ |
+| 2 | Ctrl+G 深跳 #1500（scrollTop≈113,135） | 正確定位、delta = **+13px**、焦點落格 | ✅ |
+| 3 | 手動點擊深處可見列 #1501 | 焦點落格、scrollTop 前後 **零變化**（無「亂跳一陣」） | ✅ |
+
+**結論**：三項核心場景全部通過；離線版 Playwright 觀察到的 `+71px` 偏移在**團隊版不重現**，DEVLOG「團隊版未實測」缺口已補上。抽測附帶三項不擋合併的發現（確認跳行約 4.5 秒延遲、PM 準備中檔案確認閘門、測試模式 changelog 洩漏），已分別記入主計畫 §8 OBS-1/2/3 與測試模式計畫 FIX-1。
+
+**測試殘留（env=test，不影響正式）**：`CAT-R1` 專案多了 `Test_Big_2000.mqxliff`（#2、#6 已確認、#1502 填「測試譯文」並確認），可整檔移除或保留作日後 fixture。
+
 ---
 
 ## 注意事項

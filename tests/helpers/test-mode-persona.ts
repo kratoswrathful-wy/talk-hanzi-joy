@@ -22,6 +22,13 @@ export async function switchToTestPersona(page: Page, personaLabel: string): Pro
   await btn.first().click();
   await page.waitForLoadState("load", { timeout: 120_000 });
   await expectOnlineTestMode(page);
+  // 驗證切換確實生效：目前扮演的假人按鈕為 default variant（bg-primary），
+  // 避免 dev-switch-user 靜默失敗仍以原身分（假執行長）跑「譯者」測試而誤判通過。
+  const activeBtn = page.getByRole("button", { name: new RegExp(`^${personaLabel}`) }).first();
+  await expect(activeBtn, `切換為「${personaLabel}」後該假人未成為 active persona（可能 dev-switch-user 失敗）`).toHaveClass(
+    /bg-primary/,
+    { timeout: 15_000 },
+  );
 }
 
 /** 列表頁載入：標題可見且無 RLS 拒絕 toast。 */

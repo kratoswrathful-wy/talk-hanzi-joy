@@ -96,7 +96,7 @@ flowchart LR
 | 編號 | 白話說明 | 風險 | 驗收 |
 |------|----------|------|------|
 | **W3** | 輪詢備援：分頁在背景時暫停查詢；回前景立即補跑；預設 interval 拉長 | 極低 | 開發者工具 block WebSocket 後 30–60 秒內畫面仍回補；背景分頁不再狂打 DB |
-| **W5-A** | 外鍵索引（33→0）、RLS 裸 `auth.uid()` 快取（2→0）、**billing 表同命令 permissive policy 合併**（`invoice_fees`／`invoices`） | 低 | 對應 advisors 項歸零；PM＋譯者雙角色（含負向）Playwright 通過 |
+| **W5-A** | 外鍵索引（33→0）、RLS 裸 `auth.uid()` 快取（2→0）、**billing 表同命令 permissive policy 合併**（`invoice_fees`／`invoices`） | 低 | 對應 advisors 項歸零；譯者寫入面 RLS 以 DB 層模擬驗證（本人 ALLOW／他人 DENY，見 §4） |
 | **W5-B**（另案） | CAT 四表（`cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments`）**ALL policy 與特定命令 policy 重疊** | 中（安全語意） | 需拆分 ALL 語意後才合併；本次**不做**、不宣稱 advisors 全歸零 |
 
 **W5 執行注意**：migration 分三檔；外鍵索引用一般 `CREATE INDEX IF NOT EXISTS`（比照既有 `perf_indexes.sql`，可單 transaction）。由代理 `supabase db push`，離峰執行。**W5-B 為安全語意變更，維持另案**，因此 advisors 的 multiple-permissive 不會完全歸零屬預期。
@@ -152,7 +152,9 @@ flowchart LR
 - **W3** — 狀態：已落地待驗收 — commit：`f20ee6c`（背景分頁暫停輪詢、回前景補跑、預設 30s）
 - **W5-1 外鍵索引** — 狀態：已驗收（DB 已套用，unindexed FK 由 33 → 0）— commit：`f20ee6c`
 - **W5-2 裸 auth.uid() 快取** — 狀態：已驗收（bare policy 由 2 → 0）— commit：`f20ee6c`
-- **W5-3 合併 billing permissive policy** — 狀態：**已落地待驗收**（正向雙角色 Playwright 通過 `2abac01`；待補 **W5-T1-3 譯者不可見他人請款單負向測試**後結案）— migration commit：`f20ee6c`；測試 commit：`2abac01`
+- **W5-3 合併 billing permissive policy** — 狀態：**已驗收（DB 層 RLS 模擬，2026-07-03）** — migration commit：`f20ee6c`；驗證腳本：[`supabase/tests/w5_billing_rls_check.sql`](../supabase/tests/w5_billing_rls_check.sql)
+  - 驗證結果（模擬「譯者一」authenticated 身分）：本人請款 `INSERT` = **ALLOW**、冒名他人請款 `INSERT` = **DENY**（合併後 `invoices_insert` WITH CHECK 正確擋下）；讀取為同 env 全體開放（可見他人請款 11 筆，非 0，屬既有業務設計）。
+  - **更正先前紀錄**：`2abac01`／`9a4e5af` 所稱「Playwright 雙角色 5/5 通過」**不可信**——測試模式的假人換人（`dev-switch-user`→`verifyOtp`）在自動化環境靜默失效，實際全程以假執行長（管理員）身分執行，並未真正切到譯者。故 W5-3 改以上述 DB 層模擬結案；UI 雙角色驗收待階段三修好換人流程後補（見下）。
 - **W5-B CAT 四表（另案）** — `cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments` 為 ALL 與特定命令 policy 重疊，需拆分 ALL 語意（安全語意變更），本次不處理，待評估。
 
 ### 階段三
@@ -228,3 +230,17 @@ flowchart LR
 - [CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md](CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md) — 寫入來源追蹤法範例
 - [CODEMAP.md](CODEMAP.md) — 功能與路徑對照（驗收後現況摘要寫入處）
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) — 部署與 migration 檢核
+
+---
+
+## 8. 觀察待排（團隊版大檔抽測，2026-07-03）
+
+來源：Fable 5 於分支預覽（commit `9a4e5af`，含 `21af736`）以團隊版、測試模式（env=test）對 `Test_Big.mqxliff` 前 2000 句人工抽測 CAT 導覽。三項核心場景（Ctrl+Enter 確認跳行 delta=+7px、Ctrl+G 深跳 #1500 delta=+13px、深處點擊 scrollJump=0）全數通過，`+71px` 偏移在團隊版不重現。抽測同時發現三件不擋合併的項目：
+
+| 編號 | 類型 | 內容 | 建議 / 追蹤 |
+|------|------|------|-------------|
+| **OBS-1** | 效能待排工項 | 團隊版 Ctrl+Enter 確認後，焦點停在原句約 **4.5 秒**才跳下一句（500ms 取樣：前 9 樣本停 #6，第 10 才落 #7）。離線版 Playwright 全綠不會暴露，疑為 team 模式確認寫入／workflow 副作用的同步等待。 | **先量測** team 模式 confirm 路徑哪一段在等網路（比照 [`testing.mdc`](../.cursor/rules/testing.mdc) §5 寫入來源追蹤法），再決定是否改為非同步。Phase S 待辦，見 [DEVLOG](CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md)。 |
+| **OBS-2** | UX 待評估 | PM 身分在「準備中」檔案按 Ctrl+Enter，「檔案準備中→準備完成？」閘門夾在確認流程中間（符合 B-6 設計，但 PM 自行編輯時體驗突兀）。 | 評估改為**非阻擋提示**（不打斷確認流）。 |
+| **OBS-3** | 既有 backlog 複測 | 測試模式下 CAT 儀表板／專案清單「變更紀錄」仍顯示正式環境項目（`WIZA 260703A` 等，含操作者與時間）。 | 沿用 [CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md](CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) §13.2 **FIX-1**（已補記 2026-07-03 複測仍在）。 |
+
+**方法論註記**：OBS-1 是「自動化斷言通過 ≠ 體感合格」的實證——機器人只驗跳對／置中，不會嫌慢；真人／AI 實測才會。已據此補 [`testing.mdc`](../.cursor/rules/testing.mdc) 兩條規則。

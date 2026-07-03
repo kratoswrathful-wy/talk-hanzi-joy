@@ -2,7 +2,7 @@
 
 > **狀態（2026-07-03）**：**Phase R 已達驗收門檻** — 大檔（>800 句）離線版 CAT 編輯器的 explicit 導覽（Ctrl+Enter 確認跳行、清除篩選回句、F8、手動點擊）已通過 Playwright 全量矩陣（Test A 3/3、Test B 5/5、C/E/D/G/H/I 全 pass）。  
 > **分支**：`cursor/cat-nav-phase-r-shared-explicit-centering`；最終 commit `21af736`。  
-> **尚未涵蓋**：團隊版（Supabase 同步）大檔捲動未實測；Phase S（Wave 2 壓力測試 I′／N／J／K）尚未執行。
+> **尚未涵蓋**：Phase S（Wave 2 壓力測試 I′／N／J／K）尚未執行。團隊版大檔捲動已於 2026-07-03 人工抽測通過（見 §Phase R 團隊版抽測）；抽測發現「確認跳行約 4.5 秒延遲」列入 Phase S 待調查。
 
 本文件為**敘事型彙整紀錄**，把分散在 7 份來源文件的開發歷程串成完整故事。細節仍以各來源文件為準；本文件在關鍵處附連結。
 
@@ -28,7 +28,7 @@
 | 2026-07-02 | Wave 1 Playwright | Test A 穩定 fail（`rowCenterDeltaPx` ≈ +71）；B 間歇 | `d15ad0b` | [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) |
 | 2026-07-02 | Phase Q 診斷量化 | A **0/6** fail、B **3/8** pass；確認 shared path 問題 | `fc06da4` | 同上 §測試執行報告 Phase Q |
 | 2026-07-03 | Phase R 產品修復 | **已達驗收門檻** — `forceVirtScroll` 無窮迴圈為真正根因 | `21af736` | 同上 §測試執行報告 Phase R |
-| — | Phase S（Wave 2） | **規劃中** — I′、N、J/K、backlog L/M | — | 同上 §Phase S |
+| — | Phase S（Wave 2） | **規劃中** — 確認跳行 4.5s 延遲調查、I′、N、J/K、backlog L/M | — | 同上 §Phase S |
 
 ---
 
@@ -315,6 +315,7 @@ const needsScroll = pending.forceVirtScroll || !row || !isCenterOk(pending.segId
 
 | 項目 | 內容 | 狀態 |
 |------|------|------|
+| **確認跳行 4.5 秒延遲調查** | 團隊版 Ctrl+Enter 確認後焦點停原句約 4.5 秒才跳下一句（2026-07-03 團隊版抽測發現）；先以寫入來源追蹤法量測 team 模式 confirm 路徑哪段在等網路，再決定是否改非同步 | **優先，未執行**（主計畫 §8 OBS-1） |
 | **Test I′** | 重複手動點擊壓力（3 ranges × 3 clicks = 9 attempts） | 優先，未執行 |
 | **Test N** | Ctrl+G 跳句後手動點另一列，舊 explicit nav 不得再改 viewport | 延後 |
 | **Test J/K** | 已確認／未確認句輸入 1～2 字 → 列重畫後 viewport 穩定 | 條件式 |
@@ -342,7 +343,7 @@ A～I 為**代表性回歸網**，不是全面 repaint stress suite。
 
 | 項目 | 說明 |
 |------|------|
-| **團隊版** | 本計畫僅 `/cat/offline`；Supabase 雲端同步大檔捲動未實測 |
+| **團隊版** | **已抽測通過**（2026-07-03，見 [Playwright 計畫 §Phase R 團隊版抽測](./CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md)）：Ctrl+Enter delta=+7px、Ctrl+G #1500 delta=+13px、深處點擊 scrollJump=0；`+71px` 偏移不重現。附帶發現「確認跳行 4.5 秒延遲」列入 Phase S。 |
 | **Wave 2** | Test I′、N、J/K、backlog L/M 未執行 |
 | **窮舉覆蓋** | A～I 為代表性回歸網；任何重畫都可能 viewport／焦點亂跳 |
 | **2.3o** | 審稿外圈 2.5px 視覺微調已實作，待驗收 |
