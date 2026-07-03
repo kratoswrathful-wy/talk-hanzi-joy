@@ -17,6 +17,20 @@
 
 ---
 
+## 0. 合併閘門（Fable 5 覆核 2026-07-03）
+
+| 項目 | 說明 |
+|------|------|
+| **現況（merge 前）** | `main` @ `4f5e79d`；工作分支 `cursor/cat-nav-phase-r-shared-explicit-centering` 超前 **11 commits**（CAT Phase R 捲動 3 + 工程改善 8） |
+| **風險** | W5 三個 migration **已套用**遠端 DB，但 migration 檔與前端 W3 變更僅在工作分支 → repo 與 DB 脫鉤 |
+| **決策** | **整條工作分支 merge 進 `main`**（專案擁有者確認） |
+| **merge 後預期** | Vercel 部署 W3 輪詢優化 + 規則檔 + Playwright spec；migration 檔進版控（`IF NOT EXISTS`／`DROP IF EXISTS` 可 idempotent 對齊已套用 DB） |
+| **merge 狀態** | 待執行 — merge 完成後補 `main` commit 短碼 |
+
+**分支策略（merge 後強制）**：一工項一分支，從最新 `main` 切出；禁止 unrelated 工項堆在同一 feature 分支。詳見 [`.cursor/rules/architecture.mdc`](../.cursor/rules/architecture.mdc) §7。
+
+---
+
 ## 2. 已拍板決策（對談紀錄）
 
 以下為 2026-07-03 對談確認，後續執行不得與此衝突：
@@ -29,6 +43,7 @@
 | **AGENTS.md 瘦身（R5）** | **最後做**；避免中途大量引用路徑失效。 |
 | **`app.js` 只出不進（W7）** | **認可為長期原則**；不影響現有效能與體驗，新功能寫 `cat-tool/js/`，禁止再往 `app.js` 堆功能。 |
 | **巨型頁面拆分（W8）** | 碰到才拆，隨日常開發執行，禁止全頁重寫。 |
+| **分支策略（Fable 5 覆核後）** | **一工項一分支，從最新 `main` 切出**；禁止在同一 feature 分支堆不相關工項（避免再現本次 11 commits 混雜）；migration 套用 DB 後同一 PR/merge 必含 `supabase/migrations/*.sql`。詳見 [`architecture.mdc`](../.cursor/rules/architecture.mdc) §7。 |
 
 ---
 
@@ -81,9 +96,10 @@ flowchart LR
 | 編號 | 白話說明 | 風險 | 驗收 |
 |------|----------|------|------|
 | **W3** | 輪詢備援：分頁在背景時暫停查詢；回前景立即補跑；預設 interval 拉長 | 極低 | 開發者工具 block WebSocket 後 30–60 秒內畫面仍回補；背景分頁不再狂打 DB |
-| **W5** | 資料庫三修：外鍵索引、RLS `auth.uid()` 快取、合併重疊 policy | 低 | Supabase advisors 相關項歸零；PM＋譯者雙角色全流程權限正常 |
+| **W5-A** | 外鍵索引（33→0）、RLS 裸 `auth.uid()` 快取（2→0）、**billing 表同命令 permissive policy 合併**（`invoice_fees`／`invoices`） | 低 | 對應 advisors 項歸零；PM＋譯者雙角色（含負向）Playwright 通過 |
+| **W5-B**（另案） | CAT 四表（`cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments`）**ALL policy 與特定命令 policy 重疊** | 中（安全語意） | 需拆分 ALL 語意後才合併；本次**不做**、不宣稱 advisors 全歸零 |
 
-**W5 執行注意**：migration 分三檔；外鍵索引若用 `CONCURRENTLY` 需拆 transaction。由代理 `supabase db push`，離峰執行。
+**W5 執行注意**：migration 分三檔；外鍵索引用一般 `CREATE INDEX IF NOT EXISTS`（比照既有 `perf_indexes.sql`，可單 transaction）。由代理 `supabase db push`，離峰執行。**W5-B 為安全語意變更，維持另案**，因此 advisors 的 multiple-permissive 不會完全歸零屬預期。
 
 ### 階段三：建立自動測試機器人（階段四之前置）
 
@@ -125,19 +141,19 @@ flowchart LR
 
 ### 階段一
 
-- **R1** — 狀態：已落地待驗收 — commit：`f17cd70`（`claude-ai-acceptance-slack.mdc` 納入版控）
-- **R7** — 狀態：已落地待驗收 — commit：`f17cd70`（xliff 重複編號修正、新增 `CLAUDE.md`）
-- **R3** — 狀態：已落地待驗收 — commit：`f17cd70`（`architecture.mdc`）
-- **R4** — 狀態：已落地待驗收 — commit：`f17cd70`（`testing.mdc`）
-- **R6** — 狀態：已落地待驗收 — commit：`f17cd70`（`docs-lifecycle.mdc`）
+- **R1** — 狀態：已驗收（檔案已納入版控）— commit：`f17cd70`（`claude-ai-acceptance-slack.mdc`）
+- **R7** — 狀態：已驗收（編號已修、`CLAUDE.md` 存在）— commit：`f17cd70`
+- **R3** — 狀態：已驗收（`architecture.mdc` `alwaysApply: true`）— commit：`f17cd70`
+- **R4** — 狀態：已驗收（`testing.mdc` `alwaysApply: true`）— commit：`f17cd70`
+- **R6** — 狀態：已驗收（`docs-lifecycle.mdc` 存在）— commit：`f17cd70`
 
 ### 階段二
 
 - **W3** — 狀態：已落地待驗收 — commit：`f20ee6c`（背景分頁暫停輪詢、回前景補跑、預設 30s）
 - **W5-1 外鍵索引** — 狀態：已驗收（DB 已套用，unindexed FK 由 33 → 0）— commit：`f20ee6c`
 - **W5-2 裸 auth.uid() 快取** — 狀態：已驗收（bare policy 由 2 → 0）— commit：`f20ee6c`
-- **W5-3 合併 permissive policy** — 狀態：**已驗收**（Playwright `w5-phase2-billing-rls.spec.ts` 雙角色 5/5 通過，2026-07-03）— commit：`f20ee6c`；測試檔待 commit
-- **W5 殘留（另案）** — `cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments` 為 ALL 與特定命令重疊，需拆分 ALL 語意（安全語意變更），本次不處理，待評估。
+- **W5-3 合併 billing permissive policy** — 狀態：**已落地待驗收**（正向雙角色 Playwright 通過 `2abac01`；待補 **W5-T1-3 譯者不可見他人請款單負向測試**後結案）— migration commit：`f20ee6c`；測試 commit：`2abac01`
+- **W5-B CAT 四表（另案）** — `cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments` 為 ALL 與特定命令 policy 重疊，需拆分 ALL 語意（安全語意變更），本次不處理，待評估。
 
 ### 階段三
 
@@ -172,13 +188,13 @@ flowchart LR
 
 | 編號 | 主要觸點 |
 |------|----------|
-| R1 | [`.cursor/rules/claude-ai-acceptance-slack.mdc`](../.cursor/rules/claude-ai-acceptance-slack.mdc)（本機已存在、待 commit）、[`AGENTS.md`](../AGENTS.md) |
-| R2 | [`AGENTS.md`](../AGENTS.md)「推送慣例」、`package.json` scripts |
-| R3 | 待建 [`.cursor/rules/architecture.mdc`](../.cursor/rules/architecture.mdc) |
-| R4 | 待建 [`.cursor/rules/testing.mdc`](../.cursor/rules/testing.mdc) |
-| R5 | [`AGENTS.md`](../AGENTS.md)、待建 `docs/INDEX.md` |
-| R6 | 待建 [`.cursor/rules/docs-lifecycle.mdc`](../.cursor/rules/docs-lifecycle.mdc) |
-| R7 | [`.cursor/rules/xliff-tag-export.mdc`](../.cursor/rules/xliff-tag-export.mdc)、待建 [`CLAUDE.md`](../CLAUDE.md) |
+| R1 | [`.cursor/rules/claude-ai-acceptance-slack.mdc`](../.cursor/rules/claude-ai-acceptance-slack.mdc)（已納入版控 `f17cd70`）、[`AGENTS.md`](../AGENTS.md) |
+| R2 | [`AGENTS.md`](../AGENTS.md)「推送慣例」、`package.json` scripts（階段三 R2 生效前尚未列為門檻） |
+| R3 | [`.cursor/rules/architecture.mdc`](../.cursor/rules/architecture.mdc)（已建 `f17cd70`；分支策略見 §7） |
+| R4 | [`.cursor/rules/testing.mdc`](../.cursor/rules/testing.mdc)（已建 `f17cd70`） |
+| R5 | [`AGENTS.md`](../AGENTS.md)、待建 `docs/INDEX.md`（階段四後） |
+| R6 | [`.cursor/rules/docs-lifecycle.mdc`](../.cursor/rules/docs-lifecycle.mdc)（已建 `f17cd70`） |
+| R7 | [`.cursor/rules/xliff-tag-export.mdc`](../.cursor/rules/xliff-tag-export.mdc)、[`CLAUDE.md`](../CLAUDE.md)（已建 `f17cd70`） |
 
 ### 工程（W）
 
@@ -186,7 +202,7 @@ flowchart LR
 |------|----------|------|
 | W1 | [`src/stores/case-store.ts`](../src/stores/case-store.ts)（第 39–45 行 in-flight 保護）、[`fee-store.ts`](../src/stores/fee-store.ts)、[`invoice-store.ts`](../src/stores/invoice-store.ts)、[`client-invoice-store.ts`](../src/stores/client-invoice-store.ts)、[`internal-notes-store.ts`](../src/stores/internal-notes-store.ts)；待建 `entity-store-factory.ts` | 後四者缺 optimistic 保護 |
 | W2 | [`src/hooks/use-case-table-views.ts`](../src/hooks/use-case-table-views.ts)、[`use-client-invoice-table-views.ts`](../src/hooks/use-client-invoice-table-views.ts)、[`use-invoice-table-views.ts`](../src/hooks/use-invoice-table-views.ts)、[`use-internal-notes-table-views.ts`](../src/hooks/use-internal-notes-table-views.ts)、泛用 [`use-table-views.ts`](../src/hooks/use-table-views.ts) | |
-| W3 | [`src/lib/realtime-poll.ts`](../src/lib/realtime-poll.ts)（預設 3000ms、無 visibility） | 盤點各 store 的 `pollIntervalMs` |
+| W3 | [`src/lib/realtime-poll.ts`](../src/lib/realtime-poll.ts)（已改：預設 30s、背景暫停、回前景補跑 `f20ee6c`） | 各 store 的 `pollIntervalMs` 仍可個別覆寫 |
 | W4 | 上述五 store 的 `load*` 內 `select("*")`；比照 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) `CAT_FILE_LIST_COLUMNS` | |
 | W5 | `supabase/migrations/`、Supabase Dashboard advisors | 前端零改動 |
 | W6 | 待建 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | 目前不存在 |

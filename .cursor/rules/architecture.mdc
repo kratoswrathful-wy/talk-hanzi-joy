@@ -36,3 +36,12 @@ alwaysApply: true
 
 - 新建 `.tsx` 超過 800 行、單一元件超過 400 行時，應先拆分再繼續。
 - 既有巨檔不因此重構，僅約束新增程式碼；巨型頁面碰到才拆（抽成 `src/components/<area>/<Section>.tsx`，拆分 commit 與功能 commit 分開，禁止全頁重寫）。
+
+## 7. 分支與資料庫同步（強制）
+
+背景：Fable 5 覆核（2026-07-03）發現工程改善 commit 曾與不相關的 CAT 捲動修正混在同一分支，且已套用 DB 的 migration 檔一度只存在分支未進 `main`，造成 repo 與正式資料庫脫鉤。
+
+- **一工項一分支**：每個工項（或一組緊密相關的變更）從**最新 `main`** 切出獨立分支；**禁止**在同一 feature 分支堆疊不相關工項。
+- **DB 與版控不得脫鉤**：任何 `supabase db push`（或等效的遠端 DB 變更）所對應的 `supabase/migrations/*.sql`，**必須**與該次變更在**同一分支**、隨同一次 merge 進 `main`。禁止「DB 已套用但 migration 檔還留在別的分支」。
+- **migration 需 idempotent**：一律 `CREATE ... IF NOT EXISTS`／`DROP ... IF EXISTS` 後重建，確保檔案併入 `main` 後對已套用的 DB 重跑不出錯。
+- **合併前檢查**：merge 進 `main` 前確認該分支只含本工項相關檔案；跨工項的變更應拆分或分別 merge。
