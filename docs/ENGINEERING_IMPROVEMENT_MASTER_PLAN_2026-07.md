@@ -286,7 +286,7 @@ flowchart LR
 ### 9.3 實作拆批
 
 - **批次 1（快，已完成 §9.4）**：三張表列級 SELECT 收緊 ＋ fees 草稿條款 ＋ 路由守衛（工具管理／設定／內部資料／客戶請款／團隊成員／權限管理）。
-- **批次 2（大，待動工）**：欄位遮罩層（view／RPC，動工前先回報選型與前端檔案清單）＋ 前端讀取路徑切換 ＋ `fee-store` realtime 重查改造 ＋ 變更紀錄過濾（擴充 `src/lib/edit-log-permission-filter.ts`）。
+- **批次 2（大，已完成 §9.6）**：欄位遮罩層（採 **view**）＋ 前端讀取路徑切換 ＋ `fee-store` realtime 重查改造 ＋ 變更紀錄／內部備註 SQL 層遮罩。擁有者批次 2 追加：invoice 相關頁面讀 fees 一律走 view、edit_logs 遮罩須在 SQL 層（TS 為第二層）、notes/內部備註 view 層拆開遮罩。
 
 ### 9.4 批次 1 執行結果（已落地，2026-07-03）
 
@@ -300,4 +300,25 @@ flowchart LR
 ### 9.5 風險與後續
 
 - **同名互看／改名歸屬**：`display_name` 判定本人，若兩譯者同名可互看、改名後歸屬漂移。列為 UUID 歸屬獨立工項（`assignee_uid` 雙寫 → 切換判定）。
-- **UI 換人流程未修復**：批次 1 以 DB 層腳本＋執行長人工檢查替代譯者實測（照實標註）；換人流程修復見 Phase 3。
+- **UI 換人流程未修復**：批次 1／2 皆以 DB 層腳本＋執行長人工檢查替代譯者實測（照實標註）；換人流程修復見 Phase 3。
+
+### 9.6 批次 2 執行結果（已落地，2026-07-03）
+
+- **遮罩方案：view**。migration `supabase/migrations/20260704010000_w10_fees_visible_mask_view.sql`（MCP `apply_migration`）建 `public.fees_visible`（`security_invoker = on`）：沿用批次 1 列級 RLS，於其上以 `CASE WHEN is_admin THEN 原值 ELSE 遮罩 END` 遮蔽欄位。
+  - `internal_note`／`internal_note_url` → 空字串（內部備註 PM 以上）。
+  - `client_info` → 結構保留、營收/客戶值清空，僅留 `rateConfirmed`（費率無誤勾選為白名單）。
+  - `edit_logs` → **SQL 層**過濾：只留 field/fieldKey 命中白名單且不命中黑名單（營收/客戶/內部備註）的條目（歷史舊值躺 JSONB，必須在此擋）。`notes`（費用相關備註）與 `internal_note`（PM 以上）本就分屬不同欄位，view 層各自處理。
+  - `task_items`、`notes`、`title`、`assignee`、`status`、時間戳 → 原值。
+- **前端讀取路徑切換**：
+  - [`src/stores/fee-store.ts`](../src/stores/fee-store.ts)：`loadFees` 改讀 `fees_visible`；**realtime 改重查**——收到 `fees` 事件不再直接套 `payload.new`（含營收全欄位），改 `requeryFeeFromView(id)` 重查遮罩 view，查不到（非本人/草稿）即從本地移除。寫入（insert/update/delete）仍走 `fees` 原表。
+  - [`src/components/comments/CommentInput.tsx`](../src/components/comments/CommentInput.tsx)：`@` 提及清單改讀 `fees_visible`。
+  - **invoice 相關頁面**（`InvoiceDetailPage`／`InvoicesPage`／`ClientInvoice*`／`CasesPage`）皆經 `useFees()` 讀**同一個記憶體 `feeStore`**，故切 `loadFees` 至 view 後，展開的費用明細自動走遮罩，無殘留直讀 `fees` 原表的路徑（滿足擁有者追加 1）。
+  - UI 隱藏（營收/客戶/內部備註區塊）先前已由 `TranslatorFeeDetail` 的 `isManager` gate 完成；view 遮罩為資料層防線（防開發者工具／API／realtime）。
+  - `src/lib/edit-log-permission-filter.ts` 之 `filterEditLogsFeeDetail` 保留為 TS 第二層（渲染層）。
+- **DB 層遮罩驗證**（`supabase/tests/w10_fees_visible_mask_check.sql`，含 fixture，14 項全 PASS）：建 env=test 的譯者一非草稿／草稿／本人請款 fixture 後——譯者讀自己非草稿 **≥1（非 trivial）**、草稿 **0**、本人請款 **≥1**；`client_info.client=''`、`clientTaskItems=[]`、`rateConfirmed` 保留、`internal_note=''`、`edit_logs` 僅 1 條（無營收/客戶/機密字串）、`task_items` 完整；PM 查同列 `client_info`/`internal_note`/`edit_logs` 全欄位完整（CASE 另一分支）。**欄位漂移檢查**：`fees` 有而 `fees_visible` 無的欄位 = 無。
+- **advisors**：重跑 security 無新增警告，`fees_visible` 未觸發 `security_definer_view`（因 `security_invoker=on`）；既有 52 筆 WARN 為 repo 既有通則（search_path、security-definer function executable、public bucket、leaked-password protection），與本次無關。
+- **Playwright**：
+  - PM 回歸 spec [`tests/w10-fees-visible-pm.spec.ts`](../tests/w10-fees-visible-pm.spec.ts)（W10-PM-1～4：四列表、費用詳情營收/內部備註、請款詳情、寫原表→讀 view 來回），已納入 `playwright.config.ts` testMatch，`--list` 通過。
+  - 譯者遮罩 spec [`tests/w10-fees-visible-translator.spec.ts`](../tests/w10-fees-visible-translator.spec.ts)（W10-T-1/2）依規格寫齊，全數 `test.fixme`（依賴換人流程），`switchToTestPersona` 內含「切換後須為 active persona」身分斷言。
+  - **執行環境限制（照實）**：本機 `.env` 無 `PLAYWRIGHT_TEST_EMAIL/PASSWORD/BASE_URL`，無法在此工作階段實跑登入型 E2E；spec 已寫好並納管，由 CI／團隊帶憑證執行。本批安全保證以 DB 層 14 項遮罩斷言為準（＋執行長人工抽查）。
+- **dev-switch-user 提前修復評估（擁有者追加 3）**：verifyOtp 自動化靜默失效之修復**須能實跑 Playwright 才能驗證生效**；本工作階段無登入憑證與可跑環境，無法在半天內「修復並驗證」→ 維持 Phase 3，譯者端沿用 DB 層＋執行長人工抽查（追加 4）。
