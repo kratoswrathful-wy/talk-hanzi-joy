@@ -25,7 +25,7 @@
 | **風險** | W5 三個 migration **已套用**遠端 DB，但 migration 檔與前端 W3 變更僅在工作分支 → repo 與 DB 脫鉤 |
 | **決策** | **整條工作分支 merge 進 `main`**（專案擁有者確認） |
 | **merge 後預期** | Vercel 部署 W3 輪詢優化 + 規則檔 + Playwright spec；migration 檔進版控（`IF NOT EXISTS`／`DROP IF EXISTS` 可 idempotent 對齊已套用 DB） |
-| **merge 狀態** | 待執行 — merge 完成後補 `main` commit 短碼 |
+| **merge 狀態** | **已完成 2026-07-03** — merge commit `8d0dd74`（`4f5e79d..8d0dd74`）；migration 檔已進 `main`、與已套用 DB 對齊，repo/DB 脫鉤風險解除 |
 
 **分支策略（merge 後強制）**：一工項一分支，從最新 `main` 切出；禁止 unrelated 工項堆在同一 feature 分支。詳見 [`.cursor/rules/architecture.mdc`](../.cursor/rules/architecture.mdc) §7。
 
