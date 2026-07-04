@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 type Listener = () => void;
 
@@ -14,23 +15,13 @@ function notify() {
   listeners.forEach((l) => l());
 }
 
-interface DbClientInvoice {
-  id: string;
-  title: string;
-  invoice_number: string;
-  client: string;
-  status: string;
-  transfer_date: string | null;
-  note: string;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  payments: any;
-  is_record_only: boolean;
-  record_amount: number;
-  expected_collection_date: string | null;
-  adjustment_lines?: unknown;
-  edit_log_started_at?: string | null;
+type DbClientInvoice = Database["public"]["Tables"]["client_invoices"]["Row"];
+type DbClientInvoiceUpdate = Database["public"]["Tables"]["client_invoices"]["Update"];
+type DbClientInvoiceFeeLink = Database["public"]["Tables"]["client_invoice_fees"]["Row"];
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
 function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
@@ -46,26 +37,48 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     feeIds,
-    payments: Array.isArray(row.payments) ? row.payments : [],
+    payments: Array.isArray(row.payments) ? (row.payments as unknown as ClientPaymentRecord[]) : [],
     isRecordOnly: row.is_record_only || false,
     recordAmount: row.record_amount || 0,
-    recordCurrency: (row as any).record_currency || undefined,
-    billingChannel: (row as any).billing_channel || undefined,
+    recordCurrency: row.record_currency || undefined,
+    billingChannel: row.billing_channel || undefined,
     expectedCollectionDate: row.expected_collection_date || undefined,
-    adjustmentLines: parseAdjustmentLines((row as any).adjustment_lines),
-    editLogStartedAt: (row as any).edit_log_started_at || undefined,
+    adjustmentLines: parseAdjustmentLines(row.adjustment_lines),
+    editLogStartedAt: row.edit_log_started_at || undefined,
   };
 }
 
-function parseAdjustmentLines(raw: unknown): ClientInvoiceAdjustmentLine[] | undefined {
+function parseAdjustmentLines(raw: Json | null | undefined): ClientInvoiceAdjustmentLine[] | undefined {
   if (!raw || !Array.isArray(raw)) return undefined;
   const out: ClientInvoiceAdjustmentLine[] = [];
-  for (const x of raw as any[]) {
-    if (x && typeof x.id === "string" && (x.operation === "add" || x.operation === "subtract") && typeof x.amount === "number" && typeof x.currency === "string") {
+  for (const x of raw) {
+    if (
+      x &&
+      typeof x === "object" &&
+      !Array.isArray(x) &&
+      typeof x.id === "string" &&
+      (x.operation === "add" || x.operation === "subtract") &&
+      typeof x.amount === "number" &&
+      typeof x.currency === "string"
+    ) {
       out.push({ id: x.id, operation: x.operation, amount: x.amount, currency: x.currency });
     }
   }
   return out.length ? out : undefined;
+}
+
+function paymentsToJson(payments: ClientPaymentRecord[]): Json {
+  return payments.map((p) => ({
+    id: p.id,
+    type: p.type,
+    ...(p.amount !== undefined ? { amount: p.amount } : {}),
+    ...(p.noFee !== undefined ? { noFee: p.noFee } : {}),
+    timestamp: p.timestamp,
+  }));
+}
+
+function adjustmentLinesToJson(lines: ClientInvoiceAdjustmentLine[]): Json {
+  return lines.map((l) => ({ id: l.id, operation: l.operation, amount: l.amount, currency: l.currency }));
 }
 
 function generateDefaultTitle(client: string): string {
@@ -129,7 +142,7 @@ export const clientInvoiceStore = {
     const env = getEnvironment();
 
     const { data: invData, error } = await supabase
-      .from("client_invoices" as any)
+      .from("client_invoices")
       .select("*")
       .eq("env", env)
       .order("created_at", { ascending: false });
@@ -137,20 +150,20 @@ export const clientInvoiceStore = {
     if (error || !invData) return { error };
 
     const { data: linkData } = await supabase
-      .from("client_invoice_fees" as any)
+      .from("client_invoice_fees")
       .select("client_invoice_id, fee_id")
       .eq("env", env);
 
     const feeMap = new Map<string, string[]>();
     if (linkData) {
-      for (const link of linkData as any[]) {
+      for (const link of linkData as Pick<DbClientInvoiceFeeLink, "client_invoice_id" | "fee_id">[]) {
         const arr = feeMap.get(link.client_invoice_id) || [];
         arr.push(link.fee_id);
         feeMap.set(link.client_invoice_id, arr);
       }
     }
 
-    invoices = (invData as unknown as DbClientInvoice[]).map((row) =>
+    invoices = invData.map((row) =>
       dbToApp(row, feeMap.get(row.id) || [])
     );
     loaded = true;
@@ -188,7 +201,7 @@ export const clientInvoiceStore = {
     invoices = [newInvoice, ...invoices];
     notify();
 
-    const { error } = await supabase.from("client_invoices" as any).insert({
+    const { error } = await supabase.from("client_invoices").insert({
       id,
       title,
       client,
@@ -197,10 +210,10 @@ export const clientInvoiceStore = {
       created_by: uid,
       env,
       ...(started ? { edit_log_started_at: started } : {}),
-    } as any);
+    });
 
     if (error) {
-      console.error("Failed to create client invoice:", error);
+      console.error("Failed to create client invoice:", errorMessage(error));
       invoices = invoices.filter((i) => i.id !== id);
       notify();
       return null;
@@ -208,24 +221,48 @@ export const clientInvoiceStore = {
 
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ client_invoice_id: id, fee_id: feeId, env }));
-      const { error: linkErr } = await supabase.from("client_invoice_fees" as any).insert(links as any);
-      if (linkErr) console.error("Failed to link fees:", linkErr);
+      const { error: linkErr } = await supabase.from("client_invoice_fees").insert(links);
+      if (linkErr) console.error("Failed to link fees:", errorMessage(linkErr));
     }
 
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "adjustmentLines" | "editLogStartedAt">> & Record<string, any>) => {
+  updateInvoice: (
+    id: string,
+    updates: Partial<
+      Pick<
+        ClientInvoice,
+        | "status"
+        | "transferDate"
+        | "note"
+        | "title"
+        | "invoiceNumber"
+        | "payments"
+        | "isRecordOnly"
+        | "recordAmount"
+        | "recordCurrency"
+        | "billingChannel"
+        | "expectedCollectionDate"
+        | "adjustmentLines"
+        | "editLogStartedAt"
+      >
+    > & {
+      /** 持久化用欄位，不屬於 app 層 ClientInvoice 型別 */
+      comments?: Json;
+      edit_logs?: Json;
+    }
+  ) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
-    const dbUpdates: Record<string, any> = {};
+    const dbUpdates: DbClientInvoiceUpdate = {};
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.transferDate !== undefined) dbUpdates.transfer_date = updates.transferDate || null;
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.invoiceNumber !== undefined) dbUpdates.invoice_number = updates.invoiceNumber;
-    if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
+    if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
     if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
     if (updates.isRecordOnly !== undefined) dbUpdates.is_record_only = updates.isRecordOnly;
@@ -233,16 +270,16 @@ export const clientInvoiceStore = {
     if (updates.recordCurrency !== undefined) dbUpdates.record_currency = updates.recordCurrency;
     if (updates.billingChannel !== undefined) dbUpdates.billing_channel = updates.billingChannel;
     if (updates.expectedCollectionDate !== undefined) dbUpdates.expected_collection_date = updates.expectedCollectionDate || null;
-    if (updates.adjustmentLines !== undefined) dbUpdates.adjustment_lines = updates.adjustmentLines ?? [];
+    if (updates.adjustmentLines !== undefined) dbUpdates.adjustment_lines = adjustmentLinesToJson(updates.adjustmentLines ?? []);
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
     if (Object.keys(dbUpdates).length > 0) {
       supabase
-        .from("client_invoices" as any)
+        .from("client_invoices")
         .update(dbUpdates)
         .eq("id", id)
-        .then(({ error }: any) => {
-          if (error) console.error("Failed to update client invoice:", error);
+        .then(({ error }) => {
+          if (error) console.error("Failed to update client invoice:", errorMessage(error));
         });
     }
   },
@@ -252,11 +289,11 @@ export const clientInvoiceStore = {
     notify();
 
     supabase
-      .from("client_invoices" as any)
+      .from("client_invoices")
       .delete()
       .eq("id", id)
-      .then(({ error }: any) => {
-        if (error) console.error("Failed to delete client invoice:", error);
+      .then(({ error }) => {
+        if (error) console.error("Failed to delete client invoice:", errorMessage(error));
       });
   },
 
@@ -273,8 +310,8 @@ export const clientInvoiceStore = {
     notify();
 
     const links = newFeeIds.map((feeId) => ({ client_invoice_id: invoiceId, fee_id: feeId, env: getEnvironment() }));
-    const { error } = await supabase.from("client_invoice_fees" as any).insert(links as any);
-    if (error) console.error("Failed to add fees to client invoice:", error);
+    const { error } = await supabase.from("client_invoice_fees").insert(links);
+    if (error) console.error("Failed to add fees to client invoice:", errorMessage(error));
   },
 
   removeFeeFromInvoice: async (invoiceId: string, feeId: string) => {
@@ -284,11 +321,11 @@ export const clientInvoiceStore = {
     notify();
 
     const { error } = await supabase
-      .from("client_invoice_fees" as any)
+      .from("client_invoice_fees")
       .delete()
       .eq("client_invoice_id", invoiceId)
       .eq("fee_id", feeId);
-    if (error) console.error("Failed to remove fee from client invoice:", error);
+    if (error) console.error("Failed to remove fee from client invoice:", errorMessage(error));
   },
 
   getInvoiceById: (id: string) => invoices.find((i) => i.id === id),
