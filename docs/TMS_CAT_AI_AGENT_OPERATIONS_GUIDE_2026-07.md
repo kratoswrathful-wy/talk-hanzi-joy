@@ -1,6 +1,6 @@
 # TMS + CAT AI 整合操作指南（Claude 首讀）
 
-> **狀態**：2026-07-04（含 W9-A DOM 定位標記、W9-C C3 匯入檔案 file_upload 轉送、W9 wave 2 A 類 bridge 優先鐵律）  
+> **狀態**：2026-07-04（含 W9-A DOM 定位標記、W9-C C3 匯入檔案 file_upload 轉送、W9 wave 2 A 類 bridge 優先鐵律、W9 wave 2 C2 批次翻譯進度查詢）  
 > **對象**：瀏覽器自動化 AI（Claude in Chrome、`Runtime.evaluate`、Playwright）  
 > **預設環境**：`https://talk-hanzi-joy.vercel.app` + **測試模式**（`env=test`，與正式營運資料隔離）  
 > **次讀**：LMS API 速查 [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)、CAT API [`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)
@@ -424,7 +424,45 @@ s.data?.batchRefOptions;
 
 prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）。
 
-### 10.3 限制
+### 10.3 `aiBatch.getProgress()`（W9 wave 2 C2，2026-07-04）
+
+> 田野實測第 8 項：批次翻譯進行中只能截圖看右下角「正在翻譯第 X/20 批…」toast，AI 代理無法讀取。**改用 `getProgress()` 輪詢**，不必截圖。
+
+呼叫後回傳（沿用批次迴圈既有的 task-log 進度狀態，非另建一套）：
+
+```ts
+{
+  running: boolean;       // 是否仍在跑（status === 'running'）
+  batchDone: number;      // 已完成批次數
+  batchTotal: number;     // 預估總批次數（隨降載動態調整，僅供參考）
+  segDone: number;        // 已處理句段數
+  segTotal: number;       // 本次批次總句段數
+  phase: string;          // 目前階段文字（等同 toast 內容，如「已處理 40/120 句」）
+  lastError: string|null; // 失敗時的錯誤訊息，成功/進行中為 null
+  status: string;         // 'running' | 'success' | 'failed' | 'cancelled' | 'idle'
+  startedAt: string|null;
+  endedAt: string|null;
+}
+```
+
+父頁範例（啟動後輪詢至完成）：
+
+```javascript
+await __tmsAgent.cat.invoke("aiBatch.run", []);
+let p;
+do {
+  await new Promise((r) => setTimeout(r, 1500));
+  p = (await __tmsAgent.cat.invoke("aiBatch.getProgress", [])).data;
+} while (p.running);
+// p.status === 'success' | 'failed' | 'cancelled'
+```
+
+- 若本次工作階段內**尚未啟動過**任何批次翻譯，回傳 `status: 'idle'`、`running: false`。
+- 取的是**最新一筆** `kind === 'batch_translate'` 的紀錄；同一分頁內先前跑過的批次會被新的一批覆蓋在前面，不會混淆。
+- `batchDone` 為近似值：批次**進行中**時可能與「當前批次號」重疊（例如都讀到 `1`），**完成瞬間**才精確等於已完成批次數；判斷是否結束請看 `running`／`status`，不要用 `batchDone === batchTotal` 當唯一終止條件。
+- 僅讀取，不寫入任何欄位，無風險。
+
+### 10.4 限制
 
 - `run()` 前 Modal 須已開啟且綁定執行鈕
 - 自動驗收預設**不**跑真實 `run()`（成本與不穩定）
@@ -509,9 +547,13 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 
 程式：[`cat-tool/app.js`](../cat-tool/app.js)（語言 checkbox、`btnWfAdjustStatus` `data-mode` 同步）、[`cat-tool/index.html`](../cat-tool/index.html)（mqRoleModal、匯入三對話框確認鈕、`btnWfAdjustStatus` 靜態標記）、[`src/pages/AuthPage.tsx`](../src/pages/AuthPage.tsx)（登入鈕）。已 `npm run sync:cat`。
 
-### 11.7 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+### 11.7 W9 wave 2 C2：`aiBatch.getProgress()`（2026-07-04，已落地）
 
-`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、工具區塊多行欄位 bridge 寫入（C1）、AI 批次進度查詢 `aiBatch.getProgress()`（C2）、複製案件後標題刷新（C3）等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B／W9 wave 2；完成時將回來補本節。
+田野實測第 8 項——批次翻譯進行中僅能截圖看 toast「正在翻譯第 X/20 批…」，AI 代理無法讀取進度。新增只讀方法 `__catAgent.aiBatch.getProgress()`，沿用 `app.js` 批次迴圈既有的 task-log 進度狀態（`_loadAiTaskLogs()`／`catAiTaskLogV1`），未另建第二套進度追蹤。用法與回傳欄位見 §10.3。
+
+### 11.8 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+
+`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、工具區塊多行欄位 bridge 寫入（C1）、複製案件後標題刷新（C3）等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B／W9 wave 2；完成時將回來補本節。
 
 ---
 
@@ -528,6 +570,7 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 | Excel 匯入失敗 | 缺欄位設定 | 改 UI 精靈或 mqxliff 測試檔 |
 | AI 批次 Modal 內 `<select>`（`handleUnconfirmed` 等）點不動／選錯 | 原生 `<select>` 對通用瀏覽器工具支援不穩定（W9 wave 2 田野實測） | 改用 `aiBatch.setSettings(patch)`（§10.2），**禁止**點選該 Modal 內下拉 |
 | 匯入時彈出「選擇語言對」「是否連結案件」對話框，AI 卡住需截圖點選 | `import.fromBytes` 呼叫時未帶 `sourceLang`／`targetLang`／`caseInfo` | 重新呼叫時**一次帶齊**這三組參數（§9.1），對話框即不出現 |
+| 批次翻譯進行中要靠截圖看「第 X/20 批」才知道進度 | 未使用進度查詢 API | 改用 `aiBatch.getProgress()` 輪詢（§10.3），不必截圖 |
 
 ---
 

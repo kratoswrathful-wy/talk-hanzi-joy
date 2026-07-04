@@ -460,6 +460,23 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **B2**：mqxliff「選擇本次作業身分」彈窗（`#mqRoleModal`）加 `data-testid`，4 個身分選項與確認鈕各加 `data-testid="mq-role-option-<value>"`／`"btn-mq-role-confirm"`；PM 工作列「調整狀態／準備完成」雙態按鈕（`#btnWfAdjustStatus`）加靜態 `data-testid="btn-wf-adjust-or-prep-complete"`，並在 [`cat-tool/app.js`](../cat-tool/app.js) 同步 `data-mode="adjust"`／`"prep-completed"`（比照 W9-A A5 `syncRowStatusDataset` 的 dataset 同步模式，文字會依狀態切換但 dataset 不會）；匯入三對話框（語言對選擇、原檔已確認句段、連結 LMS 案件）確認／取消鈕各加 `data-testid`（備援用，優先路徑仍是 §9.1 `import.fromBytes` 直接帶參數跳過彈窗）；[`AuthPage.tsx`](../src/pages/AuthPage.tsx) 登入／註冊提交鈕加 `data-testid="btn-auth-submit"`。
 - **驗證**：`npm run typecheck`／`npm run test`（11 檔 112 項全過）／`npm run check:encoding`／`npx eslint`（新增行 0 error）皆過；四項禁用手法新增 diff 0 處；`cat-tool/index.html`、`app.js`、`public/cat` 鏡像位元組層 UTF-8 檢查 `\uFFFD` 皆為 0。已 `npm run sync:cat`。操作指南 §11.6 已登錄全部新標記。
 - **待驗收**：涉及 CAT 的部分（B1／B2 前四項）由 Fable 5 以 Chrome 工具實測（比照 W9-C C3：走官方入口，不作弊、不注入自訂元素）；B2 的登入鈕屬 LMS 前端，可一併於同一輪驗收確認。
+- **驗收結果（2026-07-04）**：Fable 5 於分支預覽 `6e4eb94` 完成 Chrome 實測，五類標記皆命中（語言勾選 114 個標記／身分彈窗／準備完成鈕／匯入對話框確認鈕／登入鈕），程式碼層沙盒獨立驗證（typecheck／test／check:encoding／禁用手法 0 處）亦過。**核准併入 main，merge commit `f75383d`。**
+
+### W9 wave 2 C 類執行方式（擁有者裁定，2026-07-04）
+
+三項性質差異大，**不併批**，選「一項一分支、依序、各自獨立驗收」：**排序按風險由低到高，C2 → C1 → C3**；每項獨立分支（從 `main` 開）、獨立 commit，獨立驗收通過才進下一項。CAT／寫入相關驗收由 Fable 5 以 Chrome 實測把關（走官方標記、零寫入或寫入後回讀）。
+
+#### C2 落地紀錄（2026-07-04，分支 `feature/w9-wave2-c2-aibatch-progress`）
+
+田野第 8 項：AI 批次翻譯進度目前只能截圖輪詢「正在翻譯第 X/20 批」。
+
+- **新增** [`cat-tool/js/cat-agent-bridge.js`](../cat-tool/js/cat-agent-bridge.js) 的 `__catAgent.aiBatch.getProgress()`，唯讀方法，回傳 `{ running, batchDone, batchTotal, segDone, segTotal, phase, lastError, status, startedAt, endedAt }`。
+- **資料來源**：沿用 `app.js` 批次迴圈既有的 task-log 進度狀態（`_loadAiTaskLogs()`／localStorage `catAiTaskLogV1`，`kind === 'batch_translate'` 的最新一筆），**未另建第二套進度狀態**——`app.js` 完全未修改。
+- 欄位對應：`batchDone` 直接讀取持久化的 `batchNo`。逐行核對迴圈寫入時序：每批完成後迴圈把內部計數器 `+1` 再回寫 `Math.max(1, batchNo - 1)`，故**批次完成瞬間**該值即代表「已完成批次數」；批次進行中途讀取則會與「當前處理中批次號」重疊（例如第 1 批進行中與剛完成時都可能讀到 `1`），對輪詢用途（判斷 `running` 是否轉 false、進度是否持續前進）已足夠，不影響 `segDone`/`segTotal` 的精確度。`batchTotal`/`segDone`/`segTotal`/`phase`/`lastError` 依序對應 `batchTotalHint`/`processed`/`total`/`progressLabel`/`errorMessage`。
+- 尚未啟動過批次時回傳 `status: 'idle'`、`running: false`，不視為錯誤。
+- **文件**：[`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) 新增 §10.3（用法、回傳欄位表、輪詢範例），§11.7 記錄落地、§11.8（原 §11.7）移除 C2、§12 新增排錯列。
+- **驗證**：`npm run sync:cat` 已同步 `public/cat`；本機 `npm run typecheck`／`npm run test`／`npm run check:encoding` 皆過；四項禁用手法新增 diff 0 處。
+- **待驗收**：Fable 5 以 Chrome 工具在拋棄式測試專案啟動一個小檔批次，輪詢 `getProgress()` 能讀到遞增的 `batchDone` 與最終 `running=false`；測完清理。
 
 ### W9-C C3 落地紀錄（2026-07-04，分支 `feature/w9c-cat-import-testid-bridge`）
 
