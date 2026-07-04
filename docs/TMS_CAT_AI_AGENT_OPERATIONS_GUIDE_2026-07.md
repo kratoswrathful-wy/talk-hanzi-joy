@@ -55,7 +55,7 @@ Playwright 自動化對照：`.env` 設 `PLAYWRIGHT_ENTER_TEST_MODE=1`（見 [`T
 1. **優先 bridge（鐵律，W9 wave 2 A 類，2026-07-04）**：填案件、費用、請款、上傳、CAT 匯入／AI 批次設定 — 用 API，**不要**點下拉、日期選擇器、原生 `<input type="file">`。**CAT 操作一律先查 bridge API（`__catAgent` 各方法或 §9／§10 對應章節），確認「bridge 有沒有」再動作；bridge 已支援的操作，一律禁止在 iframe 內以座標／`find` 硬驅動原生 UI 元件（`<select>`、彈出對話框按鈕等）**——常見誤區：
    - AI 批次翻譯的 `handleUnconfirmed`／`tmThreshold`／`tmAction` 等設定：**必須**用 `aiBatch.setSettings(patch)`（見 §10.2），**禁止**去點 iframe 內原生 `<select>`（打字/點選常常打不動或選錯）。
    - 匯入時的語言對與連結 LMS 案件：**必須**在 `import.fromBytes` 呼叫時**直接傳入** `sourceLang`／`targetLang`／`caseInfo` 參數（見 §9.1），這樣三個彈出對話框（語言對選擇、案件連結、確認）會被**直接跳過**，**禁止**先呼叫 `fromBytes` 再回頭點對話框補設定。
-   尚無 bridge 方法的區塊（工具區塊欄位、範本選單、多人協作表格、CAT 句段狀態、§11.6 之後列出的個別標記）改用 §11 的穩定 DOM 標記定位，**不要**截圖猜座標。
+   尚無 bridge 方法的區塊（範本選單、多人協作表格、CAT 句段狀態、§11.6 之後列出的個別標記）改用 §11 的穩定 DOM 標記定位，**不要**截圖猜座標。工具區塊**多行文字欄位**已改走 `tool.setField`（§5.1），**禁止**再為此截圖點 UI。
 2. **先探索再寫入**：`__tmsAgent.describe()` 或 `options.get('taskType')` 查合法 label。
 3. **錯誤自我修正**：回傳 `{ ok: false, error, allowed? }` 時，用 `allowed` 修正後重送。
 4. **時間**：API 用 ISO 8601（`2026-07-01T09:00:00.000Z`）；驗收畫面顯示須為 **24 小時制**。
@@ -165,7 +165,7 @@ agent.navigate.urlFor({ type: "case", id: caseId });
 | 派案來源 | `dispatchRoute` | `case.update` | PM+ 可見 |
 | 客戶案件單連結 | `clientCaseLink` | `case.update` | — |
 | 本案費用 | 連結之費用單 | `case.generateFees`、`fee.*` | 跳轉用 `navigate.urlFor` |
-| 工具 | `executionTool`、`tools`、`questionTools` | `case.update`；`options.getToolSchema` | 1UP CAT 實際指派在 CAT 內 |
+| 工具 | `executionTool`、`tools`、`questionTools` | `tool.setField`（多行文字欄位）；`case.update`；`options.getToolSchema` | 檔案類欄位仍走 `upload` + `case.update`；1UP CAT 實際指派在 CAT 內 |
 | 提問 | `questionForm`、`comments` | `case.update` | — |
 | 準則與檔案 | `sourceFiles`、`workingFiles`、`clientGuidelines`、`caseReferenceMaterials` 等 | `upload` + `case.update` | — |
 | 案件說明 | `bodyContent`、`inquiryNote`、`processNote` | `case.update` | 富文本複雜時先 `case.get` 再 patch |
@@ -181,6 +181,37 @@ await agent.case.update(caseId, {
 ```
 
 `collabRows`、`taskItems`、`clientInfo.clientTaskItems` 同理。
+
+### 5.1 工具區塊多行欄位寫入（W9 wave 2 C1，2026-07-04）
+
+> **田野實測第 3 項**：伺服器／帳號／密碼／專案／檔案名稱等多行欄位過去只能截圖走 UI。**現已提供 `tool.setField`**，寫入後自動回讀驗證。
+
+**流程**：
+
+1. `options.getToolSchema(toolLabel)` 查欄位 id／label／type（與 UI 工具定義一致）
+2. `tool.setField({ caseId, toolLabel, fieldKey, value })` 寫入（`fieldKey` 可填 id 或 label）
+3. 回傳 `verified: true` 表示 store 回讀與寫入值一致；密碼類欄位 `readbackValue` 遮罩為 `***`，以 `readbackLength`／`verified` 確認已寫入
+
+```javascript
+const schema = await __lmsAgent.options.getToolSchema("memoQ");
+schema.data?.toolFields; // [{ id, label, type }]
+
+const r = await __lmsAgent.tool.setField({
+  caseId,
+  toolLabel: "memoQ",
+  fieldKey: "伺服器", // 或 fld-server
+  value: "mq.example.com",
+});
+// r.data.verified === true
+// r.data.readbackValue === "mq.example.com"（非密碼欄）
+```
+
+**限制**：
+
+- `type: "file"` 欄位**不可**用 `setField` 寫文字，須 `upload.fromBytes` 後以 `case.update` 寫入 `tools[].fileValues`
+- 多工具案件須指定 `toolLabel`／`toolIndex`／`toolEntryId` 其中之一
+- 工具尚無欄位定義時會失敗——請先確認 `getToolSchema` 或於 UI 新增欄位
+- 仍走 `validateCasePatch`／RLS，無法繞過權限
 
 ---
 
@@ -563,9 +594,13 @@ do {
 
 **修不修另議**：詳見主計畫 §8 OBS-4；未排入本輪 W9 wave 2 C 類工作範圍。
 
-### 11.9 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+### 11.10 W9 wave 2 C1：`tool.setField`（2026-07-04，已落地）
 
-`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、工具區塊多行欄位 bridge 寫入（C1）、複製案件後標題刷新（C3）等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B／W9 wave 2；完成時將回來補本節。
+田野實測第 3 項——工具區塊多行文字欄位（伺服器／帳號／密碼等）只能截圖走 UI。新增 `__lmsAgent.tool.setField({ caseId, toolLabel, fieldKey, value, ... })`，寫入後自動 store 回讀驗證（`verified: true`）。用法見 §5.1。
+
+### 11.11 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+
+`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、複製案件後標題刷新（C3）等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B／W9 wave 2；完成時將回來補本節。
 
 ---
 
