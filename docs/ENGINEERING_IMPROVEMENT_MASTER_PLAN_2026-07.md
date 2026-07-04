@@ -401,4 +401,5 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **A2**：範本彈出視窗選項按鈕加 `data-testid="template-option-<範本名稱>"`。
 - **A3**：工具移除鈕加 `aria-label="移除工具 <工具名稱或序號>"`。
 - **A4**：[`CollaborationTable.tsx`](../src/components/CollaborationTable.tsx) 每列容器與翻譯／審稿交期日期欄各自加 `data-collab-id="<rowId>"`（日期欄另加 `data-collab-field`），修正「點日期全寫入第一列，AI 只能截圖量座標」。
-- **A5**：CAT 編輯器（`cat-tool/app.js`）新增 `syncRowStatusDataset(row, seg)`，句段列同步 `data-status`（原始狀態）與 `data-wf-state`（`resolveSegmentConfirmDisplayState` 統一顯示五態）；掛於列建立（`buildGridDataRow`）與所有狀態圖示刷新點（`refreshStatusIconForRow`、`refreshUserMarkerStatusCell`、批次確認刷新迴圈）。已 `npm run sync:cat`。
+- **A5**：CAT 編輯器（`cat-tool/app.js`）新增 `syncRowStatusDataset(row, seg)`，句段列同步 `data-status`（原始狀態）與 `data-wf-state`（`resolveSegmentConfirmDisplayState` 統一顯示五態）；掛於列建立（`buildGridDataRow`）與所有狀態圖示刷新點（`refreshStatusIconForRow`、`refreshUserMarkerStatusCell`、批次確認刷新迴圈）。已 `npm run sync:cat`。維護附註已入 [`architecture.mdc`](../.cursor/rules/architecture.mdc) §1；Playwright 受益點已入 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) Phase S。
+- **裁決**：純標記變更、零行為風險，2026-07-04 直接併入 `main`（merge commit `af90596`）；驗收改為併後在正式站由 Fable 5 以 `find`（無障礙定位）逐項驗證 A1–A5，任何一項定位失敗即開熱修、不回滾。

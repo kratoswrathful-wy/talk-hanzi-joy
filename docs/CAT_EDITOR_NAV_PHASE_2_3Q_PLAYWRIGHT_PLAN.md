@@ -868,6 +868,8 @@ npx playwright test -g "Test G —|Test H —|Test I —" --project=chromium
 
 **前提**：Wave 1 完成；Phase R 進行中或 A/B 改善後可**並行**；**仍不建議整包重寫 virt**。
 
+**W9-A5 受益點（2026-07-04）**：CAT 編輯器句段列已於 `cat-tool/app.js` 新增 `syncRowStatusDataset(row, seg)`，每列同步 `data-status`（原始狀態）與 `data-wf-state`（`resolveSegmentConfirmDisplayState` 統一顯示五態）。**本階段（及後續團隊版導覽 spec）句段狀態斷言改用 `data-status`／`data-wf-state` 讀取，淘汰猜圖示 class（`.wf-trans`／`.orig-confirmed` 等組合）的作法**；見 [`ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md) §10 W9-A5 落地紀錄與 [`architecture.mdc`](../.cursor/rules/architecture.mdc) §1 附註。
+
 PM 補充：任何重畫都可能 viewport／焦點亂跳；**手動點譯文格也有機率觸發**。A～I 是**代表性回歸網**，不是全面 repaint stress suite。
 
 #### W2-1 Test I′ — 重複手動點擊壓力（優先）

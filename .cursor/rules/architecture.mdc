@@ -12,6 +12,7 @@ alwaysApply: true
 - **禁止**在 `cat-tool/app.js` 新增功能。新功能一律建立 `cat-tool/js/<feature>.js` 模組（IIFE/namespace 掛 `window`，比照 `xliff-tag-pipeline.js`），並於 `index.html` 加 `<script>`。
 - 修改既有功能時，若改動超過該功能一半，應順勢將該功能整段搬遷至 `js/` 模組。**搬遷 commit 與行為變更 commit 分開**（搬遷 commit 行為零變更）。
 - 改完執行 `npm run sync:cat`，`cat-tool` 與 `public/cat` 一併提交。
+- **附註（2026-07-04，W9-A）**：句段列狀態刷新的程式碼路徑必呼叫 `syncRowStatusDataset(row, seg)` 同步 `data-status`／`data-wf-state`（供 AI／Playwright 程式化定位，見主計畫 §10 W9-A5）。目前掛於列建立（`buildGridDataRow`）與三個直接操作 `.col-status` 的刷新點（`refreshStatusIconForRow`、`refreshUserMarkerStatusCell`、批次確認刷新迴圈）。**日後在 `app.js` 新增或搬遷狀態刷新路徑時，須同步呼叫此函式**，不得只更新圖示 HTML 而漏掉 dataset。
 
 ## 2. `src/stores/` 一律用工廠（W1）
 
