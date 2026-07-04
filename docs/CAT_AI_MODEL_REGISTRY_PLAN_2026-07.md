@@ -1,4 +1,4 @@
-狀態：規劃中（2026-07-04 決策與架構條件已定案，待實作）
+狀態：Phase 1 已完整完成（2026-07-05）；Phase 2～4 規劃中
 
 # CAT AI 模型清單管理：可行性回應與變更計畫（Cursor 版）
 
@@ -128,7 +128,7 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 ### 2.1 資料庫（沿用 v2 計畫四張表，微調）
 
-**Phase 1 狀態（2026-07-04）**：migration [`supabase/migrations/20260704180000_cat_ai_model_registry.sql`](../supabase/migrations/20260704180000_cat_ai_model_registry.sql) 已建立；RLS 回歸腳本 [`supabase/tests/cat_ai_model_registry_rls_check.sql`](../supabase/tests/cat_ai_model_registry_rls_check.sql)；`src/integrations/supabase/types.ts` 已含四張新表型別。遠端 `supabase db push` 待 migration 歷史與 main 對齊後由驗收方套用。Phase 2～4 尚未實作。
+**Phase 1 狀態（2026-07-05，已完整完成）**：schema／RLS／seed／types 已 merge `main`（PR #1，`0737bf2`）；production DB 已依核准以 Supabase MCP `apply_migration` 套用（非 `supabase db push`），`supabase_migrations.schema_migrations` 登記 `version = 20260704180000`／`name = cat_ai_model_registry`；四張表、8 條 RLS policy、`gpt-4.1-mini` seed（`enabled=true`／`is_default=true`，全表 `is_default=true` 恰好 1 筆）、security advisor 無警示，均已驗證通過。完整套用紀錄見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md`](CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md)。**Phase 2～4 尚未開始**；[`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md) 為獨立待辦，不阻塞 Phase 1。
 
 新增 migration `supabase/migrations/<ts>_cat_ai_model_registry.sql`，建立：
 
@@ -236,33 +236,50 @@ v2 計畫的 13 條驗收條件大致沿用，補充：
 
 ---
 
-## Phase 1 驗收狀態（2026-07-04～05，降級驗收通過）
+## Phase 1 驗收狀態（2026-07-05，已完整完成）
 
-**分支**：`feature/cat-ai-model-registry-phase1`　**範圍**：僅 DB schema／RLS／seed／型別，**未**動 CAT UI、BYOK、前台模型選單，**未**補做 Phase 2～4。
+**範圍**：僅 DB schema／RLS／seed／型別＋production DB 套用紀錄；**未**動 CAT UI、BYOK、前台模型選單；**未**開始 Phase 2～4。
 
-### 驗收結果
+### 程式與 repo 驗收（PR #1，`0737bf2`）
 
 | 項目 | 結果 |
 |---|---|
 | `npm run typecheck` | ✅ 通過 |
-| `npm test` | ✅ 通過（5 個測試檔、22 個測試） |
-| `npm run lint` | 既有基礎線 230 筆問題，`types.ts`（本分支唯一改動的程式檔）單獨檢查 **零問題**，未新增任何 lint 問題 |
-| 禁用手法檢查（`as any`／`as unknown as`／`@ts-expect-error`／`eslint-disable`） | 通過，未使用 |
-| migration／RLS／seed 靜態審查 | 通過（`create table if not exists`／`on conflict do update` 冪等寫法；RLS 依角色分讀寫） |
-| production `/api/cat-openai` + `gpt-4.1-mini` 最小請求 | ✅ HTTP 200，正常回應 |
-| 未碰 CAT UI／BYOK／前台模型選單 | ✅ 確認（`git diff --stat` 僅 `docs/`／`types.ts`／migration／RLS 測試檔） |
+| `npm run test` | ✅ 通過 |
+| `npm run lint` | ✅ 未新增問題（merge 時 CI 全綠） |
+| 禁用手法檢查 | ✅ 通過 |
+| migration／RLS／seed 靜態審查 | ✅ 通過 |
+| production `/api/cat-openai` + `gpt-4.1-mini` 最小請求 | ✅ 通過 |
+| 未碰 CAT UI／BYOK／前台模型選單 | ✅ 確認 |
 
-### 重要註記：Supabase Branching 驗證因既有 baseline schema 缺失暫停，非 Phase 1 migration 本身造成
+### Production DB 套用（2026-07-04～05，已驗證）
 
-嘗試用 Supabase Branching「從零重建乾淨資料庫」驗證 Phase 1 migration 時，發現**既有**（非本分支新增的）migration 歷史存在兩類問題，導致從零重放中途失敗：
+| 項目 | 結果 |
+|---|---|
+| 套用方式 | Supabase MCP `apply_migration`（**非** `supabase db push`） |
+| migration 檔案 | [`supabase/migrations/20260704180000_cat_ai_model_registry.sql`](../supabase/migrations/20260704180000_cat_ai_model_registry.sql) |
+| `schema_migrations` 登記 | `version = 20260704180000`／`name = cat_ai_model_registry` |
+| 四張表 | ✅ `ai_model_providers`／`ai_provider_models`／`cat_ai_model_options`／`ai_model_sync_runs` |
+| RLS policy | ✅ 8 條 |
+| seed | ✅ `gpt-4.1-mini`（`enabled=true`／`is_default=true`） |
+| `is_default=true` 唯一性 | ✅ 全表恰好 1 筆 |
+| security advisor | ✅ 四張新表無警示 |
+| 完整紀錄 | [`docs/CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md`](CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md)（PR #4，`1778cd3`） |
 
-1. **版號登記錯誤**（已在獨立分支 `fix/migration-history-realign` 修正並套用到正式資料庫 metadata，詳見 [`docs/MIGRATION_HISTORY_REPAIR_2026-07-04.md`](MIGRATION_HISTORY_REPAIR_2026-07-04.md)）。
-2. **baseline schema 缺失**：`user_roles`／`invitations`／`cat_stage_assignments` 等一批基礎表，從未透過有留下歷史紀錄的 migration 建立過，導致從零重放必然缺少這些表。此問題**範圍遠大於 Phase 1**，已另開規劃文件 [`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md)（僅分析與方案，尚未實作），不影響本分支的驗收判定。
+### 相關文件 PR（均已 merge）
 
-**Phase 1 的 `20260704180000_cat_ai_model_registry.sql` 在兩次 Branching 失敗時，都還沒被重放到就已經先因上述既有問題失敗**，因此上述限制與 Phase 1 migration 本身的正確性無關。
+| PR | 分支 | 內容 |
+|---|---|---|
+| #1 | `feature/cat-ai-model-registry-phase1` | Phase 1 schema／RLS／seed／types |
+| #2 | `fix/migration-history-realign` | migration history metadata repair 紀錄 |
+| #3 | `docs/baseline-schema-repair-plan-2026-07` | baseline schema repair 規劃（獨立待辦） |
+| #4 | `docs/cat-ai-registry-phase1-prod-apply-record` | production apply 執行紀錄 |
 
-### merge 前置確認
+### 歷史註記：Branching 驗證與 baseline schema
 
-已確認 merge `feature/cat-ai-model-registry-phase1` 進 `main`：
-- **不會**自動觸發 production DB migration 套用（CI `ci.yml` 僅跑 typecheck／test／lint；`vercel.json`／`package.json` 的 build 流程均不含 `supabase db push` 或等效指令；Vercel 專案設定為標準 Vite 預設建置，無自訂 build command）。
-- production DB 實際套用 `20260704180000_cat_ai_model_registry.sql` 仍需另行明確核准，merge 本身不會觸發。
+Phase 1 merge 前曾嘗試 Supabase Branching「從零重建」驗證，因**既有** migration 歷史問題（版號登記錯誤、baseline schema 缺失）中途失敗，**非 Phase 1 migration 本身造成**；當時採降級驗收通過 repo 合併，production 套用則改以受控 `apply_migration` 完成。版號 metadata repair 紀錄見 [`docs/MIGRATION_HISTORY_REPAIR_2026-07-04.md`](MIGRATION_HISTORY_REPAIR_2026-07-04.md)；baseline schema 完整修復見 [`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md)——**獨立待辦，不阻塞 Phase 1，尚未實作**。
+
+### Phase 1 完成後現況
+
+- 四張 registry 表已存在於 production DB，但**尚未被任何現行程式讀寫**（Phase 2～4 尚未開始），對現行 CAT 翻譯流程無感。
+- **Phase 2**（sync endpoint）、**Phase 3**（管理 UI）、**Phase 4**（前台選單／BYOK 收斂）待後續另行規劃與核准。
