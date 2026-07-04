@@ -14,9 +14,10 @@ import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { filterEditLogsFeeDetail } from "@/lib/edit-log-permission-filter";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
-import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
+import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions, type SelectOption } from "@/stores/select-options-store";
 import { currencyStore } from "@/stores/currency-store";
 import { useLabelStyles } from "@/stores/label-style-store";
+import type { Json } from "@/integrations/supabase/types";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -68,6 +69,142 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+
+declare global {
+  interface Window {
+    __copyCount?: number;
+  }
+}
+
+type FeeDetailNavigationState = {
+  autoFocusTitle?: boolean;
+};
+
+type FeeTaskItemEditableValue = FeeTaskItem[keyof FeeTaskItem] | string;
+
+type NotionPersonRef = string | { email?: string; name?: string };
+
+type NotionFetchRequestBody = { page_id: string };
+
+type NotionFetchResponse = Record<string, unknown> & { error?: string };
+
+type NotionCasePageRef = {
+  id?: string;
+  title?: string;
+  url?: string;
+};
+
+function notionStringField(data: NotionFetchResponse, key: string, fallback = ""): string {
+  const value = data[key];
+  if (typeof value === "string") return value;
+  if (value == null) return fallback;
+  return String(value);
+}
+
+function notionNormalizedStringField(data: NotionFetchResponse, key: string): string {
+  return notionStringField(data, key).replace(/\s+/g, " ").trim();
+}
+
+function notionNullableNumberField(data: NotionFetchResponse, key: string): number | null {
+  const value = data[key];
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function notionBooleanField(data: NotionFetchResponse, key: string): boolean {
+  return data[key] === true;
+}
+
+function notionStringArrayField(data: NotionFetchResponse, key: string): string[] {
+  const value = data[key];
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item));
+}
+
+function notionPersonArrayField(data: NotionFetchResponse, key: string): NotionPersonRef[] {
+  const value = data[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is NotionPersonRef =>
+      typeof item === "string" || (typeof item === "object" && item !== null),
+  );
+}
+
+function notionCasePageArrayField(data: NotionFetchResponse, key: string): NotionCasePageRef[] {
+  const value = data[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is NotionCasePageRef => typeof item === "object" && item !== null);
+}
+
+function readFeeDetailNavigationState(state: unknown): FeeDetailNavigationState {
+  if (!state || typeof state !== "object") return {};
+  const candidate = state as FeeDetailNavigationState;
+  return { autoFocusTitle: !!candidate.autoFocusTitle };
+}
+
+function jsonStringArray(value: Json | null | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item));
+}
+
+function parseClientCaseLink(value: Json | null): { url: string; label: string } {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    return {
+      url: typeof record.url === "string" ? record.url : "",
+      label: typeof record.label === "string" ? record.label : "",
+    };
+  }
+  return { url: "", label: "" };
+}
+
+function resolveNotionAssignee(person: NotionPersonRef, assigneeOptions: SelectOption[]): string {
+  if (typeof person === "object" && person !== null) {
+    if (person.email) {
+      const match = assigneeOptions.find((option) => option.email === person.email);
+      if (match) return match.label;
+    }
+    if (person.name) {
+      const match = assigneeOptions.find((option) => option.label === person.name);
+      if (match) return match.label;
+      return person.name;
+    }
+  }
+  if (typeof person === "string") {
+    const match = assigneeOptions.find((option) => option.label === person || option.email === person);
+    return match ? match.label : person;
+  }
+  return "";
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+const CLIENT_INFO_TEMPLATE_STRING_KEYS = [
+  "client",
+  "contact",
+  "clientCaseId",
+  "eciKeywords",
+  "clientPoNumber",
+  "dispatchRoute",
+] as const satisfies readonly (keyof ClientInfo)[];
+
+function mergeClientInfoTemplatePatch(prev: ClientInfo, patch: Record<string, unknown>): ClientInfo {
+  const next: ClientInfo = { ...prev };
+  for (const key of CLIENT_INFO_TEMPLATE_STRING_KEYS) {
+    if (key in patch) {
+      next[key] = String(patch[key]);
+    }
+  }
+  return next;
+}
 
 type UserRole = "assignee" | "pm" | "executive";
 const roleLabels: Record<UserRole, string> = {
@@ -206,7 +343,7 @@ export default function TranslatorFeeDetail() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const autoFocusTitle = readFeeDetailNavigationState(location.state).autoFocusTitle ?? false;
   const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(feeData?.title ?? "");
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(
@@ -514,7 +651,7 @@ export default function TranslatorFeeDetail() {
   const canRecall = isManager && isFinalized;
   const canDelete = isManager && isDraft;
 
-  const handleUpdateItem = (itemId: string, field: keyof FeeTaskItem, value: any) => {
+  const handleUpdateItem = (itemId: string, field: keyof FeeTaskItem, value: FeeTaskItemEditableValue) => {
     if (hasBeenSubmittedRef.current && field !== "id") {
       const oldItem = (snapshotRef.current?.taskItems ?? taskItems).find((i) => i.id === itemId);
       if (oldItem) {
@@ -665,20 +802,18 @@ export default function TranslatorFeeDetail() {
         };
 
         const caseTitle = caseRow.title || "";
-        const workTypes: string[] = Array.isArray(caseRow.work_type) ? (caseRow.work_type as any[]).map(String) : [];
-        const translators: string[] = Array.isArray(caseRow.translator) ? (caseRow.translator as any[]).map(String) : [];
+        const workTypes: string[] = jsonStringArray(caseRow.work_type);
+        const translators: string[] = jsonStringArray(caseRow.translator);
         const billingUnitRaw = caseRow.billing_unit || "";
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
         const billingUnit: BillingUnit = billingUnitMap[billingUnitRaw] || "字";
         const unitCount = caseRow.unit_count || 0;
         const caseClient = (caseRow.client || "").replace(/\s+/g, " ").trim();
         const caseContact = (caseRow.contact || "").replace(/\s+/g, " ").trim();
-        const caseKeyword = ((caseRow as any).keyword || "").trim();
-        const casePo = ((caseRow as any).client_po_number || "").trim();
-        const caseCaseLink = (caseRow as any).client_case_link && typeof (caseRow as any).client_case_link === "object"
-          ? (caseRow as any).client_case_link as { url: string; label: string }
-          : { url: "", label: "" };
-        const caseDispatchRoute = ((caseRow as any).dispatch_route || "").trim();
+        const caseKeyword = (caseRow.keyword || "").trim();
+        const casePo = (caseRow.client_po_number || "").trim();
+        const caseCaseLink = parseClientCaseLink(caseRow.client_case_link);
+        const caseDispatchRoute = (caseRow.dispatch_route || "").trim();
 
         // Auto-create client/contact options if they don't exist
         if (caseClient) {
@@ -748,7 +883,7 @@ export default function TranslatorFeeDetail() {
               id: `item-case-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
               billingUnit,
-              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
               unitPrice: getAutoPrice(matchedType, billingUnit),
             };
           });
@@ -765,7 +900,7 @@ export default function TranslatorFeeDetail() {
               id: `ci-case-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
               billingUnit,
-              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
               clientPrice: cp,
             };
           });
@@ -821,7 +956,7 @@ export default function TranslatorFeeDetail() {
                 id: `item-case-base-${Date.now()}-${idx}`,
                 taskType: matchTaskType(wt) as TaskType,
                 billingUnit,
-                unitCount: idx === 0 && unitCount ? unitCount : 0,
+                unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
                 unitPrice: 0,
               }))
             : taskItems;
@@ -856,9 +991,9 @@ export default function TranslatorFeeDetail() {
 
         toast.success("已從案件頁面載入資料");
         if (autoCreated.length > 0) setAutoCreatedOptions(autoCreated);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to fetch internal case:", err);
-        toast.error("案件資料載入失敗：" + (err.message || "未知錯誤"));
+        toast.error("案件資料載入失敗：" + errorMessage(err));
       } finally {
         setNotionLoading(false);
       }
@@ -886,7 +1021,10 @@ export default function TranslatorFeeDetail() {
     setNotionLoading(true);
     try {
       // Use raw fetch with timeout instead of supabase.functions.invoke to avoid hanging
-      const invokeWithRetry = async (body: Record<string, any>, retries = 2): Promise<any> => {
+      const invokeWithRetry = async (
+        body: NotionFetchRequestBody,
+        retries = 2,
+      ): Promise<NotionFetchResponse> => {
         const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-notion-page`;
         const session = (await supabase.auth.getSession()).data.session;
         const headers: Record<string, string> = {
@@ -909,10 +1047,10 @@ export default function TranslatorFeeDetail() {
             });
             clearTimeout(timeoutId);
             if (!resp.ok) throw new Error(`Edge function returned ${resp.status}`);
-            return await resp.json();
-          } catch (err: any) {
+            return (await resp.json()) as NotionFetchResponse;
+          } catch (err: unknown) {
             if (attempt < retries) {
-              console.warn(`Edge function attempt ${attempt + 1} failed, retrying...`, err?.message || err);
+              console.warn(`Edge function attempt ${attempt + 1} failed, retrying...`, errorMessage(err));
               await new Promise((r) => setTimeout(r, 1500));
             } else {
               throw err;
@@ -953,39 +1091,37 @@ export default function TranslatorFeeDetail() {
 
       if (isInternalFeeRecord) {
         // ===== 💹 內部費用紀錄 mapping =====
-        const feeNumber = data["費用編號"] || "";
-        const client = (data["客戶"] || "").replace(/\s+/g, " ").trim();
-        const contact = (data["聯絡人"] || "").replace(/\s+/g, " ").trim();
-        const clientCaseId = data["客戶端案號"] || "";
-        const clientPo = data["客戶 PO#"] || "";
-        const quoteRate = data["報價費率"] ?? null;
-        const feeRate = data["稿費費率"] ?? null;
-        const unitCount = data["計費單位數"] ?? null;
-        const unit = data["單位"] || "";
-        const dispatch = data["派案途徑"] || "";
-        const irRawT = data["譯者"];
-        let people = (Array.isArray(irRawT) && irRawT.length > 0) ? irRawT : [];
-        const casePages = data["案件頁面"] || [];
-        const reconciled = data["對帳完成"] === true;
-        const invoiced = data["請款完成"] === true;
-        const rateConfirmed = data["費率無誤"] === true;
-        let workTypes = data["工作類型"] || [];
+        const feeNumber = notionStringField(data, "費用編號");
+        const client = notionNormalizedStringField(data, "客戶");
+        const contact = notionNormalizedStringField(data, "聯絡人");
+        const clientCaseId = notionStringField(data, "客戶端案號");
+        const clientPo = notionStringField(data, "客戶 PO#");
+        const quoteRate = notionNullableNumberField(data, "報價費率");
+        const feeRate = notionNullableNumberField(data, "稿費費率");
+        const unitCount = notionNullableNumberField(data, "計費單位數");
+        const unit = notionStringField(data, "單位");
+        const dispatch = notionStringField(data, "派案途徑");
+        let people = notionPersonArrayField(data, "譯者");
+        const casePages = notionCasePageArrayField(data, "案件頁面");
+        const reconciled = notionBooleanField(data, "對帳完成");
+        const invoiced = notionBooleanField(data, "請款完成");
+        const rateConfirmed = notionBooleanField(data, "費率無誤");
+        let workTypes = notionStringArrayField(data, "工作類型");
 
         // If IR page is missing work types or translators, fetch from the related case page
-        const missingWorkTypes = !Array.isArray(workTypes) || workTypes.length === 0;
-        const missingPeople = !Array.isArray(people) || people.length === 0;
-        if ((missingWorkTypes || missingPeople) && Array.isArray(casePages) && casePages.length > 0) {
+        const missingWorkTypes = workTypes.length === 0;
+        const missingPeople = people.length === 0;
+        if ((missingWorkTypes || missingPeople) && casePages.length > 0) {
           const casePageId = casePages[0].id?.replace(/-/g, "");
           if (casePageId) {
             try {
               const caseData = await invokeWithRetry({ page_id: casePageId });
               if (caseData && !caseData.error) {
                 if (missingWorkTypes) {
-                  workTypes = caseData["工作類型"] || [];
+                  workTypes = notionStringArrayField(caseData, "工作類型");
                 }
                 if (missingPeople) {
-                  const caseRawT = caseData["譯者"];
-                  people = (Array.isArray(caseRawT) && caseRawT.length > 0) ? caseRawT : [];
+                  people = notionPersonArrayField(caseData, "譯者");
                 }
               }
             } catch (e) {
@@ -999,7 +1135,7 @@ export default function TranslatorFeeDetail() {
         const billingUnit: BillingUnit = billingUnitMap[unit] || "字";
 
         // 標題：PO_案件編號（優先用案件頁面標題，否則用費用編號）
-        const caseName = (Array.isArray(casePages) && casePages.length > 0 && casePages[0].title)
+        const caseName = casePages.length > 0 && casePages[0].title
           ? casePages[0].title
           : feeNumber;
         if (caseName) {
@@ -1009,7 +1145,7 @@ export default function TranslatorFeeDetail() {
         }
 
         // 譯者 > 開單對象 (match by email)
-        if (Array.isArray(people) && people.length > 0) {
+        if (people.length > 0) {
           const person = people[0];
           const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
           let matchedLabel = "";
@@ -1032,11 +1168,11 @@ export default function TranslatorFeeDetail() {
         }
 
         // 案件頁面 > 相關案件（名稱 + 連結）
-        if (Array.isArray(casePages) && casePages.length > 0 && casePages[0].title) {
+        if (casePages.length > 0 && casePages[0].title) {
           const cp = casePages[0];
-          setInternalNote(cp.title);
+          setInternalNote(cp.title ?? "");
           setInternalNoteUrl(cp.url || "");
-          if (id) feeStore.updateFee(id, { internalNote: cp.title, internalNoteUrl: cp.url || "" });
+          if (id) feeStore.updateFee(id, { internalNote: cp.title ?? "", internalNoteUrl: cp.url || "" });
         } else if (feeNumber) {
           // Fallback: use fee number
           setInternalNote(feeNumber);
@@ -1044,7 +1180,7 @@ export default function TranslatorFeeDetail() {
         }
 
         // 稿費費率 + 計費單位數 > 任務項目（支援多工作類型）
-        if (Array.isArray(workTypes) && workTypes.length > 0) {
+        if (workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
             ensureTaskTypeOption(matchedType);
@@ -1052,7 +1188,7 @@ export default function TranslatorFeeDetail() {
               id: `item-ir-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
               billingUnit,
-              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
               unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
             };
           });
@@ -1103,14 +1239,14 @@ export default function TranslatorFeeDetail() {
           reconciled,
           invoiced,
           rateConfirmed,
-          clientTaskItems: (Array.isArray(workTypes) && workTypes.length > 0)
+          clientTaskItems: workTypes.length > 0
             ? workTypes.map((wt: string, idx: number) => {
                 const matchedType = matchTaskType(wt);
                 return {
                   id: `ci-ir-${Date.now()}-${idx}`,
                   taskType: matchedType as TaskType,
                   billingUnit,
-                  unitCount: idx === 0 && unitCount ? unitCount : 0,
+                  unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
                   clientPrice: idx === 0 && quoteRate !== null ? quoteRate : 0,
                 };
               })
@@ -1136,12 +1272,12 @@ export default function TranslatorFeeDetail() {
           const finalClientItems = [...updatedClientInfo.clientTaskItems];
           // Get current task items (the ones we just set above)
           let currentFeeItems: FeeTaskItem[];
-          if (Array.isArray(workTypes) && workTypes.length > 0) {
+          if (workTypes.length > 0) {
             currentFeeItems = workTypes.map((wt: string, idx: number) => ({
               id: `item-ir-${Date.now()}-${idx}`,
               taskType: matchTaskType(wt) as TaskType,
               billingUnit,
-              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
               unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
             }));
           } else {
@@ -1194,22 +1330,7 @@ export default function TranslatorFeeDetail() {
         // Multi-translator: create additional fee pages
         if (Array.isArray(people) && people.length > 1) {
           const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
-          const resolveAssignee = (person: any): string => {
-            if (typeof person === "object" && person.email) {
-              const m = assigneeOptions.find((o: any) => o.email === person.email);
-              if (m) return m.label;
-            }
-            if (typeof person === "object" && person.name) {
-              const m = assigneeOptions.find((o: any) => o.label === person.name);
-              if (m) return m.label;
-              return person.name;
-            }
-            if (typeof person === "string") {
-              const m = assigneeOptions.find((o: any) => o.label === person || o.email === person);
-              return m ? m.label : person;
-            }
-            return "";
-          };
+          const resolveAssignee = (person: NotionPersonRef) => resolveNotionAssignee(person, assigneeOptions);
 
           // Use the already-computed title, not stale React state
           const computedTitle = (() => {
@@ -1239,12 +1360,12 @@ export default function TranslatorFeeDetail() {
           ];
 
           // Use the mapped task items we just built, not the stale store data
-          const cloneTaskItems = (Array.isArray(workTypes) && workTypes.length > 0)
+          const cloneTaskItems = workTypes.length > 0
             ? workTypes.map((wt: string, idx: number) => ({
                 id: `item-ir-base-${Date.now()}-${idx}`,
                 taskType: matchTaskType(wt) as TaskType,
                 billingUnit,
-                unitCount: idx === 0 && unitCount ? unitCount : 0,
+                unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
                 unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
               }))
             : taskItems;
@@ -1283,16 +1404,17 @@ export default function TranslatorFeeDetail() {
       } else {
         // ===== 🖖 翻譯案件 mapping (original logic) =====
         // Extract fields
-        const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
-        const rawTranslators = data["譯者"];
-        const people = (Array.isArray(rawTranslators) && rawTranslators.length > 0) ? rawTranslators : [];
-        const workTypes = data["工作類型"] || [];
-        const unitCount = data["計費單位數"] || null;
-        const notionUnit = data["計費單位"] || "";
+        const caseId = notionStringField(data, "案件編號")
+          || notionStringField(data, "Name")
+          || notionStringField(data, "title");
+        const people = notionPersonArrayField(data, "譯者");
+        const workTypes = notionStringArrayField(data, "工作類型");
+        const unitCount = notionNullableNumberField(data, "計費單位數");
+        const notionUnit = notionStringField(data, "計費單位");
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
         const billingUnit: BillingUnit = billingUnitMap[notionUnit] || "字";
-        const notionClient = (data["客戶"] || "").replace(/\s+/g, " ").trim();
-        const notionContact = (data["聯絡人"] || "").replace(/\s+/g, " ").trim();
+        const notionClient = notionNormalizedStringField(data, "客戶");
+        const notionContact = notionNormalizedStringField(data, "聯絡人");
 
         // Auto-create client/contact options if they don't exist
         if (notionClient) {
@@ -1323,7 +1445,7 @@ export default function TranslatorFeeDetail() {
         }
 
         // 譯者 > 開單對象 (match by email from Notion people)
-        if (Array.isArray(people) && people.length > 0) {
+        if (people.length > 0) {
           const person = people[0];
           const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
           let matchedLabel = "";
@@ -1372,7 +1494,7 @@ export default function TranslatorFeeDetail() {
           return 0;
         };
 
-        if (Array.isArray(workTypes) && workTypes.length > 0) {
+        if (workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
             ensureTaskTypeOption(matchedType);
@@ -1380,7 +1502,7 @@ export default function TranslatorFeeDetail() {
               id: `item-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
               billingUnit,
-              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
               unitPrice: getAutoPrice(matchedType as string, billingUnit),
             };
           });
@@ -1397,7 +1519,7 @@ export default function TranslatorFeeDetail() {
               id: `ci-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
               billingUnit,
-              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
               clientPrice: cp,
             };
           });
@@ -1436,22 +1558,7 @@ export default function TranslatorFeeDetail() {
         // Multi-translator: create additional fee pages
         if (Array.isArray(people) && people.length > 1) {
           const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
-          const resolveAssignee = (person: any): string => {
-            if (typeof person === "object" && person.email) {
-              const m = assigneeOptions.find((o: any) => o.email === person.email);
-              if (m) return m.label;
-            }
-            if (typeof person === "object" && person.name) {
-              const m = assigneeOptions.find((o: any) => o.label === person.name);
-              if (m) return m.label;
-              return person.name;
-            }
-            if (typeof person === "string") {
-              const m = assigneeOptions.find((o: any) => o.label === person || o.email === person);
-              return m ? m.label : person;
-            }
-            return "";
-          };
+          const resolveAssignee = (person: NotionPersonRef) => resolveNotionAssignee(person, assigneeOptions);
 
           // Use the computed title, not stale React state
           const computedCaseTitle = caseId ? `PO_${caseId}` : title;
@@ -1477,12 +1584,12 @@ export default function TranslatorFeeDetail() {
           ];
 
           // Use freshly mapped task items, not stale store data
-          const cloneTaskItems = (Array.isArray(workTypes) && workTypes.length > 0)
+          const cloneTaskItems = workTypes.length > 0
             ? workTypes.map((wt: string, idx: number) => ({
                 id: `item-case-base-${Date.now()}-${idx}`,
                 taskType: matchTaskType(wt) as TaskType,
                 billingUnit,
-                unitCount: idx === 0 && unitCount ? unitCount : 0,
+                unitCount: idx === 0 && unitCount !== null ? unitCount : 0,
                 unitPrice: 0,
               }))
             : taskItems;
@@ -1519,9 +1626,9 @@ export default function TranslatorFeeDetail() {
         toast.success("已從 Notion 載入案件資料");
         if (autoCreated.length > 0) setAutoCreatedOptions(autoCreated);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to fetch Notion data:", err);
-      toast.error("Notion 資料載入失敗：" + (err.message || "未知錯誤"));
+      toast.error("Notion 資料載入失敗：" + errorMessage(err));
     } finally {
       setNotionLoading(false);
     }
@@ -1589,8 +1696,8 @@ export default function TranslatorFeeDetail() {
                         }
                         return;
                       }
-                      const copyCount = (window as any).__copyCount ?? 0;
-                      (window as any).__copyCount = copyCount + 1;
+                      const copyCount = window.__copyCount ?? 0;
+                      window.__copyCount = copyCount + 1;
                       const draft = feeStore.createDraft();
                       feeStore.updateFee(draft.id, {
                         title: title ? `${title} 副本${copyCount + 1}` : "",
@@ -1647,8 +1754,8 @@ export default function TranslatorFeeDetail() {
               module="fees"
               onApply={(values) => {
                 // Handle nested clientInfo keys
-                const directUpdates: Record<string, any> = {};
-                const clientUpdates: Record<string, any> = {};
+                const directUpdates: Record<string, unknown> = {};
+                const clientUpdates: Record<string, unknown> = {};
                 for (const [k, v] of Object.entries(values)) {
                   if (k.startsWith("clientInfo.")) {
                     clientUpdates[k.replace("clientInfo.", "")] = v;
@@ -1657,16 +1764,18 @@ export default function TranslatorFeeDetail() {
                   }
                 }
                 if (directUpdates.assignee !== undefined) {
-                  setAssignee(directUpdates.assignee);
-                  if (id) feeStore.updateFee(id, { assignee: directUpdates.assignee });
+                  const nextAssignee = String(directUpdates.assignee);
+                  setAssignee(nextAssignee);
+                  if (id) feeStore.updateFee(id, { assignee: nextAssignee });
                 }
                 if (directUpdates.internalNote !== undefined) {
-                  setInternalNote(directUpdates.internalNote);
-                  if (id) feeStore.updateFee(id, { internalNote: directUpdates.internalNote });
+                  const nextInternalNote = String(directUpdates.internalNote);
+                  setInternalNote(nextInternalNote);
+                  if (id) feeStore.updateFee(id, { internalNote: nextInternalNote });
                 }
                 if (Object.keys(clientUpdates).length > 0) {
                   setClientInfo((prev) => {
-                    const updated = { ...prev, ...clientUpdates };
+                    const updated = mergeClientInfoTemplatePatch(prev, clientUpdates);
                     if (id) feeStore.updateFee(id, { clientInfo: updated });
                     return updated;
                   });
@@ -2352,7 +2461,7 @@ export default function TranslatorFeeDetail() {
                                 value={isNoFeeTranslator ? "N/A" : item.unitPrice}
                                 onChange={(e) => {
                                   const v = e.target.value;
-                                  if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
+                                  if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v);
                                 }}
                                 onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
                                 disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
@@ -2373,7 +2482,7 @@ export default function TranslatorFeeDetail() {
                                 value={item.unitCount}
                                 onChange={(e) => {
                                   const v = e.target.value;
-                                  if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
+                                  if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v);
                                 }}
                                 onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
                                 disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}

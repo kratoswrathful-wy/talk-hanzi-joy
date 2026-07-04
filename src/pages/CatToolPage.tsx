@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
 import {
   setCollabRowTaskCompletedFromCat,
@@ -13,6 +14,55 @@ import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSidebar } from "@/components/ui/sidebar";
+
+type InternalNoteInsert = Database["public"]["Tables"]["internal_notes"]["Insert"];
+
+type CollabMember = {
+  sessionId: string;
+  userId: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  role: string | null;
+  joinedAt: string | null;
+};
+
+type CollabFocusEntry = {
+  sessionId: string;
+  fileId: string;
+  targetType: string | null;
+  targetId: string | null;
+  at: string;
+};
+
+type CollabEditEntry = {
+  sessionId: string;
+  fileId: string;
+  segmentId: string | null;
+  state: string;
+  text: string | null;
+  at: string;
+};
+
+type CollabPresencePayload = {
+  userId?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  role?: string | null;
+  joinedAt?: string | null;
+};
+
+type CollabStartPayload = {
+  fileId?: string;
+  sessionId?: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  role?: string | null;
+};
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 function parseCatViewParams(pathname: string, search: string, mode: "offline" | "team"): string {
   const base = `/cat/${mode === "team" ? "team" : "offline"}`;
@@ -84,7 +134,15 @@ function parseCatViewParams(pathname: string, search: string, mode: "offline" | 
   return fallback.toString();
 }
 
-function buildCatPath(mode: "offline" | "team", payload: Record<string, any>): string {
+interface CatNavigatePayload {
+  view?: string;
+  projectId?: string | null;
+  fileId?: string | null;
+  tmId?: string | null;
+  tbId?: string | null;
+}
+
+function buildCatPath(mode: "offline" | "team", payload: CatNavigatePayload): string {
   const base = `/cat/${mode === "team" ? "team" : "offline"}`;
   const view = String(payload?.view || "viewDashboard");
   const projectId = payload?.projectId != null ? String(payload.projectId) : "";
@@ -160,10 +218,10 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
   }, [location.pathname, lmsSidebarOpen]);
   const collabFileIdRef = useRef<string | null>(null);
   const collabSessionIdRef = useRef<string | null>(null);
-  const collabFocusRef = useRef<Record<string, any>>({});
-  const collabEditRef = useRef<Record<string, any>>({});
+  const collabFocusRef = useRef<Record<string, CollabFocusEntry>>({});
+  const collabEditRef = useRef<Record<string, CollabEditEntry>>({});
 
-  const postCollabState = useCallback((members: any[] = []) => {
+  const postCollabState = useCallback((members: CollabMember[] = []) => {
     iframeRef.current?.contentWindow?.postMessage(
       {
         type: "TMS_COLLAB_STATE",
@@ -182,8 +240,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
   const extractMembersFromPresence = useCallback(() => {
     const channel = collabChannelRef.current;
     if (!channel) return [];
-    const state = channel.presenceState() as Record<string, any[]>;
-    const members: any[] = [];
+    const state = channel.presenceState<CollabPresencePayload>();
+    const members: CollabMember[] = [];
     Object.entries(state).forEach(([sessionId, entries]) => {
       const latest = entries?.[entries.length - 1];
       if (!latest) return;
@@ -216,7 +274,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     }
   }, [postCollabState]);
 
-  const startCollabChannel = useCallback(async (payload: any) => {
+  const startCollabChannel = useCallback(async (payload: CollabStartPayload) => {
     const fileId = String(payload?.fileId || "");
     const sessionId = String(payload?.sessionId || "");
     if (!fileId || !sessionId || !user?.id) return;
@@ -238,9 +296,10 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         postCollabState(extractMembersFromPresence());
       })
       .on("presence", { event: "leave" }, ({ leftPresences }) => {
-        const leftKeys = ((leftPresences as any[]) || []).map((p: any) =>
-          String(p?.key ?? "")
-        );
+        const leftKeys = (leftPresences ?? []).map((p) => {
+          const record = p as Record<string, unknown>;
+          return String(record.key ?? "");
+        });
         if (!leftKeys.length) return;
         let changed = false;
         const nextEdit = { ...collabEditRef.current };
@@ -362,7 +421,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     const assignments = data ?? [];
 
     const { data: stageAssignRows } = await supabase
-      .from("cat_stage_assignments" as any)
+      .from("cat_stage_assignments")
       .select(`
         id,
         file_id,
@@ -395,48 +454,71 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       .order("assigned_at", { ascending: false });
 
     const { data: accessRows } = await supabase
-      .from("cat_file_user_access" as any)
+      .from("cat_file_user_access")
       .select("file_id, last_opened_at")
       .eq("user_id", user.id);
 
     const lastOpenedByFileId = new Map<string, string>();
-    (accessRows ?? []).forEach((row: any) => {
+    (accessRows ?? []).forEach((row) => {
       if (row?.file_id) lastOpenedByFileId.set(String(row.file_id), row.last_opened_at);
     });
 
     const stageFileIds = [
       ...new Set(
         (stageAssignRows ?? [])
-          .map((r: any) => r?.file_id)
-          .filter((id: unknown): id is string => !!id)
-          .map((id: string) => String(id)),
+          .map((r) => r?.file_id)
+          .filter((id): id is string => !!id)
+          .map((id) => String(id)),
       ),
     ];
 
+    type WorkflowStageRow = Database["public"]["Tables"]["cat_file_workflow_stages"]["Row"];
+    type StageAssignmentRow = Database["public"]["Tables"]["cat_stage_assignments"]["Row"];
+
     const workflowByFileId: Record<
       string,
-      { stages: any[]; allAssignments: any[] }
+      { stages: WorkflowStageRow[]; allAssignments: StageAssignmentRow[] }
     > = {};
 
     if (stageFileIds.length > 0) {
       const [{ data: allStages }, { data: allAssigns }] = await Promise.all([
         supabase
-          .from("cat_file_workflow_stages" as any)
+          .from("cat_file_workflow_stages")
           .select("*")
           .in("file_id", stageFileIds)
           .order("stage_order", { ascending: true }),
-        supabase.from("cat_stage_assignments" as any).select("*").in("file_id", stageFileIds),
+        supabase.from("cat_stage_assignments").select("*").in("file_id", stageFileIds),
       ]);
 
       stageFileIds.forEach((fid) => {
         workflowByFileId[fid] = {
-          stages: (allStages ?? []).filter((s: any) => String(s.file_id) === fid),
-          allAssignments: (allAssigns ?? []).filter((a: any) => String(a.file_id) === fid),
+          stages: (allStages ?? []).filter((s) => String(s.file_id) === fid),
+          allAssignments: (allAssigns ?? []).filter((a) => String(a.file_id) === fid),
         };
       });
     }
 
-    const mapStageAssignment = (r: any) => ({
+    type StageAssignmentFields = Pick<
+      StageAssignmentRow,
+      | "id"
+      | "file_id"
+      | "view_id"
+      | "file_workflow_stage_id"
+      | "assignee_user_id"
+      | "line_start"
+      | "line_end"
+      | "scope_label"
+      | "workflow_status"
+      | "first_edited_at"
+      | "assigned_at"
+      | "updated_at"
+    >;
+    type WorkflowStageFields = Pick<
+      WorkflowStageRow,
+      "id" | "file_id" | "stage_order" | "stage_kind" | "label" | "status" | "started_at" | "completed_at" | "created_at" | "updated_at"
+    >;
+
+    const mapStageAssignment = (r: StageAssignmentFields) => ({
       id: r.id,
       fileId: r.file_id,
       viewId: r.view_id ?? null,
@@ -451,7 +533,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       updatedAt: r.updated_at,
     });
 
-    const mapWorkflowStage = (s: any) => ({
+    const mapWorkflowStage = (s: WorkflowStageFields) => ({
       id: s.id,
       fileId: s.file_id,
       stageOrder: s.stage_order,
@@ -465,7 +547,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     });
 
     const dashboardStageAssignments = (stageAssignRows ?? [])
-      .map((row: any) => {
+      .map((row) => {
         const fid = row?.file_id ? String(row.file_id) : "";
         const file = row?.file;
         if (!fid || !file) return null;
@@ -490,10 +572,10 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           allAssignments: pack.allAssignments.map(mapStageAssignment),
         };
       })
-      .filter(Boolean);
+      .filter((row): row is NonNullable<typeof row> => row !== null);
 
     let translatorVisibleProjectIds: string[] | undefined;
-    let viewAssignments: any[] = [];
+    let viewAssignments: { id: string; view_id: string | null; status: string; assigned_at: string | null; updated_at: string; view: { id: string; project_id: string; name: string } | null }[] = [];
 
     if (isTranslatorOnly) {
       const fileAssignProjectIds = assignments
@@ -502,12 +584,12 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         .map((id) => String(id));
 
       const stageProjectIds = dashboardStageAssignments
-        .map((row: any) => row?.file?.project_id)
-        .filter((id: unknown): id is string => !!id)
-        .map((id: string) => String(id));
+        .map((row) => row?.file?.project_id)
+        .filter((id): id is string => !!id)
+        .map((id) => String(id));
 
       const { data: viewAssignData } = await supabase
-        .from("cat_view_assignments" as any)
+        .from("cat_view_assignments")
         .select(`
           id,
           view_id,
@@ -523,12 +605,12 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         .eq("assignee_user_id", user.id)
         .neq("status", "cancelled")
         .order("assigned_at", { ascending: false });
-      viewAssignments = (viewAssignData ?? []) as any[];
+      viewAssignments = viewAssignData ?? [];
 
       const viewAssignProjectIds = viewAssignments
-        .map((row: any) => row?.view?.project_id)
-        .filter((id: unknown): id is string => !!id)
-        .map((id: string) => String(id));
+        .map((row) => row?.view?.project_id)
+        .filter((id): id is string => !!id)
+        .map((id) => String(id));
 
       translatorVisibleProjectIds = [
         ...new Set([...fileAssignProjectIds, ...stageProjectIds, ...viewAssignProjectIds]),
@@ -563,12 +645,12 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     ]);
 
     const frozenByEmail = new Map<string, boolean>();
-    (translatorSettings ?? []).forEach((r: any) => {
+    (translatorSettings ?? []).forEach((r) => {
       frozenByEmail.set(String(r.email).toLowerCase(), !!r.frozen);
     });
 
     const rolesByUserId = new Map<string, string[]>();
-    (roles ?? []).forEach((r: any) => {
+    (roles ?? []).forEach((r) => {
       const k = String(r.user_id);
       const arr = rolesByUserId.get(k) ?? [];
       arr.push(String(r.role));
@@ -576,8 +658,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     });
 
     const members = (profiles ?? [])
-      .filter((p: any) => !frozenByEmail.get(String(p.email || "").toLowerCase()))
-      .map((p: any) => ({
+      .filter((p) => !frozenByEmail.get(String(p.email || "").toLowerCase()))
+      .map((p) => ({
         id: p.id,
         email: p.email,
         displayName: p.display_name || p.email,
@@ -709,11 +791,11 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           },
           window.location.origin
         );
-      } catch (e: any) {
+      } catch (e: unknown) {
         iframeRef.current?.contentWindow?.postMessage(
           {
             type: "TMS_NOTES_LIST_RESULT",
-            payload: { requestId, notes: [], error: e?.message || String(e) },
+            payload: { requestId, notes: [], error: errorMessage(e) },
           },
           window.location.origin
         );
@@ -743,7 +825,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         if (!assignmentId || !status) return;
 
         await supabase
-          .from("cat_view_assignments" as any)
+          .from("cat_view_assignments")
           .update({ status, updated_at: new Date().toISOString() })
           .eq("id", assignmentId);
       } else if (event.data?.type === "CAT_ASSIGN_FILE") {
@@ -764,7 +846,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         let stageSyncError: string | null = null;
         if (!error) {
           for (const uid of uniqueUserIds) {
-            const { error: rpcErr } = await supabase.rpc("cat_upsert_translate_stage_assignment" as any, {
+            const { error: rpcErr } = await supabase.rpc("cat_upsert_translate_stage_assignment", {
               p_file_id: fileId,
               p_assignee_user_id: uid,
               p_collab_row_id: null,
@@ -773,7 +855,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
               p_line_start: null,
               p_line_end: null,
               p_workflow_status: "assigned",
-            } as any);
+            });
             if (rpcErr) {
               stageSyncError = rpcErr.message;
               break;
@@ -800,7 +882,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         let stageDeleteError: string | null = null;
         if (!error) {
           const { data: stageRow } = await supabase
-            .from("cat_file_workflow_stages" as any)
+            .from("cat_file_workflow_stages")
             .select("id")
             .eq("file_id", fileId)
             .eq("stage_kind", "translate")
@@ -808,7 +890,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           const stageId = (stageRow as { id?: string } | null)?.id;
           if (stageId) {
             const { error: delErr } = await supabase
-              .from("cat_stage_assignments" as any)
+              .from("cat_stage_assignments")
               .delete()
               .eq("file_id", fileId)
               .eq("file_workflow_stage_id", stageId)
@@ -932,8 +1014,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             { type: "CAT_CLOUD_RPC_RESULT", payload: { requestId, ok: true, data } },
             window.location.origin
           );
-        } catch (error: any) {
-          const rawMsg = error?.message || String(error);
+        } catch (error: unknown) {
+          const rawMsg = errorMessage(error);
           const m = String(rawMsg).toLowerCase();
           const isStorageOriginalMissing =
             action === "db.getFile" &&
@@ -1061,38 +1143,39 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
               .eq("id", caseId)
               .eq("env", env)
               .maybeSingle();
-            caseTitle = (caseRow as any)?.title || caseTitle;
+            caseTitle = caseRow?.title || caseTitle;
           }
           const { title } = await allocateNextInternalNoteTitle(supabase, caseTitle);
           const creator = profile?.display_name?.trim() || user?.email || "Unknown User";
+          const insertRow: InternalNoteInsert = {
+            title,
+            related_case: caseTitle || "",
+            creator,
+            status: "open",
+            note_type: "question",
+            file_name: String(p.fileName || ""),
+            id_row_count: String(p.idRowCount || ""),
+            source_text: String(p.sourceText || ""),
+            translated_text: String(p.translatedText || ""),
+            env,
+            created_by: user?.id ?? null,
+            updated_at: new Date().toISOString(),
+          };
           const { data: inserted, error: insertErr } = await supabase
             .from("internal_notes")
-            .insert({
-              title,
-              related_case: caseTitle || "",
-              creator,
-              status: "open",
-              note_type: "question",
-              file_name: String(p.fileName || ""),
-              id_row_count: String(p.idRowCount || ""),
-              source_text: String(p.sourceText || ""),
-              translated_text: String(p.translatedText || ""),
-              env,
-              created_by: user?.id ?? null,
-              updated_at: new Date().toISOString(),
-            } as any)
+            .insert(insertRow)
             .select("id")
             .single();
           if (insertErr) throw insertErr;
-          const noteId = (inserted as any)?.id as string | undefined;
+          const noteId = inserted?.id;
           ack(true, { noteId });
           if (noteId) {
             window.open(`/internal-notes/${noteId}?focusField=questionOrNote`, "_blank", "noopener,noreferrer");
           } else {
             window.open("/internal-notes", "_blank", "noopener,noreferrer");
           }
-        } catch (e: any) {
-          ack(false, { error: e?.message || String(e) });
+        } catch (e: unknown) {
+          ack(false, { error: errorMessage(e) });
         }
       }
     };
