@@ -458,9 +458,9 @@ function DispatchRouteLabel({ value }: { value: string }) {
 
 function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
   const invoices = useInvoices();
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
   const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
   if (!linked) return <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-default">尚未請款</span></TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>;
-  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
   const statusLabelOptionIdMap: Record<string, string> = {
     pending: "sl-invoice-pending",
     partial: "sl-invoice-partial",
@@ -487,9 +487,9 @@ function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
 
 function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
   const invoices = useClientInvoices();
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
   const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
   if (!linked) return <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-default">尚未請款</span></TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>;
-  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
   const statusLabelOptionIdMap: Record<string, string> = {
     pending: "sl-invoice-pending",
     partial_collected: "sl-invoice-partial",
