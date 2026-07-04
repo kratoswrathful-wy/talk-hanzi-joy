@@ -115,6 +115,8 @@ flowchart LR
 | **W6** | GitHub Actions：push／PR 自動跑檢查 | 無（e2e 可降級） | CI 綠燈；失敗時阻擋合併或推送（依設定） |
 | **R2** | 推送前三關門檻寫入 `AGENTS.md` | 無 | 代理推送前實際跑過三關 |
 
+**動機實害案例（2026-07-04）**：W10 批次 2 建 `fees_visible` view 未重生 Supabase types，本機 `npm run dev` 不跑 tsc 全綠即推送，Vercel 正式建置 `tsc -b` ERROR（deployment `dpl_6KKcsFXYyhLYq48fdFsgqymbndbL`；`.from("fees_visible")` 型別不過）。若 W6 CI 或 R2 推送前 typecheck 已生效，推送當下即攔截。已補常駐規則 [`testing.mdc`](../.cursor/rules/testing.mdc) §7（新增 DB 物件同 commit 重生 types + typecheck）。
+
 ### 階段四：資料層大掃除（中風險，機器人保護）
 
 **前置條件**：階段三 Playwright ＋ vitest 基礎可用。
@@ -153,7 +155,7 @@ flowchart LR
 - **W5-1 外鍵索引** — 狀態：已驗收（DB 已套用，unindexed FK 由 33 → 0）— commit：`f20ee6c`
 - **W5-2 裸 auth.uid() 快取** — 狀態：已驗收（bare policy 由 2 → 0）— commit：`f20ee6c`
 - **W5-3 合併 billing permissive policy** — 狀態：**已驗收（DB 層 RLS 模擬，2026-07-03）** — migration commit：`f20ee6c`；驗證腳本：[`supabase/tests/w5_billing_rls_check.sql`](../supabase/tests/w5_billing_rls_check.sql)
-  - 驗證結果（模擬「譯者一」authenticated 身分）：本人請款 `INSERT` = **ALLOW**、冒名他人請款 `INSERT` = **DENY**（合併後 `invoices_insert` WITH CHECK 正確擋下）；讀取為同 env 全體開放（可見他人請款 11 筆，非 0，屬既有業務設計）。
+  - 驗證結果（模擬「譯者一」authenticated 身分）：本人請款 `INSERT` = **ALLOW**、冒名他人請款 `INSERT` = **DENY**（合併後 `invoices_insert` WITH CHECK 正確擋下）；讀取為同 env 全體開放（當時可見他人請款 11 筆，非 0）。**2026-07-03 擁有者裁定此讀取開放為錯誤（非設計），須修復——修復工項見 §9「W10 譯者讀取收緊」。**~~「可見他人 11／12 筆」~~ 此數字已於 W10 批次 1 作廢：收緊後譯者讀他人 `invoices/invoice_fees/fees` 皆為 **0**（見 §9.4）。
   - **更正先前紀錄**：`2abac01`／`9a4e5af` 所稱「Playwright 雙角色 5/5 通過」**不可信**——測試模式的假人換人（`dev-switch-user`→`verifyOtp`）在自動化環境靜默失效，實際全程以假執行長（管理員）身分執行，並未真正切到譯者。故 W5-3 改以上述 DB 層模擬結案；UI 雙角色驗收待階段三修好換人流程後補（見下）。
 - **W5-B CAT 四表（另案）** — `cat_annotation_options`／`cat_assignments`／`cat_file_assignments`／`cat_view_assignments` 為 ALL 與特定命令 policy 重疊，需拆分 ALL 語意（安全語意變更），本次不處理，待評估。
 
@@ -244,3 +246,151 @@ flowchart LR
 | **OBS-3** | 既有 backlog 複測 | 測試模式下 CAT 儀表板／專案清單「變更紀錄」仍顯示正式環境項目（`WIZA 260703A` 等，含操作者與時間）。 | 沿用 [CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md](CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) §13.2 **FIX-1**（已補記 2026-07-03 複測仍在）。 |
 
 **方法論註記**：OBS-1 是「自動化斷言通過 ≠ 體感合格」的實證——機器人只驗跳對／置中，不會嫌慢；真人／AI 實測才會。已據此補 [`testing.mdc`](../.cursor/rules/testing.mdc) 兩條規則。
+
+---
+
+## 9. W10 譯者讀取收緊（擁有者 2026-07-03 裁定）
+
+**背景**：W5-3 驗收時記錄「譯者可見他人請款」為讀取開放；擁有者裁定此為**錯誤而非設計**，須收緊。分支 `cursor/translator-invoice-read-rls`（從 `main` 開，一題一支）。
+
+### 9.1 範圍調查結果（動手前盤點）
+
+**資料庫讀取政策現況**（5 表）：
+
+| 表 | 現行 SELECT policy | 譯者實際可見 | 需修 |
+|----|--------------------|--------------|------|
+| `invoices` | `Authenticated users can read invoices`：`env = current_env()` | **全部**（同 env） | ✅ 收緊 |
+| `invoice_fees` | `Authenticated users can read invoice_fees`：`env = current_env()` | **全部** | ✅ 收緊 |
+| `fees` | `Authenticated users can read fees`：`env = current_env()` | **全部**（含他人 client_info 營收） | ✅ 收緊 |
+| `client_invoices` | `Admins can select client_invoices`：`is_admin AND env` | 無（已限管理員） | ⛔ 已正確 |
+| `client_invoice_fees` | `Admins can select client_invoice_fees`：`is_admin AND env` | 無 | ⛔ 已正確 |
+
+**前端讀取路徑盤點**：
+
+- **路由**：僅 `/settings` 以 `isAdmin` 擋（[`src/App.tsx`](../src/App.tsx) `SettingsRoute`）；`/invoices`、`/fees`、`/client-invoices`、`/cases` **對所有登入者開放**，譯者可進入。
+- **列表載入靠 RLS**：`invoice-store`、`fee-store` 的 `load*()` 皆 `select("*").eq("env", …)`，**無使用者過濾**，完全依賴 RLS → 收緊 RLS 後自動只回本人＋管理員，前端零改動。
+- **詳情頁**：`InvoiceDetailPage` 由 `useInvoice(id)` 讀 store 清單（RLS 過濾後），直開他人 URL → store 無該筆 → 自動擋。
+- **無跨使用者聚合儀表板**：`/` 導向 `/cases`，無彙總全體金額的 dashboard；列表內合計會自然只反映 RLS 可見集合（即為所欲）。**風險註記（低）**：故不需分批。
+- **Realtime**：`invoice-store` 收到事件一律 `loadInvoices()` 重查（RLS 過濾）→ 安全；`fee-store` 的 postgres_changes handler **直接套用 payload.new**（非重查），依賴 Supabase Realtime 對 postgres_changes 施行 RLS（RLS 已啟用 → 他人列不會送達）。仍將**加訂閱端防禦過濾**（僅套用 `assignee = 本人 或 isAdmin`）作雙保險，並記錄原因。
+
+### 9.2 擁有者裁決與完整規格（2026-07-03）
+
+**三問裁定**：(1) `fees` 一併收緊（三張全收）；(2) 本人判定先沿用 `assignee ＝ display_name`（最小變更、與寫入政策一致），UUID 歸屬列後續獨立工項，「同名互看／改名歸屬」風險見 §9.5；(3) `fee-store` realtime 加防禦過濾並升級為重查（見批次 2）。
+
+**費用單（fees）可見性規格**：
+
+- **列級**（哪些單看得到）：譯者可見須同時 `assignee ＝ 本人` **且** `稿費開立狀態 ≠ 草稿`（`status <> 'draft'`）；PM／執行長全部可見。
+- **欄位級**（看得到的單裡只准看）白名單：標題、譯者、稿費請款狀態、稿費開立狀態、相關案件（連結）、稿費請款單連結、稿費內容（任務類型／計費單位／單價／單位數／小計／總額、費率無誤勾選）、費用相關備註、變更紀錄（僅白名單欄位條目）、建立者／建立時間。**禁區**：營收整區塊（客戶端任務類型／客戶報價／營收總額／利潤／關鍵字／客戶 PO#／對帳完成／請款完成／費用群組／派案途徑）、客戶／聯絡人／客戶請款狀態／客戶案件單連結、內部備註（PM 以上）。
+- **頁面／路由級**：客戶請款譯者完全不可見；工具管理／設定／內部資料一律 PM 以上。
+
+**技術指引**：RLS 只管「列」；欄位級須用**遮罩層**（view 或 RPC）實作，禁止只靠前端隱藏。Realtime 非管理員 client 收到 `fees/invoices` 事件一律**重查遮罩來源**，禁止直接套 `payload.new`（比照 `invoice-store`）。變更紀錄過濾在遮罩／查詢層做，不在渲染層。
+
+### 9.3 實作拆批
+
+- **批次 1（快，已完成 §9.4）**：三張表列級 SELECT 收緊 ＋ fees 草稿條款 ＋ 路由守衛（工具管理／設定／內部資料／客戶請款／團隊成員／權限管理）。
+- **批次 2（大，已完成 §9.6）**：欄位遮罩層（採 **view**）＋ 前端讀取路徑切換 ＋ `fee-store` realtime 重查改造 ＋ 變更紀錄／內部備註 SQL 層遮罩。擁有者批次 2 追加：invoice 相關頁面讀 fees 一律走 view、edit_logs 遮罩須在 SQL 層（TS 為第二層）、notes/內部備註 view 層拆開遮罩。
+
+### 9.4 批次 1 執行結果（已落地，2026-07-03）
+
+- **migration**：`supabase/migrations/20260703140000_w10_translator_row_read_tighten.sql`（以 MCP `apply_migration` 套用；名稱 `w10_translator_row_read_tighten`）。三表各單一 SELECT policy：`env = current_env() AND ( is_admin((select auth.uid())) OR <本人條件> )`，`fees` 另加 `status <> 'draft'`。維持 W5 準則（`(select auth.uid())` 包裹、單一 permissive）。
+- **路由守衛**：[`src/App.tsx`](../src/App.tsx) 新增 `RequireModule`／`RequireExecutive`，以與 `AppSidebar` 相同的 `checkPerm` 條件擋 `/tools`、`/tools/page-template/:id`、`/field-reference`、`/internal-notes`、`/client-invoices`、`/members`（`/permissions` 為 executive）；補齊 URL 直達漏洞（側欄先前已隱藏，路由未擋）。`/settings` 沿用既有 `isAdmin`。
+- **DB 層驗證**（`supabase/tests/w10_translator_read_check.sql`，11 項全 PASS）：譯者讀他人 `invoices/invoice_fees/fees` ＝ **0**；讀自己「草稿」fees ＝ **0**；讀自己非草稿 fees ＝ 基準值；PM 讀全部 ＝ `invoices` 12／`fees` 2（總數不變）；寫入斷言（建自己 ALLOW／建他人 DENY）不回歸。
+- **advisors**：重跑 security／performance 無新增警告；billing 三表無 `multiple_permissive_policies`、無 `auth_rls_initplan`。
+- **誠實註記**：`test-t1` 於 test env 目前擁有 0 筆 invoices/fees，故「讀自己非草稿」正向為 0＝0 的 trivial pass；待有本人非草稿 fixture 後可再強化正向驗證。
+- **待批次 2**：欄位級遮罩尚未做 → 譯者目前雖只看得到本人非草稿列，但**該列仍為全欄位**（營收欄位尚未 NULL 化）；realtime `fee-store` 仍直接套 `payload.new`。批次 2 前會先回報遮罩選型。
+
+### 9.5 風險與後續
+
+- **同名互看／改名歸屬**：`display_name` 判定本人，若兩譯者同名可互看、改名後歸屬漂移。列為 UUID 歸屬獨立工項（`assignee_uid` 雙寫 → 切換判定）。
+- **UI 換人流程未修復**：批次 1／2 皆以 DB 層腳本＋執行長人工檢查替代譯者實測（照實標註）；換人流程修復見 Phase 3。
+
+### 9.6 批次 2 執行結果（已落地，2026-07-03）
+
+- **遮罩方案：view**。migration `supabase/migrations/20260704010000_w10_fees_visible_mask_view.sql`（MCP `apply_migration`）建 `public.fees_visible`（`security_invoker = on`）：沿用批次 1 列級 RLS，於其上以 `CASE WHEN is_admin THEN 原值 ELSE 遮罩 END` 遮蔽欄位。
+  - `internal_note`／`internal_note_url` → 空字串（內部備註 PM 以上）。
+  - `client_info` → 結構保留、營收/客戶值清空。~~僅留 `rateConfirmed`~~ **批次 3 起 `rateConfirmed` 亦遮罩為 `false`**（譯者已看不到費率無誤，見 §9.7）。
+  - `edit_logs` → **SQL 層**過濾：只留 field/fieldKey 命中白名單且不命中黑名單（營收/客戶/內部備註）的條目（歷史舊值躺 JSONB，必須在此擋）。`notes`（費用相關備註）與 `internal_note`（PM 以上）本就分屬不同欄位，view 層各自處理。
+  - `task_items`、`notes`、`title`、`assignee`、`status`、時間戳 → 原值。
+- **前端讀取路徑切換**：
+  - [`src/stores/fee-store.ts`](../src/stores/fee-store.ts)：`loadFees` 改讀 `fees_visible`；**realtime 改重查**——收到 `fees` 事件不再直接套 `payload.new`（含營收全欄位），改 `requeryFeeFromView(id)` 重查遮罩 view，查不到（非本人/草稿）即從本地移除。寫入（insert/update/delete）仍走 `fees` 原表。
+  - [`src/components/comments/CommentInput.tsx`](../src/components/comments/CommentInput.tsx)：`@` 提及清單改讀 `fees_visible`。
+  - **invoice 相關頁面**（`InvoiceDetailPage`／`InvoicesPage`／`ClientInvoice*`／`CasesPage`）皆經 `useFees()` 讀**同一個記憶體 `feeStore`**，故切 `loadFees` 至 view 後，展開的費用明細自動走遮罩，無殘留直讀 `fees` 原表的路徑（滿足擁有者追加 1）。
+  - UI 隱藏（營收/客戶/內部備註區塊）先前已由 `TranslatorFeeDetail` 的 `isManager` gate 完成；view 遮罩為資料層防線（防開發者工具／API／realtime）。
+  - `src/lib/edit-log-permission-filter.ts` 之 `filterEditLogsFeeDetail` 保留為 TS 第二層（渲染層）。
+- **DB 層遮罩驗證**（`supabase/tests/w10_fees_visible_mask_check.sql`，含 fixture，14 項全 PASS）：建 env=test 的譯者一非草稿／草稿／本人請款 fixture 後——譯者讀自己非草稿 **≥1（非 trivial）**、草稿 **0**、本人請款 **≥1**；`client_info.client=''`、`clientTaskItems=[]`、`rateConfirmed` 保留、`internal_note=''`、`edit_logs` 僅 1 條（無營收/客戶/機密字串）、`task_items` 完整；PM 查同列 `client_info`/`internal_note`/`edit_logs` 全欄位完整（CASE 另一分支）。**欄位漂移檢查**：`fees` 有而 `fees_visible` 無的欄位 = 無。
+- **advisors**：重跑 security 無新增警告，`fees_visible` 未觸發 `security_definer_view`（因 `security_invoker=on`）；既有 52 筆 WARN 為 repo 既有通則（search_path、security-definer function executable、public bucket、leaked-password protection），與本次無關。
+- **Playwright**：
+  - PM 回歸 spec [`tests/w10-fees-visible-pm.spec.ts`](../tests/w10-fees-visible-pm.spec.ts)（W10-PM-1～4：四列表、費用詳情營收/內部備註、請款詳情、寫原表→讀 view 來回），已納入 `playwright.config.ts` testMatch，`--list` 通過。
+  - 譯者遮罩 spec [`tests/w10-fees-visible-translator.spec.ts`](../tests/w10-fees-visible-translator.spec.ts)（W10-T-1/2）依規格寫齊，全數 `test.fixme`（依賴換人流程），`switchToTestPersona` 內含「切換後須為 active persona」身分斷言。
+  - **更正（2026-07-04）**：先前記載「本機 `.env` 無 `PLAYWRIGHT_TEST_EMAIL/PASSWORD/BASE_URL`」有誤——三個變數皆存在且與 `auth.setup.ts` 一致；先前讀取失敗係工具 cwd／未版控檔案讀取問題，非變數缺漏。唯 `.env` 的 `PLAYWRIGHT_BASE_URL` 指向 production，而批次 2／3 前端只在本分支，須以 `PLAYWRIGHT_BASE_URL=http://localhost:8080` 覆寫（`playwright.config` 的 `webServer` 會自動起 `npm run dev` 跑分支程式碼）。**已於本機實跑 PM 回歸 spec（W10-PM-1～4）全 4 綠**（見 §9.7）。
+- **dev-switch-user 提前修復評估（擁有者追加 3）**：verifyOtp 自動化靜默失效之修復**須能實跑 Playwright 才能驗證生效**；本工作階段無登入憑證與可跑環境，無法在半天內「修復並驗證」→ 維持 Phase 3，譯者端沿用 DB 層＋執行長人工抽查（追加 4）。
+
+### 9.7 批次 3 執行結果（譯者費用模組全程唯讀，已落地，2026-07-04）
+
+**總原則（擁有者定調）**：譯者在費用模組是「純讀者」——看得到自己的稿費內容與請款狀態，其餘一律看不到、動不了。
+
+- **盤點（動手前，關鍵）**：
+  - `fees` 現況 INSERT/UPDATE/DELETE **本就已是 `is_admin`-only**（`is_admin((select auth.uid())) and env = current_env()`），譯者本無法寫；但這三條政策先前以 ad hoc 套用、repo 無 migration 記錄（架構規則 §7「DB 與版控不得脫鉤」之漂移）。
+  - 全前端 `fees` 唯一寫入者為 [`src/stores/fee-store.ts`](../src/stores/fee-store.ts)（insert/update/delete）；其呼叫端（`TranslatorFeeDetail`／`TranslatorFees`／`CaseDetailPage`／`generate-case-fees`／`ai-agent-bridge`）皆為 PM/admin 動作。`cat-wf-lms-sync.ts` 與任務完成連動**皆不寫 `fees`**。→ **無譯者 session 寫入路徑**，依裁決直接收緊（不需停下回報）。
+- **資料層（migration `supabase/migrations/20260704020000_w10_fees_write_admin_only_and_view.sql`，MCP `apply_migration`）**：
+  - `fees_insert/update/delete` idempotent 重建為僅 PM/執行長（行為與現況等價，僅補入庫防漂移）。
+  - `fees_visible` 重建：`client_info.rateConfirmed` 從白名單移除，非管理員一律 `false`；`edit_logs` 白名單黑名單再加入 `費率/rateConfirmed` 排除。
+- **UI（PM／執行長視角完全不變）**：
+  - [`src/pages/TranslatorFeeDetail.tsx`](../src/pages/TranslatorFeeDetail.tsx)：稽核既有 gate 後，右上角動作列四鈕（複製本頁／新增費用／刪除／開立稿費條）、費率無誤勾選框、新增項目按鈕**原就 `isManager` gate**；標題／任務項目輸入原就 `disabled={!canEdit}`（譯者唯讀）。本批**新增隱藏**：① 客戶請款狀態欄位整塊（原無 gate，值來自 admin-only `client_invoices`，譯者會落空顯示「尚未請款」殘影）；② 任務表「刪除」欄（標頭＋每列刪除格＋footer 對齊格，整欄移除，`colSpan` 隨之 6→5）；③ 費用相關備註的「回覆」鈕與留言輸入框（寫入走 `fees.notes`＝admin-only，對譯者為死控件）。「收錄至稿費請款單」保留（譯者正當功能）。
+  - [`src/pages/TranslatorFees.tsx`](../src/pages/TranslatorFees.tsx)：清單頁寫入類工具列（譯者請款／客戶請款／批次開立／刪除）原就 `isManager` gate、inline 編輯格 `getEditable` 對非管理員一律不可編；本批將「新增費用」由 `canCreateFee` 收緊為 `isManager && canCreateFee`（避免非管理員拿到 `create_fee` section 權限時看到死鈕）。
+- **DB 層驗證**（全 PASS）：
+  - 批次 3 寫入 [`supabase/tests/w10_fees_write_check.sql`](../supabase/tests/w10_fees_write_check.sql)，**7 項全 PASS**：譯者一 INSERT／UPDATE 單價／UPDATE status（模擬開立）／DELETE = **DENY**；PM 同操作 = **ALLOW**。
+  - 批次 2 遮罩 [`supabase/tests/w10_fees_visible_mask_check.sql`](../supabase/tests/w10_fees_visible_mask_check.sql) 重跑，**14 項全 PASS**（`rateConfirmed` 斷言改為遮罩＝`false`，無回歸、無欄位漂移、無機密字串外洩）。
+  - 批次 1 列級 [`supabase/tests/w10_translator_read_check.sql`](../supabase/tests/w10_translator_read_check.sql) 重跑，**11 項全 PASS**（列級收緊與 W5 寫入不回歸）。
+- **Playwright**：
+  - **PM 回歸 spec 本機實跑全 4 綠**（覆寫 `PLAYWRIGHT_BASE_URL=http://localhost:8080`）；過程修兩處 spec 斷言（非產品缺陷）：W10-PM-3 請款詳情頁 PM 標題為 `Input` 非 `h1`（改以「返回請款單清單」導覽鈕為穩定標記）；W10-PM-4 `agent.fee.create` 內部 createDraft(insert)＋updateFee(update) 對同 id fire-and-forget 競速、title 可能未落地（與 W10 無關的既有 agent 競態），改斷言「該筆經 `fees_visible` 讀得回」（id 可見即證明寫原表→讀 view 來回）。
+  - 譯者 spec 新增 **W10-T-3**（純讀者：無動作列四鈕、無新增項目/費率無誤、無刪除欄、無客戶請款狀態、任務輸入 disabled、清單無新增費用），與 W10-T-1/2 同為 `test.fixme`（依賴換人流程，Phase 3），DB 層已由上述三支腳本涵蓋。
+- **待併前**：由 Fable 5（本代理）以測試模式「譯者一（測試）」做批次 2＋3 合併前最終 UI 抽查；抽查通過直接併 `main`。`dev-switch-user` 自動化修復維持 Phase 3。
+- **備註**：本機 PM-4 多次實跑於 env=test 產生數筆空標題草稿 `fees`（譯者看不到、PM 端僅為空列），為避免非必要的遠端破壞性寫入未清理，列為測試環境待清雜項。
+
+### 9.8 批次 3 後續熱修：Vercel 建置失敗（types 未重生，2026-07-04）
+
+- **問題**（Fable 5 發現，deployment `dpl_6KKcsFXYyhLYq48fdFsgqymbndbL` ERROR）：批次 2 引入 `.from("fees_visible")` 但 `src/integrations/supabase/types.ts` 未重生，`Views` 仍為空 → Vercel `tsc -b` 型別錯誤（`CommentInput.tsx`、`fee-store.ts`）。本機全綠假象：`npm run dev` 不跑 tsc，正式建置才跑。
+- **修復**：以 MCP `generate_typescript_types` 重生 types（`fees_visible` 進 `Views`），`npm run typecheck` 通過；**未用 `as any` 繞過**。
+- **教訓入檔**：W6/R2 動機欄（階段三）補實害案例；[`testing.mdc`](../.cursor/rules/testing.mdc) 新增 §7「新增資料庫物件必同步重生 types 並過 typecheck」。
+
+### 9.9 合併前 UI 抽查發現 F1/F2 與擁有者裁決（2026-07-04）
+
+Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查，發現兩項，擁有者裁決如下：
+
+- **F1（補回）— 譯者視角變更紀錄區塊消失**：根因為前端 `filterEditLogsFeeDetail` 以 `checkPerm("fee_management", …)` 再過濾一次，譯者無該模組檢視權限 → 白名單條目全數被濾光 → 區塊 `length === 0` 不渲染。裁決：資料層 `fees_visible.edit_logs` 已是白名單過濾結果，譯者視角**直接渲染**即可。修法：[`TranslatorFeeDetail.tsx`](../src/pages/TranslatorFeeDetail.tsx) 非管理員略過 `checkPerm` 過濾、區塊恆顯示（空清單顯示「尚無可顯示的變更紀錄」，加 `data-testid="fee-edit-log-section"`）；PM 行為零變更。譯者遮罩 spec（W10-T-1，fixme 中）補斷言：區塊存在且條目不含營收／客戶欄位。
+- **F2（結案，不收緊）— `/members` 譯者可見**：**譯者可見團隊成員清單符合設計行為，2026-07-04 擁有者確認**，不收緊。測試教訓入檔 [`testing.mdc`](../.cursor/rules/testing.mdc) §6：測試模式假人身分**不影響路由守衛判定**（守衛看真實帳號角色），路由守衛驗證不得用假人切換，須用真實測試帳號（如 `playwright-e2e`）或 DB 層驗證。
+
+## 10. W9 AI 可操作性（擁有者 2026-07-04 裁定：W10 之後的下一優先）
+
+**背景**：本專案的驗收與自動化作業大量由 AI 操作網頁執行；兩份實測報告（Claude 建單截圖依賴分析 2026-07-03、Fable 5 CAT 抽測 2026-07-03）共列 11 個「AI 被迫截圖猜座標或繞道」的摩擦點。降低摩擦＝每一輪 AI 驗收更快更穩，也直接提升 Playwright 劇本穩定性。**排程**：置於 W10 之後、階段三之前或並行（A 組不衝突可先做）；W10 併入 `main` 後即開工 A 組。
+
+### W9-A：加標記即可（半天級，先做）
+
+| 編號 | 內容 |
+|------|------|
+| A1 | 案件頁工具區塊欄位加 `data-testid`（`tool-server`／`tool-username`／`tool-password`／`tool-project`／`tool-files`）——現無 id/name/ARIA 可定位 |
+| A2 | 範本彈出視窗選項加 `data-testid`（`template-option-<名稱>`） |
+| A3 | 工具區塊移除鈕加 `aria-label="移除工具 <名稱>"` |
+| A4 | 多人協作表格每列日期欄加 `data-collab-id`（現況：點日期全寫入第一列，AI 只能截圖量 y 座標） |
+| A5 | CAT 編輯器句段列加 `data-status="confirmed|draft|…"`（現況狀態僅靠圖示樣式，AI 與 Playwright 皆無法程式判讀） |
+
+### W9-B：bridge API 擴充（中等，隨模組碰到時做）
+
+| 編號 | 內容 |
+|------|------|
+| B1 | `__lmsAgent` 支援工具區塊欄位寫入＋讀回驗證（密碼可維持 `[BLOCKED]`，但須回傳「已套用範本 X」的可驗證訊號） |
+| B2 | `case.getCurrentId()`——偵測導覽後 React state 殘留（state bleed） |
+| B3 | `__catAgent` 擴充編輯器 API：句段查詢（狀態/數量）、跳至句段、讀取目前焦點句 |
+
+### W9-C：行為修正（個案）
+
+| 編號 | 內容 |
+|------|------|
+| C1 | bridge 寫入成功（`ok:true`）後清除 `beforeunload` 攔截（現況 AI 導覽被 Leave site? 擋住，只能開新分頁繞） |
+| C2 | 語言對選擇框打字搜尋無反應（打 `zh` 清單不過濾；人類也可能受影響） |
+| C3 | CAT iframe 對無障礙樹不可見——generic 工具（find/read_page/file_upload）全失效；至少為匯入 file input 提供可及定位，或評估 iframe a11y 曝露設定 |
+
+### W9 驗收標準
+
+每項以「**AI 不靠截圖完成對應操作**」為通過條件：A 組 find 定位成功即過；B 組以 bridge 呼叫回傳驗證；C 組個案定義。全數完成後更新 [`docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) 對應章節。

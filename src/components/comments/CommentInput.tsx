@@ -58,7 +58,7 @@ export function CommentInput({
             pages.push({ id: p.id, title: p.title, type: "case", route: `/cases/${p.id}` })
           );
         }),
-      (supabase.from("fees").select("id, title") as any)
+      (supabase.from("fees_visible").select("id, title") as any)
         .eq("env", env).order("created_at", { ascending: false })
         .then(({ data }: any) => {
           if (data) data.filter((p: any) => p.title).forEach((p: any) =>

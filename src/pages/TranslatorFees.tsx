@@ -949,7 +949,7 @@ export default function TranslatorFees() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
         </div>
-        {canCreateFee && (
+        {isManager && canCreateFee && (
           <Button size="sm" className={cn(uiFeesAdd.className, "gap-1.5")} style={uiFeesAdd.style} onClick={handleCreate}>
             <Plus className="h-4 w-4" />
             {lbFeesAdd}
