@@ -74,6 +74,13 @@ import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
+/** 取出動態欄位值供 undo 記錄：僅接受 string／boolean／string[]，其餘型別視為未設定。 */
+function readStringOrBool(value: unknown): string | boolean | string[] | undefined {
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (Array.isArray(value) && value.every((v) => typeof v === "string")) return value;
+  return undefined;
+}
+
 // Editable fields - computed/date/createdBy are not editable
 const editableFields = new Set([
   "title", "status", "assignee", "internalNote",
@@ -843,9 +850,9 @@ export default function TranslatorFees() {
       // Get old value for undo
       let oldValue: string | boolean | string[];
       if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(field)) {
-        oldValue = (fee.clientInfo as any)?.[field] ?? (typeof value === "boolean" ? false : "");
+        oldValue = readStringOrBool(fee.clientInfo?.[field as keyof typeof fee.clientInfo]) ?? (typeof value === "boolean" ? false : "");
       } else {
-        oldValue = (fee as any)[field] ?? "";
+        oldValue = readStringOrBool(fee[field as keyof typeof fee]) ?? "";
       }
 
       undoRedo.push({ feeId: id, field, oldValue: oldValue as string | boolean, newValue: value as string | boolean });

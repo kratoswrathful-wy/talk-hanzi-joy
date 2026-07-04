@@ -7,12 +7,12 @@ import { Label } from "@/components/ui/label";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { pageTemplateStore, usePageTemplates, PAGE_MODULE_LABELS } from "@/stores/page-template-store";
+import { pageTemplateStore, usePageTemplates, PAGE_MODULE_LABELS, type TemplateFieldValue } from "@/stores/page-template-store";
 import { getModuleFields, getFieldGroups, type TemplateFieldDef } from "@/data/page-template-fields";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
-import FileField from "@/components/FileField";
+import FileField, { type FileItem } from "@/components/FileField";
 import { MultilineInput } from "@/components/ui/multiline-input";
 
 /** Renders the appropriate input for a field definition */
@@ -22,14 +22,22 @@ function FieldValueEditor({
   onChange,
 }: {
   field: TemplateFieldDef;
-  value: any;
-  onChange: (v: any) => void;
+  value: TemplateFieldValue;
+  onChange: (v: TemplateFieldValue) => void;
 }) {
+  const stringValue = typeof value === "string" ? value : "";
+  const numberValue = typeof value === "number" ? value : "";
+  const stringArrayValue = Array.isArray(value) && value.every((v) => typeof v === "string") ? value : [];
+  const fileArrayValue: FileItem[] =
+    Array.isArray(value) && value.every((v) => v && typeof v === "object" && "name" in v && "url" in v)
+      ? (value as FileItem[])
+      : [];
+
   switch (field.type) {
     case "text":
       return (
         <MultilineInput
-          value={value || ""}
+          value={stringValue}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`預填${field.label}...`}
           className="max-w-md"
@@ -42,7 +50,7 @@ function FieldValueEditor({
       return (
         <Input
           type="number"
-          value={value ?? ""}
+          value={numberValue}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
           className="max-w-[120px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
@@ -53,7 +61,7 @@ function FieldValueEditor({
       return (
         <ColorSelect
           fieldKey={field.selectKey || ""}
-          value={value || ""}
+          value={stringValue}
           onValueChange={(v) => onChange(v)}
           className="max-w-xs"
         />
@@ -64,7 +72,7 @@ function FieldValueEditor({
       return (
         <MultiColorSelect
           fieldKey={field.selectKey || ""}
-          values={Array.isArray(value) ? value : []}
+          values={stringArrayValue}
           onValuesChange={(v) => onChange(v)}
           className="max-w-xs"
         />
@@ -73,7 +81,7 @@ function FieldValueEditor({
     case "date":
       return (
         <DateTimePicker
-          value={value || null}
+          value={stringValue || null}
           onChange={(v) => onChange(v)}
           className="max-w-xs"
         />
@@ -82,7 +90,7 @@ function FieldValueEditor({
     case "file":
       return (
         <FileField
-          value={Array.isArray(value) ? value : []}
+          value={fileArrayValue}
           onChange={(v) => onChange(v)}
         />
       );
@@ -103,7 +111,7 @@ function FieldValueEditor({
     default:
       return (
         <Input
-          value={value || ""}
+          value={stringValue}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`預填${field.label}...`}
           className="max-w-md"
@@ -123,7 +131,7 @@ export default function PageTemplateEditorPage() {
 
   const [templateName, setTemplateName] = useState("");
   const [enabledFields, setEnabledFields] = useState<Set<string>>(new Set());
-  const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
+  const [fieldValues, setFieldValues] = useState<Record<string, TemplateFieldValue>>({});
 
   // Initialize from template
   useEffect(() => {
@@ -164,20 +172,20 @@ export default function PageTemplateEditorPage() {
     });
   };
 
-  const updateFieldValue = (key: string, value: any) => {
+  const updateFieldValue = (key: string, value: TemplateFieldValue) => {
     setFieldValues((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSave = () => {
     // Build fieldValues from only enabled fields
-    const savedValues: Record<string, any> = {};
+    const savedValues: Record<string, TemplateFieldValue> = {};
     for (const key of enabledFields) {
       if (fieldValues[key] !== undefined && fieldValues[key] !== "" && fieldValues[key] !== null) {
         savedValues[key] = fieldValues[key];
       }
     }
 
-    const updates: { name?: string; fieldValues?: Record<string, any> } = {
+    const updates: { name?: string; fieldValues?: Record<string, TemplateFieldValue> } = {
       fieldValues: savedValues,
     };
     if (templateName.trim() && templateName.trim() !== template.name && !template.isDefault) {

@@ -30,7 +30,7 @@ export default function NewTranslatorFee() {
   const notionId = searchParams.get("notion_id");
 
   const [loading, setLoading] = useState(!!notionId);
-  const [notionData, setNotionData] = useState<Record<string, any> | null>(null);
+  const [notionData, setNotionData] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
@@ -106,15 +106,15 @@ export default function NewTranslatorFee() {
           let matchedLabel = "";
 
           if (typeof person === "object" && person.email) {
-            const match = assigneeOptions.find((o: any) => o.email === person.email);
+            const match = assigneeOptions.find((o) => o.email === person.email);
             if (match) matchedLabel = match.label;
           }
           if (!matchedLabel && typeof person === "object" && person.name) {
-            const match = assigneeOptions.find((o: any) => o.label === person.name);
+            const match = assigneeOptions.find((o) => o.label === person.name);
             if (match) matchedLabel = match.label;
           }
           if (!matchedLabel && typeof person === "string") {
-            const match = assigneeOptions.find((o: any) => o.label === person || o.email === person);
+            const match = assigneeOptions.find((o) => o.label === person || o.email === person);
             matchedLabel = match ? match.label : person;
           }
 
@@ -151,9 +151,9 @@ export default function NewTranslatorFee() {
         }
 
         toast.success("已從 Notion 載入案件資料");
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to fetch Notion data:", err);
-        setError(err.message || "無法從 Notion 載入資料");
+        setError(err instanceof Error ? err.message : "無法從 Notion 載入資料");
         toast.error("Notion 資料載入失敗");
       } finally {
         setLoading(false);
@@ -175,7 +175,7 @@ export default function NewTranslatorFee() {
     setTaskItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const updateItem = (id: string, field: keyof FeeTaskItem, value: any) => {
+  const updateItem = (id: string, field: keyof FeeTaskItem, value: FeeTaskItem[keyof FeeTaskItem]) => {
     setTaskItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
@@ -212,7 +212,7 @@ export default function NewTranslatorFee() {
           {notionId && notionData && (
             <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
               已從 Notion 預填
-              {notionData.notionUrl && (
+              {typeof notionData.notionUrl === "string" && notionData.notionUrl && (
                 <a
                   href={notionData.notionUrl}
                   target="_blank"

@@ -318,9 +318,9 @@ interface ModulePerms {
   items: Record<string, { view: boolean; edit: boolean }>;
 }
 
-function getModulePerms(config: any, roleKey: string, moduleKey: string): ModulePerms {
-  const perms = config?.module_permissions?.[roleKey]?.[moduleKey];
-  return perms || { visible: true, items: {} };
+function getModulePerms(config: PermissionConfig, roleKey: string, moduleKey: string): ModulePerms {
+  const perms = config.module_permissions?.[roleKey]?.[moduleKey];
+  return { visible: perms?.visible ?? true, items: perms?.items ?? {} };
 }
 
 function getItemPerm(modulePerms: ModulePerms, itemKey: string, permType: "view" | "edit"): boolean {
@@ -357,7 +357,7 @@ export default function PermissionsPage() {
   const isExecutive = roles.some((r) => r.role === "executive");
   const { config, loading, updateConfig, allRoles } = usePermissions();
 
-  const customRoles: RoleDefinition[] = (config as any).custom_roles || [];
+  const customRoles: RoleDefinition[] = config.custom_roles || [];
 
   const [newRoleName, setNewRoleName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<RoleDefinition | null>(null);
@@ -370,7 +370,7 @@ export default function PermissionsPage() {
   const [renamingRole, setRenamingRole] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const saveConfig = useCallback(async (newConfig: any) => {
+  const saveConfig = useCallback(async (newConfig: PermissionConfig) => {
     setSaving(true);
     const error = await updateConfig(newConfig);
     setSaving(false);
@@ -405,7 +405,7 @@ export default function PermissionsPage() {
   const handleDeleteStep2 = async () => {
     if (deleteTarget) {
       const updated = customRoles.filter((r) => r.key !== deleteTarget.key);
-      const newModulePerms = { ...(config as any).module_permissions };
+      const newModulePerms = { ...config.module_permissions };
       delete newModulePerms[deleteTarget.key];
       const error = await saveConfig({ ...config, custom_roles: updated, module_permissions: newModulePerms });
       if (!error) toast.success(`已刪除身分「${deleteTarget.label}」`);
@@ -424,7 +424,7 @@ export default function PermissionsPage() {
     const role = allRoles.find((r) => r.key === renamingRole);
     if (!role) return;
     if (role.builtIn) {
-      const overrides = { ...((config as any).role_label_overrides || {}), [role.key]: name };
+      const overrides = { ...(config.role_label_overrides || {}), [role.key]: name };
       await saveConfig({ ...config, role_label_overrides: overrides });
     } else {
       const updatedCustom = customRoles.map((r) => r.key === renamingRole ? { ...r, label: name } : r);
@@ -449,7 +449,7 @@ export default function PermissionsPage() {
 
   const handleToggleModuleVisible = async (roleKey: string, moduleKey: string, visible: boolean) => {
     const modulePerms = getModulePerms(config, roleKey, moduleKey);
-    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, visible } } };
+    const newModulePerms = { ...config.module_permissions, [roleKey]: { ...(config.module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, visible } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
@@ -458,7 +458,7 @@ export default function PermissionsPage() {
     const currentItem = modulePerms.items?.[itemKey] || { view: true, edit: true };
     const newItem = { ...currentItem, [permType]: value };
     if (permType === "view" && !value) newItem.edit = false;
-    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: { ...modulePerms.items, [itemKey]: newItem } } } };
+    const newModulePerms = { ...config.module_permissions, [roleKey]: { ...(config.module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: { ...modulePerms.items, [itemKey]: newItem } } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
@@ -471,7 +471,7 @@ export default function PermissionsPage() {
     for (const item of allItems) {
       newItems[item.key] = item.type === "view" ? { view: value, edit: false } : { view: value, edit: value };
     }
-    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, visible: value ? true : modulePerms.visible, items: newItems } } };
+    const newModulePerms = { ...config.module_permissions, [roleKey]: { ...(config.module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, visible: value ? true : modulePerms.visible, items: newItems } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
@@ -487,7 +487,7 @@ export default function PermissionsPage() {
         newItems[item.key] = { ...current, edit: value };
       }
     }
-    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: newItems } } };
+    const newModulePerms = { ...config.module_permissions, [roleKey]: { ...(config.module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: newItems } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
@@ -497,7 +497,7 @@ export default function PermissionsPage() {
     for (const item of items) {
       newItems[item.key] = { view: true, edit: false };
     }
-    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: newItems } } };
+    const newModulePerms = { ...config.module_permissions, [roleKey]: { ...(config.module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: newItems } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
@@ -624,7 +624,7 @@ export default function PermissionsPage() {
 function RolePermissionPanel({
   roleKey, roleLabel, config, onToggleModuleVisible, onToggleItemPerm, onToggleAllPerms, onToggleSectionPerms, onSetSectionViewOnly,
 }: {
-  roleKey: string; roleLabel: string; config: any;
+  roleKey: string; roleLabel: string; config: PermissionConfig;
   onToggleModuleVisible: (roleKey: string, moduleKey: string, visible: boolean) => void;
   onToggleItemPerm: (roleKey: string, moduleKey: string, itemKey: string, permType: "view" | "edit", value: boolean) => void;
   onToggleAllPerms: (roleKey: string, moduleKey: string, value: boolean) => void;

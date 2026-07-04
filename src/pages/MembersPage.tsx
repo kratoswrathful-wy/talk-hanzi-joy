@@ -198,17 +198,17 @@ export default function MembersPage() {
     ]);
 
     const roleMap = new Map<string, AppRole>();
-    (rolesData || []).forEach((r: any) => roleMap.set(r.user_id, r.role));
+    (rolesData || []).forEach((r) => roleMap.set(r.user_id, r.role));
 
     const settingsMap = new Map<string, { note: string; no_fee: boolean; frozen: boolean; sort_order: number }>();
-    (settings || []).forEach((s: any) => settingsMap.set(s.email, {
+    (settings || []).forEach((s) => settingsMap.set(s.email, {
       note: s.note || "",
       no_fee: s.no_fee || false,
       frozen: s.frozen || false,
       sort_order: s.sort_order ?? 0,
     }));
 
-    const allRegistered: Member[] = (profiles || []).map((p: any) => {
+    const allRegistered: Member[] = (profiles || []).map((p) => {
       const s = settingsMap.get(p.email) || { note: "", no_fee: false, frozen: false, sort_order: 0 };
       return {
         id: p.id,
@@ -228,8 +228,8 @@ export default function MembersPage() {
     const registeredMembers = allRegistered.filter((m) => !m.is_test);
     setTestMembers(allRegistered.filter((m) => m.is_test).sort((a, b) => a.email.localeCompare(b.email)));
 
-    const registeredEmails = new Set((profiles || []).map((p: any) => p.email));
-    const pendingMembers: Member[] = (invitations || []).filter((inv: any) => !registeredEmails.has(inv.email)).map((inv: any) => {
+    const registeredEmails = new Set((profiles || []).map((p) => p.email));
+    const pendingMembers: Member[] = (invitations || []).filter((inv) => !registeredEmails.has(inv.email)).map((inv) => {
       const s = settingsMap.get(inv.email) || { note: "", no_fee: false, frozen: false, sort_order: 0 };
       return {
         id: inv.id,
