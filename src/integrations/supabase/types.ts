@@ -14,6 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_model_providers: {
+        Row: {
+          created_at: string
+          display_name: string
+          enabled: boolean
+          id: string
+          provider_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          enabled?: boolean
+          id?: string
+          provider_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          enabled?: boolean
+          id?: string
+          provider_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_model_sync_runs: {
+        Row: {
+          discovered_count: number
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          missing_count: number
+          new_count: number
+          provider_key: string
+          raw: Json
+          started_at: string
+          status: string
+        }
+        Insert: {
+          discovered_count?: number
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          missing_count?: number
+          new_count?: number
+          provider_key: string
+          raw?: Json
+          started_at?: string
+          status: string
+        }
+        Update: {
+          discovered_count?: number
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          missing_count?: number
+          new_count?: number
+          provider_key?: string
+          raw?: Json
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      ai_provider_models: {
+        Row: {
+          api_object: string | null
+          first_seen_at: string
+          id: string
+          is_currently_available: boolean
+          last_seen_at: string
+          model_id: string
+          owned_by: string | null
+          provider_created_at: string | null
+          provider_key: string
+          raw: Json
+        }
+        Insert: {
+          api_object?: string | null
+          first_seen_at?: string
+          id?: string
+          is_currently_available?: boolean
+          last_seen_at?: string
+          model_id: string
+          owned_by?: string | null
+          provider_created_at?: string | null
+          provider_key: string
+          raw?: Json
+        }
+        Update: {
+          api_object?: string | null
+          first_seen_at?: string
+          id?: string
+          is_currently_available?: boolean
+          last_seen_at?: string
+          model_id?: string
+          owned_by?: string | null
+          provider_created_at?: string | null
+          provider_key?: string
+          raw?: Json
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           key: string
@@ -357,6 +462,89 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_ai_model_options: {
+        Row: {
+          created_at: string
+          display_name_en: string | null
+          display_name_zh: string
+          enabled: boolean
+          fallback_model_option_id: string | null
+          id: string
+          is_default: boolean
+          max_output_tokens: number | null
+          model_id: string
+          provider_key: string
+          reasoning_effort: string | null
+          short_label_en: string | null
+          short_label_zh: string | null
+          sort_order: number
+          supports_chat_completions: boolean
+          supports_responses_api: boolean
+          temperature: number | null
+          tier: string
+          updated_at: string
+          usage_hint_en: string | null
+          usage_hint_zh: string | null
+          use_case: string
+        }
+        Insert: {
+          created_at?: string
+          display_name_en?: string | null
+          display_name_zh: string
+          enabled?: boolean
+          fallback_model_option_id?: string | null
+          id?: string
+          is_default?: boolean
+          max_output_tokens?: number | null
+          model_id: string
+          provider_key?: string
+          reasoning_effort?: string | null
+          short_label_en?: string | null
+          short_label_zh?: string | null
+          sort_order?: number
+          supports_chat_completions?: boolean
+          supports_responses_api?: boolean
+          temperature?: number | null
+          tier?: string
+          updated_at?: string
+          usage_hint_en?: string | null
+          usage_hint_zh?: string | null
+          use_case?: string
+        }
+        Update: {
+          created_at?: string
+          display_name_en?: string | null
+          display_name_zh?: string
+          enabled?: boolean
+          fallback_model_option_id?: string | null
+          id?: string
+          is_default?: boolean
+          max_output_tokens?: number | null
+          model_id?: string
+          provider_key?: string
+          reasoning_effort?: string | null
+          short_label_en?: string | null
+          short_label_zh?: string | null
+          sort_order?: number
+          supports_chat_completions?: boolean
+          supports_responses_api?: boolean
+          temperature?: number | null
+          tier?: string
+          updated_at?: string
+          usage_hint_en?: string | null
+          usage_hint_zh?: string | null
+          use_case?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_ai_model_options_fallback_model_option_id_fkey"
+            columns: ["fallback_model_option_id"]
+            isOneToOne: false
+            referencedRelation: "cat_ai_model_options"
             referencedColumns: ["id"]
           },
         ]
