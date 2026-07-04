@@ -490,6 +490,18 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
   2. 生命週期情境：直接寫入一筆與 `_startAiTaskLog`/`_updateAiTaskLog` 相同結構的 `catAiTaskLogV1` 紀錄模擬「執行中」，斷言欄位映射（`batchDone`/`batchTotal`/`segDone`/`segTotal`/`phase`）；再改寫為 `success`／`failed`，斷言 `running` 轉 `false`、`lastError` 正確帶出錯誤訊息。三段落全部**已於本機瀏覽器實測通過**（`3 passed`）。
   3. 未實跑的部分：**未**呼叫真實 `aiBatch.run()` 觸發 LLM 翻譯（成本與穩定性考量，沿用既有「自動驗收預設不跑真實 `run()`」慣例）；`batchDone`/`batchNo` 在「批次進行中途」讀值重疊的行為僅以程式碼閱讀＋上述模擬資料驗證欄位映射，未用真實批次迴圈逐批觀測時序。
 - **待驗收**（真實批次）：Fable 5 以 Chrome 工具在拋棄式測試專案啟動一個小檔真實批次，輪詢 `getProgress()` 能讀到遞增的 `batchDone` 與最終 `running=false`；測完清理。
+- **驗收結果（2026-07-04）**：Fable 5 於分支預覽站完整實測 idle／running／success 三態正確、輪詢遞增、running 轉 false。**核准併入 main**，merge commit `be071206`（含修正 commit `d0e21bb`）。
+
+#### C1 落地紀錄（2026-07-04，分支 `feature/w9-wave2-c1-tool-set-field`）
+
+田野第 3 項：工具區塊多行欄位（伺服器／帳號／密碼等）只能截圖走 UI。
+
+- **新增** [`src/lib/ai-agent-tool-field.ts`](../src/lib/ai-agent-tool-field.ts) 純函式（欄位解析、patch 合併、密碼遮罩回讀）＋ [`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts) 的 `__lmsAgent.tool.setField(input)`。
+- **寫入路徑**：沿用 `validateCasePatch` → `caseStore.update`，與 UI 相同 store；`fieldKey` 可填 schema 的 id 或 label；拒絕 `type: "file"` 欄位（引導走 upload）。
+- **回讀驗證**：寫入後 `caseStore.getById` 回讀，`verified: true` 才回 ok；密碼類 label 回傳 `readbackValue: "***"` + `readbackLength`。
+- **測試**：vitest 10 項（[`ai-agent-tool-field.test.ts`](../src/lib/ai-agent-tool-field.test.ts)）；Playwright [`tests/lms-tool-set-field.spec.ts`](../tests/lms-tool-set-field.spec.ts)（**已實跑**：建立案件→seed tools→setField→case.get 回讀）。
+- **文件**：操作指南 §5.1／§11.10；§3 鐵律更新（工具文字欄位禁止再截圖 UI）。
+- **待驗收**：Fable 5 Chrome 實測於拋棄式測試案件寫入工具欄位後回讀比對；測後清理。
 
 **附帶查證：`describe()`／`aiBatch.getSettings()` 的 `projectId`/`fileId` 為何恆為 `null`（驗收方觀察，已查證，本輪不修）**：
 

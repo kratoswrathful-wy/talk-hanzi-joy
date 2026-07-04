@@ -28,6 +28,17 @@ import { generateFeesForCase } from "@/lib/generate-case-fees";
 import { uploadFromBytes, type UploadFromBytesInput, type UploadedFileItem } from "@/lib/ai-agent-upload";
 import { mergeArrayById, resolveArrayPatch } from "@/lib/ai-agent-array-merge";
 import {
+  buildToolFieldWritePatch,
+  finalizeToolSetFieldResult,
+  getEffectiveToolEntries,
+  pickToolEntryIndex,
+  readToolFieldFromRecord,
+  type ToolBlockKey,
+  type ToolFieldSchema,
+  type ToolSetFieldInput,
+  type ToolSetFieldResult,
+} from "@/lib/ai-agent-tool-field";
+import {
   type AgentResult,
   agentOk as ok,
   agentFail as fail,
@@ -326,6 +337,26 @@ function validateRecordFields(
     out[key] = result.data;
   }
   return ok(out);
+}
+
+function resolveToolFieldsForEntry(entry: ToolEntry, toolFieldKey: ToolBlockKey): ToolFieldSchema[] {
+  const opts = selectOptionsStore.getSortedOptions(toolFieldKey);
+  const match = opts.find((o) => o.label === entry.tool);
+  if (match?.toolFields?.length) {
+    return match.toolFields.map((f) => ({
+      id: f.id,
+      label: f.label,
+      type: (f.type ?? "text") as "text" | "file",
+    }));
+  }
+  if (entry.fields?.length) {
+    return entry.fields.map((f) => ({
+      id: f.id,
+      label: f.label,
+      type: (f.type ?? "text") as "text" | "file",
+    }));
+  }
+  return [];
 }
 
 function validateToolEntries(
@@ -710,6 +741,7 @@ function buildFieldCatalog() {
     datetimeFormat: "ISO 8601 字串，例如 2026-06-30T14:30:00.000Z；null 表示清空",
     usage: [
       "先呼叫 describe() 或 options.get(fieldKey) 查合法值",
+      "工具多行欄位先 options.getToolSchema(toolLabel) 查 field id／label，再 tool.setField 寫入並回讀驗證",
       "檔案先 upload.fromBytes，再將 { name, url } 寫入欄位",
       "再呼叫 case.update / fee.update / invoice.update 等",
     ],
@@ -775,6 +807,9 @@ export interface LmsAgentApi {
     delete: (id: string) => AgentResult<{ id: string }>;
     addFees: (invoiceId: string, feeIds: string[]) => Promise<AgentResult<ClientInvoice>>;
     removeFee: (invoiceId: string, feeId: string) => Promise<AgentResult<ClientInvoice>>;
+  };
+  tool: {
+    setField: (input: ToolSetFieldInput) => Promise<AgentResult<ToolSetFieldResult>>;
   };
 }
 
@@ -1057,6 +1092,47 @@ export function buildLmsAgentApi(): LmsAgentApi {
         await clientInvoiceStore.removeFeeFromInvoice(invoiceId, feeId);
         const updated = clientInvoiceStore.getInvoiceById(invoiceId);
         return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+    },
+
+    tool: {
+      setField: async (input) => {
+        if (!input || typeof input !== "object") return fail("input 必須為物件");
+        const caseId = String(input.caseId || "").trim();
+        if (!caseId) return fail("caseId 必填");
+
+        const existing = caseStore.getById(caseId);
+        if (!existing) return fail(`找不到案件 id=${caseId}`);
+
+        const toolFieldKey: ToolBlockKey = input.toolFieldKey ?? "executionTool";
+        const tools = getEffectiveToolEntries(existing, toolFieldKey);
+        const idxResult = pickToolEntryIndex(tools, input);
+        if (idxResult.ok === false) return failFrom(idxResult);
+
+        const entry = tools[idxResult.data];
+        const toolFields = resolveToolFieldsForEntry(entry, toolFieldKey);
+        if (toolFields.length === 0) {
+          return fail(
+            `工具「${entry.tool || "（未選）"}」尚無可寫入欄位定義；請先 options.getToolSchema 查欄位，或以 case.update 寫入含 fields 的 tools 列`,
+          );
+        }
+
+        const built = buildToolFieldWritePatch(existing, { ...input, caseId }, toolFields);
+        if (built.ok === false) return failFrom(built);
+
+        const validated = validateCasePatch(built.data.patch, existing);
+        if (validated.ok === false) return failFrom(validated);
+
+        await caseStore.update(caseId, validated.data);
+        const updated = caseStore.getById(caseId);
+        if (!updated) return fail("寫入後讀取案件失敗");
+
+        const actual = readToolFieldFromRecord(updated, built.data.meta);
+        const result = finalizeToolSetFieldResult(built.data.meta, input.value, actual);
+        if (!result.verified) {
+          return fail(`寫入後回讀不一致（fieldId=${result.fieldId}）`);
+        }
+        return ok(result);
       },
     },
   };
