@@ -424,6 +424,8 @@ s.data?.batchRefOptions;
 
 prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）。
 
+> **已知限制（2026-07-04 查證，見 §11.8）**：因 bridge 讀不到真正的 `currentProjectId`，上述持久化目前**實際上從未真正寫入**，`setSettings()` 的效果僅存在於當前分頁的 DOM（重新整理或換分頁即消失）。同一工作階段內連續使用不受影響，只是**不要預期跨分頁/重開頁面後偏好還在**。
+
 ### 10.3 `aiBatch.getProgress()`（W9 wave 2 C2，2026-07-04）
 
 > 田野實測第 8 項：批次翻譯進行中只能截圖看右下角「正在翻譯第 X/20 批…」toast，AI 代理無法讀取。**改用 `getProgress()` 輪詢**，不必截圖。
@@ -551,7 +553,17 @@ do {
 
 田野實測第 8 項——批次翻譯進行中僅能截圖看 toast「正在翻譯第 X/20 批…」，AI 代理無法讀取進度。新增只讀方法 `__catAgent.aiBatch.getProgress()`，沿用 `app.js` 批次迴圈既有的 task-log 進度狀態（`_loadAiTaskLogs()`／`catAiTaskLogV1`），未另建第二套進度追蹤。用法與回傳欄位見 §10.3。
 
-### 11.8 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+### 11.8 已知限制：`describe()`／`aiBatch.getSettings()` 的 `projectId`/`fileId`/`segmentCount` 恆為 null/0（2026-07-04，查證未修）
+
+**現象**：即使專案與檔案皆已開啟、編輯器已有句段列，`__catAgent.describe()` 仍回 `{ projectId: null, fileId: null, segmentCount: 0 }`，`aiBatch.getSettings()` 的 `projectId`/`fileId` 同樣恆為 `null`。已用 Playwright 實測於瀏覽器內確認（非僅靜態推論）。
+
+**根因**：`currentProjectId`／`currentFileId`／`currentSegmentsList` 是 `app.js` 內 `DOMContentLoaded` 閉包的區域變數，從未 `window.xxx = xxx` 匯出；bridge 讀 `global.currentProjectId` 等同讀一個永遠是 `undefined` 的東西。
+
+**AI 代理務必知道的實務影響**：**不要**依賴 `describe().data.projectId`/`fileId` 判斷目前開的是哪個專案／檔案（一律回 `null`，無法用來對照）；**不要**以為 `aiBatch.setSettings()` 寫入的偏好會跨分頁/重新整理後持久——目前只在當前分頁內「看起來生效」，背後的 `saveUserPrefs` 寫入其實從未真正觸發，重新整理或換分頁後偏好會消失，每次工作階段請重新 `setSettings()`。
+
+**修不修另議**：詳見主計畫 §8 OBS-4；未排入本輪 W9 wave 2 C 類工作範圍。
+
+### 11.9 後續（W9-B／W9 wave 2 C 類，未排入本輪）
 
 `case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、工具區塊多行欄位 bridge 寫入（C1）、複製案件後標題刷新（C3）等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B／W9 wave 2；完成時將回來補本節。
 
