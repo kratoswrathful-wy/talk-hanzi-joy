@@ -394,3 +394,11 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 ### W9 驗收標準
 
 每項以「**AI 不靠截圖完成對應操作**」為通過條件：A 組 find 定位成功即過；B 組以 bridge 呼叫回傳驗證；C 組個案定義。全數完成後更新 [`docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) 對應章節。
+
+### W9-A 落地紀錄（2026-07-04，分支 `cursor/w9a-ai-operability-markers`）
+
+- **A1**：[`CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx) 工具區塊欄位（`IMESafeInput`／`ToolFileFieldRow`）依標籤對照表（伺服器／帳號／密碼／專案／檔案）加 `data-testid="tool-server|tool-username|tool-password|tool-project|tool-files"`；無對照者 fallback 為 `tool-field-<fieldId>`。
+- **A2**：範本彈出視窗選項按鈕加 `data-testid="template-option-<範本名稱>"`。
+- **A3**：工具移除鈕加 `aria-label="移除工具 <工具名稱或序號>"`。
+- **A4**：[`CollaborationTable.tsx`](../src/components/CollaborationTable.tsx) 每列容器與翻譯／審稿交期日期欄各自加 `data-collab-id="<rowId>"`（日期欄另加 `data-collab-field`），修正「點日期全寫入第一列，AI 只能截圖量座標」。
+- **A5**：CAT 編輯器（`cat-tool/app.js`）新增 `syncRowStatusDataset(row, seg)`，句段列同步 `data-status`（原始狀態）與 `data-wf-state`（`resolveSegmentConfirmDisplayState` 統一顯示五態）；掛於列建立（`buildGridDataRow`）與所有狀態圖示刷新點（`refreshStatusIconForRow`、`refreshUserMarkerStatusCell`、批次確認刷新迴圈）。已 `npm run sync:cat`。
