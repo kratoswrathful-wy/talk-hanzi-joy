@@ -194,13 +194,46 @@
         }
     }
 
+    /**
+     * W9-C C3：代理上傳轉送。cat-tool 的匯入 input（sourceFileInput／tmImportInput／
+     * tbImportInput）藏在 iframe 內、無障礙樹不跨 iframe，通用 file_upload 工具無法定位。
+     * 殼層（CatToolPage.tsx）提供一個位於頂層文件、可被無障礙樹直接找到的代理 <input
+     * type=file>；使用者或 AI 於該處選檔後，經既有 __tmsAgent.cat.invoke RPC 把 File
+     * 物件（postMessage structured clone 原生支援 File）轉送到這裡，寫回真正的
+     * input.files 並 dispatch change，走與手動選檔完全相同的既有匯入流程（含匯入精靈）。
+     */
+    var FORWARD_TARGET_INPUT_ID = { source: 'sourceFileInput', tm: 'tmImportInput', tb: 'tbImportInput' };
+
+    function forwardFilesToInput(payload) {
+        if (!payload || typeof payload !== 'object') return agentFail('payload 必須為物件');
+        var target = String(payload.target || '');
+        var inputId = FORWARD_TARGET_INPUT_ID[target];
+        if (!inputId) return agentFail('target 須為 source / tm / tb');
+        var input = document.getElementById(inputId);
+        if (!input) return agentFail('找不到對應的匯入欄位: ' + inputId);
+        var files = payload.files;
+        if (!files || !files.length) return agentFail('files 不可為空');
+        try {
+            var dt = new DataTransfer();
+            for (var i = 0; i < files.length; i++) {
+                if (files[i] instanceof File) dt.items.add(files[i]);
+            }
+            if (!dt.files.length) return agentFail('files 需為 File 物件陣列');
+            input.files = dt.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            return agentOk({ target: target, fileCount: dt.files.length });
+        } catch (err) {
+            return agentFail(err && err.message ? err.message : String(err));
+        }
+    }
+
     function describe() {
         return agentOk({
             projectId: global.currentProjectId || null,
             fileId: global.currentFileId || null,
             segmentCount: Array.isArray(global.currentSegmentsList) ? global.currentSegmentsList.length : 0,
             virtGridEnabled: !!(global.CatVirtGrid && global.CatVirtGrid.isEnabled && global.CatVirtGrid.isEnabled()),
-            apis: ['describe', 'aiBatch.getSettings', 'aiBatch.setSettings', 'aiBatch.openModal', 'aiBatch.run', 'import.fromBytes'],
+            apis: ['describe', 'aiBatch.getSettings', 'aiBatch.setSettings', 'aiBatch.openModal', 'aiBatch.run', 'import.fromBytes', 'import.forwardToInput'],
         });
     }
 
@@ -235,6 +268,7 @@
             },
             import: {
                 fromBytes: importFromBytes,
+                forwardToInput: forwardFilesToInput,
             },
         };
     }
