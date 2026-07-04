@@ -37,7 +37,7 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-/** ???????Json ????????? `toItem` ????????????????????????????????? as unknown as???*/
+/** 將 DB jsonb 陣列逐筆以 `toItem` 驗證轉型為指定型別，不合法的項目略過（不經 as unknown as）。 */
 function toTypedArray<T>(value: Json | null | undefined, toItem: (x: Json) => T | undefined): T[] {
   if (!Array.isArray(value)) return [];
   const out: T[] = [];
@@ -64,7 +64,7 @@ function stringFromJson(x: Json): string | undefined {
   return typeof x === "string" ? x : undefined;
 }
 
-/** ?? string?null????????????? undefined??????????????????? */
+/** 讀取 string｜null 欄位；非法型別回傳 undefined（供呼叫端判斷是否要帶入該欄位）。 */
 function nullableStringFromJson(x: Json | undefined): string | null | undefined {
   if (x === null) return null;
   if (typeof x === "string") return x;
@@ -185,7 +185,7 @@ function workGroupFromJson(x: Json): WorkGroup | undefined {
   return { id: x.id, workType: x.workType, billingUnit: x.billingUnit, unitCount: x.unitCount };
 }
 
-/** ??app ????????????DB jsonb ?????????? Json???????????????????????Json????????????*/
+/** 將 app 內部型別安全轉為 DB jsonb 可接受的 `Json`（走一次 JSON 序列化／反序列化，確保結構為純 Json）。 */
 function toJson<T>(value: T): Json {
   return JSON.parse(JSON.stringify(value ?? null));
 }
@@ -237,7 +237,7 @@ function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord
     return current;
   }
 
-  // ?????????????????????? tools?questionTools?????? .length ???????????
+  // 防呆：舊快取或異常資料可能缺 tools／questionTools，避免讀 .length 拋錯導致整頁崩潰
   const curToolsLen = current.tools?.length ?? 0;
   const incToolsLen = incoming.tools?.length ?? 0;
   const curQtLen = current.questionTools?.length ?? 0;
@@ -254,7 +254,7 @@ function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord
   };
 }
 
-// ???? DB ??App mapping ????
+// ── DB ↔ App mapping ──
 
 function fromDb(row: DbCase): CaseRecord {
   // Build workGroups from DB or migrate from legacy fields
@@ -377,7 +377,7 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   if (c.translationDeadline !== undefined) map.translation_deadline = c.translationDeadline;
   if (c.reviewer !== undefined) map.reviewer = c.reviewer;
   if (c.reviewDeadline !== undefined) map.review_deadline = c.reviewDeadline;
-  
+
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
   if (c.toolFieldValues !== undefined) map.tool_field_values = toJson(c.toolFieldValues);
   if (c.catToolEnabled !== undefined) map.cat_tool_enabled = c.catToolEnabled;
@@ -424,11 +424,11 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   return map;
 }
 
-// ???? Public API ????
+// ── Public API ──
 
 /**
- * ?????????????????????????????????`select("*")` ???????????
- * ????????????????????????????????DB ?????????? `cases`??
+ * 僅載入單一案件（詳情頁優先路徑，避免等待全表 `select("*")` 逾時／阻塞）。
+ * 若記憶體已有該筆則立即回傳；否則向 DB 取一列並合入 `cases`。
  */
 async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
   const existing = getById(id);
@@ -562,7 +562,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     partial.status !== undefined &&
     partial.status !== prev.status &&
     (revertWorkflowStatuses as readonly string[]).includes(partial.status);
-  // ????????????????????????????????????????????????????????????????????
+  // 派案重構：過度同步策略──任一派案相關欄位變動即重跑（同步函式冪等，寧可多跑不漏跑）。
   void shouldSyncCatWorkflowOnStatusRevert;
   void nextStatus;
   const shouldSyncCatWorkflowAssignments =
@@ -678,7 +678,7 @@ function reset() {
   pendingCleanupTimers.clear();
 }
 
-// Listen for auth changes ??only reload on sign-in to avoid race conditions
+// Listen for auth changes — only reload on sign-in to avoid race conditions
 supabase.auth.onAuthStateChange((event, session) => {
   const nextUserId = session?.user?.id ?? null;
 
@@ -703,7 +703,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// Realtime subscription ??sync changes from other users
+// Realtime subscription – sync changes from other users
 supabase
   .channel("cases-realtime")
   .on(
@@ -871,7 +871,7 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
   };
 }
 
-// Polling fallback ??ensures sync within 3s even if Realtime misses events
+// Polling fallback – ensures sync within 3s even if Realtime misses events
 const casePoll = createPollFallback("cases", () => {
   if (loaded) {
     loadPromise = null;
