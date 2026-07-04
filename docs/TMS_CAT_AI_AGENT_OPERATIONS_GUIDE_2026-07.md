@@ -1,6 +1,6 @@
 # TMS + CAT AI 整合操作指南（Claude 首讀）
 
-> **狀態**：2026-07-04（含 W9-A DOM 定位標記、W9-C C3 匯入檔案 file_upload 轉送）  
+> **狀態**：2026-07-04（含 W9-A DOM 定位標記、W9-C C3 匯入檔案 file_upload 轉送、W9 wave 2 A 類 bridge 優先鐵律）  
 > **對象**：瀏覽器自動化 AI（Claude in Chrome、`Runtime.evaluate`、Playwright）  
 > **預設環境**：`https://talk-hanzi-joy.vercel.app` + **測試模式**（`env=test`，與正式營運資料隔離）  
 > **次讀**：LMS API 速查 [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)、CAT API [`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)
@@ -52,7 +52,10 @@ Playwright 自動化對照：`.env` 設 `PLAYWRIGHT_ENTER_TEST_MODE=1`（見 [`T
 
 ## 3. 通用守則
 
-1. **優先 bridge**：填案件、費用、請款、上傳、CAT 匯入／AI 批次設定 — 用 API，**不要**點下拉、日期選擇器、原生 `<input type="file">`。尚無 bridge 方法的區塊（工具區塊欄位、範本選單、多人協作表格、CAT 句段狀態）改用 §11 的穩定 DOM 標記定位，**不要**截圖猜座標。
+1. **優先 bridge（鐵律，W9 wave 2 A 類，2026-07-04）**：填案件、費用、請款、上傳、CAT 匯入／AI 批次設定 — 用 API，**不要**點下拉、日期選擇器、原生 `<input type="file">`。**CAT 操作一律先查 bridge API（`__catAgent` 各方法或 §9／§10 對應章節），確認「bridge 有沒有」再動作；bridge 已支援的操作，一律禁止在 iframe 內以座標／`find` 硬驅動原生 UI 元件（`<select>`、彈出對話框按鈕等）**——常見誤區：
+   - AI 批次翻譯的 `handleUnconfirmed`／`tmThreshold`／`tmAction` 等設定：**必須**用 `aiBatch.setSettings(patch)`（見 §10.2），**禁止**去點 iframe 內原生 `<select>`（打字/點選常常打不動或選錯）。
+   - 匯入時的語言對與連結 LMS 案件：**必須**在 `import.fromBytes` 呼叫時**直接傳入** `sourceLang`／`targetLang`／`caseInfo` 參數（見 §9.1），這樣三個彈出對話框（語言對選擇、案件連結、確認）會被**直接跳過**，**禁止**先呼叫 `fromBytes` 再回頭點對話框補設定。
+   尚無 bridge 方法的區塊（工具區塊欄位、範本選單、多人協作表格、CAT 句段狀態、§11.6 之後列出的個別標記）改用 §11 的穩定 DOM 標記定位，**不要**截圖猜座標。
 2. **先探索再寫入**：`__tmsAgent.describe()` 或 `options.get('taskType')` 查合法 label。
 3. **錯誤自我修正**：回傳 `{ ok: false, error, allowed? }` 時，用 `allowed` 修正後重送。
 4. **時間**：API 用 ISO 8601（`2026-07-01T09:00:00.000Z`）；驗收畫面顯示須為 **24 小時制**。
@@ -287,7 +290,9 @@ r.ok && r.data;
 
 ## 9. CAT 匯入檔案
 
-### 9.1 推薦方式：`import.fromBytes`
+### 9.1 推薦方式：`import.fromBytes`（**含語言對／連結案件，一次帶入直接跳過三個彈出對話框**）
+
+> **W9 wave 2 A 類鐵律（2026-07-04）**：手動匯入時 UI 會依序跳出「選擇語言對」「是否連結 LMS 案件」「確認」三個彈出對話框，這是田野實測中最痛的截圖點選環節之一。**只要在 `fromBytes` 呼叫時把 `sourceLang`／`targetLang`／`caseInfo` 一次帶好，這三個對話框全部不會出現、也不需要事後補點確認**——因為 `runBatchImport` 收到完整參數後就不會進入需要人工介入的分支。**禁止**先呼叫 `fromBytes` 不帶這些參數再回頭截圖點對話框；也**禁止**在拿到 `ok:false`（例如語言代碼錯誤）後轉而放棄 bridge 改用滑鼠點選——應依 `allowed` 或錯誤訊息修正參數後重送。
 
 **在父頁**（已開啟目標專案 `/cat/team/projects/:projectId`）：
 
@@ -298,16 +303,16 @@ const r = await __tmsAgent.cat.invoke("import.fromBytes", [{
   sourceLang: "en-US",
   targetLang: "zh-TW",
   mqRole: "T_ALLOW_R1", // .mqxliff 建議提供
-  caseInfo: { caseId: "lms-case-uuid", caseTitle: "連結的案件標題" }, // 團隊版選填
+  caseInfo: { caseId: "lms-case-uuid", caseTitle: "連結的案件標題" }, // 團隊版選填——填了就跳過「是否連結案件」對話框
 }]);
-r.ok; // → true 表示已進入 runBatchImport
+r.ok; // → true 表示已進入 runBatchImport，且語言對／連結案件皆已套用，無彈出對話框待處理
 ```
 
 **前置條件：**
 
 1. iframe 內 `currentProjectId` 為目標專案（先 `cat.invoke('describe')` 確認 `projectId`）
-2. `sourceLang`、`targetLang` **必填**（須為專案支援的語言代碼）
-3. 團隊版連結 LMS 案件：選填 `caseInfo`（見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](CAT_IMPORT_CASE_LINK_2026-06.md)）
+2. `sourceLang`、`targetLang` **必填**（須為專案支援的語言代碼），**填了即跳過「選擇語言對」對話框**
+3. 團隊版連結 LMS 案件：選填 `caseInfo`（見 [`CAT_IMPORT_CASE_LINK_2026-06.md`](CAT_IMPORT_CASE_LINK_2026-06.md)），**填了即跳過「是否連結案件」對話框**
 
 ### 9.2 參數一覽
 
@@ -380,11 +385,13 @@ bridge 只負責匯入；開檔進編輯器需：
 
 ## 10. CAT AI 批次翻譯
 
+> **W9 wave 2 A 類鐵律（2026-07-04）**：Modal 內的 `handleUnconfirmed`／`tmThreshold`／`tmAction`／`handleConfirmed`／`handleRepetitions` 等都是**原生 `<select>`**，田野實測中這些下拉選單經常打不動或選錯（Chrome 通用工具對原生 select 的點選/打字支援不穩定）。**這些欄位一律用 `aiBatch.setSettings(patch)` 寫入（見 §10.2 欄位表），禁止在 Modal 內用滑鼠/打字操作這些 `<select>`。** `setSettings` 寫入後 UI 會自動同步顯示（`_updateBatchStats()`），不需要再手動點一次確認。
+
 ### 10.1 流程
 
 1. 已在編輯器且 `segmentCount > 0`
 2. `aiBatch.openModal()` 開啟 Modal
-3. `aiBatch.setSettings(patch)` 寫入偏好
+3. `aiBatch.setSettings(patch)` 寫入偏好（**所有下拉設定走這裡，不要點 Modal 內的 `<select>`**）
 4. （選用）`aiBatch.previewPrompt()` 預覽 prompt
 5. **僅在使用者明確要求時** `aiBatch.run()` — 會呼叫 LLM，**有成本**
 
@@ -500,6 +507,8 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 | `cat.invoke` 逾時 | 未開 CAT、方法錯、專案未選 | 開 CAT 頁並 `describe()` 確認 |
 | `import.fromBytes` 缺語言 | 未傳 `sourceLang`／`targetLang` | 補上專案語言對 |
 | Excel 匯入失敗 | 缺欄位設定 | 改 UI 精靈或 mqxliff 測試檔 |
+| AI 批次 Modal 內 `<select>`（`handleUnconfirmed` 等）點不動／選錯 | 原生 `<select>` 對通用瀏覽器工具支援不穩定（W9 wave 2 田野實測） | 改用 `aiBatch.setSettings(patch)`（§10.2），**禁止**點選該 Modal 內下拉 |
+| 匯入時彈出「選擇語言對」「是否連結案件」對話框，AI 卡住需截圖點選 | `import.fromBytes` 呼叫時未帶 `sourceLang`／`targetLang`／`caseInfo` | 重新呼叫時**一次帶齊**這三組參數（§9.1），對話框即不出現 |
 
 ---
 

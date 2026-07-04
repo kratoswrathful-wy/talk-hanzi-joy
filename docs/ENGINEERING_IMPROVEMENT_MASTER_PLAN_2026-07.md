@@ -429,7 +429,30 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **裁決**：純標記變更、零行為風險，2026-07-04 直接併入 `main`（merge commit `af90596`）；驗收改為併後在正式站由 Fable 5 以 `find`（無障礙定位）逐項驗證 A1–A5，任何一項定位失敗即開熱修、不回滾。
 - **正式站驗收結果（2026-07-04）**：A1／A2／A4／A5 PASS。**A3 初測未過**（Zwift 260625 案件找不到移除鈕），經程式碼比對確認為**設計行為，非漏標**：移除鈕僅在 `showRemove && canRemoveTool` 皆為真時渲染——執行工具區塊 `showRemove = canRemoveCaseTool(caseData)`（[`case-tool-count.ts`](../src/lib/case-tool-count.ts)：`countCaseTools()`（legacy `tools` 陣列長度＋`catToolEnabled`）須 **> 1** 才允許移除，確保案件永遠保留至少一種工具）；提問工具區塊為 `questionTools.length > 1`。該案件工具總數為 1，移除鈕依設計本就不顯示，`aria-label="移除工具 <名稱>"` 程式碼確認存在（`CaseDetailPage.tsx` L615）。**判定：W9-A 全數達標**，複驗建議改用「有 2 種以上工具（例如 2 個執行工具，或 1 個執行工具＋1UP CAT 已啟用）」的案件即可看到並定位到該鈕。
 
-### W9-C C3 落地紀錄（2026-07-04，分支 `feature/w9c-cat-import-testid-bridge`）
+### W9 wave 2：田野實測第二輪「仍需截圖」根治（2026-07-04，擁有者裁定）
+
+**依據**：另一 Cowork session 對 Austria／PlateUp! 建單流程的田野實測紀錄（`1UP_LMS_CAT_截圖點選需求記錄_2026-07-04.md`，原始檔為外部一次性紀錄，不進本 repo，內容摘要收錄於此，避免知識隨對話散失）列出 **8 處仍需截圖點選**的環節。Fable 5 查 bridge 原始碼後分三類，**排程 A → B → C**，一題一分支、從 `main` 開；A／B 為執行題（Sonnet 5 Medium 等級即可），C（尤其涉及 bridge 寫入與刷新邏輯的 C1／C3）為設計題（Sonnet 5 High）。
+
+| 類別 | 田野項目 | 內容 | 處理方式 |
+|---|---|---|---|
+| A1 | 第 7 項 | AI 批次翻譯設定（原生 `<select>` 打不動：`handleUnconfirmed`／`tmThreshold`／`tmAction` 等） | **零程式改動**——bridge 已有 `aiBatch.setSettings()`，問題是操作方沒用、硬點 iframe 原生 UI；改寫操作指南把 bridge 用法列為鐵律 |
+| A2 | 第 5 項 | 匯入時三個彈出對話框（語言對／連結 LMS 案件／確認） | **零程式改動**——`import.fromBytes` 已支援 `langChoice`／`caseInfo` 參數，傳入即跳過對話框；改寫操作指南列為鐵律 |
+| B1 | 第 4 項 | 新增專案語言勾選（原文／譯文兩欄易勾錯） | 加 `data-lang-col="source|target"` + `data-lang-code="<code>"` 標記 |
+| B2 | 第 6／8／5（備援）／1 項 | 編輯器身分選擇彈窗、準備完成按鈕、匯入對話框確認鈕、登入鈕 | 各加 `data-testid` 標記 |
+| C1 | 第 3 項 | 工具區塊多行欄位「寫入」——現況 `__lmsAgent` 只能 `getToolSchema` 讀，不能寫 | 新增 bridge 寫入方法，寫入後回讀驗證（屬 W9-B，較費工，分項獨立做） |
+| C2 | 第 8 項 | 批次翻譯進度查詢——現況只能截圖看「X/20」 | 新增 `aiBatch.getProgress()` 回結構化狀態（第幾批/總批/完成句數），供 AI 用 JS 輪詢（屬 W9-B） |
+| C3 | 第 2 項 | 複製案件後標題不刷新（state bleed） | bridge 寫入後觸發 UI 刷新，或提供 `case.getCurrentId()` 供對照確認渲染的是哪一筆（屬 W9-B） |
+
+**驗收方式**：涉及 CAT 的項目由 Fable 5 以 Chrome 工具實測（比照 W9-C C3：走官方入口，不作弊、不注入自訂元素）；A 類本質是文件與使用方式修正，驗收條件為「操作指南更新後，AI 依指南操作可跳過對應截圖環節」。
+
+#### A 類落地紀錄（2026-07-04，分支 `docs/w9-wave2-a-bridge-first-rule`）
+
+- **A1／A2**：純文件變更，**未修改任何程式碼**（bridge 方法本身已存在，`aiBatch.setSettings`／`import.fromBytes` 的 `caseInfo`／`sourceLang`／`targetLang` 參數皆為既有能力）。更新 [`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)：
+  - §3 通用守則新增「CAT 操作一律先查 bridge API，bridge 有的操作禁止在 iframe 內以座標／`find` 硬驅動原生 UI」鐵律，並點名 AI 批次設定與匯入語言對／連結案件兩個具體誤區。
+  - §9.1 加註記：`import.fromBytes` 一次帶入 `sourceLang`／`targetLang`／`caseInfo` 可直接跳過「選擇語言對」「是否連結案件」兩個彈出對話框，禁止先呼叫再回頭補點。
+  - §10 開頭加註記：AI 批次 Modal 內的下拉設定一律用 `aiBatch.setSettings(patch)`，禁止操作 Modal 內原生 `<select>`。
+  - §12 常見失敗表新增兩列對應症狀與處理方式。
+- **C1／C2／C3 分類澄清**：田野原始編號與 W9-B 舊表（B1–B3）内容重疊（工具欄位寫入、`case.getCurrentId()`、`__catAgent` 編輯器 API 擴充），本輪 C1–C3 為同一批工項的具體化，**執行時併入既有 W9-B 排程**，不重複計數。
 
 **裁定**：原排程「隨模組碰到時做」，因已在真實 AI 建單流程中反覆卡住，擁有者裁定提前為正式工項。
 
