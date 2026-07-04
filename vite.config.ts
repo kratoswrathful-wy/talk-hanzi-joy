@@ -75,6 +75,68 @@ export default defineConfig(({ mode }) => ({
       },
     },
     {
+      name: "cat-ai-model-sync-dev-proxy",
+      configureServer(server: ViteDevServer) {
+        server.middlewares.use(
+          "/api/cat-ai-model-sync",
+          (req: IncomingMessage, res: ServerResponse, _next: (err?: unknown) => void) => {
+            if (req.method !== "POST") {
+              res.statusCode = 405;
+              res.setHeader("Allow", "POST");
+              return res.end("Method Not Allowed");
+            }
+            let raw = "";
+            req.on("data", (c: Buffer) => {
+              raw += c.toString("utf8");
+            });
+            req.on("end", () => {
+              void (async () => {
+                let body: object = {};
+                if (raw.trim()) {
+                  try {
+                    body = JSON.parse(raw) as object;
+                  } catch {
+                    res.statusCode = 400;
+                    res.setHeader("Content-Type", "application/json; charset=utf-8");
+                    return res.end(JSON.stringify({ error: "invalid_json" }));
+                  }
+                }
+                try {
+                  const mockReq = {
+                    method: req.method,
+                    headers: req.headers,
+                    body,
+                  };
+                  const mockRes = {
+                    statusCode: 200,
+                    status(code: number) {
+                      this.statusCode = code;
+                      return this;
+                    },
+                    setHeader(key: string, value: string) {
+                      res.setHeader(key, value);
+                    },
+                    end(payload?: string) {
+                      res.statusCode = this.statusCode;
+                      return res.end(payload);
+                    },
+                  };
+                  const mod = (await import("./api/cat-ai-model-sync.js")) as {
+                    default: (req: typeof mockReq, res: typeof mockRes) => Promise<void>;
+                  };
+                  await mod.default(mockReq, mockRes);
+                } catch {
+                  res.statusCode = 500;
+                  res.setHeader("Content-Type", "application/json; charset=utf-8");
+                  return res.end(JSON.stringify({ error: "dev_proxy_failed" }));
+                }
+              })();
+            });
+          },
+        );
+      },
+    },
+    {
       name: "cat-google-sheet-csv-dev-proxy",
       configureServer(server: ViteDevServer) {
         const buildExportUrl = (raw: string) => {

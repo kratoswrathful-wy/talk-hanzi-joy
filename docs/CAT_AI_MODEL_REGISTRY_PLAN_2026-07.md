@@ -1,4 +1,4 @@
-狀態：Phase 1 已完整完成（2026-07-05）；Phase 2～4 規劃中
+狀態：Phase 1 已完整完成（2026-07-05）；Phase 2 已落地待 merge；Phase 3～4 規劃中
 
 # CAT AI 模型清單管理：可行性回應與變更計畫（Cursor 版）
 
@@ -128,7 +128,7 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 ### 2.1 資料庫（沿用 v2 計畫四張表，微調）
 
-**Phase 1 狀態（2026-07-05，已完整完成）**：schema／RLS／seed／types 已 merge `main`（PR #1，`0737bf2`）；production DB 已依核准以 Supabase MCP `apply_migration` 套用（非 `supabase db push`），`supabase_migrations.schema_migrations` 登記 `version = 20260704180000`／`name = cat_ai_model_registry`；四張表、8 條 RLS policy、`gpt-4.1-mini` seed（`enabled=true`／`is_default=true`，全表 `is_default=true` 恰好 1 筆）、security advisor 無警示，均已驗證通過。完整套用紀錄見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md`](CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md)。**Phase 2～4 尚未開始**；[`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md) 為獨立待辦，不阻塞 Phase 1。
+**Phase 1 狀態（2026-07-05，已完整完成）**：schema／RLS／seed／types 已 merge `main`（PR #1，`0737bf2`）；production DB 已依核准以 Supabase MCP `apply_migration` 套用（非 `supabase db push`），`supabase_migrations.schema_migrations` 登記 `version = 20260704180000`／`name = cat_ai_model_registry`；四張表、8 條 RLS policy、`gpt-4.1-mini` seed（`enabled=true`／`is_default=true`，全表 `is_default=true` 恰好 1 筆）、security advisor 無警示，均已驗證通過。完整套用紀錄見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md`](CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md)。**Phase 2 已落地待 merge**（見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md)）；**Phase 3～4 尚未開始**；[`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md) 為獨立待辦，不阻塞 Phase 1。
 
 新增 migration `supabase/migrations/<ts>_cat_ai_model_registry.sql`，建立：
 
@@ -141,9 +141,11 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 ### 2.2 同步 endpoint（Vercel serverless，非 Supabase Edge Function）
 
-新增 `api/sync-openai-models.js`（比照 [`api/cat-openai.js`](api/cat-openai.js) 風格）：
+**Phase 2 狀態（2026-07-05，已落地待 merge）**：實作檔 [`api/cat-ai-model-sync.js`](../api/cat-ai-model-sync.js)；授權 [`api/lib/require-executive.js`](../api/lib/require-executive.js)；規則 [`api/lib/model-sync-rules.js`](../api/lib/model-sync-rules.js)。完整規格見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md)。
 
-1. **授權（見架構條件 C）**：request 必須帶**外層 TMS React session 的 Supabase access token（JWT）**；後端用 token 取得 user id，再查 DB `user_roles` 權威角色確認為 executive／admin，非此角色一律拒絕。**不可信任 `_tmsRole` 或任何前端傳來的 role 字串**；`_isCatExecutive()` 只能做 UI 顯示 gating。
+新增 `api/cat-ai-model-sync.js`（比照 [`api/cat-openai.js`](api/cat-openai.js) 風格；原規劃檔名 `sync-openai-models.js` 已更名對齊 `cat-*` 前綴）：
+
+1. **授權（見架構條件 C）**：request 必須帶**外層 TMS React session 的 Supabase access token（JWT）**；後端用 token 取得 user id，再查 DB `user_roles` 權威角色確認為 **executive only**（pm 不可），非此角色一律拒絕。**不可信任 `_tmsRole` 或任何前端傳來的 role 字串**；`_isCatExecutive()` 只能做 UI 顯示 gating。
 2. 讀 Vercel env `OPENAI_API_KEY`，呼叫 `GET /v1/models`。
 3. 用 Supabase service role key（Vercel server-side env；新增前先確認是否已有既定命名，有則沿用，沒有才新增 `SUPABASE_SERVICE_ROLE_KEY`）upsert `ai_provider_models`：本次見到的標 `is_currently_available=true`，之前有這次沒有的標 `false`。
 4. 對新 model 建立 `cat_ai_model_options` 草稿（`enabled=false`、`display_name_zh` = humanized id、`usage_hint_zh` 留待設定）。
@@ -219,7 +221,7 @@ flowchart LR
 
 - **條件 A｜registry 只在團隊模式生效**：CAT iframe 不持有 Supabase session。團隊模式經外層 TMS React rpc 讀 registry；本機／離線模式不連 Supabase，維持硬編碼安全預設清單（此為正常行為）。
 - **條件 B｜iframe 不直查 Supabase**：新增 rpc case `db.getCatAiModelOptions`，由外層 React（[`src/lib/cat-cloud-rpc.ts`](src/lib/cat-cloud-rpc.ts)）以已登入 session 查詢，只回傳 enabled 且 provider currently available 的選項。
-- **條件 C｜後端授權回 DB 查角色**：`api/sync-openai-models.js` 以外層 session 的 JWT 取得 user id，查 DB `user_roles` 確認 executive／admin；不可信任 `_tmsRole` 或前端 role 字串。`_isCatExecutive()` 僅 UI gating。
+- **條件 C｜後端授權回 DB 查角色**：`api/cat-ai-model-sync.js` 以外層 session 的 JWT 取得 user id，查 DB `user_roles` 確認 **executive only**（pm 不可）；不可信任 `_tmsRole` 或前端 role 字串。`_isCatExecutive()` 僅 UI gating。
 
 ---
 
@@ -281,5 +283,9 @@ Phase 1 merge 前曾嘗試 Supabase Branching「從零重建」驗證，因**既
 
 ### Phase 1 完成後現況
 
-- 四張 registry 表已存在於 production DB，但**尚未被任何現行程式讀寫**（Phase 2～4 尚未開始），對現行 CAT 翻譯流程無感。
-- **Phase 2**（sync endpoint）、**Phase 3**（管理 UI）、**Phase 4**（前台選單／BYOK 收斂）待後續另行規劃與核准。
+- 四張 registry 表已存在於 production DB；Phase 2 endpoint merge 後**仍須另案核准才可在 production 執行第一次 sync**。
+- **Phase 2**（sync endpoint）已落地待 merge；**Phase 3**（管理 UI）、**Phase 4**（前台選單／BYOK 收斂）尚未開始。
+
+### 產品決策：AI 管理為系統預設值（Phase 3/4 備註）
+
+「AI 管理」模型設定為**系統層級**預設與可用清單，非使用者永久偏好。AI 批次翻譯介面（Phase 3/4）每次開啟預設 `is_default=true` 模型；使用者可臨時改選但**不保存**（不寫 DB、不寫 localStorage）；下次仍回系統預設。詳見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md) §9。
