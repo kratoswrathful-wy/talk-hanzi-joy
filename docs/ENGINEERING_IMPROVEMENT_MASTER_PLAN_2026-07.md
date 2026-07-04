@@ -306,7 +306,7 @@ flowchart LR
 
 - **遮罩方案：view**。migration `supabase/migrations/20260704010000_w10_fees_visible_mask_view.sql`（MCP `apply_migration`）建 `public.fees_visible`（`security_invoker = on`）：沿用批次 1 列級 RLS，於其上以 `CASE WHEN is_admin THEN 原值 ELSE 遮罩 END` 遮蔽欄位。
   - `internal_note`／`internal_note_url` → 空字串（內部備註 PM 以上）。
-  - `client_info` → 結構保留、營收/客戶值清空，僅留 `rateConfirmed`（費率無誤勾選為白名單）。
+  - `client_info` → 結構保留、營收/客戶值清空。~~僅留 `rateConfirmed`~~ **批次 3 起 `rateConfirmed` 亦遮罩為 `false`**（譯者已看不到費率無誤，見 §9.7）。
   - `edit_logs` → **SQL 層**過濾：只留 field/fieldKey 命中白名單且不命中黑名單（營收/客戶/內部備註）的條目（歷史舊值躺 JSONB，必須在此擋）。`notes`（費用相關備註）與 `internal_note`（PM 以上）本就分屬不同欄位，view 層各自處理。
   - `task_items`、`notes`、`title`、`assignee`、`status`、時間戳 → 原值。
 - **前端讀取路徑切換**：
@@ -320,5 +320,28 @@ flowchart LR
 - **Playwright**：
   - PM 回歸 spec [`tests/w10-fees-visible-pm.spec.ts`](../tests/w10-fees-visible-pm.spec.ts)（W10-PM-1～4：四列表、費用詳情營收/內部備註、請款詳情、寫原表→讀 view 來回），已納入 `playwright.config.ts` testMatch，`--list` 通過。
   - 譯者遮罩 spec [`tests/w10-fees-visible-translator.spec.ts`](../tests/w10-fees-visible-translator.spec.ts)（W10-T-1/2）依規格寫齊，全數 `test.fixme`（依賴換人流程），`switchToTestPersona` 內含「切換後須為 active persona」身分斷言。
-  - **執行環境限制（照實）**：本機 `.env` 無 `PLAYWRIGHT_TEST_EMAIL/PASSWORD/BASE_URL`，無法在此工作階段實跑登入型 E2E；spec 已寫好並納管，由 CI／團隊帶憑證執行。本批安全保證以 DB 層 14 項遮罩斷言為準（＋執行長人工抽查）。
+  - **更正（2026-07-04）**：先前記載「本機 `.env` 無 `PLAYWRIGHT_TEST_EMAIL/PASSWORD/BASE_URL`」有誤——三個變數皆存在且與 `auth.setup.ts` 一致；先前讀取失敗係工具 cwd／未版控檔案讀取問題，非變數缺漏。唯 `.env` 的 `PLAYWRIGHT_BASE_URL` 指向 production，而批次 2／3 前端只在本分支，須以 `PLAYWRIGHT_BASE_URL=http://localhost:8080` 覆寫（`playwright.config` 的 `webServer` 會自動起 `npm run dev` 跑分支程式碼）。**已於本機實跑 PM 回歸 spec（W10-PM-1～4）全 4 綠**（見 §9.7）。
 - **dev-switch-user 提前修復評估（擁有者追加 3）**：verifyOtp 自動化靜默失效之修復**須能實跑 Playwright 才能驗證生效**；本工作階段無登入憑證與可跑環境，無法在半天內「修復並驗證」→ 維持 Phase 3，譯者端沿用 DB 層＋執行長人工抽查（追加 4）。
+
+### 9.7 批次 3 執行結果（譯者費用模組全程唯讀，已落地，2026-07-04）
+
+**總原則（擁有者定調）**：譯者在費用模組是「純讀者」——看得到自己的稿費內容與請款狀態，其餘一律看不到、動不了。
+
+- **盤點（動手前，關鍵）**：
+  - `fees` 現況 INSERT/UPDATE/DELETE **本就已是 `is_admin`-only**（`is_admin((select auth.uid())) and env = current_env()`），譯者本無法寫；但這三條政策先前以 ad hoc 套用、repo 無 migration 記錄（架構規則 §7「DB 與版控不得脫鉤」之漂移）。
+  - 全前端 `fees` 唯一寫入者為 [`src/stores/fee-store.ts`](../src/stores/fee-store.ts)（insert/update/delete）；其呼叫端（`TranslatorFeeDetail`／`TranslatorFees`／`CaseDetailPage`／`generate-case-fees`／`ai-agent-bridge`）皆為 PM/admin 動作。`cat-wf-lms-sync.ts` 與任務完成連動**皆不寫 `fees`**。→ **無譯者 session 寫入路徑**，依裁決直接收緊（不需停下回報）。
+- **資料層（migration `supabase/migrations/20260704020000_w10_fees_write_admin_only_and_view.sql`，MCP `apply_migration`）**：
+  - `fees_insert/update/delete` idempotent 重建為僅 PM/執行長（行為與現況等價，僅補入庫防漂移）。
+  - `fees_visible` 重建：`client_info.rateConfirmed` 從白名單移除，非管理員一律 `false`；`edit_logs` 白名單黑名單再加入 `費率/rateConfirmed` 排除。
+- **UI（PM／執行長視角完全不變）**：
+  - [`src/pages/TranslatorFeeDetail.tsx`](../src/pages/TranslatorFeeDetail.tsx)：稽核既有 gate 後，右上角動作列四鈕（複製本頁／新增費用／刪除／開立稿費條）、費率無誤勾選框、新增項目按鈕**原就 `isManager` gate**；標題／任務項目輸入原就 `disabled={!canEdit}`（譯者唯讀）。本批**新增隱藏**：① 客戶請款狀態欄位整塊（原無 gate，值來自 admin-only `client_invoices`，譯者會落空顯示「尚未請款」殘影）；② 任務表「刪除」欄（標頭＋每列刪除格＋footer 對齊格，整欄移除，`colSpan` 隨之 6→5）；③ 費用相關備註的「回覆」鈕與留言輸入框（寫入走 `fees.notes`＝admin-only，對譯者為死控件）。「收錄至稿費請款單」保留（譯者正當功能）。
+  - [`src/pages/TranslatorFees.tsx`](../src/pages/TranslatorFees.tsx)：清單頁寫入類工具列（譯者請款／客戶請款／批次開立／刪除）原就 `isManager` gate、inline 編輯格 `getEditable` 對非管理員一律不可編；本批將「新增費用」由 `canCreateFee` 收緊為 `isManager && canCreateFee`（避免非管理員拿到 `create_fee` section 權限時看到死鈕）。
+- **DB 層驗證**（全 PASS）：
+  - 批次 3 寫入 [`supabase/tests/w10_fees_write_check.sql`](../supabase/tests/w10_fees_write_check.sql)，**7 項全 PASS**：譯者一 INSERT／UPDATE 單價／UPDATE status（模擬開立）／DELETE = **DENY**；PM 同操作 = **ALLOW**。
+  - 批次 2 遮罩 [`supabase/tests/w10_fees_visible_mask_check.sql`](../supabase/tests/w10_fees_visible_mask_check.sql) 重跑，**14 項全 PASS**（`rateConfirmed` 斷言改為遮罩＝`false`，無回歸、無欄位漂移、無機密字串外洩）。
+  - 批次 1 列級 [`supabase/tests/w10_translator_read_check.sql`](../supabase/tests/w10_translator_read_check.sql) 重跑，**11 項全 PASS**（列級收緊與 W5 寫入不回歸）。
+- **Playwright**：
+  - **PM 回歸 spec 本機實跑全 4 綠**（覆寫 `PLAYWRIGHT_BASE_URL=http://localhost:8080`）；過程修兩處 spec 斷言（非產品缺陷）：W10-PM-3 請款詳情頁 PM 標題為 `Input` 非 `h1`（改以「返回請款單清單」導覽鈕為穩定標記）；W10-PM-4 `agent.fee.create` 內部 createDraft(insert)＋updateFee(update) 對同 id fire-and-forget 競速、title 可能未落地（與 W10 無關的既有 agent 競態），改斷言「該筆經 `fees_visible` 讀得回」（id 可見即證明寫原表→讀 view 來回）。
+  - 譯者 spec 新增 **W10-T-3**（純讀者：無動作列四鈕、無新增項目/費率無誤、無刪除欄、無客戶請款狀態、任務輸入 disabled、清單無新增費用），與 W10-T-1/2 同為 `test.fixme`（依賴換人流程，Phase 3），DB 層已由上述三支腳本涵蓋。
+- **待併前**：由 Fable 5（本代理）以測試模式「譯者一（測試）」做批次 2＋3 合併前最終 UI 抽查；抽查通過直接併 `main`。`dev-switch-user` 自動化修復維持 Phase 3。
+- **備註**：本機 PM-4 多次實跑於 env=test 產生數筆空標題草稿 `fees`（譯者看不到、PM 端僅為空列），為避免非必要的遠端破壞性寫入未清理，列為測試環境待清雜項。

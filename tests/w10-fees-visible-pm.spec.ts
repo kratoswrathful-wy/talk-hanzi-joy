@@ -64,7 +64,10 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
     });
     test.skip(!invId, "測試環境無請款單可開啟");
     await page.goto(`/invoices/${invId}`);
-    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
+    // PM（admin）詳情頁標題為 Input（非 h1，h1 僅 isPaid && !isAdmin 時出現）；
+    // 以「返回請款單清單」導覽鈕為載入成功的穩定標記，並確認非「找不到」與無權限錯誤。
+    await expect(page.getByText("返回請款單清單").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("找不到此請款單")).toHaveCount(0);
     await expect(page.getByText(/permission denied|權限不足|無法載入/i)).toHaveCount(0);
   });
 
@@ -86,13 +89,32 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
       const opts = a.options.get("assignee");
       const assignee = opts.ok && opts.data?.labels?.length ? opts.data.labels[0] : undefined;
       const created = await a.fee.create(assignee ? { title: feeTitle, assignee } : { title: feeTitle });
-      return { ok: created.ok, error: created.error ?? "" };
+      return { ok: created.ok, error: created.error ?? "", id: created.data?.id ?? "" };
     }, title);
     expect(r.ok, r.error).toBe(true);
+    expect(r.id, "create 未回傳 id").not.toBe("");
 
-    // 重新載入 → loadFees 走 fees_visible → 剛寫入原表的費用單應出現
-    await page.reload();
-    await expectListPageReady(page, "費用管理");
-    await expect(page.getByText(title).first()).toBeVisible({ timeout: 30_000 });
+    // 驗證重點＝「寫原表 fees → 經遮罩 view fees_visible 讀得回」的來回。
+    // 註：agent.fee.create 內部 createDraft(insert) 後緊接 updateFee(update) 皆為 fire-and-forget，
+    //     兩者對同一 id 競速，title/assignee 可能尚未落地（與 W10 遮罩無關的既有 agent 競態）；
+    //     故此處斷言「該筆經 fees_visible 讀得回」（id 可見即證明來回），不綁定 racy 的 title。
+    await expect
+      .poll(
+        async () => {
+          await page.reload();
+          await expectListPageReady(page, "費用管理");
+          await waitForTmsAgent(page);
+          return await page.evaluate((feeId) => {
+            const a = (window as unknown as {
+              __lmsAgent?: { fee: { get: (id: string) => { ok: boolean; data?: { id: string } } } };
+            }).__lmsAgent;
+            if (!a) return false;
+            const g = a.fee.get(feeId);
+            return g.ok && g.data?.id === feeId;
+          }, r.id);
+        },
+        { timeout: 30_000, intervals: [1000, 2000, 3000, 5000, 5000] },
+      )
+      .toBe(true);
   });
 });

@@ -6,17 +6,21 @@ import {
 } from "./helpers/test-mode-persona";
 
 /**
- * W10 批次 2 — 譯者端遮罩驗收（fees_visible 欄位遮罩）
+ * W10 批次 2＋3 — 譯者端遮罩／唯讀驗收（fees_visible 欄位遮罩＋費用模組純讀者）
  *
  * ⚠️ 全數 test.fixme：依賴測試模式「換人」（dev-switch-user → verifyOtp），
  *   2026-07-03 起在自動化環境靜默失效（切換後仍以假執行長／管理員身分執行），
  *   會使「譯者」遮罩驗收失去意義。修復列入主計畫階段三。
- *   在此之前，譯者端遮罩以 DB 層腳本 supabase/tests/w10_fees_visible_mask_check.sql
- *   驗證（14 項全 PASS：client_info/internal_note/edit_logs 遮罩、rateConfirmed/task_items 保留），
- *   並由執行長手動切換抽查。switchToTestPersona 已內含「切換後須為 active persona」斷言
- *   （testing.mdc §6：斷言前先驗證當前生效身分），換人流程修好後移除 fixme 即可啟用。
+ *   在此之前，譯者端以 DB 層腳本驗證，並由執行長手動切換抽查：
+ *     - 批次 2 欄位遮罩：supabase/tests/w10_fees_visible_mask_check.sql
+ *       （14 項全 PASS：client_info/internal_note/edit_logs 遮罩、task_items 保留、
+ *         批次 3 起 rateConfirmed 亦遮罩為 false）。
+ *     - 批次 3 寫入收緊：supabase/tests/w10_fees_write_check.sql
+ *       （7 項全 PASS：譯者 INSERT/UPDATE/UPDATE status/DELETE = DENY，PM = ALLOW）。
+ *   switchToTestPersona 已內含「切換後須為 active persona」斷言（testing.mdc §6），
+ *   換人流程修好後移除 fixme 即可啟用。
  *
- * 規格：docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md §9.2
+ * 規格：docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md §9.2 / §9.3
  */
 test.describe.configure({ mode: "serial" });
 
@@ -56,5 +60,42 @@ test.describe("W10 Phase 2 — 譯者端遮罩（fees_visible）", () => {
     await page.goto(`/fees/${foreignFeeId}`);
     // 遮罩 view + 列級 RLS：store 無該筆 → 詳情頁應為找不到／導回，不得顯示內容
     await expect(page.getByText("營收內容")).toHaveCount(0);
+  });
+
+  // fixme：依賴假人換人（見檔頂說明）；DB 層由 w10_fees_write_check.sql 涵蓋（7 項全 PASS）
+  test.fixme("W10-T-3 — 譯者費用詳情：純讀者（無寫入控件、無刪除欄、無客戶請款狀態）", async ({ page }) => {
+    await switchToTestPersona(page, "譯者一"); // 內含 active persona 斷言
+    await page.goto("/fees");
+    await expectListPageReady(page, "費用管理");
+
+    // 清單頁：不得出現「新增費用」等寫入類工具列按鈕
+    await expect(page.getByRole("button", { name: /新增費用/ })).toHaveCount(0);
+
+    const feeId = await page.evaluate(() => {
+      const a = (window as unknown as { __lmsAgent: { fee: { list: (f: Record<string, unknown>) => { ok: boolean; data?: { id: string }[] } } } }).__lmsAgent;
+      const r = a.fee.list({});
+      return r.ok && r.data && r.data.length ? r.data[0].id : null;
+    });
+    test.skip(!feeId, "譯者無本人非草稿費用單可開啟（需先備 fixture）");
+
+    await page.goto(`/fees/${feeId}`);
+    // 右上角動作列四顆寫入鈕不得出現
+    await expect(page.getByRole("button", { name: /複製本頁/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^新增費用$/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^刪除$/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /開立稿費條/ })).toHaveCount(0);
+    // 稿費內容：無「＋新增項目」「費率無誤」、任務表無「刪除」欄標頭
+    await expect(page.getByRole("button", { name: /新增項目/ })).toHaveCount(0);
+    await expect(page.getByText("費率無誤")).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "刪除" })).toHaveCount(0);
+    // 客戶請款狀態欄位整塊隱藏（避免「標籤在、值恆為尚未請款」殘影）
+    await expect(page.getByText("客戶請款狀態")).toHaveCount(0);
+    // 任務項目輸入為唯讀（disabled）
+    const unitPriceInputs = page.locator('input[inputmode="decimal"]');
+    const n = await unitPriceInputs.count();
+    for (let i = 0; i < n; i++) {
+      await expect(unitPriceInputs.nth(i)).toBeDisabled();
+    }
+    // 「收錄至稿費請款單」為譯者正當功能，保留（不強制存在，視 fixture 狀態）
   });
 });

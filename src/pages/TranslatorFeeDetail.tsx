@@ -1829,7 +1829,8 @@ export default function TranslatorFeeDetail() {
                 })()}
               </div>
             </div>
-            {/* 客戶請款狀態 */}
+            {/* 客戶請款狀態 — 值來自 admin-only client_invoices；譯者遮蔽整塊，避免「標籤在、值恆為尚未請款」殘影 */}
+            {isManager && (
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">客戶請款狀態</Label>
               <div className="flex items-center h-10">
@@ -1861,6 +1862,7 @@ export default function TranslatorFeeDetail() {
                 })()}
               </div>
             </div>
+            )}
           </div>
 
           {/* 相關案件 + 客戶案件單連結 */}
@@ -2289,14 +2291,14 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>
+                  {isManager && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {taskItems.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={isManager ? 6 : 5}
                       className="text-center text-sm text-muted-foreground py-6"
                     >
                       尚無任務項目
@@ -2384,6 +2386,7 @@ export default function TranslatorFeeDetail() {
                           <span className="cursor-default">{isNoFeeTranslator ? 0 : `TWD ${(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}`}</span>
                         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                       </TableCell>
+                      {isManager && (
                       <TableCell className="px-2">
                         <div className="flex justify-center">
                           {canEdit && !clientInfo.rateConfirmed && taskItems.length > 1 ? (
@@ -2400,6 +2403,7 @@ export default function TranslatorFeeDetail() {
                           )}
                         </div>
                       </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}
@@ -2416,7 +2420,7 @@ export default function TranslatorFeeDetail() {
                           <span className="cursor-default">TWD {totalAmount.toLocaleString()}</span>
                         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                       </TableCell>
-                      <TableCell />
+                      {isManager && <TableCell />}
                     </TableRow>
                 </TableFooter>
               )}
@@ -2472,12 +2476,14 @@ export default function TranslatorFeeDetail() {
                         <span className="font-medium">{c.author}</span>
                         <span className="text-muted-foreground">{c.timestamp}</span>
                       </div>
-                      <button
-                        className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
-                        onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
-                      >
-                        回覆
-                      </button>
+                      {isManager && (
+                        <button
+                          className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
+                          onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                        >
+                          回覆
+                        </button>
+                      )}
                     </div>
                     <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
                   </div>
@@ -2490,7 +2496,7 @@ export default function TranslatorFeeDetail() {
                       <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                     </div>
                   ))}
-                  {replyingTo === c.id && (
+                  {isManager && replyingTo === c.id && (
                     <div className="ml-6">
                       <CommentInput
                         draft={commentDraft}
@@ -2525,6 +2531,7 @@ export default function TranslatorFeeDetail() {
               ));
             })()}
           </div>
+          {isManager && (
           <CommentInput
             draft={replyingTo ? "" : commentDraft}
             setDraft={(v) => { if (!replyingTo) setCommentDraft(v); }}
@@ -2550,6 +2557,7 @@ export default function TranslatorFeeDetail() {
               }
             }}
           />
+          )}
         </div>
 
         {/* 費用內部備註 — visible to PM+ only */}

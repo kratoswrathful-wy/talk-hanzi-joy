@@ -3,7 +3,7 @@
 -- 目的：建立 env=test fixture（assignee=譯者一 的非草稿／草稿費用單＋本人請款單），
 --       以譯者一與 PM 身分查 public.fees_visible，驗證：
 --         - 譯者讀自己非草稿 fees ≥ 1（非 trivial）；讀自己草稿 = 0
---         - 遮罩：client_info 客戶/報價清空（僅留 rateConfirmed）、internal_note 空、
+--         - 遮罩：client_info 客戶/報價清空（批次3 起 rateConfirmed 亦清為 false）、internal_note 空、
 --                 edit_logs 只留白名單欄位（無營收/客戶條目、無機密字串）、task_items 原值完整
 --         - PM 查同列：client_info/internal_note/edit_logs 全欄位完整（CASE 另一分支）
 --         - 欄位漂移：fees 有而 fees_visible 沒有的欄位 → WARN 清單（維護防漂移）
@@ -83,7 +83,7 @@ begin
     ('t1_own_invoice_ge1',       s_own_inv::text, '>=1',      case when s_own_inv>=1 then 'PASS' else 'FAIL' end),
     ('t1_ci_client_empty',       coalesce(s_ci->>'client',''), '', case when coalesce(s_ci->>'client','')='' then 'PASS' else 'FAIL' end),
     ('t1_ci_clientTaskItems_empty', coalesce((s_ci->'clientTaskItems')::text,'[]'), '[]', case when coalesce((s_ci->'clientTaskItems')::text,'[]')='[]' then 'PASS' else 'FAIL' end),
-    ('t1_ci_rateConfirmed_kept', coalesce(s_ci->>'rateConfirmed',''), 'true', case when coalesce(s_ci->>'rateConfirmed','')='true' then 'PASS' else 'FAIL' end),
+    ('t1_ci_rateConfirmed_masked', coalesce(s_ci->>'rateConfirmed',''), 'false', case when coalesce(s_ci->>'rateConfirmed','')='false' then 'PASS' else 'FAIL' end),
     ('t1_internal_note_masked',  coalesce(s_internal,''), '', case when coalesce(s_internal,'')='' then 'PASS' else 'FAIL' end),
     ('t1_editlogs_count_1',      jsonb_array_length(coalesce(s_editlogs,'[]'::jsonb))::text, '1', case when jsonb_array_length(coalesce(s_editlogs,'[]'::jsonb))=1 then 'PASS' else 'FAIL' end),
     ('t1_editlogs_no_secret',    case when coalesce(s_editlogs::text,'') ~ '(營收|客戶|999|機密)' then 'LEAK' else 'clean' end, 'clean', case when coalesce(s_editlogs::text,'') ~ '(營收|客戶|999|機密)' then 'FAIL' else 'PASS' end),
