@@ -298,7 +298,7 @@ export default function AuthPage() {
                 </button>
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" data-testid="btn-auth-submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLogin ? "登入" : "註冊"}
             </Button>

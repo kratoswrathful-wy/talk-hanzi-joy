@@ -64,7 +64,7 @@ function langBadgeHtml(codes, dir = '') {
 /** 建立語言多選 UI（checkbox 列表），回傳 container element
  *  @param {string[]} selected - 已選中的語言代碼
  */
-function buildLangCheckboxes(selected = []) {
+function buildLangCheckboxes(selected = [], col = '') {
     const wrap = document.createElement('div');
 
     // 搜尋框
@@ -75,15 +75,21 @@ function buildLangCheckboxes(selected = []) {
     search.style.cssText = 'width:100%; box-sizing:border-box; padding:0.3rem 0.5rem; margin-bottom:0.3rem; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;';
     wrap.appendChild(search);
 
-    // Checkbox 容器
+    // Checkbox 容器（W9 wave 2 B1：col 為 'source'/'target' 時，各 checkbox 加
+    // data-lang-col／data-lang-code，供 AI 定位「原文語言」vs「譯文語言」兩欄，避免勾錯欄）
     const container = document.createElement('div');
+    if (col) container.setAttribute('data-lang-col', col);
     container.style.cssText = 'display:flex; flex-wrap:wrap; gap:0.35rem; max-height:160px; overflow-y:auto; padding:0.25rem; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc;';
     LANG_OPTIONS.forEach(opt => {
         const lbl = document.createElement('label');
+        if (col) lbl.setAttribute('data-lang-col', col);
+        lbl.setAttribute('data-lang-code', opt.code);
         lbl.style.cssText = 'display:inline-flex; align-items:center; gap:0.25rem; cursor:pointer; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.82rem; white-space:nowrap; background:#fff; border:1px solid #e2e8f0;';
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.value = opt.code;
+        if (col) cb.setAttribute('data-lang-col', col);
+        cb.setAttribute('data-lang-code', opt.code);
         cb.checked = selected.includes(opt.code);
         cb.style.cursor = 'pointer';
         lbl.appendChild(cb);
@@ -6652,6 +6658,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 adjust.classList.remove('disabled');
                 adjust.textContent = prepActive ? '準備完成' : '調整狀態';
                 adjust.setAttribute('data-tip', prepActive ? '標記檔案準備完成' : '調整翻譯步驟與段落指派狀態');
+                // W9 wave 2 B2：同步 data-mode，AI 不必靠按鈕文字判斷目前是「準備完成」或「調整狀態」模式
+                adjust.setAttribute('data-mode', prepActive ? 'prep-completed' : 'adjust');
             }
             if (arrow) arrow.style.display = 'none';
             _syncWfAdjustSplitBtnSolo(adjust, arrow);
@@ -13797,8 +13805,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             tgtContainer.innerHTML = '';
             const existingSrc = (existingEntity && existingEntity.sourceLangs) ? existingEntity.sourceLangs : [];
             const existingTgt = (existingEntity && existingEntity.targetLangs) ? existingEntity.targetLangs : [];
-            _namingModalSrcLangsCb = buildLangCheckboxes(existingSrc);
-            _namingModalTgtLangsCb = buildLangCheckboxes(existingTgt);
+            _namingModalSrcLangsCb = buildLangCheckboxes(existingSrc, 'source');
+            _namingModalTgtLangsCb = buildLangCheckboxes(existingTgt, 'target');
             srcContainer.appendChild(_namingModalSrcLangsCb);
             tgtContainer.appendChild(_namingModalTgtLangsCb);
         } else {
