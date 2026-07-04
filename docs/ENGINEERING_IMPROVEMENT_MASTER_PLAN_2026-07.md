@@ -115,6 +115,8 @@ flowchart LR
 | **W6** | GitHub Actions：push／PR 自動跑檢查 | 無（e2e 可降級） | CI 綠燈；失敗時阻擋合併或推送（依設定） |
 | **R2** | 推送前三關門檻寫入 `AGENTS.md` | 無 | 代理推送前實際跑過三關 |
 
+**動機實害案例（2026-07-04）**：W10 批次 2 建 `fees_visible` view 未重生 Supabase types，本機 `npm run dev` 不跑 tsc 全綠即推送，Vercel 正式建置 `tsc -b` ERROR（deployment `dpl_6KKcsFXYyhLYq48fdFsgqymbndbL`；`.from("fees_visible")` 型別不過）。若 W6 CI 或 R2 推送前 typecheck 已生效，推送當下即攔截。已補常駐規則 [`testing.mdc`](../.cursor/rules/testing.mdc) §7（新增 DB 物件同 commit 重生 types + typecheck）。
+
 ### 階段四：資料層大掃除（中風險，機器人保護）
 
 **前置條件**：階段三 Playwright ＋ vitest 基礎可用。
@@ -345,3 +347,43 @@ flowchart LR
   - 譯者 spec 新增 **W10-T-3**（純讀者：無動作列四鈕、無新增項目/費率無誤、無刪除欄、無客戶請款狀態、任務輸入 disabled、清單無新增費用），與 W10-T-1/2 同為 `test.fixme`（依賴換人流程，Phase 3），DB 層已由上述三支腳本涵蓋。
 - **待併前**：由 Fable 5（本代理）以測試模式「譯者一（測試）」做批次 2＋3 合併前最終 UI 抽查；抽查通過直接併 `main`。`dev-switch-user` 自動化修復維持 Phase 3。
 - **備註**：本機 PM-4 多次實跑於 env=test 產生數筆空標題草稿 `fees`（譯者看不到、PM 端僅為空列），為避免非必要的遠端破壞性寫入未清理，列為測試環境待清雜項。
+
+### 9.8 批次 3 後續熱修：Vercel 建置失敗（types 未重生，2026-07-04）
+
+- **問題**（Fable 5 發現，deployment `dpl_6KKcsFXYyhLYq48fdFsgqymbndbL` ERROR）：批次 2 引入 `.from("fees_visible")` 但 `src/integrations/supabase/types.ts` 未重生，`Views` 仍為空 → Vercel `tsc -b` 型別錯誤（`CommentInput.tsx`、`fee-store.ts`）。本機全綠假象：`npm run dev` 不跑 tsc，正式建置才跑。
+- **修復**：以 MCP `generate_typescript_types` 重生 types（`fees_visible` 進 `Views`），`npm run typecheck` 通過；**未用 `as any` 繞過**。
+- **教訓入檔**：W6/R2 動機欄（階段三）補實害案例；[`testing.mdc`](../.cursor/rules/testing.mdc) 新增 §7「新增資料庫物件必同步重生 types 並過 typecheck」。
+
+## 10. W9 AI 可操作性（擁有者 2026-07-04 裁定：W10 之後的下一優先）
+
+**背景**：本專案的驗收與自動化作業大量由 AI 操作網頁執行；兩份實測報告（Claude 建單截圖依賴分析 2026-07-03、Fable 5 CAT 抽測 2026-07-03）共列 11 個「AI 被迫截圖猜座標或繞道」的摩擦點。降低摩擦＝每一輪 AI 驗收更快更穩，也直接提升 Playwright 劇本穩定性。**排程**：置於 W10 之後、階段三之前或並行（A 組不衝突可先做）；W10 併入 `main` 後即開工 A 組。
+
+### W9-A：加標記即可（半天級，先做）
+
+| 編號 | 內容 |
+|------|------|
+| A1 | 案件頁工具區塊欄位加 `data-testid`（`tool-server`／`tool-username`／`tool-password`／`tool-project`／`tool-files`）——現無 id/name/ARIA 可定位 |
+| A2 | 範本彈出視窗選項加 `data-testid`（`template-option-<名稱>`） |
+| A3 | 工具區塊移除鈕加 `aria-label="移除工具 <名稱>"` |
+| A4 | 多人協作表格每列日期欄加 `data-collab-id`（現況：點日期全寫入第一列，AI 只能截圖量 y 座標） |
+| A5 | CAT 編輯器句段列加 `data-status="confirmed|draft|…"`（現況狀態僅靠圖示樣式，AI 與 Playwright 皆無法程式判讀） |
+
+### W9-B：bridge API 擴充（中等，隨模組碰到時做）
+
+| 編號 | 內容 |
+|------|------|
+| B1 | `__lmsAgent` 支援工具區塊欄位寫入＋讀回驗證（密碼可維持 `[BLOCKED]`，但須回傳「已套用範本 X」的可驗證訊號） |
+| B2 | `case.getCurrentId()`——偵測導覽後 React state 殘留（state bleed） |
+| B3 | `__catAgent` 擴充編輯器 API：句段查詢（狀態/數量）、跳至句段、讀取目前焦點句 |
+
+### W9-C：行為修正（個案）
+
+| 編號 | 內容 |
+|------|------|
+| C1 | bridge 寫入成功（`ok:true`）後清除 `beforeunload` 攔截（現況 AI 導覽被 Leave site? 擋住，只能開新分頁繞） |
+| C2 | 語言對選擇框打字搜尋無反應（打 `zh` 清單不過濾；人類也可能受影響） |
+| C3 | CAT iframe 對無障礙樹不可見——generic 工具（find/read_page/file_upload）全失效；至少為匯入 file input 提供可及定位，或評估 iframe a11y 曝露設定 |
+
+### W9 驗收標準
+
+每項以「**AI 不靠截圖完成對應操作**」為通過條件：A 組 find 定位成功即過；B 組以 bridge 呼叫回傳驗證；C 組個案定義。全數完成後更新 [`docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) 對應章節。

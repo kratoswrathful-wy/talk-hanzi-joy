@@ -245,6 +245,333 @@ export type Database = {
         }
         Relationships: []
       }
+      cat_ai_category_tags: {
+        Row: {
+          created_at: string
+          id: number
+          list_hidden: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          list_hidden?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          list_hidden?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      cat_ai_guidelines: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          created_by: string | null
+          examples: Json
+          id: number
+          is_default: boolean
+          issue_group_id: string | null
+          mutex_group: string | null
+          scope: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          examples?: Json
+          id?: number
+          is_default?: boolean
+          issue_group_id?: string | null
+          mutex_group?: string | null
+          scope?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          examples?: Json
+          id?: number
+          is_default?: boolean
+          issue_group_id?: string | null
+          mutex_group?: string | null
+          scope?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_ai_guidelines_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_ai_guidelines_issue_group_id_fkey"
+            columns: ["issue_group_id"]
+            isOneToOne: false
+            referencedRelation: "cat_ai_issue_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_ai_issue_groups: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          project_id: string | null
+          scope: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          project_id?: string | null
+          scope: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          project_id?: string | null
+          scope?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_ai_issue_groups_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_ai_project_settings: {
+        Row: {
+          batch_introduction: string
+          batch_ref_options: Json
+          project_ai_instructions: Json
+          project_guidelines: Json
+          project_id: string
+          selected_guideline_ids: number[]
+          selected_style_guideline_ids: number[]
+          special_instructions: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          batch_introduction?: string
+          batch_ref_options?: Json
+          project_ai_instructions?: Json
+          project_guidelines?: Json
+          project_id: string
+          selected_guideline_ids?: number[]
+          selected_style_guideline_ids?: number[]
+          special_instructions?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          batch_introduction?: string
+          batch_ref_options?: Json
+          project_ai_instructions?: Json
+          project_guidelines?: Json
+          project_id?: string
+          selected_guideline_ids?: number[]
+          selected_style_guideline_ids?: number[]
+          special_instructions?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_ai_project_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_ai_project_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_ai_settings: {
+        Row: {
+          api_base_url: string
+          api_key: string
+          batch_size: number
+          id: number
+          model: string
+          prefer_openai_proxy: boolean
+          prompts: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          api_base_url?: string
+          api_key?: string
+          batch_size?: number
+          id: number
+          model?: string
+          prefer_openai_proxy?: boolean
+          prompts?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          api_base_url?: string
+          api_key?: string
+          batch_size?: number
+          id?: number
+          model?: string
+          prefer_openai_proxy?: boolean
+          prompts?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_ai_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_ai_style_examples: {
+        Row: {
+          ai_draft: string
+          categories: Json
+          context_next: string
+          context_prev: string
+          created_at: string
+          created_by: string | null
+          edit_notes: Json
+          id: number
+          mod_tags: Json
+          seg_id: string | null
+          source_lang: string
+          source_text: string
+          target_lang: string
+          updated_at: string
+          user_final: string
+        }
+        Insert: {
+          ai_draft?: string
+          categories?: Json
+          context_next?: string
+          context_prev?: string
+          created_at?: string
+          created_by?: string | null
+          edit_notes?: Json
+          id?: number
+          mod_tags?: Json
+          seg_id?: string | null
+          source_lang?: string
+          source_text?: string
+          target_lang?: string
+          updated_at?: string
+          user_final?: string
+        }
+        Update: {
+          ai_draft?: string
+          categories?: Json
+          context_next?: string
+          context_prev?: string
+          created_at?: string
+          created_by?: string | null
+          edit_notes?: Json
+          id?: number
+          mod_tags?: Json
+          seg_id?: string | null
+          source_lang?: string
+          source_text?: string
+          target_lang?: string
+          updated_at?: string
+          user_final?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_ai_style_examples_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_ai_user_batch_prefs: {
+        Row: {
+          env: string
+          prefs: Json
+          project_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          env?: string
+          prefs?: Json
+          project_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          env?: string
+          prefs?: Json
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cat_annotation_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          option_type: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          option_type: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          option_type?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       cat_assignments: {
         Row: {
           case_id: string
@@ -370,11 +697,159 @@ export type Database = {
           },
         ]
       }
+      cat_file_attachments: {
+        Row: {
+          body_base64: string
+          created_at: string
+          file_id: string
+          id: string
+          mime_type: string
+          name: string
+          size_bytes: number
+        }
+        Insert: {
+          body_base64?: string
+          created_at?: string
+          file_id: string
+          id?: string
+          mime_type?: string
+          name?: string
+          size_bytes?: number
+        }
+        Update: {
+          body_base64?: string
+          created_at?: string
+          file_id?: string
+          id?: string
+          mime_type?: string
+          name?: string
+          size_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_file_attachments_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_file_user_access: {
+        Row: {
+          file_id: string
+          last_opened_at: string
+          user_id: string
+        }
+        Insert: {
+          file_id: string
+          last_opened_at?: string
+          user_id: string
+        }
+        Update: {
+          file_id?: string
+          last_opened_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_file_user_access_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_file_user_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_file_work_memos: {
+        Row: {
+          file_id: string
+          history: Json
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          file_id: string
+          history?: Json
+          text?: string
+          updated_at?: string
+        }
+        Update: {
+          file_id?: string
+          history?: Json
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_file_work_memos_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: true
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_file_workflow_stages: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          file_id: string
+          id: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          file_id: string
+          id?: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          file_id?: string
+          id?: string
+          label?: string
+          stage_kind?: string
+          stage_order?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_file_workflow_stages_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cat_files: {
         Row: {
           applicable_special_instruction_ids: Json
           created_at: string
           default_mq_role: string
+          env: string
           file_format: string
           google_sheet_url: string
           id: string
@@ -395,6 +870,7 @@ export type Database = {
           applicable_special_instruction_ids?: Json
           created_at?: string
           default_mq_role?: string
+          env?: string
           file_format?: string
           google_sheet_url?: string
           id?: string
@@ -415,6 +891,7 @@ export type Database = {
           applicable_special_instruction_ids?: Json
           created_at?: string
           default_mq_role?: string
+          env?: string
           file_format?: string
           google_sheet_url?: string
           id?: string
@@ -631,10 +1108,50 @@ export type Database = {
           },
         ]
       }
+      cat_project_attachments: {
+        Row: {
+          body_base64: string
+          created_at: string
+          id: string
+          mime_type: string
+          name: string
+          project_id: string
+          size_bytes: number
+        }
+        Insert: {
+          body_base64?: string
+          created_at?: string
+          id?: string
+          mime_type?: string
+          name?: string
+          project_id: string
+          size_bytes?: number
+        }
+        Update: {
+          body_base64?: string
+          created_at?: string
+          id?: string
+          mime_type?: string
+          name?: string
+          project_id?: string
+          size_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_project_attachments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cat_projects: {
         Row: {
           assignment_id: string | null
           change_log: Json
+          client_question_form_columns: Json | null
+          client_question_form_url: string
           created_at: string
           env: string
           id: string
@@ -645,12 +1162,15 @@ export type Database = {
           read_tms: string[]
           source_langs: string[]
           target_langs: string[]
+          tm_penalties: Json
           write_tb: string | null
           write_tms: string[]
         }
         Insert: {
           assignment_id?: string | null
           change_log?: Json
+          client_question_form_columns?: Json | null
+          client_question_form_url?: string
           created_at?: string
           env?: string
           id?: string
@@ -661,12 +1181,15 @@ export type Database = {
           read_tms?: string[]
           source_langs?: string[]
           target_langs?: string[]
+          tm_penalties?: Json
           write_tb?: string | null
           write_tms?: string[]
         }
         Update: {
           assignment_id?: string | null
           change_log?: Json
+          client_question_form_columns?: Json | null
+          client_question_form_url?: string
           created_at?: string
           env?: string
           id?: string
@@ -677,6 +1200,7 @@ export type Database = {
           read_tms?: string[]
           source_langs?: string[]
           target_langs?: string[]
+          tm_penalties?: Json
           write_tb?: string | null
           write_tms?: string[]
         }
@@ -697,76 +1221,73 @@ export type Database = {
           },
         ]
       }
-      cat_segments: {
+      cat_segment_annotations: {
         Row: {
-          col_src: string | null
-          col_tgt: string | null
+          author_user_id: string | null
           created_at: string
-          editor_note: string
-          extra_value: string | null
           file_id: string
           id: string
-          id_value: string | null
-          is_locked: boolean
-          is_locked_system: boolean
-          is_locked_user: boolean
-          last_modified: string
-          match_value: number | null
-          row_idx: number
-          segment_revision: number
-          sheet_name: string
-          source_text: string
-          status: string
-          target_text: string
+          is_translator_ack: boolean
+          issue_type: string | null
+          note: string
+          parent_annotation_id: string | null
+          responder_role: string
+          segment_id: string
+          severity: string | null
         }
         Insert: {
-          col_src?: string | null
-          col_tgt?: string | null
+          author_user_id?: string | null
           created_at?: string
-          editor_note?: string
-          extra_value?: string | null
           file_id: string
           id?: string
-          id_value?: string | null
-          is_locked?: boolean
-          is_locked_system?: boolean
-          is_locked_user?: boolean
-          last_modified?: string
-          match_value?: number | null
-          row_idx?: number
-          segment_revision?: number
-          sheet_name?: string
-          source_text?: string
-          status?: string
-          target_text?: string
+          is_translator_ack?: boolean
+          issue_type?: string | null
+          note?: string
+          parent_annotation_id?: string | null
+          responder_role: string
+          segment_id: string
+          severity?: string | null
         }
         Update: {
-          col_src?: string | null
-          col_tgt?: string | null
+          author_user_id?: string | null
           created_at?: string
-          editor_note?: string
-          extra_value?: string | null
           file_id?: string
           id?: string
-          id_value?: string | null
-          is_locked?: boolean
-          is_locked_system?: boolean
-          is_locked_user?: boolean
-          last_modified?: string
-          match_value?: number | null
-          row_idx?: number
-          segment_revision?: number
-          sheet_name?: string
-          source_text?: string
-          status?: string
-          target_text?: string
+          is_translator_ack?: boolean
+          issue_type?: string | null
+          note?: string
+          parent_annotation_id?: string | null
+          responder_role?: string
+          segment_id?: string
+          severity?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "cat_segments_file_id_fkey"
+            foreignKeyName: "cat_segment_annotations_author_user_id_fkey"
+            columns: ["author_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segment_annotations_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
             referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segment_annotations_parent_annotation_id_fkey"
+            columns: ["parent_annotation_id"]
+            isOneToOne: false
+            referencedRelation: "cat_segment_annotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segment_annotations_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "cat_segments"
             referencedColumns: ["id"]
           },
         ]
@@ -819,17 +1340,294 @@ export type Database = {
           },
         ]
       }
+      cat_segment_stage_snapshots: {
+        Row: {
+          confirmed_by: string | null
+          file_id: string
+          id: string
+          segment_id: string
+          snapshot_reason: string
+          snapshotted_at: string
+          target_tags: Json | null
+          target_text: string
+        }
+        Insert: {
+          confirmed_by?: string | null
+          file_id: string
+          id?: string
+          segment_id: string
+          snapshot_reason: string
+          snapshotted_at?: string
+          target_tags?: Json | null
+          target_text?: string
+        }
+        Update: {
+          confirmed_by?: string | null
+          file_id?: string
+          id?: string
+          segment_id?: string
+          snapshot_reason?: string
+          snapshotted_at?: string
+          target_tags?: Json | null
+          target_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_segment_stage_snapshots_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segment_stage_snapshots_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segment_stage_snapshots_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "cat_segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_segments: {
+        Row: {
+          col_src: string | null
+          col_tgt: string | null
+          confirmation_role: string | null
+          created_at: string
+          editor_note: string
+          extra_value: string | null
+          file_id: string
+          global_id: number | null
+          id: string
+          id_value: string | null
+          is_locked: boolean
+          is_locked_system: boolean
+          is_locked_user: boolean
+          last_modified: string
+          match_value: number | null
+          mq_inserted_match: Json | null
+          original_role: string | null
+          row_idx: number
+          segment_revision: number
+          sheet_name: string
+          source_change_info: Json | null
+          source_tags: Json
+          source_text: string
+          status: string
+          target_tags: Json
+          target_text: string
+          wf_review_confirmed_at: string | null
+          wf_review_confirmed_by: string | null
+          wf_review_restore_snapshot: Json | null
+          wf_review_revoked_pending: boolean
+          wf_trans_confirmed_at: string | null
+          wf_trans_confirmed_by: string | null
+          xliff_tu_id: string | null
+        }
+        Insert: {
+          col_src?: string | null
+          col_tgt?: string | null
+          confirmation_role?: string | null
+          created_at?: string
+          editor_note?: string
+          extra_value?: string | null
+          file_id: string
+          global_id?: number | null
+          id?: string
+          id_value?: string | null
+          is_locked?: boolean
+          is_locked_system?: boolean
+          is_locked_user?: boolean
+          last_modified?: string
+          match_value?: number | null
+          mq_inserted_match?: Json | null
+          original_role?: string | null
+          row_idx?: number
+          segment_revision?: number
+          sheet_name?: string
+          source_change_info?: Json | null
+          source_tags?: Json
+          source_text?: string
+          status?: string
+          target_tags?: Json
+          target_text?: string
+          wf_review_confirmed_at?: string | null
+          wf_review_confirmed_by?: string | null
+          wf_review_restore_snapshot?: Json | null
+          wf_review_revoked_pending?: boolean
+          wf_trans_confirmed_at?: string | null
+          wf_trans_confirmed_by?: string | null
+          xliff_tu_id?: string | null
+        }
+        Update: {
+          col_src?: string | null
+          col_tgt?: string | null
+          confirmation_role?: string | null
+          created_at?: string
+          editor_note?: string
+          extra_value?: string | null
+          file_id?: string
+          global_id?: number | null
+          id?: string
+          id_value?: string | null
+          is_locked?: boolean
+          is_locked_system?: boolean
+          is_locked_user?: boolean
+          last_modified?: string
+          match_value?: number | null
+          mq_inserted_match?: Json | null
+          original_role?: string | null
+          row_idx?: number
+          segment_revision?: number
+          sheet_name?: string
+          source_change_info?: Json | null
+          source_tags?: Json
+          source_text?: string
+          status?: string
+          target_tags?: Json
+          target_text?: string
+          wf_review_confirmed_at?: string | null
+          wf_review_confirmed_by?: string | null
+          wf_review_restore_snapshot?: Json | null
+          wf_review_revoked_pending?: boolean
+          wf_trans_confirmed_at?: string | null
+          wf_trans_confirmed_by?: string | null
+          xliff_tu_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_segments_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segments_wf_review_confirmed_by_fkey"
+            columns: ["wf_review_confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segments_wf_trans_confirmed_by_fkey"
+            columns: ["wf_trans_confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_stage_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          collab_row_id: string | null
+          file_id: string
+          file_workflow_stage_id: string
+          first_edited_at: string | null
+          id: string
+          line_end: number | null
+          line_start: number | null
+          scope_label: string | null
+          updated_at: string
+          view_id: string | null
+          workflow_status: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignee_user_id: string
+          collab_row_id?: string | null
+          file_id: string
+          file_workflow_stage_id: string
+          first_edited_at?: string | null
+          id?: string
+          line_end?: number | null
+          line_start?: number | null
+          scope_label?: string | null
+          updated_at?: string
+          view_id?: string | null
+          workflow_status?: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignee_user_id?: string
+          collab_row_id?: string | null
+          file_id?: string
+          file_workflow_stage_id?: string
+          first_edited_at?: string | null
+          id?: string
+          line_end?: number | null
+          line_start?: number | null
+          scope_label?: string | null
+          updated_at?: string
+          view_id?: string | null
+          workflow_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_stage_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_stage_assignments_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_stage_assignments_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_stage_assignments_file_workflow_stage_id_fkey"
+            columns: ["file_workflow_stage_id"]
+            isOneToOne: false
+            referencedRelation: "cat_file_workflow_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_stage_assignments_view_id_fkey"
+            columns: ["view_id"]
+            isOneToOne: false
+            referencedRelation: "cat_views"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cat_tbs: {
         Row: {
           change_log: Json
           created_at: string
           env: string
+          google_sheet_url: string
           id: string
           last_modified: string
           name: string
           next_term_number: number
+          online_import_config: Json
+          online_tabs: Json
           owner_user_id: string | null
           source_langs: string[]
+          source_type: string
+          source_type_locked: boolean
           target_langs: string[]
           terms: Json
         }
@@ -837,12 +1635,17 @@ export type Database = {
           change_log?: Json
           created_at?: string
           env?: string
+          google_sheet_url?: string
           id?: string
           last_modified?: string
           name?: string
           next_term_number?: number
+          online_import_config?: Json
+          online_tabs?: Json
           owner_user_id?: string | null
           source_langs?: string[]
+          source_type?: string
+          source_type_locked?: boolean
           target_langs?: string[]
           terms?: Json
         }
@@ -850,12 +1653,17 @@ export type Database = {
           change_log?: Json
           created_at?: string
           env?: string
+          google_sheet_url?: string
           id?: string
           last_modified?: string
           name?: string
           next_term_number?: number
+          online_import_config?: Json
+          online_tabs?: Json
           owner_user_id?: string | null
           source_langs?: string[]
+          source_type?: string
+          source_type_locked?: boolean
           target_langs?: string[]
           terms?: Json
         }
@@ -975,6 +1783,286 @@ export type Database = {
           },
         ]
       }
+      cat_translator_question_form_prefs: {
+        Row: {
+          project_id: string
+          settings_json: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          project_id: string
+          settings_json?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          project_id?: string
+          settings_json?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_translator_question_form_prefs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_user_segment_markers: {
+        Row: {
+          colors: string[]
+          file_id: string
+          segment_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          colors?: string[]
+          file_id: string
+          segment_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          colors?: string[]
+          file_id?: string
+          segment_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_user_segment_markers_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_user_segment_markers_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "cat_segments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_user_segment_markers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_user_ui_prefs: {
+        Row: {
+          hide_completed_dashboard: boolean
+          qa_report_surface: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          hide_completed_dashboard?: boolean
+          qa_report_surface?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          hide_completed_dashboard?: boolean
+          qa_report_surface?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_user_ui_prefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_view_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          id: string
+          status: string
+          updated_at: string
+          view_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignee_user_id: string
+          id?: string
+          status?: string
+          updated_at?: string
+          view_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignee_user_id?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          view_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_view_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_view_assignments_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_view_assignments_view_id_fkey"
+            columns: ["view_id"]
+            isOneToOne: false
+            referencedRelation: "cat_views"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_views: {
+        Row: {
+          created_at: string
+          file_ids: string[]
+          file_roles: Json
+          filter_summary: Json
+          id: string
+          last_modified: string
+          name: string
+          owner_user_id: string | null
+          project_id: string
+          segment_ids: string[]
+        }
+        Insert: {
+          created_at?: string
+          file_ids?: string[]
+          file_roles?: Json
+          filter_summary?: Json
+          id?: string
+          last_modified?: string
+          name?: string
+          owner_user_id?: string | null
+          project_id: string
+          segment_ids?: string[]
+        }
+        Update: {
+          created_at?: string
+          file_ids?: string[]
+          file_roles?: Json
+          filter_summary?: Json
+          id?: string
+          last_modified?: string
+          name?: string
+          owner_user_id?: string | null
+          project_id?: string
+          segment_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_views_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_views_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_workflow_template_stages: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          stage_kind?: string
+          stage_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_workflow_template_stages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "cat_workflow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cat_workflow_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          last_modified: string
+          name: string
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          last_modified?: string
+          name?: string
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          last_modified?: string
+          name?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_workflow_templates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cat_workspace_notes: {
         Row: {
           content: string
@@ -1055,6 +2143,13 @@ export type Database = {
             columns: ["fee_id"]
             isOneToOne: false
             referencedRelation: "fees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_invoice_fees_fee_id_fkey"
+            columns: ["fee_id"]
+            isOneToOne: false
+            referencedRelation: "fees_visible"
             referencedColumns: ["id"]
           },
         ]
@@ -1369,6 +2464,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoice_fees_fee_id_fkey"
+            columns: ["fee_id"]
+            isOneToOne: false
+            referencedRelation: "fees_visible"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoice_fees_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -1535,6 +2637,7 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
+          is_test: boolean
           mobile: string | null
           phone: string | null
           receive_translator_case_reply_slack_dms: boolean
@@ -1550,6 +2653,7 @@ export type Database = {
           display_name?: string | null
           email: string
           id: string
+          is_test?: boolean
           mobile?: string | null
           phone?: string | null
           receive_translator_case_reply_slack_dms?: boolean
@@ -1565,6 +2669,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
+          is_test?: boolean
           mobile?: string | null
           phone?: string | null
           receive_translator_case_reply_slack_dms?: boolean
@@ -1667,36 +2772,304 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      fees_visible: {
+        Row: {
+          assignee: string | null
+          client_info: Json | null
+          created_at: string | null
+          created_by: string | null
+          edit_log_phases: Json | null
+          edit_logs: Json | null
+          env: string | null
+          finalized_at: string | null
+          finalized_by: string | null
+          id: string | null
+          internal_note: string | null
+          internal_note_url: string | null
+          notes: Json | null
+          status: string | null
+          task_items: Json | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assignee?: string | null
+          client_info?: never
+          created_at?: string | null
+          created_by?: string | null
+          edit_log_phases?: Json | null
+          edit_logs?: never
+          env?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          id?: string | null
+          internal_note?: never
+          internal_note_url?: never
+          notes?: Json | null
+          status?: string | null
+          task_items?: Json | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assignee?: string | null
+          client_info?: never
+          created_at?: string | null
+          created_by?: string | null
+          edit_log_phases?: Json | null
+          edit_logs?: never
+          env?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          id?: string | null
+          internal_note?: never
+          internal_note_url?: never
+          notes?: Json | null
+          status?: string | null
+          task_items?: Json | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      /** CAT 句段譯文寫庫樂觀鎖（migration: apply_cat_segment_target_update） */
       apply_cat_segment_target_update: {
         Args: {
-          p_segment_id: string
-          p_new_target_text: string
           p_expected_segment_revision: number
           p_extras?: Json
+          p_new_target_text: string
+          p_segment_id: string
         }
-        Returns: Database["public"]["Tables"]["cat_segments"]["Row"][]
+        Returns: {
+          col_src: string | null
+          col_tgt: string | null
+          confirmation_role: string | null
+          created_at: string
+          editor_note: string
+          extra_value: string | null
+          file_id: string
+          global_id: number | null
+          id: string
+          id_value: string | null
+          is_locked: boolean
+          is_locked_system: boolean
+          is_locked_user: boolean
+          last_modified: string
+          match_value: number | null
+          mq_inserted_match: Json | null
+          original_role: string | null
+          row_idx: number
+          segment_revision: number
+          sheet_name: string
+          source_change_info: Json | null
+          source_tags: Json
+          source_text: string
+          status: string
+          target_tags: Json
+          target_text: string
+          wf_review_confirmed_at: string | null
+          wf_review_confirmed_by: string | null
+          wf_review_restore_snapshot: Json | null
+          wf_review_revoked_pending: boolean
+          wf_trans_confirmed_at: string | null
+          wf_trans_confirmed_by: string | null
+          xliff_tu_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "cat_segments"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
-      try_acquire_cat_segment_edit_lease: {
+      apply_cat_segments_patch_batch: {
+        Args: { p_updates: Json }
+        Returns: undefined
+      }
+      cat_case_all_linked_files_prep_ready: {
+        Args: { p_case_id: string }
+        Returns: boolean
+      }
+      cat_case_linked_files_not_prep_ready: {
+        Args: { p_case_id: string }
+        Returns: {
+          file_id: string
+          file_name: string
+        }[]
+      }
+      cat_catchup_segment_snapshots: {
+        Args: { p_file_id: string; p_rows: Json; p_snapshot_reason: string }
+        Returns: number
+      }
+      cat_mark_stage_assignment_first_edited: {
+        Args: { p_assignment_id: string }
+        Returns: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          collab_row_id: string | null
+          file_id: string
+          file_workflow_stage_id: string
+          first_edited_at: string | null
+          id: string
+          line_end: number | null
+          line_start: number | null
+          scope_label: string | null
+          updated_at: string
+          view_id: string | null
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_stage_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cat_parse_line_range: {
+        Args: { p_range: string }
+        Returns: Record<string, unknown>
+      }
+      cat_resolve_profile_id: { Args: { p_name: string }; Returns: string }
+      cat_resolve_profile_id_dual: {
+        Args: { p_name: string; p_user_id: string }
+        Returns: string
+      }
+      cat_revert_workflow_stages_for_case: {
+        Args: { p_case_id: string }
+        Returns: undefined
+      }
+      cat_save_segment_annotation: {
         Args: {
           p_file_id: string
+          p_is_translator_ack?: boolean
+          p_issue_type: string
+          p_note: string
+          p_parent_annotation_id: string
+          p_responder_role: string
           p_segment_id: string
-          p_session_id: string
-          p_holder_user_id: string
-          p_holder_name: string
-          p_ttl_seconds?: number
+          p_severity: string
         }
-        Returns: Json
+        Returns: {
+          author_user_id: string | null
+          created_at: string
+          file_id: string
+          id: string
+          is_translator_ack: boolean
+          issue_type: string | null
+          note: string
+          parent_annotation_id: string | null
+          responder_role: string
+          segment_id: string
+          severity: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_segment_annotations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
-      release_cat_segment_edit_lease: {
-        Args: {
-          p_segment_id: string
-          p_session_id: string
+      cat_update_annotation_translator_ack: {
+        Args: { p_ack: boolean; p_annotation_id: string }
+        Returns: {
+          author_user_id: string | null
+          created_at: string
+          file_id: string
+          id: string
+          is_translator_ack: boolean
+          issue_type: string | null
+          note: string
+          parent_annotation_id: string | null
+          responder_role: string
+          segment_id: string
+          severity: string | null
         }
+        SetofOptions: {
+          from: "*"
+          to: "cat_segment_annotations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cat_upsert_review_stage_assignment: {
+        Args: {
+          p_assignee_user_id: string
+          p_file_id: string
+          p_workflow_status?: string
+        }
+        Returns: undefined
+      }
+      cat_upsert_segment_snapshot: {
+        Args: {
+          p_confirmed_by?: string
+          p_file_id: string
+          p_segment_id: string
+          p_snapshot_reason: string
+          p_target_tags?: Json
+          p_target_text: string
+        }
+        Returns: {
+          confirmed_by: string | null
+          file_id: string
+          id: string
+          segment_id: string
+          snapshot_reason: string
+          snapshotted_at: string
+          target_tags: Json | null
+          target_text: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_segment_stage_snapshots"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cat_upsert_segment_snapshots_batch: {
+        Args: { p_rows: Json }
+        Returns: number
+      }
+      cat_upsert_translate_stage_assignment:
+        | {
+            Args: {
+              p_assignee_user_id: string
+              p_collab_row_id: string
+              p_file_id: string
+              p_line_end: number
+              p_line_start: number
+              p_scope_label: string
+              p_view_id: string
+              p_workflow_status: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_assignee_user_id: string
+              p_collab_row_id: string
+              p_file_id: string
+              p_line_end: number
+              p_line_start: number
+              p_scope_label: string
+              p_view_id: string
+              p_workflow_status: string
+            }
+            Returns: undefined
+          }
+      cat_workflow_is_exception_file: {
+        Args: { p_name: string }
         Returns: boolean
+      }
+      current_env: { Args: never; Returns: string }
+      ensure_cat_file_workflow_stages: {
+        Args: { p_file_id: string }
+        Returns: undefined
+      }
+      ensure_cat_project_default_workflow_template: {
+        Args: { p_project_id: string }
+        Returns: string
       }
       has_role: {
         Args: {
@@ -1706,6 +3079,29 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      release_cat_segment_edit_lease: {
+        Args: { p_segment_id: string; p_session_id: string }
+        Returns: boolean
+      }
+      sync_cat_file_assignments_for_case: {
+        Args: { p_case_id: string }
+        Returns: undefined
+      }
+      sync_cat_workflow_assignments_for_case: {
+        Args: { p_case_id: string }
+        Returns: Json
+      }
+      try_acquire_cat_segment_edit_lease: {
+        Args: {
+          p_file_id: string
+          p_holder_name: string
+          p_holder_user_id: string
+          p_segment_id: string
+          p_session_id: string
+          p_ttl_seconds?: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "member" | "pm" | "executive"

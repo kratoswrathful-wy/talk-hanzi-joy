@@ -41,6 +41,13 @@ Playwright 等待條件一律用確定訊號（元素出現、狀態變更），
 - 切換假人後，斷言「該假人為 active persona」（例如切換按鈕呈 active 樣式）才繼續；否則 `dev-switch-user`／`verifyOtp` 靜默失效時，會以原身分（假執行長／管理員）跑完「譯者」測試而**誤判通過**。
 - 權限（RLS）類負向驗證，若 UI 換人流程不可靠，改以**資料庫層模擬**（`set_config('request.jwt.claims', …)` + `SET LOCAL ROLE authenticated`，交易內驗證後 rollback／清理）；範例：[`supabase/tests/w5_billing_rls_check.sql`](../../supabase/tests/w5_billing_rls_check.sql)。
 
-## 7. 自動化通過後，體感變更仍須真人／AI 實測抽查
+## 7. 新增資料庫物件必同步重生 types 並過 typecheck
+
+（2026-07-04 W10 實害教訓）凡新增資料庫物件（表／view／RPC），**同一 commit 必須**重新生成 Supabase TypeScript 型別（`supabase gen types` 或 MCP `generate_typescript_types` 寫回 `src/integrations/supabase/types.ts`），並通過 `npm run typecheck`（`tsc -b`）：
+
+- **禁止**以 `as any` 繞過 `.from("<新物件>")` 的型別檢查。
+- 背景：W10 批次 2 建 `fees_visible` view 未重生 types，本機 `npm run dev` 不跑 tsc 全綠，Vercel 正式建置 `tsc -b` 直接 ERROR（deployment `dpl_6KKcsFXYyhLYq48fdFsgqymbndbL`）。此為「無 CI、推送前未跑 typecheck」的實害案例（主計畫 W6／R2 動機）。
+
+## 8. 自動化通過後，體感變更仍須真人／AI 實測抽查
 
 自動化斷言只驗「對不對」（跳對、置中、資料正確），**不涵蓋延遲與順暢度**。凡涉及使用者體感的變更（導覽、確認、載入、動畫），在 Playwright／單元測試全綠後，仍須**至少一次真人或 AI 瀏覽器實測抽查**體感，並把發現（如「確認後停 4.5 秒才跳」）記入對應 DEVLOG／主計畫待排。範例實證：主計畫 §8 OBS-1。
