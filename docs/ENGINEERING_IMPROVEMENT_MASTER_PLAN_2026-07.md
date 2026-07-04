@@ -501,7 +501,7 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **回讀驗證**：寫入後 `caseStore.getById` 回讀，`verified: true` 才回 ok；密碼類 label 回傳 `readbackValue: "***"` + `readbackLength`。
 - **測試**：vitest 10 項（[`ai-agent-tool-field.test.ts`](../src/lib/ai-agent-tool-field.test.ts)）；Playwright [`tests/lms-tool-set-field.spec.ts`](../tests/lms-tool-set-field.spec.ts)（**已實跑**：建立案件→seed tools→setField→case.get 回讀）。
 - **文件**：操作指南 §5.1／§11.10；§3 鐵律更新（工具文字欄位禁止再截圖 UI）。
-- **待驗收**：Fable 5 Chrome 實測於拋棄式測試案件寫入工具欄位後回讀比對；測後清理。
+- **驗收結果（2026-07-05）**：Fable 5 於分支預覽站實測——寫入 `verified: true`、`allowed` 錯誤自修正流程正確、整頁重載後值仍在（持久化，與 OBS-4「bridge 偏好不持久化」區隔確認）。測試檔內 `window as unknown as` 為瀏覽器測試標準寫法，核可並紀錄為允許例外。**核准併入 main，merge commit `a2ca0d21`**（CI [run #28721575184](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28721575184) 綠燈）。
 
 **附帶查證：`describe()`／`aiBatch.getSettings()` 的 `projectId`/`fileId` 為何恆為 `null`（驗收方觀察，已查證，本輪不修）**：
 
@@ -519,7 +519,17 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - `describe()`／`aiBatch.getSettings()` 回傳的 `projectId`／`fileId`／`segmentCount` 恆為 `null`/`0`，AI 代理無法用它們判斷「目前開的是哪個專案／檔案」。
 - **更嚴重**：`aiBatch.getSettings()`／`setSettings()` 內部用同一個 `undefined` 的 `projectId` 呼叫 `loadUserPrefs(projectId)`／`saveUserPrefs(projectId, patch)`（`cat-agent-bridge.js` L44-64、L91-153）——`saveUserPrefs` 的寫入條件 `if (projectId && Object.keys(toSave).length)` 因 `projectId` 恆為 `undefined` **永遠不成立**，代表透過 bridge 呼叫 `setSettings()` 寫入的 AI 批次偏好**從未真正持久化到 Supabase／Dexie 的 user×project 偏好表**，僅在當前分頁的 DOM（`<select>`/`<input>` 元素值）與同分頁後續讀取中「看起來生效」；跨分頁／重新整理後即消失。既有 Playwright 測試 `ai-bridge-phase2.spec.ts` 的 P2-C4（「關閉再開 Modal，prefs 仍一致」）恰好只驗證同分頁行為，未跨分頁重載，因此未曾抓到此缺陷。
 - `existing` 的 `describe()` segmentCount 恆為 0 這件事，先前 `ai-bridge-phase2.spec.ts` 的 P2-C1～C5 因為斷言寫成 `Math.max(d, rows)`（`d` 為 bridge 值、`rows` 為 DOM 列數的容錯寫法）而未被抓到，本次才第一次被精確測出。
-- **修不修另議**：修法需把這三個變數改為比照 `window.CatRevTrackApi.getCurrentFileId: () => currentFileId`（`app.js` L37869，同檔已有的即時 getter 慣例）新增 `window._catAgentGetCurrentProjectId`/`FileId`/`SegmentsList` 之類的即時讀取函式，再讓 `cat-agent-bridge.js` 改呼叫這些函式而非直接讀 `global.currentProjectId`；牽動 `describe()`/`getSettings()`/`setSettings()`/`importFromBytes` 多處呼叫點，且 `setSettings()` 一旦真正開始持久化，需同時確認不會覆蓋掉使用者已透過 UI 存的舊偏好（時序／覆寫風險），**列為新待辦**，不在本次 C2 修正範圍內處理。
+- **修不修另議**：修法需把這三個變數改為比照 `window.CatRevTrackApi.getCurrentFileId: () => currentFileId`（`app.js` L37869，同檔已有的即時 getter 慣例）新增 `window._catAgentGetCurrentProjectId`/`FileId`/`SegmentsList` 之類的即時讀取函式，再讓 `cat-agent-bridge.js` 改呼叫這些函式而非直接讀 `global.currentProjectId`；牽動 `describe()`/`getSettings()`/`setSettings()`/`importFromBytes` 多處呼叫點，且 `setSettings()` 一旦真正開始持久化，需同時確認不會覆蓋掉使用者已透過 UI 存的舊偏好（時序／覆寫風險），**列為新待辦**，不在本次 C2 修正範圍內處理（OBS-4，見下方待辦區）。
+
+#### C3 落地紀錄（2026-07-05，分支 `feature/w9-wave2-c3-case-current-id`）
+
+田野第 2 項：複製案件後標題不刷新（state bleed）。**先查證**：`src/App.tsx` 的 `CaseDetailPageWrapper`（`<CaseDetailPage key={id} />`）與 `CaseDetailPage.tsx` 既有的 `duplicateExpectedTitle` 導覽狀態合併機制（2026-04／2026-03 舊修），經 Playwright 實跑證實**目前經由官方「複製本頁」按鈕的人工流程並無標題殘留**；本輪落地依主計畫既定兩擇一方案採**方案二**（`case.getCurrentId()` 診斷 API），供 AI 導覽流程對照 URL id 與畫面實際渲染 id，不動既有渲染邏輯（零回歸風險），並補上可程式判讀的欄位測試點：
+
+- **新增** [`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts) 的 `__lmsAgent.case.getCurrentId()`：比對 `window.location.pathname` 解析出的 `urlCaseId` 與 [`CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx) 新增的 `window.__caseDetailRenderedCaseId`（單一 `useEffect` 跟隨 `caseData?.id` 同步，卸載時清除），回傳 `{ urlCaseId, renderedCaseId, matches }`。
+- **新增** 兩個 `data-testid`（`case-title-input`、`case-keyword-input`、`case-client-po-input`）供 Playwright／AI 程式化讀值，不改變任何欄位邏輯或樣式。
+- **測試（已實跑）**：[`tests/case-copy-title-refresh.spec.ts`](../tests/case-copy-title-refresh.spec.ts)——建案件→**走真實「複製本頁」UI 按鈕**（不作弊、不注入自訂元素）→斷言：①新頁標題即時等於預期複製標題（`sourceTitle + todayYYMMDD`）且不殘留來源標題；②依規格應清空的「客戶 PO#」欄位確實為空（防止「為修標題而過度刷新」把其他欄位誤帶過去的回歸——呼應「不做局部 hack」要求）；③`case.getCurrentId()` 回傳 `urlCaseId === renderedCaseId === matches:true`。全數通過，`npm run typecheck` 全過。
+- **文件**：本節；操作指南 §11.11 待補（驗收後）。
+- **待驗收**：Fable 5／擁有者於分支預覽站以真人或 AI 瀏覽器抽查複製流程，並確認未影響其他既有欄位渲染。
 
 ### W9-C C3 落地紀錄（2026-07-04，分支 `feature/w9c-cat-import-testid-bridge`）
 

@@ -594,13 +594,24 @@ do {
 
 **修不修另議**：詳見主計畫 §8 OBS-4；未排入本輪 W9 wave 2 C 類工作範圍。
 
-### 11.10 W9 wave 2 C1：`tool.setField`（2026-07-04，已落地）
+### 11.10 W9 wave 2 C1：`tool.setField`（2026-07-04，已落地並驗收，`a2ca0d21`）
 
-田野實測第 3 項——工具區塊多行文字欄位（伺服器／帳號／密碼等）只能截圖走 UI。新增 `__lmsAgent.tool.setField({ caseId, toolLabel, fieldKey, value, ... })`，寫入後自動 store 回讀驗證（`verified: true`）。用法見 §5.1。
+田野實測第 3 項——工具區塊多行文字欄位（伺服器／帳號／密碼等）只能截圖走 UI。新增 `__lmsAgent.tool.setField({ caseId, toolLabel, fieldKey, value, ... })`，寫入後自動 store 回讀驗證（`verified: true`）。用法見 §5.1。**驗收（2026-07-05）**：Fable 5 分支預覽站實測寫入、`allowed` 錯誤自修正、整頁重載後仍持久化，核准併入 `main`。
 
-### 11.11 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+### 11.11 W9 wave 2 C3：`case.getCurrentId()`（2026-07-05，已落地，待驗收）
 
-`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、複製案件後標題刷新（C3）等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B／W9 wave 2；完成時將回來補本節。
+田野實測第 2 項——複製案件後標題不刷新（state bleed）。查證後確認目前經由官方「複製本頁」按鈕的人工流程無標題殘留（`key={id}` 全頁 remount＋既有 `duplicateExpectedTitle` 導覽狀態合併機制已生效）；本輪新增 `__lmsAgent.case.getCurrentId()` 診斷 API，回傳：
+
+```javascript
+await __lmsAgent.case.getCurrentId();
+// { ok: true, data: { urlCaseId: "<目前 URL 上的案件 id>", renderedCaseId: "<畫面實際渲染中的案件 id>", matches: true } }
+```
+
+`matches: false` 代表畫面尚未同步到 URL 對應的案件（state bleed），AI 導覽後可先輪詢此 API 至 `matches: true` 再讀取其他欄位，避免讀到殘留畫面。純讀取診斷，不改變任何欄位渲染邏輯。
+
+### 11.12 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+
+CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B；OBS-4（bridge 偏好不持久化）維持待辦。完成時將回來補本節。
 
 ---
 

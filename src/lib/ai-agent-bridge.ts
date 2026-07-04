@@ -772,6 +772,11 @@ export interface LmsAgentApi {
     get: (id: string) => AgentResult<CaseRecord>;
     create: (initial?: Partial<CaseRecord>) => Promise<AgentResult<CaseRecord>>;
     update: (id: string, patch: Partial<CaseRecord>) => Promise<AgentResult<CaseRecord>>;
+    getCurrentId: () => AgentResult<{
+      urlCaseId: string | null;
+      renderedCaseId: string | null;
+      matches: boolean;
+    }>;
     generateFees: (caseId: string) => Promise<
       AgentResult<{
         caseId: string;
@@ -915,6 +920,22 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const record = caseStore.getById(id);
         if (!record) return fail(`找不到案件 id=${id}`);
         return ok(record);
+      },
+
+      // W9 wave 2 C3：偵測導覽後 React state 殘留（state bleed）。
+      // 比對 URL 上的案件 id 與 CaseDetailPage 實際渲染中的案件 id，
+      // 兩者不一致時代表畫面尚未同步（例如複製案件跳轉後短暫顯示舊案件內容）。
+      getCurrentId: () => {
+        const path = typeof window !== "undefined" ? window.location.pathname : "";
+        const match = path.match(/^\/cases\/([^/]+)/);
+        const urlCaseId = match ? match[1] : null;
+        const renderedCaseId =
+          typeof window !== "undefined" ? window.__caseDetailRenderedCaseId ?? null : null;
+        return ok({
+          urlCaseId,
+          renderedCaseId,
+          matches: urlCaseId !== null && urlCaseId === renderedCaseId,
+        });
       },
 
       create: async (initial = {}) => {
