@@ -128,6 +128,8 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 ### 2.1 資料庫（沿用 v2 計畫四張表，微調）
 
+**Phase 1 狀態（2026-07-04）**：migration [`supabase/migrations/20260704180000_cat_ai_model_registry.sql`](../supabase/migrations/20260704180000_cat_ai_model_registry.sql) 已建立；RLS 回歸腳本 [`supabase/tests/cat_ai_model_registry_rls_check.sql`](../supabase/tests/cat_ai_model_registry_rls_check.sql)；`src/integrations/supabase/types.ts` 已含四張新表型別。遠端 `supabase db push` 待 migration 歷史與 main 對齊後由驗收方套用。Phase 2～4 尚未實作。
+
 新增 migration `supabase/migrations/<ts>_cat_ai_model_registry.sql`，建立：
 
 - `ai_model_providers`、`ai_provider_models`、`cat_ai_model_options`、`ai_model_sync_runs`（欄位大致同 v2 計畫）。
