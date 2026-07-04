@@ -490,9 +490,28 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 
 程式：[`cat-tool/index.html`](../cat-tool/index.html)（三個 iframe 內 input 標記）、[`cat-tool/js/cat-agent-bridge.js`](../cat-tool/js/cat-agent-bridge.js)（`import.forwardToInput`）、[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)（頂層代理輸入框）。
 
-### 11.5 後續（W9-B，未排入本輪）
+### 11.6 W9 wave 2 B 類標記（田野實測第二輪，2026-07-04，已落地）
 
-`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋等項目，依擁有者裁定維持「隨模組碰到時做」排程，詳見主計畫 §10 W9-B；完成時將回來補本節。
+**背景**：田野實測（Austria／PlateUp! 建單流程）發現以下環節仍需截圖點選，逐一加穩定標記後 AI 可直接定位。分支 `feature/w9-wave2-b-cat-markers`。
+
+| 標記 | 位置／說明 |
+|------|------------|
+| `[data-lang-col="source"]` / `[data-lang-col="target"]` | 「新增專案」（`namingModal`）語言選擇區的原文／譯文語言 checkbox 容器與各 `<label>`／`<input>`，避免兩欄相鄰易勾錯（[`cat-tool/app.js`](../cat-tool/app.js) `buildLangCheckboxes(selected, col)`） |
+| `[data-lang-code="<code>"]` | 上述每個語言 checkbox／label 對應的語言代碼（例如 `en-US`、`zh-TW`），可搭配 `data-lang-col` 精準定位「原文語言區塊裡的 en-US」 |
+| `[data-testid="mq-role-modal"]` | mqxliff 編輯器「選擇本次作業身分」彈窗（`#mqRoleModal`） |
+| `[data-testid="mq-role-option-T_ALLOW_R1"]` 等 4 個 | 身分彈窗內 4 個身分選項（`T_ALLOW_R1`／`T_DENY_R1`／`R1`／`R2`）的 radio |
+| `[data-testid="btn-mq-role-confirm"]` | 身分彈窗「確認」鈕 |
+| `[data-testid="btn-wf-adjust-or-prep-complete"]` | PM 工作列的「調整狀態／準備完成」雙態按鈕（`#btnWfAdjustStatus`）；同時看 `data-mode="adjust"` 或 `data-mode="prep-completed"` 判斷目前實際功能（文字會依狀態切換，`data-mode` 不會） |
+| `[data-testid="btn-import-lang-confirm"]` | 匯入「選擇此任務的語言對」彈窗（`fileLangModal`）確認鈕——**備援**用；優先走 §9.1 `import.fromBytes` 直接帶參數跳過此彈窗 |
+| `[data-testid="btn-import-confirmed-segments-confirm"]` | 匯入「原檔已確認句段」彈窗（`importConfirmedModal`）確認鈕 |
+| `[data-testid="btn-import-case-picker-confirm"]` / `[data-testid="btn-import-case-picker-cancel"]` | 匯入流程中「選擇 LMS 案件」彈窗（`casePickerDialog`）確認／取消鈕——**備援**用；優先走 §9.1 `import.fromBytes` 的 `caseInfo` 參數跳過此彈窗 |
+| `[data-testid="btn-auth-submit"]` | LMS 登入頁（[`AuthPage.tsx`](../src/pages/AuthPage.tsx)）登入／註冊提交鈕（文字依模式在「登入」「註冊」間切換，`data-testid` 不變） |
+
+程式：[`cat-tool/app.js`](../cat-tool/app.js)（語言 checkbox、`btnWfAdjustStatus` `data-mode` 同步）、[`cat-tool/index.html`](../cat-tool/index.html)（mqRoleModal、匯入三對話框確認鈕、`btnWfAdjustStatus` 靜態標記）、[`src/pages/AuthPage.tsx`](../src/pages/AuthPage.tsx)（登入鈕）。已 `npm run sync:cat`。
+
+### 11.7 後續（W9-B／W9 wave 2 C 類，未排入本輪）
+
+`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、工具區塊多行欄位 bridge 寫入（C1）、AI 批次進度查詢 `aiBatch.getProgress()`（C2）、複製案件後標題刷新（C3）等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B／W9 wave 2；完成時將回來補本節。
 
 ---
 

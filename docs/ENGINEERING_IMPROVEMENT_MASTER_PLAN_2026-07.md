@@ -454,6 +454,15 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
   - §12 常見失敗表新增兩列對應症狀與處理方式。
 - **C1／C2／C3 分類澄清**：田野原始編號與 W9-B 舊表（B1–B3）内容重疊（工具欄位寫入、`case.getCurrentId()`、`__catAgent` 編輯器 API 擴充），本輪 C1–C3 為同一批工項的具體化，**執行時併入既有 W9-B 排程**，不重複計數。
 
+#### B 類落地紀錄（2026-07-04，分支 `feature/w9-wave2-b-cat-markers`）
+
+- **B1**：[`cat-tool/app.js`](../cat-tool/app.js) `buildLangCheckboxes(selected, col)` 加 `col` 參數，「新增專案」語言選擇區的原文／譯文語言 checkbox 容器與各 `label`／`input` 皆加 `data-lang-col="source|target"` + `data-lang-code="<code>"`，避免兩欄相鄰易勾錯。
+- **B2**：mqxliff「選擇本次作業身分」彈窗（`#mqRoleModal`）加 `data-testid`，4 個身分選項與確認鈕各加 `data-testid="mq-role-option-<value>"`／`"btn-mq-role-confirm"`；PM 工作列「調整狀態／準備完成」雙態按鈕（`#btnWfAdjustStatus`）加靜態 `data-testid="btn-wf-adjust-or-prep-complete"`，並在 [`cat-tool/app.js`](../cat-tool/app.js) 同步 `data-mode="adjust"`／`"prep-completed"`（比照 W9-A A5 `syncRowStatusDataset` 的 dataset 同步模式，文字會依狀態切換但 dataset 不會）；匯入三對話框（語言對選擇、原檔已確認句段、連結 LMS 案件）確認／取消鈕各加 `data-testid`（備援用，優先路徑仍是 §9.1 `import.fromBytes` 直接帶參數跳過彈窗）；[`AuthPage.tsx`](../src/pages/AuthPage.tsx) 登入／註冊提交鈕加 `data-testid="btn-auth-submit"`。
+- **驗證**：`npm run typecheck`／`npm run test`（11 檔 112 項全過）／`npm run check:encoding`／`npx eslint`（新增行 0 error）皆過；四項禁用手法新增 diff 0 處；`cat-tool/index.html`、`app.js`、`public/cat` 鏡像位元組層 UTF-8 檢查 `\uFFFD` 皆為 0。已 `npm run sync:cat`。操作指南 §11.6 已登錄全部新標記。
+- **待驗收**：涉及 CAT 的部分（B1／B2 前四項）由 Fable 5 以 Chrome 工具實測（比照 W9-C C3：走官方入口，不作弊、不注入自訂元素）；B2 的登入鈕屬 LMS 前端，可一併於同一輪驗收確認。
+
+### W9-C C3 落地紀錄（2026-07-04，分支 `feature/w9c-cat-import-testid-bridge`）
+
 **裁定**：原排程「隨模組碰到時做」，因已在真實 AI 建單流程中反覆卡住，擁有者裁定提前為正式工項。
 
 - **標記**：[`cat-tool/index.html`](../cat-tool/index.html) 三個匯入 input（`#sourceFileInput`／`#tmImportInput`／`#tbImportInput`）加 `data-testid="cat-import-source|cat-import-tm|cat-import-tb"`，即使 `display:none` 仍保留在 DOM。
