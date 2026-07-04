@@ -273,8 +273,8 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
 }
 
 /** IME-safe text input: uses local state during editing, saves on blur */
-function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows, maxRows, borderless = true }: {
-  value: string; onSave: (v: string) => void; disabled?: boolean; placeholder?: string; className?: string; minRows?: number; maxRows?: number; borderless?: boolean;
+function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows, maxRows, borderless = true, testId }: {
+  value: string; onSave: (v: string) => void; disabled?: boolean; placeholder?: string; className?: string; minRows?: number; maxRows?: number; borderless?: boolean; testId?: string;
 }) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
@@ -298,6 +298,7 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
       borderless={borderless}
       disabled={disabled}
       placeholder={placeholder}
+      data-testid={testId}
     />
   );
 }
@@ -372,9 +373,9 @@ function FileFieldRow({ label, value, onChange }: { label: string; value: any[];
 }
 
 /** Wrapper for tool file fields: + button in label, delete button beside content */
-function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField }: {
+function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField, testId }: {
   fieldId: string; label: string; value: any[]; onChange: (v: any[]) => void;
-  canRemoveField: boolean; onDeleteField: () => void;
+  canRemoveField: boolean; onDeleteField: () => void; testId?: string;
 }) {
   const addRef = useRef<(() => void) | null>(null);
   return (
@@ -391,7 +392,7 @@ function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onD
         </button>
       }
     >
-      <div className="flex items-start gap-1.5">
+      <div className="flex items-start gap-1.5" data-testid={testId}>
         <div className="flex-1">
           <FileField value={Array.isArray(value) ? value : []} onChange={onChange} externalAdd addButtonRef={addRef} />
         </div>
@@ -427,6 +428,22 @@ function CopyButton({ value }: { value: string }) {
       {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
   );
+}
+
+/* ── W9-A1：工具欄位 data-testid 對照（AI/Playwright 程式化定位；主計畫 §10） ── */
+const TOOL_FIELD_TESTID_BY_LABEL: Record<string, string> = {
+  "伺服器": "tool-server",
+  "帳號": "tool-username",
+  "登入帳號": "tool-username",
+  "密碼": "tool-password",
+  "登入密碼": "tool-password",
+  "專案": "tool-project",
+  "專案名稱": "tool-project",
+  "檔案": "tool-files",
+  "檔案名稱": "tool-files",
+};
+function toolFieldTestId(label: string, fieldId: string): string {
+  return TOOL_FIELD_TESTID_BY_LABEL[(label || "").trim()] ?? `tool-field-${fieldId}`;
 }
 
 /* ── Single Tool Instance ── */
@@ -595,6 +612,7 @@ function ToolInstance({
             size="icon"
             className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
             onClick={onRemove}
+            aria-label={`移除工具 ${entry.tool || `#${index + 1}`}`}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
@@ -637,6 +655,7 @@ function ToolInstance({
                                 key={tpl.id}
                                 className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
                                 onClick={() => tryApplyTemplate(tpl)}
+                                data-testid={`template-option-${tpl.name}`}
                               >
                                 <span
                                   className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
@@ -673,6 +692,7 @@ function ToolInstance({
                 onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
                 canRemoveField={canRemoveField}
                 onDeleteField={() => setDeleteFieldId(f.id)}
+                testId={toolFieldTestId(f.label, f.id)}
               />
             );
           }
@@ -688,6 +708,7 @@ function ToolInstance({
                   minRows={1}
                   maxRows={undefined}
                   borderless
+                  testId={toolFieldTestId(f.label, f.id)}
                 />
                 <CopyButton value={values[f.id] || ""} />
                 {canRemoveField && (

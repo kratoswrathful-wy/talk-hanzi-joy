@@ -334,6 +334,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
           return (
             <div
               key={row.id}
+              data-collab-id={row.id}
               className="grid items-center gap-0 border-b border-border last:border-b-0 text-sm min-w-max"
               style={{ gridTemplateColumns: gridTemplate }}
             >
@@ -427,7 +428,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              <div className="px-1.5 py-1">
+              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="translationDeadline">
                 <DateTimePicker
                   value={row.translationDeadline}
                   onChange={(v) => updateRow(idx, { translationDeadline: v })}
@@ -477,7 +478,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              <div className="px-1.5 py-1">
+              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewDeadline">
                 <DateTimePicker
                   value={row.reviewDeadline}
                   onChange={(v) => updateRow(idx, { reviewDeadline: v })}

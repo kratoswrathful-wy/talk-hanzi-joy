@@ -7197,11 +7197,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             + '</span>';
     }
 
+    // W9-A5：句段列曝露程式可判讀狀態（data-status＝原始 status、data-wf-state＝統一顯示五態），
+    // 供 AI 代理與 Playwright 定位，取代「靠圖示樣式截圖判讀」。
+    function syncRowStatusDataset(row, seg) {
+        if (!row || !seg) return;
+        row.dataset.status = seg.status || 'draft';
+        try { row.dataset.wfState = resolveSegmentConfirmDisplayState(seg); } catch (_) { /* ignore */ }
+    }
+
     function refreshStatusIconForRow(row, seg) {
         if (!row || !seg) return null;
         const host = row.querySelector('.col-status');
         if (!host) return null;
         host.innerHTML = buildUserMarkersHtml(seg) + buildStatusCellHtml(seg);
+        syncRowStatusDataset(row, seg);
         return host.querySelector('.status-icon');
     }
 
@@ -18179,6 +18188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!row || !seg) return;
         const host = row.querySelector('.col-status');
         if (host) host.innerHTML = buildStatusColumnHtml(seg);
+        syncRowStatusDataset(row, seg); // W9-A5
     }
 
     async function toggleUserSegmentMarkerColor(segId, color) {
@@ -22951,6 +22961,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!row) return;
             const host = row.querySelector('.col-status');
             if (host) host.innerHTML = buildStatusColumnHtml(seg);
+            syncRowStatusDataset(row, seg); // W9-A5
             if (!isDynamicForbidden(seg) && !seg.isLockedUser) syncRowConfirmedStateClass(row, seg);
         });
     }
@@ -24443,6 +24454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             else if (seg.isLockedUser) lockedClass = 'locked-user';
             row.className = `grid-data-row ${lockedClass}`;
             row.dataset.segId = seg.id;
+            syncRowStatusDataset(row, seg); // W9-A5
             if (effectiveLockedSystem) row.dataset.tip = getForbiddenTooltip(seg);
             else if (seg.isLockedUser) row.dataset.tip = '句段鎖定中，請解除鎖定後再編輯';
             row.addEventListener('mousedown', (e) => {
