@@ -161,10 +161,11 @@ flowchart LR
 
 ### 階段三
 
-- **vitest 基礎** — 狀態：規劃中 — commit：—
-- **W6** — 狀態：規劃中 — commit：—
+- **vitest 基礎** — 狀態：**已驗收**（乾淨環境實測 `main@5e0ac5e`：`npm run test` 4 檔 21 項全過；驗收方：Fable 後任，2026-07-04）— commit：—（既有基礎，無新 commit）
+- **W6（CI 第一版）** — 狀態：**已落地待驗收**（GitHub Actions：push main + PR 觸發，typecheck／test 擋關，lint `continue-on-error` 暫不擋關；本機 `npm run lint` 現存 357 error／51 warning，主要為既有 `no-explicit-any`，清零策略見下方 W6-C 評估）— commit：`7f8117b`；merge commit：`70a0bc8`（`cursor/w6-ci-v1` → `main`）；**Actions 執行記錄**：run [`#28696148596`](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28696148596)，`status=completed`／`conclusion=success`（綠燈），lint 步驟已完整跑過（本機重現同一份 357/51 報告）且未影響整體結果
+- **W6-B（Hook 條件呼叫熱修，隨 CI 盤點一併發現的真風險）** — 狀態：**已驗收**（本機 `npm run typecheck`／`npm run test` 全過；新增回歸測試已驗證「復原舊碼會失敗、修復後會通過」）— commit：`3e84603`；merge commit：`102df30`（`cursor/w6-hook-order-fix` → `main`）
 - **Playwright 測試模式** — 狀態：規劃中 — commit：—
-- **R2** — 狀態：規劃中 — commit：—
+- **R2** — 狀態：規劃中（lint 尚未擋關，三關未全部生效）— commit：—
 
 ### 階段四
 
@@ -427,3 +428,48 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **A5**：CAT 編輯器（`cat-tool/app.js`）新增 `syncRowStatusDataset(row, seg)`，句段列同步 `data-status`（原始狀態）與 `data-wf-state`（`resolveSegmentConfirmDisplayState` 統一顯示五態）；掛於列建立（`buildGridDataRow`）與所有狀態圖示刷新點（`refreshStatusIconForRow`、`refreshUserMarkerStatusCell`、批次確認刷新迴圈）。已 `npm run sync:cat`。維護附註已入 [`architecture.mdc`](../.cursor/rules/architecture.mdc) §1；Playwright 受益點已入 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) Phase S。
 - **裁決**：純標記變更、零行為風險，2026-07-04 直接併入 `main`（merge commit `af90596`）；驗收改為併後在正式站由 Fable 5 以 `find`（無障礙定位）逐項驗證 A1–A5，任何一項定位失敗即開熱修、不回滾。
 - **正式站驗收結果（2026-07-04）**：A1／A2／A4／A5 PASS。**A3 初測未過**（Zwift 260625 案件找不到移除鈕），經程式碼比對確認為**設計行為，非漏標**：移除鈕僅在 `showRemove && canRemoveTool` 皆為真時渲染——執行工具區塊 `showRemove = canRemoveCaseTool(caseData)`（[`case-tool-count.ts`](../src/lib/case-tool-count.ts)：`countCaseTools()`（legacy `tools` 陣列長度＋`catToolEnabled`）須 **> 1** 才允許移除，確保案件永遠保留至少一種工具）；提問工具區塊為 `questionTools.length > 1`。該案件工具總數為 1，移除鈕依設計本就不顯示，`aria-label="移除工具 <名稱>"` 程式碼確認存在（`CaseDetailPage.tsx` L615）。**判定：W9-A 全數達標**，複驗建議改用「有 2 種以上工具（例如 2 個執行工具，或 1 個執行工具＋1UP CAT 已啟用）」的案件即可看到並定位到該鈕。
+
+## 11. W6 CI 第一版落地 + Hook 熱修 + lint 清零評估（2026-07-04，驗收方 Fable 後任裁示）
+
+**背景**：驗收方於乾淨環境實測 `main@5e0ac5e`：`npm run typecheck` 通過、`npm run test` 4 檔 21 項全過（階段三步驟 1「vitest 可跑」達標）、`npm run lint` 357 error／51 warning（約 342 個 `@typescript-eslint/no-explicit-any`，另有 `TranslatorFees.tsx` L463／L492 兩處 `react-hooks/rules-of-hooks` 真風險）。據此裁示三項工項，A／B 各一分支（一題一分支），C 僅評估、待裁決再動工。
+
+### 11.1 工項 A：CI 第一版（分支 `cursor/w6-ci-v1`）
+
+- 新增 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)：觸發 push `main` ＋ 所有 PR；`ubuntu-latest`、Node 22、`npm ci`（含快取）；三步驟 typecheck（擋關）→ test（擋關）→ lint（`continue-on-error: true`，僅回報不擋關）。不含 Playwright（依主計畫，e2e 另案處理、不擋 push）。
+- commit `7f8117b`；merge commit `70a0bc8`（`cursor/w6-ci-v1` → `main`）。
+- **驗收（GitHub Actions 實測，非僅本機模擬）**：push 後觸發 run [`#28696148596`](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28696148596)，`status=completed`／`conclusion=success`（**main 上跑出綠燈**）；job 步驟 Checkout／Setup Node／Install／Typecheck／Test／Lint 全部 `completed`。Lint 步驟因 `continue-on-error: true` 即使有現存錯誤仍計入整體成功，本機同時重現同一份 357 error／51 warning 報告（詳見 §11.3），確認「有列出現存錯誤但不影響整體結果」之驗收條件成立。
+- **誠實註記**：本環境無 `gh` CLI 與具管理權限的 token，僅能以未驗證的公開 API 讀 run／job 層級狀態（`status`／`conclusion`），無法下載逐行 log（`403 Must have admin rights`）；上述「lint 已列出錯誤」之結論以**本機重跑同版 lint 指令**佐證，而非直接讀 Actions 原始 log 逐字比對。
+
+### 11.2 工項 B：Hook 條件呼叫熱修（分支 `cursor/w6-hook-order-fix`，與 A 分開）
+
+- **根因**：[`TranslatorFees.tsx`](../src/pages/TranslatorFees.tsx) 的 `TranslatorInvoiceStatus`／`ClientInvoiceStatusCell` 原在 `if (!linked) return …` 提前 return **之後**才呼叫 `useSelectOptions("statusLabel")`，違反 React Hooks 規則（同一元件不同次 render 呼叫的 hook 數量／順序不得改變）；`linked`（是否已連結請款單）由 store 資料決定，執行期一旦從「無連結」變為「有連結」（或反向），即可能觸發 `Rendered fewer hooks than expected` 而整頁白屏，屬**真實崩潰風險**而非僅風格問題。
+- **修法**：兩處皆將 `useSelectOptions` 呼叫移到提前 return 之前無條件呼叫，回傳的 `statusLabelOptions` 在使用處（`if (!linked) return`之後的邏輯）才依 `linked` 判斷是否用到，行為對 PM／譯者視角零改變。
+- **回歸測試**：新增 [`src/pages/TranslatorFees.hooks-order.test.ts`](../src/pages/TranslatorFees.hooks-order.test.ts)，以子行程（`spawnSync`）跑 `npx eslint --format json src/pages/TranslatorFees.tsx`，過濾 `react-hooks/rules-of-hooks` 規則斷言為空陣列。**已實際驗證測試有效性**：修復前 stash 回退程式碼重跑，測試確實在原本兩行（L463／L492）失敗；還原修復後轉綠——非空殼斷言。改用子行程而非 ESLint API 直呼：ESLint 內部 retry/abort 邏輯依賴原生 `AbortSignal`，本專案 vitest 全域環境為 jsdom，jsdom 覆寫的 `AbortSignal` 缺少 `throwIfAborted` 會導致 API 直呼失敗（`signal?.throwIfAborted is not a function`），子行程完全避開此環境衝突。
+- **驗證**：本機 `npm run typecheck`／`npm run test`（5 檔 22 項全過，含新回歸測試）皆過。
+- commit `3e84603`；merge commit `102df30`（`cursor/w6-hook-order-fix` → `main`）。
+
+### 11.3 工項 C：lint 清零策略評估（僅評估，未動工，待裁決）
+
+**現況重新盤點**（`npx eslint . --format json` 全 repo 實測，2026-07-04）：
+
+| 指標 | 數值 |
+|------|------|
+| `@typescript-eslint/no-explicit-any` 總數 | **319**（驗收方口頭估「約 342」，同一量級，差異推測為統計時點或計數方式差異，非本質分歧） |
+| 涉及檔案數 | **46**（非驗收方估的 73；已用程式化統計覆核，取本次為準） |
+| 其他非 any 規則 | `react-hooks/exhaustive-deps` 37、`no-empty` 14、`no-useless-escape` 12、`react-refresh/only-export-components` 9、`prefer-const` 4、`no-extra-boolean-cast` 3、`@typescript-eslint/no-empty-object-type` 2、`@typescript-eslint/no-require-imports` 1（`react-hooks/rules-of-hooks` 兩項已隨工項 B 修復歸零） |
+
+**按目錄分布**（`any` 數量）：`src/pages` 164、`src/stores` 80、`src/components` 39、`supabase/functions` 16、`src/hooks` 15、`src/lib` 4、`src/data` 1。
+
+**按檔案集中度**（top 6 即占近半數）：`CatToolPage.tsx` 42、`TranslatorFeeDetail.tsx` 29、`client-invoice-store.ts` 22、`CommentInput.tsx`／`PermissionsPage.tsx`／`case-store.ts` 各 16。
+
+**評估與建議（回覆即可，等裁決再動工）**：
+
+1. **分批修比一次到位更合理**：46 個檔案分散在 `pages`／`stores`／`components`／`supabase/functions` 四個性質不同的區域，一次全改風險高（尤其 `stores` 涉及 realtime payload 型別、`pages` 涉及 UI 渲染邏輯），且與「一工項一分支」原則（`architecture.mdc` §7）衝突——建議**依 top 檔案集中度分批**，而非機械式依模組資料夾分批（因單一模組內單檔即占極大比例，模組分法會讓某幾批過重、某幾批過輕）：
+   - **批次 1**：`CatToolPage.tsx`（42）＋`TranslatorFeeDetail.tsx`（29）＝ 71 個，約占總數 22%，且兩檔皆為近期高頻異動熱點，建議優先，順道補型別可降低未來 CAT／費用模組改動時的隱性風險。
+   - **批次 2**：`client-invoice-store.ts`（22）＋`case-store.ts`（16）＋`CommentInput.tsx`（16）＝ 54 個，三者皆涉及 Supabase 資料型別／realtime payload，適合同批（型別定義可互相參照 `types.ts`）。
+   - **批次 3**：`PermissionsPage.tsx`（16）＋剩餘 `src/pages` 中小型檔案（`ClientInvoiceDetailPage.tsx` 13、`ClientInvoicesPage.tsx` 13、`InvoiceDetailPage.tsx` 10、`CaseDetailPage.tsx` 8 等）。
+   - **批次 4**：`src/stores` 剩餘（`fee-store.ts` 9、`internal-notes-store.ts` 8、`icon-library-store.ts` 7、`undo-store.ts` 7、`invoice-store.ts` 6 等）＋ `src/hooks`（`use-permissions.ts` 7 等）。
+   - **批次 5**：`supabase/functions/fetch-notion-page/index.ts`（16，Deno edge function，型別來源與前端不同，獨立處理較乾淨）＋其餘零散小檔（`src/components`、`src/data`）。
+   - 每批**獨立 commit、獨立跑三關**（比照 W1 五 store 遷移的驗收慣例），估**5 批**，非一次到位；批次順序建議依「近期異動熱度」優先（`CatToolPage.tsx`／`TranslatorFeeDetail.tsx` 近期才因 W10 改過，型別若補在此時最省認知負擔）。
+2. **暫無正當理由對特定目錄整批降級規則**：46 個檔案、319 處分布分散，且多數是「Supabase 查詢結果」「Realtime payload」「第三方庫回呼參數」等真實型別未知場景，屬需要逐一補型別或至少改 `unknown` + 縮小的情境，非設計上必須用 `any`；`supabase/functions/` 的 Deno edge function 型別環境與前端不同（無法直接共用 `src/integrations/supabase/types.ts`），若要降級，**建議僅該資料夾**可考慮改 `warn` 而非 `off`（仍留痕跡），但目前僅 16 處、單一檔案，直接修不比降級規則省事，故**不建議此時降級**，留待實際分批修時若遇特殊技術限制（例如 Deno 型別產生工具鏈缺失）再個案處理。
+3. **R2（三關正式擋推送）與 lint 清零的關係**：目前 CI 的 lint 步驟為 `continue-on-error`，R2「三關全過才可推送」尚未把 lint 納入正式門檻。待 5 批修完、`react-hooks/exhaustive-deps` 等其他規則亦清空後，再將 `ci.yml` 的 lint 步驟移除 `continue-on-error`，同步把 R2 標記為正式生效。
