@@ -354,6 +354,13 @@ flowchart LR
 - **修復**：以 MCP `generate_typescript_types` 重生 types（`fees_visible` 進 `Views`），`npm run typecheck` 通過；**未用 `as any` 繞過**。
 - **教訓入檔**：W6/R2 動機欄（階段三）補實害案例；[`testing.mdc`](../.cursor/rules/testing.mdc) 新增 §7「新增資料庫物件必同步重生 types 並過 typecheck」。
 
+### 9.9 合併前 UI 抽查發現 F1/F2 與擁有者裁決（2026-07-04）
+
+Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查，發現兩項，擁有者裁決如下：
+
+- **F1（補回）— 譯者視角變更紀錄區塊消失**：根因為前端 `filterEditLogsFeeDetail` 以 `checkPerm("fee_management", …)` 再過濾一次，譯者無該模組檢視權限 → 白名單條目全數被濾光 → 區塊 `length === 0` 不渲染。裁決：資料層 `fees_visible.edit_logs` 已是白名單過濾結果，譯者視角**直接渲染**即可。修法：[`TranslatorFeeDetail.tsx`](../src/pages/TranslatorFeeDetail.tsx) 非管理員略過 `checkPerm` 過濾、區塊恆顯示（空清單顯示「尚無可顯示的變更紀錄」，加 `data-testid="fee-edit-log-section"`）；PM 行為零變更。譯者遮罩 spec（W10-T-1，fixme 中）補斷言：區塊存在且條目不含營收／客戶欄位。
+- **F2（結案，不收緊）— `/members` 譯者可見**：**譯者可見團隊成員清單符合設計行為，2026-07-04 擁有者確認**，不收緊。測試教訓入檔 [`testing.mdc`](../.cursor/rules/testing.mdc) §6：測試模式假人身分**不影響路由守衛判定**（守衛看真實帳號角色），路由守衛驗證不得用假人切換，須用真實測試帳號（如 `playwright-e2e`）或 DB 層驗證。
+
 ## 10. W9 AI 可操作性（擁有者 2026-07-04 裁定：W10 之後的下一優先）
 
 **背景**：本專案的驗收與自動化作業大量由 AI 操作網頁執行；兩份實測報告（Claude 建單截圖依賴分析 2026-07-03、Fable 5 CAT 抽測 2026-07-03）共列 11 個「AI 被迫截圖猜座標或繞道」的摩擦點。降低摩擦＝每一輪 AI 驗收更快更穩，也直接提升 Playwright 劇本穩定性。**排程**：置於 W10 之後、階段三之前或並行（A 組不衝突可先做）；W10 併入 `main` 後即開工 A 組。

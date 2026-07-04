@@ -49,6 +49,12 @@ test.describe("W10 Phase 2 — 譯者端遮罩（fees_visible）", () => {
     await expect(page.getByText("費用內部備註")).toHaveCount(0);
     // 遮罩：變更紀錄不得出現金額／營收／客戶字樣
     await expect(page.getByText(/營收|利潤|客戶報價/)).toHaveCount(0);
+    // F1（2026-07-04 裁決）：譯者視角變更紀錄「區塊」必須存在（內容為 fees_visible
+    // 白名單條目；空清單顯示「尚無可顯示的變更紀錄」），且條目不含營收／客戶欄位
+    const editLogSection = page.getByTestId("fee-edit-log-section");
+    await expect(editLogSection).toHaveCount(1);
+    await expect(editLogSection.getByText("變更紀錄")).toBeVisible();
+    await expect(editLogSection.getByText(/營收|利潤|客戶|報價|聯絡人|對帳|請款完成|派案|費率/)).toHaveCount(0);
   });
 
   // fixme：依賴假人換人（見檔頂說明）

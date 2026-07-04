@@ -248,9 +248,12 @@ export default function TranslatorFeeDetail() {
   const burstMapRef = useRef<BurstMap>({});
   const phasesRef = useRef<FeeEditLogPhases | undefined>(undefined);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
+  // W10 F1：非管理員的 edit_logs 已由 fees_visible view 於資料層過濾為白名單條目，
+  // 直接渲染；若再套 checkPerm（譯者無 fee_management 檢視權限）會全數濾光導致區塊消失。
+  const isManagerAuth = authIsAdmin || authIsExecutive;
   const filteredFeeEditLog = useMemo(
-    () => filterEditLogsFeeDetail(editLog, checkPerm),
-    [editLog, checkPerm]
+    () => (isManagerAuth ? filterEditLogsFeeDetail(editLog, checkPerm) : editLog),
+    [editLog, checkPerm, isManagerAuth]
   );
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
   const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "assignRole" | "confirmSwap">(null);
@@ -2436,14 +2439,17 @@ export default function TranslatorFeeDetail() {
           <span>建立時間：{formattedDate}</span>
         </div>
 
-        {/* Edit History */}
+        {/* Edit History — 譯者亦顯示（內容為 fees_visible 白名單條目）；空清單顯示提示 */}
         {(() => {
-          if (filteredFeeEditLog.length === 0) return null;
+          if (isManager && filteredFeeEditLog.length === 0) return null;
           return (
             <>
               <Separator />
-              <div className="space-y-3">
+              <div className="space-y-3" data-testid="fee-edit-log-section">
                 <Label className="text-sm font-medium">變更紀錄</Label>
+                {filteredFeeEditLog.length === 0 && (
+                  <p className="text-xs text-muted-foreground">尚無可顯示的變更紀錄</p>
+                )}
                 <div className="space-y-2">
                   {filteredFeeEditLog.map((entry) => (
                     <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">

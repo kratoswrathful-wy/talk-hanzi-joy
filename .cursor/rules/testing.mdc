@@ -40,6 +40,7 @@ Playwright 等待條件一律用確定訊號（元素出現、狀態變更），
 
 - 切換假人後，斷言「該假人為 active persona」（例如切換按鈕呈 active 樣式）才繼續；否則 `dev-switch-user`／`verifyOtp` 靜默失效時，會以原身分（假執行長／管理員）跑完「譯者」測試而**誤判通過**。
 - 權限（RLS）類負向驗證，若 UI 換人流程不可靠，改以**資料庫層模擬**（`set_config('request.jwt.claims', …)` + `SET LOCAL ROLE authenticated`，交易內驗證後 rollback／清理）；範例：[`supabase/tests/w5_billing_rls_check.sql`](../../supabase/tests/w5_billing_rls_check.sql)。
+- （2026-07-04 W10 F2 教訓）**測試模式假人身分不影響路由守衛判定**：前端路由守衛（`RequireModule`／`RequireExecutive` 等）看的是**真實登入帳號**的角色（`useAuth`／`user_roles`），不是測試模式假人。因此**路由守衛的驗證不得用假人切換**——以假人「譯者」開守衛頁面仍會依真實帳號（管理員）放行，造成誤判。守衛類驗證須用**真實測試帳號**（如 `playwright-e2e`）登入，或改 DB 層驗證。
 
 ## 7. 新增資料庫物件必同步重生 types 並過 typecheck
 
