@@ -1,4 +1,4 @@
-狀態：規劃中
+狀態：規劃中（2026-07-04 決策與架構條件已定案，待實作）
 
 # CAT AI 模型清單管理：可行性回應與變更計畫（Cursor 版）
 
@@ -131,7 +131,9 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 新增 migration `supabase/migrations/<ts>_cat_ai_model_registry.sql`，建立：
 
 - `ai_model_providers`、`ai_provider_models`、`cat_ai_model_options`、`ai_model_sync_runs`（欄位大致同 v2 計畫）。
-- RLS：已登入者可 `select cat_ai_model_options where enabled=true`；CAT 主管（比照現有 `_isCatExecutive` 對應的角色判定）可讀寫全部；`ai_provider_models` / `ai_model_sync_runs` 僅 service role 可寫。
+- RLS：已登入者可 `select cat_ai_model_options where enabled=true`；CAT 主管可讀寫全部（角色以 DB `user_roles` 權威判定，非前端 `_tmsRole`）；`ai_provider_models` / `ai_model_sync_runs` 僅 service role 可寫。
+- **seed 至少一顆 `enabled=true` / `is_default=true` 的安全預設模型**；seed 前需先確認該模型可被 production `OPENAI_API_KEY` 透過 `/api/cat-openai` 成功呼叫（現行 fallback 為 `gpt-4.1-mini`，若不可用則改 seed 實際可用模型）。
+- **registry 是團隊模式治理來源；本機／離線模式不依賴 Supabase registry**（見架構條件 A）。
 - 同 commit 以 MCP `generate_typescript_types` 重生 [`src/integrations/supabase/types.ts`](src/integrations/supabase/types.ts)，並移除 `cat_ai_model_options` 相關 `as any`；跑 `npm run typecheck`。
 - migration 一律 `create ... if not exists`（idempotent，符合 `architecture.mdc` §7）。
 
@@ -139,33 +141,38 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 新增 `api/sync-openai-models.js`（比照 [`api/cat-openai.js`](api/cat-openai.js) 風格）：
 
-1. 僅接受具管理權限的請求（帶 Supabase JWT，後端驗證角色）。
+1. **授權（見架構條件 C）**：request 必須帶**外層 TMS React session 的 Supabase access token（JWT）**；後端用 token 取得 user id，再查 DB `user_roles` 權威角色確認為 executive／admin，非此角色一律拒絕。**不可信任 `_tmsRole` 或任何前端傳來的 role 字串**；`_isCatExecutive()` 只能做 UI 顯示 gating。
 2. 讀 Vercel env `OPENAI_API_KEY`，呼叫 `GET /v1/models`。
-3. 用 Supabase service role key（Vercel server-side env）upsert `ai_provider_models`：本次見到的標 `is_currently_available=true`，之前有這次沒有的標 `false`。
+3. 用 Supabase service role key（Vercel server-side env；新增前先確認是否已有既定命名，有則沿用，沒有才新增 `SUPABASE_SERVICE_ROLE_KEY`）upsert `ai_provider_models`：本次見到的標 `is_currently_available=true`，之前有這次沒有的標 `false`。
 4. 對新 model 建立 `cat_ai_model_options` 草稿（`enabled=false`、`display_name_zh` = humanized id、`usage_hint_zh` 留待設定）。
 5. 寫 `ai_model_sync_runs`。
 6. 回傳「找到 N、新增 X、消失 Y、上次同步時間」。
 
-安全：OpenAI key 與 service role key 僅存 Vercel server-side env，不進前端 bundle。
+安全：OpenAI key 與 service role key 僅存 Vercel server-side env，不進前端 bundle、不回傳 client、不在 log／error response 洩漏。
 
 ### 2.3 CAT 前台模型選單（改讀 registry）
 
-- 新增 `cat-tool/js/ai-model-registry.js`（新模組，不動已凍結的 `app.js` 核心）：載入時查 `cat_ai_model_options`（enabled 且對應 provider model available），排序後渲染。
+- 新增 `cat-tool/js/ai-model-registry.js`（新模組，不動已凍結的 `app.js` 核心）。**讀取一律經外層 rpc，iframe 不直接 `supabase.from(...)`（見架構條件 A、B）**：
+  - **團隊模式**（`isTeamMode()`）：透過 postMessage rpc 新增 case `db.getCatAiModelOptions`，由外層 React（[`src/lib/cat-cloud-rpc.ts`](src/lib/cat-cloud-rpc.ts)）以已登入 session 查 `cat_ai_model_options`（enabled 且對應 provider model available），排序回傳後渲染。rpc／Supabase／RLS 失敗時使用安全 fallback 並提示。
+  - **本機／離線模式**：不嘗試連 Supabase，直接使用硬編碼安全預設清單（此為正常行為，非例外）。
 - 改 [`cat-tool/index.html`](cat-tool/index.html)：把 `<select id="aiSettingsModel">` 的寫死 `<optgroup>` 換成由 registry 動態填入，顯示「模型名稱（`display_name_zh`）＋建議用法（`usage_hint_zh`，作 tooltip 或第二行）」。
 - 移除 [`cat-tool/app.js`](cat-tool/app.js) 內「瀏覽器端直打 `/v1/models`」動態塞選單的邏輯（落差 C）。
 - 若選中模型被停用 → 回退預設模型並提示。
-- 改完 `npm run sync:cat`，兩邊一併提交。
+- 改完 `npm run sync:cat`，`cat-tool/**` 與 `public/cat/**` 一併提交。
 
-### 2.4 BYOK 收斂（落差 B，依決策執行）
+### 2.4 BYOK 收斂（落差 B，已定案：方案 X）
 
-視 Part 1.5 決策，二選一：
-
-- **方案 X（建議，治理完整）**：正式環境移除「自訂輸入」與 BYOK 直連翻譯，一律走 `/api/cat-openai` 公司 key + registry 模型；BYOK 僅保留給「測試連線」。
-- **方案 Y（維持現況）**：保留 BYOK，但在 UI 明確標示「自訂／自帶金鑰不受模型清單管控」，並在文件註明 registry 治理範圍僅限公司 key 流量。
+- 正式環境移除「自訂輸入」與 BYOK 直連翻譯，AI 翻譯一律走 `/api/cat-openai` 公司 key + registry 模型。
+- **測試連線改走公司 proxy**：第一版用 `/api/cat-openai` 發最小 chat request（以 registry 預設模型；本機模式用硬編碼 fallback model）測試；不再讓前端用使用者 key 直打 OpenAI `/v1/models`。若日後想避免測試成本或要測 `/v1/models`，再新增專用 health endpoint。
+- **既有殘留 key**：偵測 localStorage／IndexedDB（`catToolAiSettings`、`aiSettings` 單列）舊 `apiKey`／`apiBaseUrl`／自訂 model id 時，清除並顯示一次性提示（「為了安全與統一模型管理，正式 AI 翻譯已改用系統 API…」）。
+- 開發環境若仍需 BYOK，可用 feature flag 限制（如 `CAT_AI_ALLOW_BYOK_DEV_ONLY`），production 預設關閉。
+- **收斂前必先驗證** production `OPENAI_API_KEY` 與 `/api/cat-openai` 正常，否則 fallback 一併消失會導致 AI 翻譯全斷。
 
 ### 2.5 後台審核 UI（cat-tool 內擴充）
 
-在 CAT「AI 設定」區塊新增「模型管理」子頁（僅 CAT 主管可見）：手動「同步 OpenAI 模型清單」按鈕、顯示同步結果、逐列編輯 `display_name_zh` / `usage_hint_zh` / `short_label_zh` / `enabled` / `is_default` / `use_case` / `tier` / `sort_order` / `fallback`。新模型預設待審核（`enabled=false`）。
+在 CAT「AI 設定」區塊新增「模型管理」子頁（`_isCatExecutive()` 控制顯示，僅 UI gating）：手動「同步 OpenAI 模型清單」按鈕、顯示同步結果、逐列編輯 `display_name_zh` / `usage_hint_zh` / `short_label_zh` / `enabled` / `is_default` / `use_case` / `tier` / `sort_order` / `fallback`。新模型預設待審核（`enabled=false`）。
+
+**同步入口（已定案：方案 A）**：按鈕留在 cat-tool AI 設定內，但觸發時透過外層 rpc／bridge 取得外層 session 的 JWT 呼叫 `api/sync-openai-models.js`；真正授權在 Vercel endpoint 後端完成（見架構條件 C）。UI 在 iframe 裡不代表 iframe 自己做授權。
 
 ### 2.6 AI job log（落差 E，後期）
 
@@ -173,11 +180,11 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 ### 2.7 建議實作順序
 
-- **Phase 1**：migration + 重生 types + RLS（2.1）。
-- **Phase 2**：Vercel 同步 endpoint + 手動同步（2.2）。
-- **Phase 3**：後台審核 UI（2.5）。
-- **Phase 4**：前台選單改讀 registry + 移除瀏覽器端 `/v1/models`（2.3）；BYOK 決策（2.4）。
-- **Phase 5**：AI job log 快照（2.6）。
+- **Phase 1**：migration（四張表，idempotent）+ RLS + **seed 一顆已驗證可用的預設模型** + 重生 types + `npm run typecheck`（2.1）。
+- **Phase 2**：Vercel 同步 endpoint + 手動同步；**授權以 JWT 回 DB `user_roles` 查驗**（2.2）。
+- **Phase 3**：後台審核 UI；**同步按鈕透過外層 rpc 帶 JWT 呼叫 endpoint**（2.5）。
+- **Phase 4**：前台選單改讀 registry（**團隊模式走 rpc、本機模式吃硬編碼 fallback**）+ 移除瀏覽器端 `/v1/models`；BYOK 收斂（方案 X）+ 測試連線走 proxy + 清殘留 key（2.3、2.4）。
+- **Phase 5**：AI job log 快照（2.6，獨立後做，不阻塞最小可用版本）。
 - **Phase 6**：測試 + 更新 [`docs/CODEMAP.md`](docs/CODEMAP.md) / [`AGENTS.md`](AGENTS.md)。
 
 ### 2.8 資料流（規劃後）
@@ -196,11 +203,21 @@ flowchart LR
 
 ---
 
-## 需要 GPT-5.5 / 專案擁有者回饋的三個決策
+## 已定案決策（2026-07-04，與 GPT-5.5 共識）
 
-1. 同步機制：Vercel serverless（建議）還是 Supabase Edge Function？
-2. BYOK 直連：收斂（方案 X，建議）還是維持現況並標示（方案 Y）？
-3. 後台管理 UI：`cat-tool/` 內擴充（建議）還是 TMS React 新頁面？
+三個產品／架構決策定案：
+
+1. **同步機制**：採 Vercel serverless（`api/sync-openai-models.js`），不改 Supabase Edge Function。
+2. **BYOK**：正式環境採方案 X 收斂，AI 翻譯一律走公司 proxy + registry；自訂輸入／自帶 key 不用於正式翻譯（最多開發環境以 flag 保留）。
+3. **管理 UI**：先做在 cat-tool 既有「AI 設定」內，不另開 React admin 頁。
+
+先做 Phase 1～4 的最小可用版本；Phase 5 job log 後續獨立做。
+
+### 三個必守架構條件（實作前提）
+
+- **條件 A｜registry 只在團隊模式生效**：CAT iframe 不持有 Supabase session。團隊模式經外層 TMS React rpc 讀 registry；本機／離線模式不連 Supabase，維持硬編碼安全預設清單（此為正常行為）。
+- **條件 B｜iframe 不直查 Supabase**：新增 rpc case `db.getCatAiModelOptions`，由外層 React（[`src/lib/cat-cloud-rpc.ts`](src/lib/cat-cloud-rpc.ts)）以已登入 session 查詢，只回傳 enabled 且 provider currently available 的選項。
+- **條件 C｜後端授權回 DB 查角色**：`api/sync-openai-models.js` 以外層 session 的 JWT 取得 user id，查 DB `user_roles` 確認 executive／admin；不可信任 `_tmsRole` 或前端 role 字串。`_isCatExecutive()` 僅 UI gating。
 
 ---
 
@@ -208,5 +225,9 @@ flowchart LR
 
 v2 計畫的 13 條驗收條件大致沿用，補充：
 
-- 條件 6、7、11（前台不顯示裸 model id、停用不可選、key 不外洩）**必須把 BYOK 決策一併納入**，否則自訂輸入仍是破口。
-- 新增：`npm run typecheck` 通過、`src/integrations/supabase/types.ts` 已含新表、`cat-tool` 與 `public/cat` 同步提交。
+- 條件 6、7、11（前台不顯示裸 model id、停用不可選、key 不外洩）**必須把 BYOK 收斂一併納入**，否則自訂輸入仍是破口。
+- `npm run typecheck` 通過、`src/integrations/supabase/types.ts` 已含新表、`cat-tool` 與 `public/cat` 同步提交。
+- **本機／離線模式**不連 Supabase registry，仍能看到安全預設模型；**團隊模式**透過 rpc 成功讀取 enabled registry 模型；iframe 內不直接使用 Supabase client 查 registry。
+- **sync endpoint** 使用 JWT + DB role 查驗，不接受前端 role 字串；非 CAT 主管即使知道 endpoint URL 也無法同步；`_isCatExecutive()` 不作為後端授權。
+- **seed** 的預設模型已由 production proxy 測試確認可用（只有一個預設模型）。
+- production BYOK 翻譯 fallback 已移除或停用；舊 localStorage／IndexedDB `apiKey` 已清除或提示不再生效；測試連線改走公司 proxy。
