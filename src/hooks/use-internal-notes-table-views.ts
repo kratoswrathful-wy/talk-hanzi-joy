@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { getStatusSortIndex } from "@/stores/select-options-store";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import type { Block } from "@blocknote/core";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
@@ -35,7 +36,7 @@ export interface InternalNote {
   sourceText: string;
   translatedText: string;
   questionOrNote: string;
-  questionOrNoteBlocks: any[]; // BlockNote JSON blocks for rich text
+  questionOrNoteBlocks: Block[]; // BlockNote JSON blocks for rich text
   referenceFiles: { name: string; url: string }[];
   comments: NoteComment[];
   // Invalidation

@@ -367,12 +367,12 @@ function NoteDetailView({
           <RichTextEditor
             initialContent={(() => {
               // Try parsing as JSON blocks; fall back to plain text paragraph
-              if (Array.isArray((note as any).questionOrNoteBlocks) && (note as any).questionOrNoteBlocks.length > 0) {
-                return (note as any).questionOrNoteBlocks;
+              if (Array.isArray(note.questionOrNoteBlocks) && note.questionOrNoteBlocks.length > 0) {
+                return note.questionOrNoteBlocks;
               }
               return undefined;
             })()}
-            onChange={(blocks) => onUpdate({ questionOrNoteBlocks: blocks } as any)}
+            onChange={(blocks) => onUpdate({ questionOrNoteBlocks: blocks })}
           />
         </Suspense>
       </Field>
@@ -671,10 +671,10 @@ export default function InternalNotesPage() {
           }
           return JSON.stringify(v ?? null);
         };
-        for (const key of Object.keys(updates)) {
+        for (const key of Object.keys(updates) as (keyof InternalNote)[]) {
           if (NOTE_SKIP.has(key)) continue;
-          const ov = (prev as any)[key];
-          const nv = (updates as any)[key];
+          const ov = prev[key];
+          const nv = updates[key];
           if (nv === undefined) continue;
           if (JSON.stringify(ov) === JSON.stringify(nv)) continue;
           const label = internalNotesFieldMetas.find((m) => m.key === key)?.label || key;

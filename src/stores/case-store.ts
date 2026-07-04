@@ -22,10 +22,182 @@ import {
 import { feeStore } from "@/stores/fee-store";
 import { invoiceStore } from "@/stores/invoice-store";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
-import type { CaseRecord, CaseStatus, ToolEntry } from "@/data/case-types";
+import type { CaseRecord, CaseStatus, ToolEntry, ToolEntryField, CaseComment, DeclineRecord, CollabRow, WorkGroup } from "@/data/case-types";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+type DbCase = Database["public"]["Tables"]["cases"]["Row"];
+type DbCaseInsert = Database["public"]["Tables"]["cases"]["Insert"];
+type DbCaseUpdate = Database["public"]["Tables"]["cases"]["Update"];
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+/** ???????Json ????????? `toItem` ????????????????????????????????? as unknown as???*/
+function toTypedArray<T>(value: Json | null | undefined, toItem: (x: Json) => T | undefined): T[] {
+  if (!Array.isArray(value)) return [];
+  const out: T[] = [];
+  for (const item of value) {
+    const converted = toItem(item);
+    if (converted !== undefined) out.push(converted);
+  }
+  return out;
+}
+
+function nameUrlFromJson(x: Json): { name: string; url: string } | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.name !== "string" || typeof x.url !== "string") return undefined;
+  return { name: x.name, url: x.url };
+}
+
+function labelUrlFromJson(x: Json): { label: string; url: string } | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.label !== "string" || typeof x.url !== "string") return undefined;
+  return { label: x.label, url: x.url };
+}
+
+function stringFromJson(x: Json): string | undefined {
+  return typeof x === "string" ? x : undefined;
+}
+
+/** ?? string?null????????????? undefined??????????????????? */
+function nullableStringFromJson(x: Json | undefined): string | null | undefined {
+  if (x === null) return null;
+  if (typeof x === "string") return x;
+  return undefined;
+}
+
+function internalRecordFromJson(x: Json): { id: string; author: string; text: string; createdAt: string } | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.author !== "string" || typeof x.text !== "string" || typeof x.createdAt !== "string") return undefined;
+  return { id: x.id, author: x.author, text: x.text, createdAt: x.createdAt };
+}
+
+function caseCommentFromJson(x: Json): CaseComment | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.author !== "string" || typeof x.content !== "string" || typeof x.createdAt !== "string") return undefined;
+  const imageUrls = Array.isArray(x.imageUrls) ? x.imageUrls.filter((u): u is string => typeof u === "string") : undefined;
+  const fileUrls = Array.isArray(x.fileUrls) ? toTypedArray(x.fileUrls, nameUrlFromJson) : undefined;
+  return {
+    id: x.id,
+    author: x.author,
+    content: x.content,
+    createdAt: x.createdAt,
+    ...(imageUrls && imageUrls.length ? { imageUrls } : {}),
+    ...(fileUrls && fileUrls.length ? { fileUrls } : {}),
+    ...(typeof x.replyTo === "string" ? { replyTo: x.replyTo } : {}),
+  };
+}
+
+function declineRecordFromJson(x: Json): DeclineRecord | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.translator !== "string" || typeof x.createdAt !== "string") return undefined;
+  return {
+    id: x.id,
+    translator: x.translator,
+    createdAt: x.createdAt,
+    ...(typeof x.proposedDeadline === "string" ? { proposedDeadline: x.proposedDeadline } : {}),
+    ...(typeof x.availableCount === "number" ? { availableCount: x.availableCount } : {}),
+    ...(typeof x.message === "string" ? { message: x.message } : {}),
+  };
+}
+
+function collabRowFromJson(x: Json): CollabRow | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (
+    typeof x.id !== "string" || typeof x.segment !== "string" || typeof x.translator !== "string" ||
+    typeof x.unitCount !== "number" || typeof x.accepted !== "boolean" ||
+    typeof x.reviewer !== "string" ||
+    typeof x.taskCompleted !== "boolean" || typeof x.delivered !== "boolean"
+  ) return undefined;
+  const rawTranslationDeadline = x.translationDeadline;
+  const translationDeadline: string | null = typeof rawTranslationDeadline === "string" ? rawTranslationDeadline : null;
+  const rawReviewDeadline = x.reviewDeadline;
+  const reviewDeadline: string | null = typeof rawReviewDeadline === "string" ? rawReviewDeadline : null;
+  return {
+    id: x.id,
+    segment: x.segment,
+    translator: x.translator,
+    unitCount: x.unitCount,
+    accepted: x.accepted,
+    translationDeadline,
+    reviewer: x.reviewer,
+    reviewDeadline,
+    taskCompleted: x.taskCompleted,
+    delivered: x.delivered,
+    ...(nullableStringFromJson(x.linkedCatFileId) !== undefined ? { linkedCatFileId: nullableStringFromJson(x.linkedCatFileId) } : {}),
+    ...(nullableStringFromJson(x.linkedCatViewId) !== undefined ? { linkedCatViewId: nullableStringFromJson(x.linkedCatViewId) } : {}),
+    ...(nullableStringFromJson(x.lineRange) !== undefined ? { lineRange: nullableStringFromJson(x.lineRange) } : {}),
+    ...(nullableStringFromJson(x.scopeLabel) !== undefined ? { scopeLabel: nullableStringFromJson(x.scopeLabel) } : {}),
+    ...(nullableStringFromJson(x.translatorUserId) !== undefined ? { translatorUserId: nullableStringFromJson(x.translatorUserId) } : {}),
+    ...(nullableStringFromJson(x.reviewerUserId) !== undefined ? { reviewerUserId: nullableStringFromJson(x.reviewerUserId) } : {}),
+  };
+}
+
+function toolEntryFieldFromJson(f: Json): ToolEntryField | undefined {
+  if (!f || typeof f !== "object" || Array.isArray(f)) return undefined;
+  if (typeof f.id !== "string" || typeof f.label !== "string") return undefined;
+  return { id: f.id, label: f.label, ...(f.type === "text" || f.type === "file" ? { type: f.type } : {}) };
+}
+
+function toolEntryFromJson(x: Json): ToolEntry | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.tool !== "string" || typeof x.fieldValues !== "object" || x.fieldValues === null || Array.isArray(x.fieldValues)) return undefined;
+  const fieldValues = jsonRecordOfStrings(x.fieldValues);
+  const fields = Array.isArray(x.fields) ? toTypedArray(x.fields, toolEntryFieldFromJson) : undefined;
+  const fileValues = (x.fileValues && typeof x.fileValues === "object" && !Array.isArray(x.fileValues))
+    ? (() => {
+        const out: Record<string, { name: string; url: string }[]> = {};
+        for (const [k, v] of Object.entries(x.fileValues as { [key: string]: Json | undefined })) {
+          out[k] = Array.isArray(v) ? toTypedArray(v, nameUrlFromJson) : [];
+        }
+        return out;
+      })()
+    : undefined;
+  return {
+    id: x.id,
+    tool: x.tool,
+    fieldValues,
+    ...(fields && fields.length ? { fields } : {}),
+    ...(fileValues ? { fileValues } : {}),
+  };
+}
+
+function simplePersistedLogFromJson(x: Json): SimplePersistedLog | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.changedBy !== "string" || typeof x.description !== "string" || typeof x.timestamp !== "string") return undefined;
+  return {
+    id: x.id,
+    changedBy: x.changedBy,
+    description: x.description,
+    timestamp: x.timestamp,
+    ...(typeof x.fieldKey === "string" ? { fieldKey: x.fieldKey } : {}),
+  };
+}
+
+function workGroupFromJson(x: Json): WorkGroup | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.workType !== "string" || typeof x.billingUnit !== "string" || typeof x.unitCount !== "number") return undefined;
+  return { id: x.id, workType: x.workType, billingUnit: x.billingUnit, unitCount: x.unitCount };
+}
+
+/** ??app ????????????DB jsonb ?????????? Json???????????????????????Json????????????*/
+function toJson<T>(value: T): Json {
+  return JSON.parse(JSON.stringify(value ?? null));
+}
+
+function jsonRecordOfStrings(value: Json | null | undefined): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
 
 type Listener = () => void;
 
@@ -65,7 +237,7 @@ function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord
     return current;
   }
 
-  // 防呆：舊快取或異常資料可能缺 tools／questionTools，避免讀 .length 拋錯導致整頁崩潰
+  // ?????????????????????? tools?questionTools?????? .length ???????????
   const curToolsLen = current.tools?.length ?? 0;
   const incToolsLen = incoming.tools?.length ?? 0;
   const curQtLen = current.questionTools?.length ?? 0;
@@ -82,113 +254,116 @@ function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord
   };
 }
 
-// ── DB ↔ App mapping ──
+// ???? DB ??App mapping ????
 
-function fromDb(row: any): CaseRecord {
+function fromDb(row: DbCase): CaseRecord {
   // Build workGroups from DB or migrate from legacy fields
-  const workGroupsRaw = Array.isArray(row.work_groups) ? row.work_groups : [];
-  const workGroups = workGroupsRaw.length > 0 ? workGroupsRaw : (() => {
-    // Migrate from legacy: one group per workType entry
-    const legacyWorkTypes = Array.isArray(row.work_type) ? row.work_type : [];
-    if (legacyWorkTypes.length > 0) {
-      return legacyWorkTypes.map((wt: string, i: number) => ({
-        id: `wg-migrate-${i}`,
-        workType: wt,
-        billingUnit: row.billing_unit ?? "",
-        unitCount: i === 0 ? (Number(row.unit_count) || 0) : 0,
-      }));
-    }
-    return [{ id: `wg-default`, workType: "", billingUnit: "", unitCount: 0 }];
-  })();
+  const workGroupsRaw = toTypedArray(row.work_groups, workGroupFromJson);
+  const legacyWorkTypes = toTypedArray(row.work_type, stringFromJson);
+  const workGroups: WorkGroup[] = workGroupsRaw.length > 0
+    ? workGroupsRaw
+    : legacyWorkTypes.length > 0
+      ? legacyWorkTypes.map((wt, i) => ({
+          id: `wg-migrate-${i}`,
+          workType: wt,
+          billingUnit: row.billing_unit ?? "",
+          unitCount: i === 0 ? (Number(row.unit_count) || 0) : 0,
+        }))
+      : [{ id: `wg-default`, workType: "", billingUnit: "", unitCount: 0 }];
+
+  const clientCaseLinkRaw = row.client_case_link;
+  const clientCaseLink =
+    clientCaseLinkRaw && typeof clientCaseLinkRaw === "object" && !Array.isArray(clientCaseLinkRaw) &&
+    typeof clientCaseLinkRaw.url === "string" && typeof clientCaseLinkRaw.label === "string"
+      ? { url: clientCaseLinkRaw.url, label: clientCaseLinkRaw.label }
+      : { url: "", label: "" };
 
   return {
     id: row.id,
     title: row.title ?? "",
-    status: (row.status || "draft") as any,
+    status: (row.status || "draft") as CaseStatus,
     client: row.client ?? "",
     contact: row.contact ?? "",
     keyword: row.keyword ?? "",
     clientPoNumber: row.client_po_number ?? "",
-    clientCaseLink: (row.client_case_link && typeof row.client_case_link === "object" && !Array.isArray(row.client_case_link))
-      ? row.client_case_link as { url: string; label: string }
-      : { url: "", label: "" },
+    clientCaseLink,
     dispatchRoute: row.dispatch_route ?? "",
     category: row.category ?? "",
-    workType: Array.isArray(row.work_type) ? row.work_type : [],
+    workType: legacyWorkTypes,
     workGroups,
     processNote: row.process_note ?? "",
     billingUnit: row.billing_unit ?? "",
     unitCount: Number(row.unit_count) || 0,
     inquiryNote: row.inquiry_note ?? "",
-    translator: Array.isArray(row.translator) ? row.translator as string[] : row.translator ? [row.translator as string] : [],
+    translator: toTypedArray(row.translator, stringFromJson),
     translationDeadline: row.translation_deadline,
     reviewer: row.reviewer ?? "",
     reviewDeadline: row.review_deadline,
-    
+
     executionTool: row.execution_tool ?? "",
-    toolFieldValues: (row.tool_field_values && typeof row.tool_field_values === "object" && !Array.isArray(row.tool_field_values)) ? row.tool_field_values as Record<string, string> : {},
+    toolFieldValues: jsonRecordOfStrings(row.tool_field_values),
     catToolEnabled: row.cat_tool_enabled ?? false,
-    tools: Array.isArray(row.tools) ? (row.tools as ToolEntry[]) : [],
-    questionTools: Array.isArray(row.question_tools) ? (row.question_tools as ToolEntry[]) : [],
+    tools: toTypedArray(row.tools, toolEntryFromJson),
+    questionTools: toTypedArray(row.question_tools, toolEntryFromJson),
     deliveryMethod: row.delivery_method ?? "",
-    deliveryMethodFiles: Array.isArray(row.delivery_method_files) ? row.delivery_method_files : [],
+    deliveryMethodFiles: toTypedArray(row.delivery_method_files, nameUrlFromJson),
     clientReceipt: row.client_receipt ?? "",
-    clientReceiptFiles: Array.isArray(row.client_receipt_files) ? row.client_receipt_files : [],
-    customGuidelinesUrl: Array.isArray(row.custom_guidelines_url) ? row.custom_guidelines_url : [],
-    clientGuidelines: Array.isArray(row.client_guidelines) ? row.client_guidelines : [],
-    commonInfo: Array.isArray(row.common_info) ? row.common_info : [],
-    commonLinks: Array.isArray(row.common_links) ? row.common_links : [],
+    clientReceiptFiles: toTypedArray(row.client_receipt_files, nameUrlFromJson),
+    customGuidelinesUrl: toTypedArray(row.custom_guidelines_url, nameUrlFromJson),
+    clientGuidelines: toTypedArray(row.client_guidelines, nameUrlFromJson),
+    commonInfo: toTypedArray(row.common_info, labelUrlFromJson),
+    commonLinks: toTypedArray(row.common_links, stringFromJson),
     internalNoteForm: row.internal_note_form ?? false,
     clientQuestionForm: row.client_question_form ?? false,
-    workingFiles: Array.isArray(row.working_files) ? row.working_files : [],
+    workingFiles: toTypedArray(row.working_files, nameUrlFromJson),
     otherLoginInfo: row.other_login_info ?? "",
     loginAccount: row.login_account ?? "",
     loginPassword: row.login_password ?? "",
     onlineToolProject: row.online_tool_project ?? "",
     onlineToolFilename: row.online_tool_filename ?? "",
-    sourceFiles: Array.isArray(row.source_files) ? row.source_files : [],
-    seriesReferenceMaterials: Array.isArray(row.series_reference_materials) ? row.series_reference_materials : [],
-    caseReferenceMaterials: Array.isArray(row.case_reference_materials) ? row.case_reference_materials : [],
-    referenceMaterials: Array.isArray(row.reference_materials) ? row.reference_materials : [],
+    sourceFiles: toTypedArray(row.source_files, nameUrlFromJson),
+    seriesReferenceMaterials: toTypedArray(row.series_reference_materials, nameUrlFromJson),
+    caseReferenceMaterials: toTypedArray(row.case_reference_materials, nameUrlFromJson),
+    referenceMaterials: toTypedArray(row.reference_materials, nameUrlFromJson),
     questionForm: row.question_form ?? "",
-    translatorFinal: Array.isArray(row.translator_final) ? row.translator_final : [],
-    internalReviewFinal: Array.isArray(row.internal_review_final) ? row.internal_review_final : [],
-    trackChanges: Array.isArray(row.track_changes) ? row.track_changes : [],
+    translatorFinal: toTypedArray(row.translator_final, nameUrlFromJson),
+    internalReviewFinal: toTypedArray(row.internal_review_final, nameUrlFromJson),
+    trackChanges: toTypedArray(row.track_changes, nameUrlFromJson),
     feeEntry: row.fee_entry ?? "",
-    internalRecords: Array.isArray(row.internal_records) ? row.internal_records : [],
-    comments: Array.isArray(row.comments) ? row.comments : [],
-    internalComments: Array.isArray(row.internal_comments) ? row.internal_comments : [],
+    internalRecords: toTypedArray(row.internal_records, internalRecordFromJson),
+    comments: toTypedArray(row.comments, caseCommentFromJson),
+    internalComments: toTypedArray(row.internal_comments, caseCommentFromJson),
     bodyContent: Array.isArray(row.body_content) ? row.body_content : [],
     multiCollab: row.multi_collab ?? false,
     collabCount: Number(row.collab_count) || 0,
-    collabRows: Array.isArray(row.collab_rows) ? row.collab_rows : [],
-    declineRecords: Array.isArray(row.decline_records) ? row.decline_records : [],
+    collabRows: toTypedArray(row.collab_rows, collabRowFromJson),
+    declineRecords: toTypedArray(row.decline_records, declineRecordFromJson),
     iconUrl: row.icon_url ?? "",
     createdBy: row.created_by,
     createdAt: row.created_at,
-    inquirySlackRecords: Array.isArray(row.inquiry_slack_records) ? row.inquiry_slack_records : [],
+    inquirySlackRecords: toTypedArray(row.inquiry_slack_records, stringFromJson),
     updatedAt: row.updated_at,
-    edit_logs: Array.isArray(row.edit_logs) ? (row.edit_logs as SimplePersistedLog[]) : undefined,
+    edit_logs: toTypedArray(row.edit_logs, simplePersistedLogFromJson),
     changeLogEnabledAt: row.change_log_enabled_at ?? undefined,
   };
 }
 
-function toDb(c: Partial<CaseRecord>): Record<string, any> {
-  const map: Record<string, any> = {};
+function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
+  const map: DbCaseUpdate = {};
   if (c.title !== undefined) map.title = c.title;
   if (c.status !== undefined) map.status = c.status;
   if (c.client !== undefined) map.client = c.client;
   if (c.contact !== undefined) map.contact = c.contact;
   if (c.keyword !== undefined) map.keyword = c.keyword;
   if (c.clientPoNumber !== undefined) map.client_po_number = c.clientPoNumber;
-  if (c.clientCaseLink !== undefined) map.client_case_link = c.clientCaseLink;
+  if (c.clientCaseLink !== undefined) map.client_case_link = toJson(c.clientCaseLink);
   if (c.dispatchRoute !== undefined) map.dispatch_route = c.dispatchRoute;
   if (c.category !== undefined) map.category = c.category;
-  if (c.workType !== undefined) map.work_type = c.workType;
+  if (c.workType !== undefined) map.work_type = toJson(c.workType);
   if (c.workGroups !== undefined) {
-    map.work_groups = c.workGroups;
+    map.work_groups = toJson(c.workGroups);
     // Keep legacy columns in sync for backward compatibility
-    map.work_type = c.workGroups.map((g) => g.workType).filter(Boolean);
+    map.work_type = toJson(c.workGroups.map((g) => g.workType).filter(Boolean));
     if (c.workGroups[0]) {
       map.billing_unit = c.workGroups[0].billingUnit || "";
       map.unit_count = Number(c.workGroups[0].unitCount) || 0;
@@ -198,62 +373,62 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.billingUnit !== undefined) map.billing_unit = c.billingUnit;
   if (c.unitCount !== undefined) map.unit_count = c.unitCount;
   if (c.inquiryNote !== undefined) map.inquiry_note = c.inquiryNote;
-  if (c.translator !== undefined) map.translator = c.translator;
+  if (c.translator !== undefined) map.translator = toJson(c.translator);
   if (c.translationDeadline !== undefined) map.translation_deadline = c.translationDeadline;
   if (c.reviewer !== undefined) map.reviewer = c.reviewer;
   if (c.reviewDeadline !== undefined) map.review_deadline = c.reviewDeadline;
   
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
-  if (c.toolFieldValues !== undefined) map.tool_field_values = c.toolFieldValues;
+  if (c.toolFieldValues !== undefined) map.tool_field_values = toJson(c.toolFieldValues);
   if (c.catToolEnabled !== undefined) map.cat_tool_enabled = c.catToolEnabled;
-  if (c.tools !== undefined) map.tools = c.tools;
-  if (c.questionTools !== undefined) map.question_tools = c.questionTools;
+  if (c.tools !== undefined) map.tools = toJson(c.tools);
+  if (c.questionTools !== undefined) map.question_tools = toJson(c.questionTools);
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
-  if (c.deliveryMethodFiles !== undefined) map.delivery_method_files = c.deliveryMethodFiles;
+  if (c.deliveryMethodFiles !== undefined) map.delivery_method_files = toJson(c.deliveryMethodFiles);
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
-  if (c.clientReceiptFiles !== undefined) map.client_receipt_files = c.clientReceiptFiles;
-  if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = c.customGuidelinesUrl;
-  if (c.clientGuidelines !== undefined) map.client_guidelines = c.clientGuidelines;
-  if (c.commonInfo !== undefined) map.common_info = c.commonInfo;
-  if (c.commonLinks !== undefined) map.common_links = c.commonLinks;
+  if (c.clientReceiptFiles !== undefined) map.client_receipt_files = toJson(c.clientReceiptFiles);
+  if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = toJson(c.customGuidelinesUrl);
+  if (c.clientGuidelines !== undefined) map.client_guidelines = toJson(c.clientGuidelines);
+  if (c.commonInfo !== undefined) map.common_info = toJson(c.commonInfo);
+  if (c.commonLinks !== undefined) map.common_links = toJson(c.commonLinks);
   if (c.internalNoteForm !== undefined) map.internal_note_form = c.internalNoteForm;
   if (c.clientQuestionForm !== undefined) map.client_question_form = c.clientQuestionForm;
-  if (c.workingFiles !== undefined) map.working_files = c.workingFiles;
+  if (c.workingFiles !== undefined) map.working_files = toJson(c.workingFiles);
   if (c.otherLoginInfo !== undefined) map.other_login_info = c.otherLoginInfo;
   if (c.loginAccount !== undefined) map.login_account = c.loginAccount;
   if (c.loginPassword !== undefined) map.login_password = c.loginPassword;
   if (c.onlineToolProject !== undefined) map.online_tool_project = c.onlineToolProject;
   if (c.onlineToolFilename !== undefined) map.online_tool_filename = c.onlineToolFilename;
-  if (c.sourceFiles !== undefined) map.source_files = c.sourceFiles;
-  if (c.seriesReferenceMaterials !== undefined) map.series_reference_materials = c.seriesReferenceMaterials;
-  if (c.caseReferenceMaterials !== undefined) map.case_reference_materials = c.caseReferenceMaterials;
-  if (c.referenceMaterials !== undefined) map.reference_materials = c.referenceMaterials;
+  if (c.sourceFiles !== undefined) map.source_files = toJson(c.sourceFiles);
+  if (c.seriesReferenceMaterials !== undefined) map.series_reference_materials = toJson(c.seriesReferenceMaterials);
+  if (c.caseReferenceMaterials !== undefined) map.case_reference_materials = toJson(c.caseReferenceMaterials);
+  if (c.referenceMaterials !== undefined) map.reference_materials = toJson(c.referenceMaterials);
   if (c.questionForm !== undefined) map.question_form = c.questionForm;
-  if (c.translatorFinal !== undefined) map.translator_final = c.translatorFinal;
-  if (c.internalReviewFinal !== undefined) map.internal_review_final = c.internalReviewFinal;
-  if (c.trackChanges !== undefined) map.track_changes = c.trackChanges;
+  if (c.translatorFinal !== undefined) map.translator_final = toJson(c.translatorFinal);
+  if (c.internalReviewFinal !== undefined) map.internal_review_final = toJson(c.internalReviewFinal);
+  if (c.trackChanges !== undefined) map.track_changes = toJson(c.trackChanges);
   if (c.feeEntry !== undefined) map.fee_entry = c.feeEntry;
-  if (c.internalRecords !== undefined) map.internal_records = c.internalRecords;
-  if (c.comments !== undefined) map.comments = c.comments;
-  if (c.internalComments !== undefined) map.internal_comments = c.internalComments;
-  if (c.bodyContent !== undefined) map.body_content = c.bodyContent;
+  if (c.internalRecords !== undefined) map.internal_records = toJson(c.internalRecords);
+  if (c.comments !== undefined) map.comments = toJson(c.comments);
+  if (c.internalComments !== undefined) map.internal_comments = toJson(c.internalComments);
+  if (c.bodyContent !== undefined) map.body_content = toJson(c.bodyContent);
   if (c.multiCollab !== undefined) map.multi_collab = c.multiCollab;
   if (c.collabCount !== undefined) map.collab_count = c.collabCount;
-  if (c.collabRows !== undefined) map.collab_rows = c.collabRows;
-  if (c.declineRecords !== undefined) map.decline_records = c.declineRecords;
+  if (c.collabRows !== undefined) map.collab_rows = toJson(c.collabRows);
+  if (c.declineRecords !== undefined) map.decline_records = toJson(c.declineRecords);
   if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
-  if (c.inquirySlackRecords !== undefined) map.inquiry_slack_records = c.inquirySlackRecords;
-  if (c.edit_logs !== undefined) map.edit_logs = c.edit_logs;
+  if (c.inquirySlackRecords !== undefined) map.inquiry_slack_records = toJson(c.inquirySlackRecords);
+  if (c.edit_logs !== undefined) map.edit_logs = toJson(c.edit_logs);
   if (c.changeLogEnabledAt !== undefined) map.change_log_enabled_at = c.changeLogEnabledAt;
   return map;
 }
 
-// ── Public API ──
+// ???? Public API ????
 
 /**
- * 僅載入單一案件（詳情頁優先路徑，避免等待全表 `select("*")` 逾時／阻塞）。
- * 若記憶體已有該筆則立即回傳；否則向 DB 取一列並合入 `cases`。
+ * ?????????????????????????????????`select("*")` ???????????
+ * ????????????????????????????????DB ?????????? `cases`??
  */
 async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
   const existing = getById(id);
@@ -263,13 +438,15 @@ async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
   if (!user) return undefined;
 
   const env = getEnvironment();
-  const { data, error } = await (supabase.from("cases").select("*") as any)
+  const { data, error } = await supabase
+    .from("cases")
+    .select("*")
     .eq("id", id)
     .eq("env", env)
     .maybeSingle();
 
   if (error) {
-    console.error("[case-store] loadCaseIfMissing", error);
+    console.error("[case-store] loadCaseIfMissing", errorMessage(error));
     return undefined;
   }
   if (!data) return undefined;
@@ -304,13 +481,15 @@ async function load() {
       }
 
       const env = getEnvironment();
-      const { data, error } = await (supabase.from("cases").select("*") as any)
+      const { data, error } = await supabase
+        .from("cases")
+        .select("*")
         .eq("env", env)
         .order("created_at", { ascending: false });
       if (version !== loadVersion) return;
 
       if (error) {
-        console.error("[case-store] full load failed", error);
+        console.error("[case-store] full load failed", errorMessage(error));
         cases = [];
         loaded = true;
         loadPromise = null;
@@ -358,10 +537,10 @@ function getById(id: string): CaseRecord | undefined {
 async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
   const env = getEnvironment();
   const { data: { user } } = await supabase.auth.getUser();
-  const payload = { ...toDb(partial), env, created_by: user?.id || null };
-  const { data, error } = await (supabase.from("cases").insert(payload as any).select().single() as any);
+  const payload: DbCaseInsert = { ...toDb(partial), env, created_by: user?.id || null };
+  const { data, error } = await supabase.from("cases").insert(payload).select().single();
   if (error || !data) {
-    console.error("[case-store] create failed", error, { payloadKeys: Object.keys(payload || {}) });
+    console.error("[case-store] create failed", errorMessage(error), { payloadKeys: Object.keys(payload || {}) });
     return null;
   }
   const record = fromDb(data);
@@ -383,7 +562,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     partial.status !== undefined &&
     partial.status !== prev.status &&
     (revertWorkflowStatuses as readonly string[]).includes(partial.status);
-  // 派案重構：過度同步策略——任一派案相關欄位變動即重跑（同步函式冪等，寧可多跑不漏跑）。
+  // ????????????????????????????????????????????????????????????????????
   void shouldSyncCatWorkflowOnStatusRevert;
   void nextStatus;
   const shouldSyncCatWorkflowAssignments =
@@ -423,7 +602,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   notify();
 
-  const { error } = await (supabase.from("cases").update(mapped as any).eq("id", id) as any);
+  const { error } = await supabase.from("cases").update(mapped).eq("id", id);
 
   const remaining = (inFlightCount.get(id) || 1) - 1;
   if (remaining <= 0) {
@@ -455,7 +634,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   if (!error && shouldSyncCatAssignments) {
     try {
-      await (supabase as any).rpc("sync_cat_file_assignments_for_case", { p_case_id: id });
+      await supabase.rpc("sync_cat_file_assignments_for_case", { p_case_id: id });
     } catch (e) {
       console.warn("[case-store] sync CAT assignments skipped:", e);
     }
@@ -474,7 +653,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 }
 
 async function remove(id: string) {
-  const { error } = await (supabase.from("cases").delete().eq("id", id) as any);
+  const { error } = await supabase.from("cases").delete().eq("id", id);
   if (!error) {
     cases = cases.filter((c) => c.id !== id);
     notify();
@@ -499,7 +678,7 @@ function reset() {
   pendingCleanupTimers.clear();
 }
 
-// Listen for auth changes — only reload on sign-in to avoid race conditions
+// Listen for auth changes ??only reload on sign-in to avoid race conditions
 supabase.auth.onAuthStateChange((event, session) => {
   const nextUserId = session?.user?.id ?? null;
 
@@ -524,7 +703,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// Realtime subscription – sync changes from other users
+// Realtime subscription ??sync changes from other users
 supabase
   .channel("cases-realtime")
   .on(
@@ -533,7 +712,7 @@ supabase
     (payload) => {
       const env = getEnvironment();
       if (payload.eventType === "UPDATE" && payload.new) {
-        const row = payload.new as any;
+        const row = payload.new as DbCase;
         if (row.env !== env) return;
         // Skip realtime updates for cases with pending optimistic writes
         if (pendingUpdates.has(row.id)) return;
@@ -541,7 +720,7 @@ supabase
         cases = cases.map((c) => (c.id === updated.id ? mergeIncomingCase(c, updated) : c));
         notify();
       } else if (payload.eventType === "INSERT" && payload.new) {
-        const row = payload.new as any;
+        const row = payload.new as DbCase;
         if (row.env !== env) return;
         const exists = cases.some((c) => c.id === row.id);
         if (!exists) {
@@ -549,7 +728,7 @@ supabase
           notify();
         }
       } else if (payload.eventType === "DELETE" && payload.old) {
-        const oldId = (payload.old as any).id;
+        const oldId = (payload.old as Partial<DbCase>).id;
         if (cases.some((c) => c.id === oldId)) {
           cases = cases.filter((c) => c.id !== oldId);
           notify();
@@ -576,12 +755,13 @@ async function duplicate(
   try {
     const source = cases.find((c) => c.id === id);
     if (!source) return null;
-    const { id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic, ...rest } = source;
-
-    // Important: duplicate should not inherit Slack inquiry lock history.
-    // Deleting prevents DB payload failures when the column isn't deployed yet,
-    // and ensures DB default ([]) is used even when deployed.
-    delete (rest as any).inquirySlackRecords;
+    const {
+      id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic,
+      // Important: duplicate should not inherit Slack inquiry lock history.
+      // Excluding here (rather than deleting later) ensures DB default ([]) is used.
+      inquirySlackRecords: _isr,
+      ...rest
+    } = source;
 
   const now = new Date();
   const yy = String(now.getFullYear()).slice(2);
@@ -691,7 +871,7 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
   };
 }
 
-// Polling fallback – ensures sync within 3s even if Realtime misses events
+// Polling fallback ??ensures sync within 3s even if Realtime misses events
 const casePoll = createPollFallback("cases", () => {
   if (loaded) {
     loadPromise = null;

@@ -21,13 +21,16 @@ export const PAGE_MODULES: PageModule[] = [
   "cases", "internalNotes", "fees", "invoices", "clientInvoices",
 ];
 
+/** 單一範本欄位的預填值：依欄位型別而異（文字／數字／布林／多選陣列／檔案陣列） */
+export type TemplateFieldValue = string | number | boolean | string[] | { name: string; url: string }[] | null;
+
 export interface PageTemplate {
   id: string;
   name: string;
   module: PageModule;
   isDefault: boolean;
   /** Arbitrary key-value pairs representing pre-filled field values */
-  fieldValues: Record<string, any>;
+  fieldValues: Record<string, TemplateFieldValue>;
 }
 
 type Listener = () => void;
