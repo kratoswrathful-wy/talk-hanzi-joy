@@ -413,7 +413,7 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 |------|------|
 | C1 | bridge 寫入成功（`ok:true`）後清除 `beforeunload` 攔截（現況 AI 導覽被 Leave site? 擋住，只能開新分頁繞） |
 | C2 | 語言對選擇框打字搜尋無反應（打 `zh` 清單不過濾；人類也可能受影響） |
-| C3 | CAT iframe 對無障礙樹不可見——generic 工具（find/read_page/file_upload）全失效；至少為匯入 file input 提供可及定位，或評估 iframe a11y 曝露設定 |
+| C3 | CAT iframe 對無障礙樹不可見——generic 工具（find/read_page/file_upload）全失效；至少為匯入 file input 提供可及定位，或評估 iframe a11y 曝露設定 —— **已落地**（擁有者 2026-07-04 裁定提前為正式工項，理由：已在真實 AI 建單流程中反覆卡住），見下方落地紀錄與操作指南 §9.6／§11.4 |
 
 ### W9 驗收標準
 
@@ -428,6 +428,17 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **A5**：CAT 編輯器（`cat-tool/app.js`）新增 `syncRowStatusDataset(row, seg)`，句段列同步 `data-status`（原始狀態）與 `data-wf-state`（`resolveSegmentConfirmDisplayState` 統一顯示五態）；掛於列建立（`buildGridDataRow`）與所有狀態圖示刷新點（`refreshStatusIconForRow`、`refreshUserMarkerStatusCell`、批次確認刷新迴圈）。已 `npm run sync:cat`。維護附註已入 [`architecture.mdc`](../.cursor/rules/architecture.mdc) §1；Playwright 受益點已入 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) Phase S。
 - **裁決**：純標記變更、零行為風險，2026-07-04 直接併入 `main`（merge commit `af90596`）；驗收改為併後在正式站由 Fable 5 以 `find`（無障礙定位）逐項驗證 A1–A5，任何一項定位失敗即開熱修、不回滾。
 - **正式站驗收結果（2026-07-04）**：A1／A2／A4／A5 PASS。**A3 初測未過**（Zwift 260625 案件找不到移除鈕），經程式碼比對確認為**設計行為，非漏標**：移除鈕僅在 `showRemove && canRemoveTool` 皆為真時渲染——執行工具區塊 `showRemove = canRemoveCaseTool(caseData)`（[`case-tool-count.ts`](../src/lib/case-tool-count.ts)：`countCaseTools()`（legacy `tools` 陣列長度＋`catToolEnabled`）須 **> 1** 才允許移除，確保案件永遠保留至少一種工具）；提問工具區塊為 `questionTools.length > 1`。該案件工具總數為 1，移除鈕依設計本就不顯示，`aria-label="移除工具 <名稱>"` 程式碼確認存在（`CaseDetailPage.tsx` L615）。**判定：W9-A 全數達標**，複驗建議改用「有 2 種以上工具（例如 2 個執行工具，或 1 個執行工具＋1UP CAT 已啟用）」的案件即可看到並定位到該鈕。
+
+### W9-C C3 落地紀錄（2026-07-04，分支 `feature/w9c-cat-import-testid-bridge`）
+
+**裁定**：原排程「隨模組碰到時做」，因已在真實 AI 建單流程中反覆卡住，擁有者裁定提前為正式工項。
+
+- **標記**：[`cat-tool/index.html`](../cat-tool/index.html) 三個匯入 input（`#sourceFileInput`／`#tmImportInput`／`#tbImportInput`）加 `data-testid="cat-import-source|cat-import-tm|cat-import-tb"`，即使 `display:none` 仍保留在 DOM。
+- **頂層代理上傳入口**：[`CatToolPage.tsx`](../src/pages/CatToolPage.tsx) 新增 3 個位於頂層文件（非 iframe）的官方代理 `<input type="file">`（`data-testid="cat-agent-upload-proxy-source|tm|tb"`，視覺上以 sr-only 樣式隱藏但保留在無障礙樹中），選檔後經既有 `__tmsAgent.cat.invoke` RPC 把 `File` 物件（postMessage structured clone 原生支援）轉送進 iframe。
+- **iframe 側轉送**：新增 [`cat-tool/js/cat-agent-bridge.js`](../cat-tool/js/cat-agent-bridge.js) 的 `import.forwardToInput({ target, files })` 方法，寫回對應 input 的 `.files` 並 `dispatch change`，觸發既有匯入邏輯（含匯入精靈），未修改 `cat-tool/app.js`（符合 `architecture.mdc` §1 凍結原則）。已 `npm run sync:cat`。
+- **文件**：[`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §9.6（file_upload 上傳做法一／做法二）、§11.4（標記登錄）已補齊。
+- **驗證**：`npm run typecheck`／`npm run test`（5 檔 22 項）／`npm run check:encoding`／`npx eslint` 對變更檔皆過（`CatToolPage.tsx` 僅既有 1 個 `exhaustive-deps` warning，範圍外）。
+- **待驗收**：以 Chrome 工具在團隊版專案頁，不手動選檔、不注入自訂元素，用官方標記 + file_upload 成功匯入一個 `.mqxliff`，匯入精靈正常出現（本環境無互動式瀏覽器可代為完成此步，待驗收方或擁有者實測）。
 
 ## 11. W6 CI 第一版落地 + Hook 熱修 + lint 清零評估（2026-07-04，驗收方 Fable 後任裁示）
 

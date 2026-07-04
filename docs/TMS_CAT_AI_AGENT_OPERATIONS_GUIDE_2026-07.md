@@ -1,6 +1,6 @@
 # TMS + CAT AI 整合操作指南（Claude 首讀）
 
-> **狀態**：2026-07-04（含 W9-A DOM 定位標記）  
+> **狀態**：2026-07-04（含 W9-A DOM 定位標記、W9-C C3 匯入檔案 file_upload 轉送）  
 > **對象**：瀏覽器自動化 AI（Claude in Chrome、`Runtime.evaluate`、Playwright）  
 > **預設環境**：`https://talk-hanzi-joy.vercel.app` + **測試模式**（`env=test`，與正式營運資料隔離）  
 > **次讀**：LMS API 速查 [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)、CAT API [`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)
@@ -342,6 +342,40 @@ bridge 只負責匯入；開檔進編輯器需：
 
 路徑 `/cat/offline`，API 相同（`__catAgent` 或父頁 `cat.invoke`）；資料在瀏覽器 IndexedDB，不寫雲端。
 
+### 9.6 以 file_upload 上傳（當無 bytes 可走 `import.fromBytes` 時，W9-C C3，2026-07-04）
+
+**背景**：`import.fromBytes` 需要 AI 事先把檔案內容讀成 base64／bytes 存在腳本裡。若 AI 工具鏈只有「瀏覽器檔案上傳」（Chrome DevTools `file_upload`／`DOM.setFileInputFiles` 這類通用工具，不經 script 讀 bytes），會卡在：cat-tool 的三個匯入欄位（`#sourceFileInput`／`#tmImportInput`／`#tbImportInput`）**藏在 iframe 內且 `display:none`**，瀏覽器無障礙樹不跨 iframe，通用 `find`／`file_upload` 工具無法定位，過去只能請人手動選檔，或由 AI 自行注入不穩定的橋接元素。
+
+**做法一（推薦，若工具支援跨 iframe 的 CDP DOM 查詢）：**
+
+三個欄位皆已加上穩定標記，即使隱藏也保留在 DOM：
+
+| 標記 | 對應欄位 | 位置 |
+|------|----------|------|
+| `[data-testid="cat-import-source"]` | `#sourceFileInput`（匯入精靈主檔案） | iframe 內，匯入精靈 Step 1 |
+| `[data-testid="cat-import-tm"]` | `#tmImportInput`（TM 匯入） | iframe 內，TM 詳情頁 |
+| `[data-testid="cat-import-tb"]` | `#tbImportInput`（TB 匯入） | iframe 內，TB 詳情頁 |
+
+若自動化工具的 CDP 查詢支援 `pierce`／跨 frame（例如 `DOM.getDocument({ depth: -1, pierce: true })` 後 `DOM.querySelector` 用上述 selector），可直接對該 backend node 呼叫 `DOM.setFileInputFiles`，事件會照常觸發既有的 `change` 監聽與匯入精靈。
+
+**做法二（推薦，通用性更高）：頂層代理上傳入口**
+
+若工具無法跨 iframe 查詢，改用**位於頂層文件（非 iframe，無障礙樹可直接找到）**的官方代理輸入框（[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)）：
+
+| 標記 | 轉送目標 | 對應 accept |
+|------|----------|-------------|
+| `[data-testid="cat-agent-upload-proxy-source"]` | `source`（匯入精靈主檔案） | `.xlsx,.xls,.xlf,.xliff,.mxliff,.mqxliff,.sdlxliff,.po,.pot` |
+| `[data-testid="cat-agent-upload-proxy-tm"]` | `tm`（TM 匯入） | `.xlsx,.xls,.csv,.tmx,.xliff,.xlf,.mxliff,.mqxliff,.sdlxliff` |
+| `[data-testid="cat-agent-upload-proxy-tb"]` | `tb`（TB 匯入） | `.xlsx,.tbx,.sdltbx,.csv` |
+
+用 `file_upload` 選檔到對應標記後，殼層會自動把選到的 `File` 物件經既有 `__tmsAgent.cat.invoke("import.forwardToInput", [{ target, files }])` RPC 轉送進 iframe（`postMessage` 原生支援 `File` 的 structured clone），由 [`cat-tool/js/cat-agent-bridge.js`](../cat-tool/js/cat-agent-bridge.js) 寫回真正的 `input.files` 並 `dispatch change`——走與使用者手動選檔**完全相同**的既有流程（含匯入精靈正常出現），不需要 AI 自行注入任何自訂元素。
+
+**注意事項：**
+
+1. 兩種做法擇一即可；做法二對通用瀏覽器自動化工具相容性較高（不需跨 iframe 查詢能力）。
+2. 主檔匯入（`source`）走 file_upload 後仍會出現匯入精靈，後續語言對／`excelConfigMap` 等設定步驟與人工操作相同，須照精靈 UI 繼續完成。
+3. 若已能取得檔案 bytes（例如已由其他步驟下載或讀取到記憶體），優先用 §9.1 `import.fromBytes`，更直接且不經 DOM。
+
 ---
 
 ## 10. CAT AI 批次翻譯
@@ -434,9 +468,24 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 
 用於篩選／統計句段狀態時，改用 `document.querySelectorAll('.grid-data-row[data-status="confirmed"]')` 等 DOM 查詢，**不要**再靠圖示 CSS class（`.wf-trans`、`.orig-confirmed` 等組合）截圖判讀；Playwright 劇本亦同（見 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) Phase S）。
 
-### 11.4 後續（W9-B／W9-C，未排入本輪）
+### 11.4 CAT 匯入檔案輸入框（W9-C C3，2026-07-04，已落地）
 
-工具區塊欄位寫入回讀驗證、`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、CAT iframe 無障礙樹曝露等項目，依擁有者裁定維持「隨模組碰到時做」／「個案」排程，詳見主計畫 §10 W9-B／W9-C；完成時將回來補本節。
+**背景**：cat-tool 的三個匯入 file input 藏在 iframe 內且 `display:none`，瀏覽器無障礙樹不跨 iframe，通用 `find`／`file_upload` 工具無法定位；已在真實 AI 建單流程中反覆卡住，原排程「隨模組碰到時做」提前為正式工項。完整說明與轉送流程見 §9.6。
+
+| 標記 | 位置 | 說明 |
+|------|------|------|
+| `[data-testid="cat-import-source"]` | iframe 內，`#sourceFileInput` | 即使隱藏也保留在 DOM；需支援跨 iframe（pierce）查詢的工具才能直接命中 |
+| `[data-testid="cat-import-tm"]` | iframe 內，`#tmImportInput` | 同上 |
+| `[data-testid="cat-import-tb"]` | iframe 內，`#tbImportInput` | 同上 |
+| `[data-testid="cat-agent-upload-proxy-source"]` | **頂層文件**（[`CatToolPage.tsx`](../src/pages/CatToolPage.tsx)，非 iframe） | 官方代理輸入框；選檔後自動轉送進 iframe 的 `#sourceFileInput`，觸發既有匯入精靈流程 |
+| `[data-testid="cat-agent-upload-proxy-tm"]` | 頂層文件 | 轉送進 `#tmImportInput` |
+| `[data-testid="cat-agent-upload-proxy-tb"]` | 頂層文件 | 轉送進 `#tbImportInput` |
+
+程式：[`cat-tool/index.html`](../cat-tool/index.html)（三個 iframe 內 input 標記）、[`cat-tool/js/cat-agent-bridge.js`](../cat-tool/js/cat-agent-bridge.js)（`import.forwardToInput`）、[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)（頂層代理輸入框）。
+
+### 11.5 後續（W9-B，未排入本輪）
+
+`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋等項目，依擁有者裁定維持「隨模組碰到時做」排程，詳見主計畫 §10 W9-B；完成時將回來補本節。
 
 ---
 

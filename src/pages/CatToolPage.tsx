@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -63,6 +63,57 @@ function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
 }
+
+/**
+ * AI 代理上傳入口（W9-C C3）：cat-tool 的匯入 input（sourceFileInput／tmImportInput／
+ * tbImportInput）藏在 iframe 內，瀏覽器無障礙樹不跨 iframe，通用的 file_upload 工具無法
+ * 直接定位。此處在殼層（非 iframe，可被無障礙樹直接找到）提供對應的官方代理輸入框；
+ * 選檔後透過既有 __tmsAgent.cat.invoke RPC 把 File 物件轉送進 iframe，由
+ * cat-agent-bridge.js 的 import.forwardToInput 寫回真正的 input.files 並觸發 change，
+ * 走與使用者手動選檔完全相同的既有匯入流程（含匯入精靈）。
+ */
+const CAT_AGENT_UPLOAD_PROXIES: Array<{
+  target: "source" | "tm" | "tb";
+  testId: string;
+  label: string;
+  accept: string;
+  multiple: boolean;
+}> = [
+  {
+    target: "source",
+    testId: "cat-agent-upload-proxy-source",
+    label: "CAT AI 代理上傳：主要匯入檔案",
+    accept: ".xlsx,.xls,.xlf,.xliff,.mxliff,.mqxliff,.sdlxliff,.po,.pot",
+    multiple: true,
+  },
+  {
+    target: "tm",
+    testId: "cat-agent-upload-proxy-tm",
+    label: "CAT AI 代理上傳：翻譯記憶庫匯入檔案",
+    accept: ".xlsx,.xls,.csv,.tmx,.xliff,.xlf,.mxliff,.mqxliff,.sdlxliff",
+    multiple: false,
+  },
+  {
+    target: "tb",
+    testId: "cat-agent-upload-proxy-tb",
+    label: "CAT AI 代理上傳：術語庫匯入檔案",
+    accept: ".xlsx,.tbx,.sdltbx,.csv",
+    multiple: false,
+  },
+];
+
+/** 視覺上不可見、但保留在無障礙樹中可被定位（非 display:none／visibility:hidden） */
+const visuallyHiddenStyle: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0,0,0,0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
 
 function parseCatViewParams(pathname: string, search: string, mode: "offline" | "team"): string {
   const base = `/cat/${mode === "team" ? "team" : "offline"}`;
@@ -1206,6 +1257,19 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     };
   }, [stopCollabChannel]);
 
+  const handleAgentUploadProxyChange = useCallback(
+    (target: "source" | "tm" | "tb") => async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files ? Array.from(e.target.files) : [];
+      e.target.value = "";
+      if (files.length === 0) return;
+      const result = await window.__tmsAgent?.cat.invoke("import.forwardToInput", [{ target, files }]);
+      if (!result?.ok) {
+        console.error("[CAT AI 代理上傳] 轉送失敗", target, result);
+      }
+    },
+    []
+  );
+
   return (
     <div className="-m-6 flex min-h-0 flex-1 flex-col" style={{ minHeight: "calc(100vh - 3rem)" }}>
       <iframe
@@ -1224,6 +1288,18 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           );
         }}
       />
+      {CAT_AGENT_UPLOAD_PROXIES.map((proxy) => (
+        <input
+          key={proxy.target}
+          type="file"
+          data-testid={proxy.testId}
+          aria-label={proxy.label}
+          accept={proxy.accept}
+          multiple={proxy.multiple}
+          style={visuallyHiddenStyle}
+          onChange={handleAgentUploadProxyChange(proxy.target)}
+        />
+      ))}
     </div>
   );
 }
