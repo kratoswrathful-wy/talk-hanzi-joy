@@ -50,35 +50,31 @@ export function CommentInput({
     const env = getEnvironment();
     const pages: MentionPage[] = [];
 
+    type IdTitleRow = { id: string; title: string | null };
+    const pushPages = (
+      rows: IdTitleRow[] | null,
+      type: MentionPage["type"],
+      routePrefix: string,
+    ) => {
+      if (!rows) return;
+      for (const row of rows) {
+        if (row.title) pages.push({ id: row.id, title: row.title, type, route: `${routePrefix}/${row.id}` });
+      }
+    };
+
     Promise.all([
-      (supabase.from("cases").select("id, title") as any)
+      supabase.from("cases").select("id, title")
         .eq("env", env).order("created_at", { ascending: false })
-        .then(({ data }: any) => {
-          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
-            pages.push({ id: p.id, title: p.title, type: "case", route: `/cases/${p.id}` })
-          );
-        }),
-      (supabase.from("fees_visible").select("id, title") as any)
+        .then(({ data }) => pushPages(data, "case", "/cases")),
+      supabase.from("fees_visible").select("id, title")
         .eq("env", env).order("created_at", { ascending: false })
-        .then(({ data }: any) => {
-          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
-            pages.push({ id: p.id, title: p.title, type: "fee", route: `/fees/${p.id}` })
-          );
-        }),
-      (supabase.from("invoices").select("id, title") as any)
+        .then(({ data }) => pushPages(data, "fee", "/fees")),
+      supabase.from("invoices").select("id, title")
         .eq("env", env).order("created_at", { ascending: false })
-        .then(({ data }: any) => {
-          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
-            pages.push({ id: p.id, title: p.title, type: "invoice", route: `/invoices/${p.id}` })
-          );
-        }),
-      (supabase.from("client_invoices").select("id, title") as any)
+        .then(({ data }) => pushPages(data, "invoice", "/invoices")),
+      supabase.from("client_invoices").select("id, title")
         .eq("env", env).order("created_at", { ascending: false })
-        .then(({ data }: any) => {
-          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
-            pages.push({ id: p.id, title: p.title, type: "client_invoice", route: `/client-invoices/${p.id}` })
-          );
-        }),
+        .then(({ data }) => pushPages(data, "client_invoice", "/client-invoices")),
     ]).then(() => {
       setMentionPages(pages);
     });
