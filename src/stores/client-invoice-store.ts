@@ -37,7 +37,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     feeIds,
-    payments: Array.isArray(row.payments) ? (row.payments as unknown as ClientPaymentRecord[]) : [],
+    payments: paymentsFromJson(row.payments),
     isRecordOnly: row.is_record_only || false,
     recordAmount: row.record_amount || 0,
     recordCurrency: row.record_currency || undefined,
@@ -46,6 +46,27 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     adjustmentLines: parseAdjustmentLines(row.adjustment_lines),
     editLogStartedAt: row.edit_log_started_at || undefined,
   };
+}
+
+function paymentsFromJson(raw: Json | null | undefined): ClientPaymentRecord[] {
+  if (!raw || !Array.isArray(raw)) return [];
+  const out: ClientPaymentRecord[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const id = typeof x.id === "string" ? x.id : crypto.randomUUID();
+    const type: ClientPaymentRecord["type"] = x.type === "partial" ? "partial" : "full";
+    const amount = typeof x.amount === "number" ? x.amount : undefined;
+    const noFee = typeof x.noFee === "boolean" ? x.noFee : undefined;
+    const timestamp = typeof x.timestamp === "string" ? x.timestamp : "";
+    out.push({
+      id,
+      type,
+      ...(amount !== undefined ? { amount } : {}),
+      ...(noFee !== undefined ? { noFee } : {}),
+      timestamp,
+    });
+  }
+  return out;
 }
 
 function parseAdjustmentLines(raw: Json | null | undefined): ClientInvoiceAdjustmentLine[] | undefined {
