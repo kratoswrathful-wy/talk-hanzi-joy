@@ -37988,6 +37988,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window._snapshotAiBatchPool = _snapshotAiBatchPool;
     window._readAiBatchRefOptionsFromDom = _readAiBatchRefOptionsFromDom;
     window._applyAiBatchRefOptionsToDom = _applyAiBatchRefOptionsToDom;
+    // W9 wave 2 C2 修正：_loadAiTaskLogs 原僅存在於本閉包內，未匯出到 window，
+    // 導致 cat-agent-bridge.js 的 aiBatch.getProgress() 永遠讀不到（回「不可用」）。
+    window._loadAiTaskLogs = _loadAiTaskLogs;
     if (typeof installCatAgentBridge === 'function') installCatAgentBridge();
 
 });

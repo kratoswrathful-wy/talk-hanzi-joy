@@ -152,6 +152,44 @@
         return agentOk({ saved: toSave });
     }
 
+    /**
+     * W9 wave 2 C2：批次翻譯進度查詢。沿用既有 _loadAiTaskLogs()（localStorage
+     * catAiTaskLogV1）——app.js 批次迴圈本身已在每批完成時寫入 processed／batchNo／
+     * batchTotalHint／progressLabel，不另建第二套進度狀態。取陣列中最新一筆
+     * kind === 'batch_translate' 的紀錄（陣列以 unshift 維護，新的在前）。
+     */
+    function getProgress() {
+        if (typeof global._loadAiTaskLogs !== 'function') {
+            return agentFail('_loadAiTaskLogs 不可用（請確認已開啟專案且批次功能已載入）');
+        }
+        var logs = global._loadAiTaskLogs();
+        var entry = Array.isArray(logs) ? logs.find(function (x) { return x && x.kind === 'batch_translate'; }) : null;
+        if (!entry) {
+            return agentOk({
+                running: false,
+                batchDone: 0,
+                batchTotal: 0,
+                segDone: 0,
+                segTotal: 0,
+                phase: 'idle',
+                lastError: null,
+                status: 'idle',
+            });
+        }
+        return agentOk({
+            running: entry.status === 'running',
+            batchDone: Number(entry.batchNo) || 0,
+            batchTotal: Number(entry.batchTotalHint) || 0,
+            segDone: Number(entry.processed) || 0,
+            segTotal: Number(entry.total) || 0,
+            phase: String(entry.progressLabel || ''),
+            lastError: entry.errorMessage || null,
+            status: entry.status || 'unknown',
+            startedAt: entry.startedAt || null,
+            endedAt: entry.endedAt || null,
+        });
+    }
+
     async function importFromBytes(input) {
         if (!input || typeof input !== 'object') return agentFail('input 必須為物件');
         var fileName = String(input.fileName || 'import.bin');
@@ -233,7 +271,7 @@
             fileId: global.currentFileId || null,
             segmentCount: Array.isArray(global.currentSegmentsList) ? global.currentSegmentsList.length : 0,
             virtGridEnabled: !!(global.CatVirtGrid && global.CatVirtGrid.isEnabled && global.CatVirtGrid.isEnabled()),
-            apis: ['describe', 'aiBatch.getSettings', 'aiBatch.setSettings', 'aiBatch.openModal', 'aiBatch.run', 'import.fromBytes', 'import.forwardToInput'],
+            apis: ['describe', 'aiBatch.getSettings', 'aiBatch.setSettings', 'aiBatch.openModal', 'aiBatch.run', 'aiBatch.getProgress', 'import.fromBytes', 'import.forwardToInput'],
         });
     }
 
@@ -265,6 +303,7 @@
                     }
                     return agentFail('preview 不可用');
                 },
+                getProgress: getProgress,
             },
             import: {
                 fromBytes: importFromBytes,

@@ -268,8 +268,9 @@ flowchart LR
 | **OBS-1** | 效能待排工項 | 團隊版 Ctrl+Enter 確認後，焦點停在原句約 **4.5 秒**才跳下一句（500ms 取樣：前 9 樣本停 #6，第 10 才落 #7）。離線版 Playwright 全綠不會暴露，疑為 team 模式確認寫入／workflow 副作用的同步等待。 | **先量測** team 模式 confirm 路徑哪一段在等網路（比照 [`testing.mdc`](../.cursor/rules/testing.mdc) §5 寫入來源追蹤法），再決定是否改為非同步。Phase S 待辦，見 [DEVLOG](CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md)。 |
 | **OBS-2** | UX 待評估 | PM 身分在「準備中」檔案按 Ctrl+Enter，「檔案準備中→準備完成？」閘門夾在確認流程中間（符合 B-6 設計，但 PM 自行編輯時體驗突兀）。 | 評估改為**非阻擋提示**（不打斷確認流）。 |
 | **OBS-3** | 既有 backlog 複測 | 測試模式下 CAT 儀表板／專案清單「變更紀錄」仍顯示正式環境項目（`WIZA 260703A` 等，含操作者與時間）。 | 沿用 [CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md](CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) §13.2 **FIX-1**（已補記 2026-07-03 複測仍在）。 |
+| **OBS-4** | bridge 潛在缺陷（2026-07-04，W9 wave 2 C2 退回修正時查證） | `cat-agent-bridge.js` 的 `global.currentProjectId`／`currentFileId`／`currentSegmentsList` 皆讀自 `app.js` 閉包內從未匯出到 `window` 的區域變數，恆為 `undefined`。實測確認 `describe()`／`aiBatch.getSettings()` 的 `projectId`/`fileId` 恆為 `null`、`segmentCount` 恆為 `0`；**更嚴重**：`aiBatch.setSettings()` 寫入的偏好因 `saveUserPrefs(projectId, ...)` 的 `projectId` 恆為 `undefined` 而**從未持久化**到 Supabase／Dexie user×project 偏好表，只在當前分頁 DOM「看起來生效」。 | 修法比照 `app.js` L37869 `window.CatRevTrackApi.getCurrentFileId: () => currentFileId` 的即時 getter 慣例，新增對等 getter 並改寫 bridge 呼叫點（`describe`/`getSettings`/`setSettings`/`importFromBytes`）；`setSettings` 一旦真正持久化需留意覆寫時序風險。屬 W9-B／W9 wave 2 C 類後續，未排入本輪。 |
 
-**方法論註記**：OBS-1 是「自動化斷言通過 ≠ 體感合格」的實證——機器人只驗跳對／置中，不會嫌慢；真人／AI 實測才會。已據此補 [`testing.mdc`](../.cursor/rules/testing.mdc) 兩條規則。
+**方法論註記**：OBS-1 是「自動化斷言通過 ≠ 體感合格」的實證——機器人只驗跳對／置中，不會嫌慢；真人／AI 實測才會。已據此補 [`testing.mdc`](../.cursor/rules/testing.mdc) 兩條規則。OBS-4 是「靜態檢查通過 ≠ 實跑過」的實證——`_loadAiTaskLogs` 未匯出的缺陷在三關（typecheck/test/encoding）全綠、程式碼邏輯讀起來完全合理的情況下仍會 100% 在瀏覽器內失敗，唯有真的在瀏覽器呼叫該方法才驗得出來。
 
 ---
 
@@ -460,6 +461,53 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **B2**：mqxliff「選擇本次作業身分」彈窗（`#mqRoleModal`）加 `data-testid`，4 個身分選項與確認鈕各加 `data-testid="mq-role-option-<value>"`／`"btn-mq-role-confirm"`；PM 工作列「調整狀態／準備完成」雙態按鈕（`#btnWfAdjustStatus`）加靜態 `data-testid="btn-wf-adjust-or-prep-complete"`，並在 [`cat-tool/app.js`](../cat-tool/app.js) 同步 `data-mode="adjust"`／`"prep-completed"`（比照 W9-A A5 `syncRowStatusDataset` 的 dataset 同步模式，文字會依狀態切換但 dataset 不會）；匯入三對話框（語言對選擇、原檔已確認句段、連結 LMS 案件）確認／取消鈕各加 `data-testid`（備援用，優先路徑仍是 §9.1 `import.fromBytes` 直接帶參數跳過彈窗）；[`AuthPage.tsx`](../src/pages/AuthPage.tsx) 登入／註冊提交鈕加 `data-testid="btn-auth-submit"`。
 - **驗證**：`npm run typecheck`／`npm run test`（11 檔 112 項全過）／`npm run check:encoding`／`npx eslint`（新增行 0 error）皆過；四項禁用手法新增 diff 0 處；`cat-tool/index.html`、`app.js`、`public/cat` 鏡像位元組層 UTF-8 檢查 `\uFFFD` 皆為 0。已 `npm run sync:cat`。操作指南 §11.6 已登錄全部新標記。
 - **待驗收**：涉及 CAT 的部分（B1／B2 前四項）由 Fable 5 以 Chrome 工具實測（比照 W9-C C3：走官方入口，不作弊、不注入自訂元素）；B2 的登入鈕屬 LMS 前端，可一併於同一輪驗收確認。
+- **驗收結果（2026-07-04）**：Fable 5 於分支預覽 `6e4eb94` 完成 Chrome 實測，五類標記皆命中（語言勾選 114 個標記／身分彈窗／準備完成鈕／匯入對話框確認鈕／登入鈕），程式碼層沙盒獨立驗證（typecheck／test／check:encoding／禁用手法 0 處）亦過。**核准併入 main，merge commit `f75383d`。**
+
+### W9 wave 2 C 類執行方式（擁有者裁定，2026-07-04）
+
+三項性質差異大，**不併批**，選「一項一分支、依序、各自獨立驗收」：**排序按風險由低到高，C2 → C1 → C3**；每項獨立分支（從 `main` 開）、獨立 commit，獨立驗收通過才進下一項。CAT／寫入相關驗收由 Fable 5 以 Chrome 實測把關（走官方標記、零寫入或寫入後回讀）。
+
+#### C2 落地紀錄（2026-07-04，分支 `feature/w9-wave2-c2-aibatch-progress`）
+
+田野第 8 項：AI 批次翻譯進度目前只能截圖輪詢「正在翻譯第 X/20 批」。
+
+- **新增** [`cat-tool/js/cat-agent-bridge.js`](../cat-tool/js/cat-agent-bridge.js) 的 `__catAgent.aiBatch.getProgress()`，唯讀方法，回傳 `{ running, batchDone, batchTotal, segDone, segTotal, phase, lastError, status, startedAt, endedAt }`。
+- **資料來源**：沿用 `app.js` 批次迴圈既有的 task-log 進度狀態（`_loadAiTaskLogs()`／localStorage `catAiTaskLogV1`，`kind === 'batch_translate'` 的最新一筆），**未另建第二套進度狀態**。
+- 欄位對應：`batchDone` 直接讀取持久化的 `batchNo`。逐行核對迴圈寫入時序：每批完成後迴圈把內部計數器 `+1` 再回寫 `Math.max(1, batchNo - 1)`，故**批次完成瞬間**該值即代表「已完成批次數」；批次進行中途讀取則會與「當前處理中批次號」重疊（例如第 1 批進行中與剛完成時都可能讀到 `1`），對輪詢用途（判斷 `running` 是否轉 false、進度是否持續前進）已足夠，不影響 `segDone`/`segTotal` 的精確度。`batchTotal`/`segDone`/`segTotal`/`phase`/`lastError` 依序對應 `batchTotalHint`/`processed`/`total`/`progressLabel`/`errorMessage`。
+- 尚未啟動過批次時回傳 `status: 'idle'`、`running: false`，不視為錯誤。
+- **文件**：[`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) 新增 §10.3（用法、回傳欄位表、輪詢範例），§11.7 記錄落地、§11.8（原 §11.7）移除 C2、§12 新增排錯列。
+
+##### C2 退回修正（2026-07-04，同分支追加 commit）
+
+**驗收方發現的根因**：`_loadAiTaskLogs` 宣告於 `app.js`（L31106），但整份 `app.js` 從 L378 到 L37993 都包在同一個 `document.addEventListener('DOMContentLoaded', async () => { ... })` 閉包內，`_loadAiTaskLogs`／`currentProjectId`／`currentFileId`／`currentSegmentsList` 皆為此閉包內的區域變數，從未 `window.xxx = xxx` 匯出。`cat-agent-bridge.js` 讀 `global._loadAiTaskLogs`（`global` 即 `window`）因此**永遠**是 `undefined`，`getProgress()` 在任何環境都必定回「不可用」——**首次回報的「已完成」實際上完全沒有實跑過會呼叫 `getProgress()` 的路徑**，僅做了本機 `typecheck`/`test`/`check:encoding` 等靜態層面的檢查，誤判為足夠，此為本次誠實檢討的核心落差。
+
+**修正**：比照 `app.js` 既有的匯出慣例（L37985-37990 `window.runBatchImport = runBatchImport;` 等一行一行匯出），在同一位置（`installCatAgentBridge()` 呼叫之前）補一行 `window._loadAiTaskLogs = _loadAiTaskLogs;`。已 `npm run sync:cat` 同步 `public/cat/app.js`。
+
+**本次新增的實跑驗證**（回應「誠實測試要求」，區分已實跑／未實跑）：
+
+- **已實跑**：新增 Playwright 回歸測試 [`tests/cat-ai-batch-progress.spec.ts`](../tests/cat-ai-batch-progress.spec.ts)（已加入 `playwright.config.ts` 的 `chromium` 專案 `testMatch`），以 `openOfflineCatWithFile` 開一個離線 CAT 專案並匯入小檔，實際在瀏覽器（Playwright + 本機 `npm run dev`，非僅靜態分析）呼叫 `__catAgent.aiBatch.getProgress()`：
+  1. 空閒情境：未曾啟動批次時呼叫，斷言 `ok:true`、`running:false`、`status:'idle'`（修正前這一步必回「不可用」，修正後**已實測轉綠**）。
+  2. 生命週期情境：直接寫入一筆與 `_startAiTaskLog`/`_updateAiTaskLog` 相同結構的 `catAiTaskLogV1` 紀錄模擬「執行中」，斷言欄位映射（`batchDone`/`batchTotal`/`segDone`/`segTotal`/`phase`）；再改寫為 `success`／`failed`，斷言 `running` 轉 `false`、`lastError` 正確帶出錯誤訊息。三段落全部**已於本機瀏覽器實測通過**（`3 passed`）。
+  3. 未實跑的部分：**未**呼叫真實 `aiBatch.run()` 觸發 LLM 翻譯（成本與穩定性考量，沿用既有「自動驗收預設不跑真實 `run()`」慣例）；`batchDone`/`batchNo` 在「批次進行中途」讀值重疊的行為僅以程式碼閱讀＋上述模擬資料驗證欄位映射，未用真實批次迴圈逐批觀測時序。
+- **待驗收**（真實批次）：Fable 5 以 Chrome 工具在拋棄式測試專案啟動一個小檔真實批次，輪詢 `getProgress()` 能讀到遞增的 `batchDone` 與最終 `running=false`；測完清理。
+
+**附帶查證：`describe()`／`aiBatch.getSettings()` 的 `projectId`/`fileId` 為何恆為 `null`（驗收方觀察，已查證，本輪不修）**：
+
+用同一支 Playwright 探測（開專案、匯入小檔、確認編輯器已有句段列後）直接在瀏覽器讀 `window.currentProjectId`（`undefined`）、`window.currentSegmentsList`（`typeof === 'undefined'`），並呼叫 `__catAgent.describe()`／`aiBatch.getSettings()`，**已實測**得到：
+
+```json
+// describe()：專案與檔案皆已開啟、編輯器已有句段列
+{ "projectId": null, "fileId": null, "segmentCount": 0, "virtGridEnabled": false, "apis": [...] }
+// aiBatch.getSettings()
+{ "projectId": null, "fileId": null, "virtGrid": false, ... }
+```
+
+**根因與 `_loadAiTaskLogs` 完全同源**：`currentProjectId`／`currentFileId`／`currentSegmentsList` 全部只是 `DOMContentLoaded` 閉包內的 `let` 變數，從未匯出到 `window`，故 bridge 讀到的永遠是 `undefined`。**影響範圍比回報時預期更廣**：
+
+- `describe()`／`aiBatch.getSettings()` 回傳的 `projectId`／`fileId`／`segmentCount` 恆為 `null`/`0`，AI 代理無法用它們判斷「目前開的是哪個專案／檔案」。
+- **更嚴重**：`aiBatch.getSettings()`／`setSettings()` 內部用同一個 `undefined` 的 `projectId` 呼叫 `loadUserPrefs(projectId)`／`saveUserPrefs(projectId, patch)`（`cat-agent-bridge.js` L44-64、L91-153）——`saveUserPrefs` 的寫入條件 `if (projectId && Object.keys(toSave).length)` 因 `projectId` 恆為 `undefined` **永遠不成立**，代表透過 bridge 呼叫 `setSettings()` 寫入的 AI 批次偏好**從未真正持久化到 Supabase／Dexie 的 user×project 偏好表**，僅在當前分頁的 DOM（`<select>`/`<input>` 元素值）與同分頁後續讀取中「看起來生效」；跨分頁／重新整理後即消失。既有 Playwright 測試 `ai-bridge-phase2.spec.ts` 的 P2-C4（「關閉再開 Modal，prefs 仍一致」）恰好只驗證同分頁行為，未跨分頁重載，因此未曾抓到此缺陷。
+- `existing` 的 `describe()` segmentCount 恆為 0 這件事，先前 `ai-bridge-phase2.spec.ts` 的 P2-C1～C5 因為斷言寫成 `Math.max(d, rows)`（`d` 為 bridge 值、`rows` 為 DOM 列數的容錯寫法）而未被抓到，本次才第一次被精確測出。
+- **修不修另議**：修法需把這三個變數改為比照 `window.CatRevTrackApi.getCurrentFileId: () => currentFileId`（`app.js` L37869，同檔已有的即時 getter 慣例）新增 `window._catAgentGetCurrentProjectId`/`FileId`/`SegmentsList` 之類的即時讀取函式，再讓 `cat-agent-bridge.js` 改呼叫這些函式而非直接讀 `global.currentProjectId`；牽動 `describe()`/`getSettings()`/`setSettings()`/`importFromBytes` 多處呼叫點，且 `setSettings()` 一旦真正開始持久化，需同時確認不會覆蓋掉使用者已透過 UI 存的舊偏好（時序／覆寫風險），**列為新待辦**，不在本次 C2 修正範圍內處理。
 
 ### W9-C C3 落地紀錄（2026-07-04，分支 `feature/w9c-cat-import-testid-bridge`）
 
