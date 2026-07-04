@@ -32,6 +32,7 @@
 | 真／暫存游標捲動提示：點一下捲至句段列（A+B 一鍵捲動） | [`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)：`navigateToSegmentBySegId`、`showRealCaretTipIfNeeded`；規格 [`CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md`](./CAT_FAKE_CARET_REAL_TIP_ONE_CLICK_PLAN.md) |
 | **系統跳焦點即時捲動**（無 smooth 動畫；確認跳行、篩選跳回、F3 導覽、QA 跳句段） | [`cat-tool/app.js`](../cat-tool/app.js)：`focusTargetEditorAtSegmentIndex`、`applySearchMatchNavigationFocus`、`_qaJumpToSegment`；[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)；紀錄 [`CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md`](./CAT_SCROLL_INSTANT_NAVIGATION_2026-06.md)（`5b5aa3d`） |
 | **個人句段色點**（紅／藍／橘／灰／紫；本機 Dexie + Team Supabase；進階篩選） | [`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/db.js`](../cat-tool/db.js)；規格 [`CAT_SEGMENT_USER_MARKERS_2026-06.md`](./CAT_SEGMENT_USER_MARKERS_2026-06.md) |
+| **句段列 AI 可定位標記**（W9-A5，2026-07）：`.grid-data-row` 加 `data-status`（原始狀態）與 `data-wf-state`（`resolveSegmentConfirmDisplayState` 統一顯示五態），供 Playwright／AI 代理程式判讀取代猜圖示 class；掛於 `syncRowStatusDataset(row, seg)`，凡新增或搬遷狀態刷新路徑須同步呼叫（見 [`architecture.mdc`](../.cursor/rules/architecture.mdc) §1 附註） | [`cat-tool/app.js`](../cat-tool/app.js)：`syncRowStatusDataset`、`buildGridDataRow`、`refreshStatusIconForRow`、`refreshUserMarkerStatusCell`；對照表 [`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](./TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11.3 |
 | **編輯器疊層 UI**（單檔匯出標籤警告、假游標 `#catEditorChromeLayer`、modal 互斥） | [`cat-tool/app.js`](../cat-tool/app.js) `exportBtn`、`showExportTagWarning`、`suppressCatFakeCaretForOverlay`；[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)；規格 [`CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md`](./CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md) |
 | **QA「Tag 檢查」**（與匯出／譯文 `{N}` 佔位對齊；`runQaChecks`、`_qaPushSegmentRuleFindings`、`_qaTagIdForCompare`、`_qaPlainTargetTagNumSet`） | [`cat-tool/app.js`](../cat-tool/app.js)；「缺少 tag」誤報見 [`bug-report_cat-qa-tag-parity.md`](./bug-report_cat-qa-tag-parity.md)；**pair「尚有未關閉之標籤」誤報**（獨立 `<ph>`）見 [`bug-report_qa-tag-unclosed-false-positive_2026-06.md`](./bug-report_qa-tag-unclosed-false-positive_2026-06.md)；介面折疊（檢查範圍/右下角資訊區）需求與驗收紀錄見 [CAT_QA_UI_COLLAPSE_HISTORY_2026-05.md](./CAT_QA_UI_COLLAPSE_HISTORY_2026-05.md) |
 | **QA AI 擴充與報告版面**（規則／六類分輪 AI、結果右／下／雙顯示、`qa_report_surface` 雲端偏好、AI 管理六格 prompt） | [`cat-tool/app.js`](../cat-tool/app.js) `btnRunQA`、`renderQaResults`、`getQaAiCheckAvailability`；[`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) `QA_DEFAULT_PROMPTS`、`qaSemanticReview`、`qaGuidelineReview`；[`cat-tool/db.js`](../cat-tool/db.js) `getUserUiPref`；migration [`20260630140000_cat_user_ui_prefs_qa_report_surface.sql`](../supabase/migrations/20260630140000_cat_user_ui_prefs_qa_report_surface.sql)；規格 [CAT_QA_AI_AND_REPORT_LAYOUT_2026-06.md](./CAT_QA_AI_AND_REPORT_LAYOUT_2026-06.md) |
@@ -124,6 +125,7 @@
 | CAT 專案清單名稱篩選（變更紀錄下方、表格上方） | `cat-tool/index.html`（`#projectSearchInput`）、`cat-tool/app.js`（`applyProjectListFilter`） |
 | 重複標題邏輯 | `src/lib/case-title-duplicate.ts`、測試 `*.test.ts` |
 | 案件資料 store | `src/hooks/use-case-store.ts`、`src/stores/case-store.ts`（依實際 import） |
+| **AI 可操作性標記（W9-A，2026-07）**：工具欄位 `data-testid="tool-server/username/password/project/files"`、範本選項 `data-testid="template-option-<名稱>"`、移除鈕 `aria-label="移除工具 <名稱>"`（僅 2 種以上工具時渲染）、協作表格每列與日期欄 `data-collab-id`／`data-collab-field` | `src/pages/CaseDetailPage.tsx`、`src/components/CollaborationTable.tsx`；對照表見 [`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](./TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11 |
 
 ## 費用管理（稿費總表／請款）
 
@@ -138,8 +140,11 @@
 | 請款單付款日期／付款後編輯（2026-06） | [`INVOICE_PAYMENT_DATE_EDIT_2026-06.md`](./INVOICE_PAYMENT_DATE_EDIT_2026-06.md) · `InvoiceDetailPage.tsx`、`ClientInvoiceDetailPage.tsx`、`DateOnlyInputPicker.tsx` |
 | 譯者選項含 **`noFee`**（無須開立稿費，`member_translator_settings.no_fee`） | `src/stores/select-options-store.ts`：`loadAssignees` |
 | 客戶幣別 → TWD 匯率（利潤換算） | `src/stores/currency-store.ts` |
+| **譯者讀取收緊＋欄位遮罩（W10，2026-07）**：譯者僅可讀本人非草稿 `invoices`／`invoice_fees`／`fees`（RLS 列級）；讀取一律走 `public.fees_visible`（`security_invoker` view，遮罩營收／客戶／內部備註／`rateConfirmed`）；`fees` 寫入僅 PM／執行長 | `supabase/migrations/20260703140000_*.sql`、`20260704010000_*.sql`、`20260704020000_*.sql`；前端 `src/stores/fee-store.ts`（`loadFees`、`requeryFeeFromView`）、`src/components/comments/CommentInput.tsx`；UI 唯讀 gate `TranslatorFeeDetail.tsx`、`TranslatorFees.tsx`；DB 層驗證 `supabase/tests/w10_*.sql`；完整紀錄見 [`ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](./ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md) §9 |
 
 > 維運：`請款完成`／`利潤`／`費率無誤` 曾發生「詳情與總表篩選不一致」；修正紀錄與驗收見 [`HANDOFF.md`](./HANDOFF.md)「費用總表：篩選器與欄位顯示對齊」。
+>
+> 維運：**新增／修改 `fees` 相關查詢一律讀 `fees_visible`（非 `fees` 原表）**，除非明確為 PM/admin-only 寫入路徑或已知只在管理員視角渲染；直讀 `fees` 會繞過 W10 欄位遮罩，洩漏營收／客戶資料給譯者。
 
 ## 設定頁
 

@@ -1,8 +1,8 @@
-狀態：規劃中
+狀態：實作中（階段一二已落地；W10、W9-A 為擁有者插隊裁定工項，已落地並多半驗收；階段三四未開工）
 
 # 1UP 工程改善主計畫
 
-日期：2026-07-03  
+日期：2026-07-03（最後更新 2026-07-04）  
 維護：本檔為 Fable 5 體檢報告落地後的**權威執行與追蹤文件**；工項細節以引用來源為準，本檔記錄已拍板決策、四階段順序與進度。
 
 ---
@@ -182,6 +182,27 @@ flowchart LR
 - **W7** — 狀態：規劃中（長期原則）— commit：—
 - **W8** — 狀態：規劃中（長期原則）— commit：—
 
+### W10（擁有者插隊裁定，2026-07-03～04；細節見 §9）
+
+背景：W5-3 驗收發現「譯者可見他人請款」為讀取開放之誤，擁有者裁定收緊，插隊於四階段順序之外先做。分支 `cursor/translator-invoice-read-rls`，全數已併入 `main`。
+
+- **批次 1（列級收緊 + 路由守衛）** — 狀態：已驗收（DB 層 11 項全 PASS）— commit：`c16a884`
+- **批次 2（欄位遮罩 view + realtime 重查）** — 狀態：已驗收（DB 層 14 項全 PASS；PM Playwright 本機 4 綠；譯者 Playwright `test.fixme`，DB 層代打）— commit：`e7ffe8a`
+- **批次 3（費用模組全程唯讀，寫入僅 PM/執行長）** — 狀態：已驗收（DB 層 7＋14＋11 項全 PASS）— commit：`1989cf1`
+- **熱修：Vercel 建置失敗（types 未重生）** — 狀態：已驗收（`npm run typecheck` 通過，Vercel 分支部署轉 READY）— commit：`2a538bf`
+- **F1（補回譯者視角變更紀錄區塊）＋ F2（`/members` 結案不收緊）** — 狀態：已驗收（Fable 5 正式站/預覽抽查 PASS）— commit：`d59c45e`
+- **併入 `main`** — merge commit：`4b66ec6`（`cursor/translator-invoice-read-rls` → `main`）
+
+### W9-A（擁有者插隊裁定，2026-07-04；細節見 §10）
+
+背景：降低 AI 代理操作 UI 的摩擦點，W10 併入 `main` 後立即插隊執行 A 組（純標記，零行為風險）。分支 `cursor/w9a-ai-operability-markers`，已併入 `main`。
+
+- **A1–A5（工具欄位／範本選項／移除鈕／協作列日期／CAT 句段狀態加標記）** — 狀態：已驗收（正式站 `find` 逐項驗證：A1/A2/A4/A5 PASS；A3 釐清為設計行為，非缺陷）— commit：`64c0948`
+- **併入 `main`** — merge commit：`af90596`（`cursor/w9a-ai-operability-markers` → `main`）
+- **後續文件補檔**（`architecture.mdc` 附註、Playwright Phase S 受益點、A3 釐清、AI 操作指南 §11）— commit：`e4d1639`、`f85b789`
+
+**W9-B（bridge API 擴充）／W9-C（行為修正）** — 狀態：規劃中（依裁決「隨模組碰到時做」／「個案」，未排入本輪）— commit：—
+
 ---
 
 ## 5. R／W 對照索引（程式觸點）
@@ -232,6 +253,8 @@ flowchart LR
 - [CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md](CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md) — 寫入來源追蹤法範例
 - [CODEMAP.md](CODEMAP.md) — 功能與路徑對照（驗收後現況摘要寫入處）
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) — 部署與 migration 檢核
+- [TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11 — W9-A DOM 定位標記對照表（AI 代理操作用）
+- [supabase/tests/w10_translator_read_check.sql](../supabase/tests/w10_translator_read_check.sql)、[w10_fees_visible_mask_check.sql](../supabase/tests/w10_fees_visible_mask_check.sql)、[w10_fees_write_check.sql](../supabase/tests/w10_fees_write_check.sql) — W10 三批次 DB 層驗證腳本（權威回歸基準）
 
 ---
 

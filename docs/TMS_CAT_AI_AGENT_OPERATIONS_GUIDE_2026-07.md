@@ -1,6 +1,6 @@
 # TMS + CAT AI 整合操作指南（Claude 首讀）
 
-> **狀態**：2026-07-03  
+> **狀態**：2026-07-04（含 W9-A DOM 定位標記）  
 > **對象**：瀏覽器自動化 AI（Claude in Chrome、`Runtime.evaluate`、Playwright）  
 > **預設環境**：`https://talk-hanzi-joy.vercel.app` + **測試模式**（`env=test`，與正式營運資料隔離）  
 > **次讀**：LMS API 速查 [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)、CAT API [`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)
@@ -52,7 +52,7 @@ Playwright 自動化對照：`.env` 設 `PLAYWRIGHT_ENTER_TEST_MODE=1`（見 [`T
 
 ## 3. 通用守則
 
-1. **優先 bridge**：填案件、費用、請款、上傳、CAT 匯入／AI 批次設定 — 用 API，**不要**點下拉、日期選擇器、原生 `<input type="file">`。
+1. **優先 bridge**：填案件、費用、請款、上傳、CAT 匯入／AI 批次設定 — 用 API，**不要**點下拉、日期選擇器、原生 `<input type="file">`。尚無 bridge 方法的區塊（工具區塊欄位、範本選單、多人協作表格、CAT 句段狀態）改用 §11 的穩定 DOM 標記定位，**不要**截圖猜座標。
 2. **先探索再寫入**：`__tmsAgent.describe()` 或 `options.get('taskType')` 查合法 label。
 3. **錯誤自我修正**：回傳 `{ ok: false, error, allowed? }` 時，用 `allowed` 修正後重送。
 4. **時間**：API 用 ISO 8601（`2026-07-01T09:00:00.000Z`）；驗收畫面顯示須為 **24 小時制**。
@@ -391,7 +391,56 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 
 ---
 
-## 11. 常見失敗與排錯
+## 11. 非 bridge／DOM 定位標記（W9-A，2026-07-04）
+
+**背景**：§3 守則「優先 bridge」仍為第一原則；但部分區塊（工具區塊欄位、範本選單、多人協作表格、CAT 編輯器句段列）尚無對應 bridge 方法，過去只能截圖猜座標或用不穩定的文字/位置定位。W9-A（[`ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md) §10）已加入下列**穩定 DOM 標記**，可搭配 `find`（無障礙定位）或 CSS selector 直接命中，取代截圖／座標猜測。2026-07-04 已於正式站以 `find` 逐項驗證 PASS（A3 見下方備註）。
+
+### 11.1 案件詳情頁（`/cases/:id`）— 工具區塊
+
+程式：[`src/pages/CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx)。
+
+| 標記 | 對應欄位／元件 | 說明 |
+|------|----------------|------|
+| `[data-testid="tool-server"]` | 工具欄位「伺服器」 | 文字輸入框 |
+| `[data-testid="tool-username"]` | 工具欄位「帳號」／「登入帳號」 | 文字輸入框 |
+| `[data-testid="tool-password"]` | 工具欄位「密碼」／「登入密碼」 | 文字輸入框（明碼，非遮罩） |
+| `[data-testid="tool-project"]` | 工具欄位「專案」／「專案名稱」 | 文字輸入框 |
+| `[data-testid="tool-files"]` | 工具欄位「檔案」／「檔案名稱」 | 檔案欄位（`ToolFileFieldRow`） |
+| `[data-testid="tool-field-<fieldId>"]` | 其他自訂欄位標籤（無對照表命中時的 fallback） | `<fieldId>` 為該欄位的內部 id |
+| `[data-testid="template-option-<範本名稱>"]` | 範本彈出視窗內的範本選項按鈕 | 需先點「範本」按鈕開啟 popover |
+| `button[aria-label="移除工具 <工具名稱或序號>"]` | 工具區塊右上角移除鈕（`X`） | **僅在該案件有 2 種以上工具時渲染**（`canRemoveCaseTool`／`questionTools.length > 1`，須至少保留一種工具）；只有 1 種工具的案件本就不顯示此鈕，屬設計行為，非缺陷 |
+
+### 11.2 多人協作表格（案件詳情頁內）
+
+程式：[`src/components/CollaborationTable.tsx`](../src/components/CollaborationTable.tsx)。
+
+| 標記 | 說明 |
+|------|------|
+| `[data-collab-id="<rowId>"]` | 掛在每一協作列的容器（`div`），可用來限定該列範圍內再找子元素（例如譯者選單、勾選框） |
+| `[data-collab-id="<rowId>"][data-collab-field="translationDeadline"]` | 該列「翻譯交期」日期欄的容器，避免舊版「點日期全寫入第一列」的誤觸 |
+| `[data-collab-id="<rowId>"][data-collab-field="reviewDeadline"]` | 該列「審稿交期」日期欄的容器 |
+
+`<rowId>` 為 `CollabRow.id`（可由 bridge `case.get(caseId)` 讀 `collabRows` 陣列取得）。
+
+### 11.3 CAT 編輯器句段列
+
+程式：[`cat-tool/app.js`](../cat-tool/app.js)（`syncRowStatusDataset`）。
+
+| 標記 | 說明 |
+|------|------|
+| `.grid-data-row[data-seg-id="<segId>"]` | 既有標記，定位到指定句段列（`<segId>` 即句段 id） |
+| `.grid-data-row[data-status="<status>"]` | 該列句段的**原始狀態**（例如 `draft`、`confirmed`） |
+| `.grid-data-row[data-wf-state="<state>"]` | 該列的**統一顯示五態**（`resolveSegmentConfirmDisplayState` 計算結果，例如 `trans_confirmed`、`review_confirmed`、`orig_confirmed`），與畫面圖示樣式一致但可程式判讀 |
+
+用於篩選／統計句段狀態時，改用 `document.querySelectorAll('.grid-data-row[data-status="confirmed"]')` 等 DOM 查詢，**不要**再靠圖示 CSS class（`.wf-trans`、`.orig-confirmed` 等組合）截圖判讀；Playwright 劇本亦同（見 [`CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md`](CAT_EDITOR_NAV_PHASE_2_3Q_PLAYWRIGHT_PLAN.md) Phase S）。
+
+### 11.4 後續（W9-B／W9-C，未排入本輪）
+
+工具區塊欄位寫入回讀驗證、`case.getCurrentId()`、CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋、CAT iframe 無障礙樹曝露等項目，依擁有者裁定維持「隨模組碰到時做」／「個案」排程，詳見主計畫 §10 W9-B／W9-C；完成時將回來補本節。
+
+---
+
+## 12. 常見失敗與排錯
 
 | 現象 | 可能原因 | 處理 |
 |------|----------|------|
@@ -405,7 +454,7 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 
 ---
 
-## 12. 相關文件索引
+## 13. 相關文件索引
 
 | 主題 | 文件 |
 |------|------|
@@ -417,13 +466,15 @@ prefs 依 **user × project** 儲存（團隊版：Supabase；離線：Dexie）�
 | 測試模式 | [`CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md`](CAT_LMS_TEST_MODE_IMPL_PLAN_2026-06.md) |
 | 匯入連結 LMS 案件 | [`CAT_IMPORT_CASE_LINK_2026-06.md`](CAT_IMPORT_CASE_LINK_2026-06.md) |
 | Playwright 回歸 | [`TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md) |
+| W9 AI 可操作性主計畫 | [`ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md) §10 |
 | 程式：LMS bridge | [`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts) |
 | 程式：CAT bridge | [`cat-tool/js/cat-agent-bridge.js`](../cat-tool/js/cat-agent-bridge.js) |
 
 ---
 
-## 13. 開發紀錄
+## 14. 開發紀錄
 
 | 日期 | 內容 |
 |------|------|
 | 2026-07-03 | 初版：整合 LMS 建單、案件頁、CAT 導覽、匯入、AI 批次；預設線上測試模式（commit `a9f0721`） |
+| 2026-07-04 | 新增 §11「非 bridge／DOM 定位標記」：W9-A 落地的 `data-testid`／`aria-label`／`data-collab-id`／`data-status`／`data-wf-state` 標記對照表；正式站 `find` 驗證 A1/A2/A4/A5 PASS，A3 釐清為設計行為（commit `64c0948`、merge `af90596`） |
