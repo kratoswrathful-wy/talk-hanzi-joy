@@ -1,4 +1,4 @@
-狀態：已落地待 merge（PR 待開）；production 第一次 sync 需另行核准
+狀態：已驗收，細節以程式為準；production 首次 sync 與 PR #7 收尾見 [`CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md)
 
 # CAT AI Model Registry Phase 2 — Sync Endpoint 規格（2026-07）
 
@@ -165,15 +165,35 @@
 
 ## 10. production 第一次 sync
 
-- merge 本 PR **≠** 已執行 production sync
-- 部署後需 executive 手動 `POST` + Bearer JWT
-- 需另案核准；本 commit 不執行
+- merge PR #6（`7b8ea65d`）後，已於 2026-07-05 執行 **首次 production sync**（已核准）
+- runId：`a8e4b19a-6115-4a7e-8620-2a4cdd1117f5`
+- 結果：`discoveredCount=118`、`filteredCount=74`、`newOptionsCreated=69`；`ai_provider_models=74`、`cat_ai_model_options=70`
+- 完整紀錄見 [`CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md)
 
-## 11. 驗收（merge 前）
+## 11. PR #7 — GPT-5.5 temperature hotfix（Phase 2 收尾）
 
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run lint`
-- [ ] `npm run build`
-- [ ] dist 無 `SERVICE_ROLE`／`SUPABASE_SERVICE_ROLE_KEY`
-- [ ] 未改 `cat-tool/app.js`、`cat-cloud-rpc.ts`、migration
+| 項目 | 值 |
+|---|---|
+| PR | [#7](https://github.com/kratoswrathful-wy/talk-hanzi-joy/pull/7) |
+| merge commit | `ab4b9005` |
+| 原因 | gpt-5.5 不支援自訂 `temperature`；舊 CAT 呼叫 400 `unsupported_value` |
+| 修正 | `cat-tool/js/ai-model-temperature.js`；GPT-5.5 家族省略 `temperature` |
+| production smoke | 翻譯／QA JSON 200 通過；blocking risk 已解除 |
+
+## 12. production registry 現況與 PM 決策（2026-07-05）
+
+| 項目 | 值 |
+|---|---|
+| enabled=true | `gpt-4.1-mini`、`gpt-5.5` |
+| is_default=true | `gpt-5.5`（恰好 1 筆） |
+| PM 決策 | 正式採納 **gpt-5.5** 為 production default；**gpt-4.1-mini** 保留 enabled 作 fallback |
+| 待辦 | Phase 3 管理 UI 需支援 default／enabled／文案；補齊 gpt-5.5 的 `usage_hint_zh`／`short_label_zh` |
+
+## 13. 驗收（merge 前，PR #6）
+
+- [x] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] dist 無 `SERVICE_ROLE`／`SUPABASE_SERVICE_ROLE_KEY`
+- [x] 未改 `cat-tool/app.js`、`cat-cloud-rpc.ts`、migration

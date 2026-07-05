@@ -1,4 +1,4 @@
-狀態：Phase 1 已完整完成（2026-07-05）；Phase 2 已落地待 merge；Phase 3～4 規劃中
+狀態：Phase 1 已完整完成（2026-07-05）；Phase 2 已驗收（2026-07-05，含首次 production sync 與 PR #7 hotfix）；Phase 3 規劃中；Phase 4 未開始
 
 # CAT AI 模型清單管理：可行性回應與變更計畫（Cursor 版）
 
@@ -128,7 +128,7 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 ### 2.1 資料庫（沿用 v2 計畫四張表，微調）
 
-**Phase 1 狀態（2026-07-05，已完整完成）**：schema／RLS／seed／types 已 merge `main`（PR #1，`0737bf2`）；production DB 已依核准以 Supabase MCP `apply_migration` 套用（非 `supabase db push`），`supabase_migrations.schema_migrations` 登記 `version = 20260704180000`／`name = cat_ai_model_registry`；四張表、8 條 RLS policy、`gpt-4.1-mini` seed（`enabled=true`／`is_default=true`，全表 `is_default=true` 恰好 1 筆）、security advisor 無警示，均已驗證通過。完整套用紀錄見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md`](CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md)。**Phase 2 已落地待 merge**（見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md)）；**Phase 3～4 尚未開始**；[`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md) 為獨立待辦，不阻塞 Phase 1。
+**Phase 1 狀態（2026-07-05，已完整完成）**：schema／RLS／seed／types 已 merge `main`（PR #1，`0737bf2`）；production DB 已依核准以 Supabase MCP `apply_migration` 套用（非 `supabase db push`），`supabase_migrations.schema_migrations` 登記 `version = 20260704180000`／`name = cat_ai_model_registry`；四張表、8 條 RLS policy、`gpt-4.1-mini` seed（`enabled=true`／`is_default=true`，全表 `is_default=true` 恰好 1 筆）、security advisor 無警示，均已驗證通過。完整套用紀錄見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md`](CAT_AI_MODEL_REGISTRY_PHASE1_PROD_APPLY_2026-07-04.md)。**Phase 2 已驗收**（PR #6 merge `7b8ea65d`、首次 production sync、PR #7 temperature hotfix merge `ab4b9005`；收尾見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md)）；**Phase 3 管理 UI 規劃中**；**Phase 4 未開始**；[`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md) 為獨立待辦，不阻塞 Phase 1。
 
 新增 migration `supabase/migrations/<ts>_cat_ai_model_registry.sql`，建立：
 
@@ -141,7 +141,7 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 
 ### 2.2 同步 endpoint（Vercel serverless，非 Supabase Edge Function）
 
-**Phase 2 狀態（2026-07-05，已落地待 merge）**：實作檔 [`api/cat-ai-model-sync.js`](../api/cat-ai-model-sync.js)；授權 [`api/lib/require-executive.js`](../api/lib/require-executive.js)；規則 [`api/lib/model-sync-rules.js`](../api/lib/model-sync-rules.js)。完整規格見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md)。
+**Phase 2 狀態（2026-07-05，已驗收）**：endpoint 已 merge（PR #6，`7b8ea65d`）；首次 production sync 成功（runId `a8e4b19a-6115-4a7e-8620-2a4cdd1117f5`）；PR #7 temperature hotfix 已 merge（`ab4b9005`）。完整時序、smoke test 與 PM 決策見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md)。規格原文見 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md)。
 
 新增 `api/cat-ai-model-sync.js`（比照 [`api/cat-openai.js`](api/cat-openai.js) 風格；原規劃檔名 `sync-openai-models.js` 已更名對齊 `cat-*` 前綴）：
 
@@ -281,10 +281,12 @@ v2 計畫的 13 條驗收條件大致沿用，補充：
 
 Phase 1 merge 前曾嘗試 Supabase Branching「從零重建」驗證，因**既有** migration 歷史問題（版號登記錯誤、baseline schema 缺失）中途失敗，**非 Phase 1 migration 本身造成**；當時採降級驗收通過 repo 合併，production 套用則改以受控 `apply_migration` 完成。版號 metadata repair 紀錄見 [`docs/MIGRATION_HISTORY_REPAIR_2026-07-04.md`](MIGRATION_HISTORY_REPAIR_2026-07-04.md)；baseline schema 完整修復見 [`docs/BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md)——**獨立待辦，不阻塞 Phase 1，尚未實作**。
 
-### Phase 1 完成後現況
+### Phase 1 完成後現況（2026-07-05 更新）
 
-- 四張 registry 表已存在於 production DB；Phase 2 endpoint merge 後**仍須另案核准才可在 production 執行第一次 sync**。
-- **Phase 2**（sync endpoint）已落地待 merge；**Phase 3**（管理 UI）、**Phase 4**（前台選單／BYOK 收斂）尚未開始。
+- 四張 registry 表已存在於 production DB；**首次 production sync 已成功**（見 [`CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md)）。
+- **Phase 2** 已驗收（endpoint + sync + PR #7 hotfix）。
+- **production default**：PM 已正式採納 **`gpt-5.5`**；`gpt-4.1-mini` 保留 `enabled=true` 作 fallback。
+- **Phase 3**（管理 UI：default／enabled／文案）規劃中；**Phase 4**（前台選單／BYOK 收斂）尚未開始。
 
 ### 產品決策：AI 管理為系統預設值（Phase 3/4 備註）
 

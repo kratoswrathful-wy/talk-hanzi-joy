@@ -185,8 +185,10 @@
 |------|------|
 | OpenAI Chat 代理（公司 key） | `api/cat-openai.js`；本機 dev：`vite.config.ts` `cat-openai-dev-proxy` |
 | Google 試算表 CSV 代理 | `api/cat-google-sheet-csv.js` |
-| **CAT AI 模型 registry 同步**（Phase 2；executive-only JWT；OpenAI `/v1/models` → registry 表） | `api/cat-ai-model-sync.js`；授權 `api/lib/require-executive.js`；規則 `api/lib/model-sync-rules.js`；規格 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](./CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md) |
+| **CAT AI 模型 registry 同步**（Phase 2；executive-only JWT；OpenAI `/v1/models` → registry 表） | `api/cat-ai-model-sync.js`；授權 `api/lib/require-executive.js`；規則 `api/lib/model-sync-rules.js`；規格 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](./CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md)；收尾 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](./CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md) |
 | 篩選／sync plan 型別 re-export | `src/lib/cat-ai-model-sync/`（re-export `api/lib/model-sync-rules.js`） |
+| **CAT AI GPT-5.5 temperature 相容**（PR #7；GPT-5.5 家族省略 `temperature`） | `cat-tool/js/ai-model-temperature.js`；`cat-tool/js/ai-translate.js` 委派 `buildOpenAiChatBody`；測試 `api/lib/cat-ai-model-temperature.test.js` |
+| **production registry 現況**（2026-07-05） | enabled：`gpt-4.1-mini`、`gpt-5.5`；default：**gpt-5.5**（PM 已正式採納）；fallback：`gpt-4.1-mini` |
 
 ## 下拉選項與標籤樣式
 
