@@ -210,6 +210,9 @@
     // ---- API 呼叫 ----
 
     function _openAiBody(settings, messages, extra = {}) {
+        if (window.CatAiModelTemperature && typeof window.CatAiModelTemperature.buildOpenAiChatBody === 'function') {
+            return window.CatAiModelTemperature.buildOpenAiChatBody(settings, messages, extra);
+        }
         const model = settings.model || 'gpt-4.1-mini';
         return {
             model,
