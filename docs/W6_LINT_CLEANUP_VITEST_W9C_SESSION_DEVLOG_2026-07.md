@@ -1,4 +1,4 @@
-狀態：實作中（W6 lint 批次 1–3 已驗收併 main；階段三 Vitest 第一批已完成撰寫、待驗收併入；W9-C C3 已驗收併 main）
+狀態：實作中（W6 lint 批次 1–4 已驗收併 main；階段三 Vitest 第一批已完成撰寫、待驗收併入；W9-C C3 已驗收併 main）
 
 # W6 Lint 清零＋階段三 Vitest 第一批＋W9-C C3 開發紀錄（2026-07-04 單一聊天室彙整）
 
@@ -17,6 +17,7 @@
 | 3 | W6 lint 批次 3：`PermissionsPage.tsx` + `case-store.ts` + 其他小檔 | `cursor/w6-lint-batch3-permissions-casestore` | merge `270ab72`（含新 CI 編碼防線 `a48279e`） | 已驗收 |
 | 4 | 階段三 Vitest 第一批：5 個 `src/lib/*.ts` 純函式、90 項測試 | `test/w6-vitest-lib-batch1-permission-filter`（另有較早的 `cursor/w6-phase3-vitest-batch1-fee-permission-logic`，內容相同性質，未使用） | 實作 `7bbc3dd` | **已完成撰寫，尚未驗收併入 main** |
 | 5 | W9-C C3：CAT 匯入檔案 input 對自動化可及 | `feature/w9c-cat-import-testid-bridge` | 實作 `c0cdfd3`；merge `4316fbd` | 已驗收（Chrome 實測通過） |
+| 6 | W6 lint 批次 4：`src/stores` 剩餘（`fee-store.ts`／`internal-notes-store.ts`／`invoice-store.ts`／`icon-library-store.ts`／`select-options-store.ts`／`settings-persistence.ts`／`ui-button-style-store.ts`／`undo-store.ts`）＋ `src/hooks`（8 檔） | `fix/w6-lint-cleanup-batch4` | merge `4c98fbd2`；**退回重修** `3fd7e6b9`（同日直接推 `main`） | 已驗收（含一次退回重修，見 §9） |
 
 ---
 
@@ -225,10 +226,39 @@ cat-tool 的三個匯入檔案欄位——`#sourceFileInput`（主檔案匯入�
 
 ---
 
-## 8. 跨三項工作的共通教訓（給未來維護者）
+## 8. W6 批次 4：`src/stores` 剩餘 + `src/hooks`（含一次退回重修）
 
-1. **一批一分支＋獨立驗證，能攔住「型別對了但別的東西壞了」的問題**——批次 2 攔到殘留的 `as unknown as`、批次 3 攔到編碼損壞，兩次都是**三關全線綠燈但仍有真實回歸**，全靠「驗收方獨立在乾淨環境重跑＋位元組層／diff 逐行檢查」才抓到。純看 CI 綠燈是不夠的。
+**範圍**：`fee-store.ts`（9）／`internal-notes-store.ts`（8）／`invoice-store.ts`（6）／`icon-library-store.ts`（7）／`select-options-store.ts`／`settings-persistence.ts`／`ui-button-style-store.ts`／`undo-store.ts`（7）＋ `src/hooks` 8 個檔案的 `no-explicit-any`／`no-empty`／`react-hooks/exhaustive-deps` 等規則。
+
+### 8.1 退回原因：24 處違反「禁止 `as unknown as`／`eslint-disable`」規則
+
+批次 4 首次提交（`50c4571d`，已併 `main` `4c98fbd2`）**直接以 `as unknown as X` 轉型**處理 `fee-store.ts`／`internal-notes-store.ts`／`invoice-store.ts` 的 JSONB 欄位（`taskItems`／`clientInfo`／`notes`／`editLogs`／`comments`／`payments`），並在 `use-auth.ts`、`use-delete-confirm.tsx`、`ui-button-style-store.ts` 共 8 處以 `eslint-disable-next-line` 抑制 `react-hooks/exhaustive-deps`／`react-refresh/only-export-components`——**違反本批次系列自批次 2 起確立的硬性規則**（§2 第 2 點；批次 2 §4.1 正是同一類問題的第一次退回）。複驗（同對話後續）以 `git show <commit> | grep '^\+.*\(as unknown as\|as any\|@ts-expect-error\|eslint-disable\)'` 抓出 **24 處**，予以退回重修。
+
+**落差原因**：批次 4 範圍比批次 1–3 更廣（多語言的 JSONB 反序列化、多個「刻意快取鍵」的 `useMemo`），且執行時未重新對照本檔 §2 的批次規則（僅記得「補型別」的大方向），導致對「型別優先」的落實走了捷徑。
+
+### 8.2 修法一：JSONB 欄位比照 `client-invoice-store.ts` 的 `xxxFromJson()`/`xxxToJson()` 慣例
+
+為 `fee-store.ts` 新增 `taskItemsFromJson`/`ToJson`、`clientInfoFromJson`/`ToJson`（含巢狀 `clientTaskItemsFromJson`、`clientCaseLink` 逐欄位讀取）、`notesFromJson`/`ToJson`、`editLogsFromJson`/`ToJson`、`editLogPhasesToJson`；`internal-notes-store.ts` 新增 `commentsFromJson`/`ToJson`（含巢狀 `imageUrls`/`fileUrls` 陣列防禦讀取）；`invoice-store.ts` 新增 `paymentsFromJson`/`ToJson`。皆為**逐欄位型別檢查＋預設值**，未知或型別不符欄位一律給預設值，不經任何轉型繞過。
+
+### 8.3 修法二：`exhaustive-deps`「刻意快取鍵」改用 `void key;` 建立真實參照
+
+`ui-button-style-store.ts` 7 處 `useMemo(() => fn(id), [id, key])` 模式——`key`／`overrideKey`／`toolbarKey` 只作為 store 變更時強制重算的快取鍵，`useMemo` 回呼本體並未直接讀取，被 `exhaustive-deps` 判定為「多餘依賴」。修法：在回呼本體開頭加一行 `void key;`（或 `void overrideKey;`／`void toolbarKey;`），使其成為函式體內的**真實識別碼參照**，ESLint 的依賴分析即能辨識為「有使用」，滿足規則而不需 `eslint-disable`，回傳值與原行為完全不變。
+
+`use-auth.ts` 的 profile/roles 載入 `useEffect` 原依賴 `user?.id` 但本體內讀 `user.id`（觸發 `exhaustive-deps` 要求整個 `user` 物件入列，但那會導致 token 刷新時不必要重跑）；改法：在 `useEffect` 外先取 `const userId = user?.id;` 為獨立原始值，effect 本體與依賴陣列**都只讀 `userId`**（不再讀 `user.id`），依賴分析自然滿足，無需 disable。
+
+### 8.4 修法三：`react-refresh/only-export-components` 改實質拆檔
+
+`use-delete-confirm.tsx` 原在同檔匯出 `useDeleteConfirm` hook 與 `DeleteConfirmProvider` 元件，觸發 fast-refresh 邊界警告。修法：把 `DeleteConfirmProvider` 元件搬到新檔 [`src/components/providers/DeleteConfirmProvider.tsx`](../src/components/providers/DeleteConfirmProvider.tsx)，`use-delete-confirm.tsx` 僅留 `DeleteConfirmContext`（改具名 export）與 `useDeleteConfirm` hook；`App.tsx`（唯一掛載 `DeleteConfirmProvider` 的呼叫端）改指向新路徑。實質拆檔而非抑制警告。
+
+### 8.5 驗證與結案
+
+`npm run typecheck`／`npm run test`（184 項全過）／`npx eslint`（改動檔）皆過；`git diff <批次4合併前基準>` 全文 grep 四項禁用手法（`as unknown as`／`as any`／`@ts-expect-error`／`eslint-disable`）= **0 處**。因批次 4 已先併入 `main`，退回重修**直接以新 commit `3fd7e6b9` 推上 `main`**（未走「分支→驗證→merge」全流程，屬 merge 後熱修，性質等同批次 2 的 `7080927` 退回重修模式）。
+
+## 9. 跨四項工作的共通教訓（給未來維護者）
+
+1. **一批一分支＋獨立驗證，能攔住「型別對了但別的東西壞了」的問題**——批次 2 攔到殘留的 `as unknown as`、批次 3 攔到編碼損壞、批次 4 攔到 24 處 `as unknown as`／`eslint-disable`，三次都是**三關全線綠燈但仍有真實回歸**，全靠「複驗者獨立在乾淨環境重跑＋diff 逐行 grep」才抓到。純看 CI 綠燈是不夠的。
 2. **Windows PowerShell 操作含中文的檔案是已知高風險動作**——本次事故的直接教訓；本專案現在有 `check:encoding` 這道 CI 防線，但更根本的做法是**改檔一律用不經過 PowerShell 字串管線的工具**（本專案內建的 `Write`／`StrReplace` 走 UTF-8）。
 3. **`tsconfig.app.json` 的 `strict: false` 會讓判別聯集窄化在某些寫法下失效**——遇到「明明照 if 判別聯集寫，TS 卻說屬性不存在」時，先檢查是不是 `strictNullChecks` 未開啟，不要浪費時間懷疑型別定義本身寫錯；解法是改用整物件斷言（測試）或 `in` 判斷（產品程式碼），而不是硬套 `as` 轉型繞過（那樣就違反本專案的型別紀律了）。
 4. **時間視窗類的邊界測試，必須先算出常數的實際數值再決定測試用的時間戳**——否則容易寫出「斷言方向正確、但測試從未真正測到目標分支」的假綠燈。
 5. **postMessage 的結構化複製支援 `File`／`Blob` 物件**——這個特性讓「頂層代理上傳 → 轉送進 iframe」的橋接可以直接傳真實檔案物件，不需要繞道 base64；遇到「iframe 裡的東西無障礙樹夠不到」這類問題時，**優先檢查專案裡是不是已經有現成的殼層↔iframe 官方橋接通道可以延用**（本例的 `__tmsAgent.cat.invoke`），而不是每次都發明新的 postMessage 格式。
+6. **範圍變大、跨越多次對話／上下文交接時，執行前務必重新讀一次本檔 §2 的批次硬規則**——批次 4 的落差不是不知道規則，而是「隔了對話交接、只記得大方向」；批次系列若要長期有效，硬規則的複查應該是**每批開工前的固定動作**，不能只靠記憶。**同一次「禁用手法 grep」也應在提交前（非提交後複驗才做）內建為收尾步驟**，才能在推 `main` 前攔住，而非事後補救。

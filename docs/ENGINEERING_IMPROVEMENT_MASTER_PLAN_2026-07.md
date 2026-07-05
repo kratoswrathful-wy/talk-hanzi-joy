@@ -1,4 +1,4 @@
-狀態：實作中（階段一二已落地；W10、W9-A 為擁有者插隊裁定工項，已落地並多半驗收；階段三四未開工）
+狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三已開工——lint 清零批次 1–4 已驗收、`dev-switch-user` 核心修復已驗收（殘留 OBS-5 待辦）；Vitest 批次 2、lint 批次 5 未開工；階段四未開工）
 
 # 1UP 工程改善主計畫
 
@@ -594,3 +594,30 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
    - 每批**獨立 commit、獨立跑三關**（比照 W1 五 store 遷移的驗收慣例），估**5 批**，非一次到位；批次順序建議依「近期異動熱度」優先（`CatToolPage.tsx`／`TranslatorFeeDetail.tsx` 近期才因 W10 改過，型別若補在此時最省認知負擔）。
 2. **暫無正當理由對特定目錄整批降級規則**：46 個檔案、319 處分布分散，且多數是「Supabase 查詢結果」「Realtime payload」「第三方庫回呼參數」等真實型別未知場景，屬需要逐一補型別或至少改 `unknown` + 縮小的情境，非設計上必須用 `any`；`supabase/functions/` 的 Deno edge function 型別環境與前端不同（無法直接共用 `src/integrations/supabase/types.ts`），若要降級，**建議僅該資料夾**可考慮改 `warn` 而非 `off`（仍留痕跡），但目前僅 16 處、單一檔案，直接修不比降級規則省事，故**不建議此時降級**，留待實際分批修時若遇特殊技術限制（例如 Deno 型別產生工具鏈缺失）再個案處理。
 3. **R2（三關正式擋推送）與 lint 清零的關係**：目前 CI 的 lint 步驟為 `continue-on-error`，R2「三關全過才可推送」尚未把 lint 納入正式門檻。待 5 批修完、`react-hooks/exhaustive-deps` 等其他規則亦清空後，再將 `ci.yml` 的 lint 步驟移除 `continue-on-error`，同步把 R2 標記為正式生效。
+
+### 11.4 批次 1–4 執行進度（2026-07-05）
+
+批次 1–4 已全數完成並驗收併入 `main`；**過程細節、退回重修紀錄見** [`W6_LINT_CLEANUP_VITEST_W9C_SESSION_DEVLOG_2026-07.md`](W6_LINT_CLEANUP_VITEST_W9C_SESSION_DEVLOG_2026-07.md) §3–§9，本節僅列摘要：
+
+- **批次 1**（`CatToolPage.tsx`＋`TranslatorFeeDetail.tsx`）— merge `fbca22e`，已驗收。
+- **批次 2**（`client-invoice-store.ts`＋`CommentInput.tsx`）— 修正 `7080927`；merge `d3cf299`，已驗收（含一次退回重修）。
+- **批次 3**（`PermissionsPage.tsx`＋`case-store.ts`＋其他小檔）— merge `270ab72`，已驗收（另觸發編碼損壞事故，已補 `check:encoding` CI 防線）。
+- **批次 4**（`src/stores` 剩餘＋`src/hooks`）— merge `4c98fbd2`；**退回重修** `3fd7e6b9`（直接推 `main`，24 處 `as unknown as`／`eslint-disable` 違規已清零），已驗收。
+- 批次 5（`supabase/functions/fetch-notion-page`＋零散小檔）— 尚未開工。
+- 三關（`npm run typecheck`／`npm run test`／`npm run lint` 改動檔範圍）皆過；每批已依規則做「新增 diff 行四項禁用手法 grep = 0」複驗。
+
+## 12. `dev-switch-user` 假人換人靜默失效修復（2026-07-05，分支 `fix/dev-switch-user-persona-verify`）
+
+**根因**：[`src/components/DevRoleSwitcher.tsx`](../src/components/DevRoleSwitcher.tsx) 的 `consumeTokenAndReload` 在 `verifyOtp` 之前呼叫 `supabase.auth.signOut()`；GoTrue 的 `POST /logout?scope=local`（`local` 僅指「只登出目前這張 session」，並非「不打伺服器」）會在**伺服器端**撤銷該 session。測試模式中多個 Playwright context 共用同一張假執行長 session，任一 context 一旦 `signOut`，其餘 context 的 token 即在伺服器端失效——換人時 `dev-switch-user` 內驗證呼叫者身分的 `getUser` 回 401，換人靜默失敗卻仍以原身分執行完畢（誤判通過），此即先前多份 spec 記載「UI 換人流程未修復」的根本原因。
+
+**修法**：移除 `verifyOtp` 前的 `signOut()`——`verifyOtp` 會直接以新 session 覆寫本機 session，隨後 `window.location.reload()` 亦清掉記憶體與訂閱，`signOut` 並非必要。`leaveTestMode` 無返回票的登出保留但改為 `scope: "local"`。
+
+**已實測驗證（同分頁內連續換人，可靠）**：新增回歸測試 [`tests/dev-switch-user-persona.spec.ts`](../tests/dev-switch-user-persona.spec.ts)（連續換人 假執行長→PM→譯者一，每次驗證登入 email 確有改變），**本機實跑 3 輪皆穩定通過**。`tests/w10-fees-visible-translator.spec.ts` 的 W10-T-1／T-3 移除 `test.fixme` 改為實跑，**單獨執行**皆綠。
+
+**新發現、待辦殘留問題（本輪未修，追蹤為新待辦 OBS-5）**：本代理額外實跑「同一次 Playwright 執行內，T-1／T-2 兩個測試都各自呼叫換人」的情境（W10-T-2），發現**第二個起的換人會失敗**（401 unauthorized，卡在 `dev-switch-user` 驗證呼叫者自身身分那一步）。以隔離診斷排除「切到同一位假人兩次」與「單純時間流逝／背景 token 自動刷新」兩個假設後，精確鎖定觸發條件為：**只要前一個測試已成功執行過一次真實換人（`verifyOtp` 消費過 magic link），下一個全新瀏覽器 context 若沿用同一份 Playwright `storageState.json` 磁碟快取的假執行長權杖去呼叫 `dev-switch-user`，會直接收到 401**（懷疑與 Supabase Auth 的 session／access token 即時淘汰機制有關，精確機制尚待查證）。
+
+- **影響範圍**：僅限「同一次 `npx playwright test` 執行中，有兩個以上獨立測試檔／測試各自呼叫換人」的情境；**單一測試檔／單一分頁內連續換人不受影響**（已驗證可靠）。
+- **現況**：`tests/w10-fees-visible-translator.spec.ts` 的 T-1／T-2／T-3 各自單獨執行皆可通過，但**整份套件一起跑（`serial` 模式）會在 T-2 卡住**；`dev-switch-user-persona.spec.ts` 因全程單一分頁不受影響。
+- **待辦**：查清 GoTrue 對已使用過的快取權杖的淘汰時機與機制；短期可能對策為 Playwright 全域 setup 改「每個需換人的測試檔各自產生獨立 `storageState`」而非全專案共用一份，或在 `switchToTestPersona` 內加重試。列為新待辦 **OBS-5**，非本輪 `dev-switch-user` 核心修復範圍（核心症狀——換人靜默失敗且誤判通過——已解決；殘留問題是「換人明確失敗」而非「靜默誤判」，風險等級較低）。
+
+**驗收**：`npm run typecheck`／`npm run test`（184 項）皆過；本代理獨立於分支預覽以 Playwright 實測（非僅採信子代理回報）。**核准併入 main，merge commit `e1ed9373`**。
