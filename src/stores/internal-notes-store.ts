@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Listener = () => void;
 
@@ -22,7 +23,7 @@ function notify() {
 
 // ── DB ↔ App mapping ──
 
-function dbToApp(row: any): InternalNote {
+function dbToApp(row: Tables<"internal_notes">): InternalNote {
   return {
     id: row.id,
     title: row.title ?? "",
@@ -31,15 +32,19 @@ function dbToApp(row: any): InternalNote {
     creator: row.creator ?? "",
     status: row.status ?? "",
     noteType: row.note_type ?? "",
-    internalAssignee: Array.isArray(row.internal_assignee) ? row.internal_assignee : [],
+    internalAssignee: Array.isArray(row.internal_assignee) ? (row.internal_assignee as string[]) : [],
     fileName: row.file_name ?? "",
     idRowCount: row.id_row_count ?? "",
     sourceText: row.source_text ?? "",
     translatedText: row.translated_text ?? "",
     questionOrNote: row.question_or_note ?? "",
-    questionOrNoteBlocks: Array.isArray(row.question_or_note_blocks) ? row.question_or_note_blocks : [],
-    referenceFiles: Array.isArray(row.reference_files) ? row.reference_files : [],
-    comments: Array.isArray(row.comments) ? row.comments : [],
+    questionOrNoteBlocks: Array.isArray(row.question_or_note_blocks)
+      ? (row.question_or_note_blocks as InternalNote["questionOrNoteBlocks"])
+      : [],
+    referenceFiles: Array.isArray(row.reference_files)
+      ? (row.reference_files as InternalNote["referenceFiles"])
+      : [],
+    comments: Array.isArray(row.comments) ? (row.comments as unknown as InternalNote["comments"]) : [],
     invalidated: row.invalidated ?? false,
     invalidatedBy: row.invalidated_by ?? undefined,
     invalidatedAt: row.invalidated_at ?? undefined,
@@ -52,8 +57,8 @@ function dbToApp(row: any): InternalNote {
   };
 }
 
-function appToDb(note: Partial<InternalNote>): Record<string, any> {
-  const m: Record<string, any> = {};
+function appToDb(note: Partial<InternalNote>): Record<string, Json> {
+  const m: Record<string, Json> = {};
   if (note.title !== undefined) m.title = note.title;
   if (note.relatedCase !== undefined) m.related_case = note.relatedCase;
   if (note.creator !== undefined) m.creator = note.creator;
@@ -67,7 +72,7 @@ function appToDb(note: Partial<InternalNote>): Record<string, any> {
   if (note.questionOrNote !== undefined) m.question_or_note = note.questionOrNote;
   if (note.questionOrNoteBlocks !== undefined) m.question_or_note_blocks = note.questionOrNoteBlocks;
   if (note.referenceFiles !== undefined) m.reference_files = note.referenceFiles;
-  if (note.comments !== undefined) m.comments = note.comments;
+  if (note.comments !== undefined) m.comments = note.comments as unknown as Json;
   if (note.invalidated !== undefined) m.invalidated = note.invalidated;
   if (note.invalidatedBy !== undefined) m.invalidated_by = note.invalidatedBy;
   if (note.invalidatedAt !== undefined) m.invalidated_at = note.invalidatedAt;
@@ -88,20 +93,20 @@ supabase
     (payload) => {
       const env = getEnvironment();
       if (payload.eventType === "UPDATE" && payload.new) {
-        const row = payload.new as any;
+        const row = payload.new as Tables<"internal_notes">;
         if (row.env !== env) return;
         const updated = dbToApp(row);
         notes = notes.map((n) => (n.id === updated.id ? updated : n));
         notify();
       } else if (payload.eventType === "INSERT" && payload.new) {
-        const row = payload.new as any;
+        const row = payload.new as Tables<"internal_notes">;
         if (row.env !== env) return;
         if (!notes.some((n) => n.id === row.id)) {
           notes = [dbToApp(row), ...notes];
           notify();
         }
       } else if (payload.eventType === "DELETE" && payload.old) {
-        const oldId = (payload.old as any).id;
+        const oldId = (payload.old as Partial<Tables<"internal_notes">>).id;
         if (notes.some((n) => n.id === oldId)) {
           notes = notes.filter((n) => n.id !== oldId);
           notify();
@@ -138,7 +143,7 @@ export const internalNotesStore = {
       .order("created_at", { ascending: false });
     if (seq !== loadSeq) return;
     if (!error && data) {
-      notes = (data as any[]).map(dbToApp);
+      notes = data.map(dbToApp);
       loaded = true;
       notify();
     }
@@ -154,7 +159,7 @@ export const internalNotesStore = {
         ...appToDb(note),
         created_at: note.createdAt,
         env: getEnvironment(),
-      } as any);
+      } as TablesInsert<"internal_notes">);
     if (error) console.error("Failed to insert internal note:", error);
     return note;
   },

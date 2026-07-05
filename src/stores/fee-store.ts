@@ -1,8 +1,9 @@
-import { type TranslatorFee, type ClientInfo, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
+import { type TranslatorFee, type ClientInfo, type FeeEditLogPhases, type FeeTaskItem, type Note, type EditLog, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
 
 type Listener = () => void;
 
@@ -24,10 +25,10 @@ interface DbFee {
   status: string;
   internal_note: string;
   internal_note_url: string;
-  task_items: any;
-  client_info: any;
-  notes: any;
-  edit_logs: any;
+  task_items: Json;
+  client_info: Json;
+  notes: Json;
+  edit_logs: Json;
   edit_log_phases: unknown;
   created_by: string | null;
   created_at: string;
@@ -41,7 +42,7 @@ function parseEditLogPhases(row: DbFee): FeeEditLogPhases | undefined {
     row.edit_log_phases && typeof row.edit_log_phases === "object" && !Array.isArray(row.edit_log_phases)
       ? { ...(row.edit_log_phases as FeeEditLogPhases) }
       : {};
-  const ci = row.client_info as ClientInfo | undefined;
+  const ci = row.client_info as unknown as ClientInfo | undefined;
   if (!raw.basic && row.status === "finalized" && row.title?.trim() && row.assignee) {
     raw.basic = row.finalized_at || row.created_at;
   }
@@ -62,10 +63,10 @@ function dbToApp(row: DbFee): TranslatorFee {
     status: row.status as TranslatorFee["status"],
     internalNote: row.internal_note,
     internalNoteUrl: row.internal_note_url || undefined,
-    taskItems: Array.isArray(row.task_items) ? row.task_items : [],
-    clientInfo: row.client_info ? (row.client_info as ClientInfo) : { ...defaultClientInfo },
-    notes: Array.isArray(row.notes) ? row.notes : [],
-    editLogs: Array.isArray(row.edit_logs) ? row.edit_logs : [],
+    taskItems: Array.isArray(row.task_items) ? (row.task_items as unknown as FeeTaskItem[]) : [],
+    clientInfo: row.client_info ? (row.client_info as unknown as ClientInfo) : { ...defaultClientInfo },
+    notes: Array.isArray(row.notes) ? (row.notes as unknown as Note[]) : [],
+    editLogs: Array.isArray(row.edit_logs) ? (row.edit_logs as unknown as EditLog[]) : [],
     editLogPhases: parseEditLogPhases(row),
     createdBy: row.created_by || "",
     createdAt: row.created_at,
@@ -74,18 +75,18 @@ function dbToApp(row: DbFee): TranslatorFee {
   };
 }
 
-function appToDb(fee: Partial<TranslatorFee>): Record<string, any> {
-  const m: Record<string, any> = {};
+function appToDb(fee: Partial<TranslatorFee>): Record<string, Json> {
+  const m: Record<string, Json> = {};
   if (fee.title !== undefined) m.title = fee.title;
   if (fee.assignee !== undefined) m.assignee = fee.assignee;
   if (fee.status !== undefined) m.status = fee.status;
   if (fee.internalNote !== undefined) m.internal_note = fee.internalNote;
   if (fee.internalNoteUrl !== undefined) m.internal_note_url = fee.internalNoteUrl;
-  if (fee.taskItems !== undefined) m.task_items = fee.taskItems;
-  if (fee.clientInfo !== undefined) m.client_info = fee.clientInfo;
-  if (fee.notes !== undefined) m.notes = fee.notes;
-  if (fee.editLogs !== undefined) m.edit_logs = fee.editLogs;
-  if (fee.editLogPhases !== undefined) m.edit_log_phases = fee.editLogPhases;
+  if (fee.taskItems !== undefined) m.task_items = fee.taskItems as unknown as Json;
+  if (fee.clientInfo !== undefined) m.client_info = fee.clientInfo as unknown as Json;
+  if (fee.notes !== undefined) m.notes = fee.notes as unknown as Json;
+  if (fee.editLogs !== undefined) m.edit_logs = fee.editLogs as unknown as Json;
+  if (fee.editLogPhases !== undefined) m.edit_log_phases = fee.editLogPhases as unknown as Json;
   if (fee.finalizedBy !== undefined) m.finalized_by = fee.finalizedBy;
   if (fee.finalizedAt !== undefined) m.finalized_at = fee.finalizedAt;
   return m;
@@ -100,7 +101,7 @@ function persistInsert(fee: TranslatorFee, userId: string | null) {
       ...appToDb(fee),
       created_by: userId || null,
       env: getEnvironment(),
-    } as any)
+    } as TablesInsert<"fees">)
     .then(({ error }) => {
       if (error) console.error("Failed to insert fee:", error);
     });
@@ -157,15 +158,15 @@ supabase
     (payload) => {
       const env = getEnvironment();
       if (payload.eventType === "DELETE" && payload.old) {
-        const oldId = (payload.old as any).id;
+        const oldId = (payload.old as Partial<DbFee>).id;
         if (fees.some((f) => f.id === oldId)) {
           fees = fees.filter((f) => f.id !== oldId);
           notify();
         }
         return;
       }
-      const row = payload.new as any;
-      if (!row || row.env !== env) return;
+      const row = payload.new as Partial<DbFee> & { env?: string };
+      if (!row.id || row.env !== env) return;
       void requeryFeeFromView(row.id);
     }
   )

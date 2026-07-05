@@ -18,6 +18,9 @@ const DeleteConfirmContext = createContext<DeleteConfirmContextValue>({
   confirmDelete: () => {},
 });
 
+// 同檔匯出 hook + Provider 元件（context 慣用寫法），fast refresh 隔離最佳化不適用，
+// 拆檔案效益低於風險，故此處抑制而非拆分。
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDeleteConfirm() {
   return useContext(DeleteConfirmContext);
 }

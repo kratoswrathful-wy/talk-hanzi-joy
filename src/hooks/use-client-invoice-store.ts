@@ -2,7 +2,7 @@ import { useSyncExternalStore, useEffect } from "react";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 
-let loadPromise: Promise<any> | null = null;
+let loadPromise: ReturnType<typeof clientInvoiceStore.loadInvoices> | null = null;
 function ensureLoaded() {
   if (!loadPromise) {
     loadPromise = clientInvoiceStore.loadInvoices();

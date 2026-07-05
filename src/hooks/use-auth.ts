@@ -148,6 +148,8 @@ export function useAuth() {
     return () => {
       active = false;
     };
+    // 刻意只依 user?.id（非整個 user 物件參考）：user 物件其他欄位變動不應重跑 profile/roles 載入。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, fetchProfile, fetchRoles]);
 
   const isAdmin = roles.some((r) => r.role === "pm" || r.role === "executive");

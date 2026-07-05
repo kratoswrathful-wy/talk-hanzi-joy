@@ -172,7 +172,7 @@ function loadViewsFromStorage(key: string): TableView[] {
       if (!parsed.some((v) => v.id === "default")) return [createDefaultView(), ...parsed];
       return parsed;
     }
-  } catch {}
+  } catch { /* 讀取失敗（毀損或被封鎖），改用預設檢視即可 */ }
   return [createDefaultView()];
 }
 
@@ -192,8 +192,8 @@ export function useInternalNotesTableViews(userId?: string) {
     setActiveViewId(loadActiveViewFromStorage(activeKey));
   }, [storageKey, activeKey]);
 
-  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch {} }, [views, storageKey]);
-  useEffect(() => { try { localStorage.setItem(activeKey, activeViewId); } catch {} }, [activeViewId, activeKey]);
+  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch { /* 可能被封鎖或超額，略過即可 */ } }, [views, storageKey]);
+  useEffect(() => { try { localStorage.setItem(activeKey, activeViewId); } catch { /* 可能被封鎖或超額，略過即可 */ } }, [activeViewId, activeKey]);
 
   const activeView = useMemo(() => views.find((v) => v.id === activeViewId) || views[0], [views, activeViewId]);
 

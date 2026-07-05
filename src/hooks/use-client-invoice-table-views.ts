@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { type ClientInvoice } from "@/data/client-invoice-types";
+import { type ClientInvoice, type ClientPaymentRecord } from "@/data/client-invoice-types";
 import { getStatusSortIndex, INVOICE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
@@ -47,7 +47,7 @@ function getFieldValue(
     case "receiptTotalOriginal": {
       const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
       return inv.payments.reduce(
-        (s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)),
+        (s: number, p: ClientPaymentRecord) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)),
         0
       );
     }
@@ -56,18 +56,18 @@ function getFieldValue(
       // Page-level rendering/footer is responsible for currency conversion.
       const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
       return inv.payments.reduce(
-        (s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)),
+        (s: number, p: ClientPaymentRecord) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)),
         0
       );
     }
     case "serviceFee": {
       const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
-      const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
+      const paid = inv.payments.reduce((s: number, p: ClientPaymentRecord) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
       return inv.status === "collected" && paid < total ? total - paid : 0;
     }
     case "netReceived": {
       const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
-      const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
+      const paid = inv.payments.reduce((s: number, p: ClientPaymentRecord) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
       const fee = inv.status === "collected" ? Math.max(0, total - paid) : 0;
       return inv.status === "collected" ? Math.max(0, paid - fee) : 0;
     }
@@ -218,11 +218,11 @@ export function useClientInvoiceTableViews(userId?: string) {
   }, [storageKey, activeKey]);
 
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch { /* 可能被封鎖或超額，略過即可 */ }
   }, [views, storageKey]);
 
   useEffect(() => {
-    try { localStorage.setItem(activeKey, activeViewId); } catch {}
+    try { localStorage.setItem(activeKey, activeViewId); } catch { /* 可能被封鎖或超額，略過即可 */ }
   }, [activeViewId, activeKey]);
 
   const activeView = useMemo(() =>
