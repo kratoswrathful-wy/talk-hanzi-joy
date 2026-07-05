@@ -8,17 +8,17 @@ import {
 /**
  * W10 批次 2＋3 — 譯者端遮罩／唯讀驗收（fees_visible 欄位遮罩＋費用模組純讀者）
  *
- * ⚠️ 全數 test.fixme：依賴測試模式「換人」（dev-switch-user → verifyOtp），
- *   2026-07-03 起在自動化環境靜默失效（切換後仍以假執行長／管理員身分執行），
- *   會使「譯者」遮罩驗收失去意義。修復列入主計畫階段三。
- *   在此之前，譯者端以 DB 層腳本驗證，並由執行長手動切換抽查：
- *     - 批次 2 欄位遮罩：supabase/tests/w10_fees_visible_mask_check.sql
- *       （14 項全 PASS：client_info/internal_note/edit_logs 遮罩、task_items 保留、
- *         批次 3 起 rateConfirmed 亦遮罩為 false）。
- *     - 批次 3 寫入收緊：supabase/tests/w10_fees_write_check.sql
- *       （7 項全 PASS：譯者 INSERT/UPDATE/UPDATE status/DELETE = DENY，PM = ALLOW）。
- *   switchToTestPersona 已內含「切換後須為 active persona」斷言（testing.mdc §6），
- *   換人流程修好後移除 fixme 即可啟用。
+ * 換人流程（dev-switch-user → verifyOtp）2026-07-05 已修復：
+ *   根因為 consumeTokenAndReload 在 verifyOtp 前呼叫 signOut()，而 GoTrue 的
+ *   POST /logout?scope=local 會在「伺服器端」撤銷目前這張 session（local=僅目前這張）。
+ *   測試模式中多個 Playwright context 共用同一張假執行長 session，任一 context 一旦
+ *   signOut，其餘 context 的 token 就在伺服器端失效，換人時 dev-switch-user 內的
+ *   getUser 回 401 → 換人失敗卻仍以原身分執行（誤判通過）。移除該 signOut 後，
+ *   verifyOtp 會直接覆寫本機 session（實測不撤銷簽發者 session），換人穩定成功。
+ *   （fix/dev-switch-user-persona-verify；診斷證據見同分支開發紀錄）
+ *   switchToTestPersona 已內含「切換後須為 active persona」斷言（testing.mdc §6）。
+ *   DB 層另有腳本佐證：supabase/tests/w10_fees_visible_mask_check.sql（14 項全 PASS）、
+ *   supabase/tests/w10_fees_write_check.sql（7 項全 PASS）。
  *
  * 規格：docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md §9.2 / §9.3
  */
@@ -30,8 +30,8 @@ test.describe("W10 Phase 2 — 譯者端遮罩（fees_visible）", () => {
     await expectOnlineTestMode(page);
   });
 
-  // fixme：依賴假人換人（見檔頂說明）；已由 DB 層腳本涵蓋
-  test.fixme("W10-T-1 — 譯者費用詳情：無營收內容、無費用內部備註", async ({ page }) => {
+  // 已由 DB 層腳本涵蓋；換人流程 2026-07-05 修復後改為實跑
+  test("W10-T-1 — 譯者費用詳情：無營收內容、無費用內部備註", async ({ page }) => {
     await switchToTestPersona(page, "譯者一"); // 內含 active persona 斷言
     await page.goto("/fees");
     await expectListPageReady(page, "費用管理");
@@ -53,12 +53,12 @@ test.describe("W10 Phase 2 — 譯者端遮罩（fees_visible）", () => {
     // 白名單條目；空清單顯示「尚無可顯示的變更紀錄」），且條目不含營收／客戶欄位
     const editLogSection = page.getByTestId("fee-edit-log-section");
     await expect(editLogSection).toHaveCount(1);
-    await expect(editLogSection.getByText("變更紀錄")).toBeVisible();
+    await expect(editLogSection.getByText("變更紀錄", { exact: true })).toBeVisible();
     await expect(editLogSection.getByText(/營收|利潤|客戶|報價|聯絡人|對帳|請款完成|派案|費率/)).toHaveCount(0);
   });
 
-  // fixme：依賴假人換人（見檔頂說明）
-  test.fixme("W10-T-2 — 譯者直開他人／草稿費用單 URL 被擋", async ({ page }) => {
+  // 換人流程 2026-07-05 修復後改為實跑
+  test("W10-T-2 — 譯者直開他人／草稿費用單 URL 被擋", async ({ page }) => {
     await switchToTestPersona(page, "譯者一");
     // 需由管理員側預先提供一個「非本人或草稿」的 feeId 作為固定 fixture（換人流程修好後補）。
     const foreignFeeId = process.env.W10_FOREIGN_FEE_ID;
@@ -68,8 +68,8 @@ test.describe("W10 Phase 2 — 譯者端遮罩（fees_visible）", () => {
     await expect(page.getByText("營收內容")).toHaveCount(0);
   });
 
-  // fixme：依賴假人換人（見檔頂說明）；DB 層由 w10_fees_write_check.sql 涵蓋（7 項全 PASS）
-  test.fixme("W10-T-3 — 譯者費用詳情：純讀者（無寫入控件、無刪除欄、無客戶請款狀態）", async ({ page }) => {
+  // DB 層由 w10_fees_write_check.sql 涵蓋（7 項全 PASS）；換人流程 2026-07-05 修復後改為實跑
+  test("W10-T-3 — 譯者費用詳情：純讀者（無寫入控件、無刪除欄、無客戶請款狀態）", async ({ page }) => {
     await switchToTestPersona(page, "譯者一"); // 內含 active persona 斷言
     await page.goto("/fees");
     await expectListPageReady(page, "費用管理");
