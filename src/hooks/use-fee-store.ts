@@ -3,7 +3,7 @@ import { feeStore } from "@/stores/fee-store";
 import { supabase } from "@/integrations/supabase/client";
 
 // Load fees from DB; reset on auth changes so RLS filters apply per-user
-let loadPromise: Promise<any> | null = null;
+let loadPromise: Promise<unknown> | null = null;
 function ensureLoaded() {
   if (!loadPromise) {
     loadPromise = feeStore.loadFees();

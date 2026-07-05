@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { envKey } from "@/lib/environment";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Json } from "@/integrations/supabase/types";
 
 const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 const loadedKeys = new Set<string>();
@@ -80,7 +81,7 @@ export function saveSetting(key: string, value: unknown, debounceMs = 500) {
     const { error } = await supabase
       .from("app_settings")
       .upsert(
-        { key: dbKey, value: value as any, updated_by: user.id },
+        { key: dbKey, value: value as Json, updated_by: user.id },
         { onConflict: "key" }
       );
 

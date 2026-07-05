@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
 
 type Listener = () => void;
 
@@ -27,7 +28,8 @@ interface DbInvoice {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  payments: any;
+  payments: Json;
+  comments?: Json;
   edit_log_started_at?: string | null;
   edit_logs?: SimplePersistedLog[] | null;
 }
@@ -44,7 +46,7 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     feeIds,
-    payments: Array.isArray(row.payments) ? row.payments : [],
+    payments: Array.isArray(row.payments) ? (row.payments as unknown as PaymentRecord[]) : [],
     editLogStartedAt: row.edit_log_started_at || undefined,
     edit_logs: Array.isArray(row.edit_logs) ? row.edit_logs : undefined,
   };
@@ -179,7 +181,7 @@ export const invoiceStore = {
       created_by: uid,
       env,
       ...(started ? { edit_log_started_at: started } : {}),
-    } as any);
+    } as TablesInsert<"invoices">);
 
     if (error) {
       console.error("Failed to create invoice:", error);
@@ -190,25 +192,25 @@ export const invoiceStore = {
 
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId, env }));
-      const { error: linkErr } = await supabase.from("invoice_fees").insert(links as any);
+      const { error: linkErr } = await supabase.from("invoice_fees").insert(links);
       if (linkErr) console.error("Failed to link fees:", linkErr);
     }
 
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt">> & Record<string, unknown>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
-    const dbUpdates: Record<string, any> = {};
+    const dbUpdates: Record<string, Json> = {};
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.transferDate !== undefined) dbUpdates.transfer_date = updates.transferDate || null;
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
-    if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
-    if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
-    if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
+    if (updates.payments !== undefined) dbUpdates.payments = updates.payments as unknown as Json;
+    if (updates.comments !== undefined) dbUpdates.comments = updates.comments as Json;
+    if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs as Json;
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
     if (Object.keys(dbUpdates).length > 0) {
@@ -248,7 +250,7 @@ export const invoiceStore = {
     notify();
 
     const links = newFeeIds.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId, env: getEnvironment() }));
-    const { error } = await supabase.from("invoice_fees").insert(links as any);
+    const { error } = await supabase.from("invoice_fees").insert(links);
     if (error) console.error("Failed to add fees to invoice:", error);
   },
 

@@ -356,11 +356,11 @@ export function useCaseTableViews(userId?: string, viewerDisplayName?: string) {
   }, [storageKey, activeKey]);
 
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch { /* 可能被封鎖或超額，略過即可 */ }
   }, [views, storageKey]);
 
   useEffect(() => {
-    try { localStorage.setItem(activeKey, activeViewId); } catch {}
+    try { localStorage.setItem(activeKey, activeViewId); } catch { /* 可能被封鎖或超額，略過即可 */ }
   }, [activeViewId, activeKey]);
 
   const activeView = useMemo(() =>

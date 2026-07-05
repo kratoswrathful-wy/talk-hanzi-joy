@@ -4,8 +4,6 @@
  * Each "action" can contain multiple individual changes that are undone/redone atomically.
  */
 
-type AnyRecord = Record<string, any>;
-
 export interface UndoChange {
   /** Module identifier: "cases" | "fees" | "invoices" | "clientInvoices" | "internalNotes" */
   module: string;
@@ -14,9 +12,9 @@ export interface UndoChange {
   /** "update" | "delete" | "create" */
   type: "update" | "delete" | "create";
   /** For updates: field → { old, new } */
-  fieldChanges?: Record<string, { oldValue: any; newValue: any }>;
+  fieldChanges?: Record<string, { oldValue: unknown; newValue: unknown }>;
   /** For deletes: full snapshot of deleted record */
-  deletedSnapshot?: AnyRecord;
+  deletedSnapshot?: unknown;
   /** For creates: the ID to remove on undo */
   createdId?: string;
 }
@@ -56,7 +54,7 @@ class UndoStore {
   }
 
   /** Convenience: push a single field update */
-  pushUpdate(module: string, recordId: string, field: string, oldValue: any, newValue: any, label?: string) {
+  pushUpdate(module: string, recordId: string, field: string, oldValue: unknown, newValue: unknown, label?: string) {
     this.push({
       label: label || `更新欄位`,
       changes: [{
@@ -69,7 +67,7 @@ class UndoStore {
   }
 
   /** Convenience: push a batch of same-field updates */
-  pushBatchUpdate(module: string, entries: { recordId: string; oldValue: any }[], field: string, newValue: any, label?: string) {
+  pushBatchUpdate(module: string, entries: { recordId: string; oldValue: unknown }[], field: string, newValue: unknown, label?: string) {
     this.push({
       label: label || `批次更新 ${entries.length} 個項目`,
       changes: entries.map((e) => ({
@@ -82,7 +80,7 @@ class UndoStore {
   }
 
   /** Convenience: push delete(s) */
-  pushDelete(module: string, snapshots: AnyRecord[], label?: string) {
+  pushDelete<T extends { id: string }>(module: string, snapshots: T[], label?: string) {
     this.push({
       label: label || `刪除 ${snapshots.length} 個項目`,
       changes: snapshots.map((s) => ({

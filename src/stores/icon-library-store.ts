@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 
 export interface IconLibraryItem {
   id: string;
@@ -18,7 +19,7 @@ const listeners = new Set<Listener>();
 
 function notify() { listeners.forEach((l) => l()); }
 
-function fromDb(row: any): IconLibraryItem {
+function fromDb(row: Tables<"icon_library">): IconLibraryItem {
   return {
     id: row.id,
     name: row.name ?? "",
@@ -33,7 +34,7 @@ async function load() {
   loadPromise = (async () => {
     const env = getEnvironment();
     const { data } = await supabase
-      .from("icon_library" as any)
+      .from("icon_library")
       .select("*")
       .eq("env", env)
       .order("created_at", { ascending: false });
@@ -54,8 +55,8 @@ async function add(name: string, url: string, storagePath: string): Promise<Icon
   const env = getEnvironment();
   const { data: userData } = await supabase.auth.getUser();
   const { data, error } = await supabase
-    .from("icon_library" as any)
-    .insert({ name, url, storage_path: storagePath, env, created_by: userData.user?.id } as any)
+    .from("icon_library")
+    .insert({ name, url, storage_path: storagePath, env, created_by: userData.user?.id })
     .select()
     .single();
   if (error) throw error;
@@ -66,11 +67,11 @@ async function add(name: string, url: string, storagePath: string): Promise<Icon
 }
 
 async function update(id: string, updates: { name?: string }) {
-  const map: any = {};
+  const map: TablesUpdate<"icon_library"> = {};
   if (updates.name !== undefined) map.name = updates.name;
   map.updated_at = new Date().toISOString();
   const { error } = await supabase
-    .from("icon_library" as any)
+    .from("icon_library")
     .update(map)
     .eq("id", id);
   if (error) throw error;
@@ -84,7 +85,7 @@ async function remove(id: string) {
     await supabase.storage.from("case-icons").remove([item.storagePath]);
   }
   const { error } = await supabase
-    .from("icon_library" as any)
+    .from("icon_library")
     .delete()
     .eq("id", id);
   if (error) throw error;

@@ -113,14 +113,14 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
     }
     case "reconciled": return !!fee.clientInfo?.reconciled;
     case "rateConfirmed": {
-      if (!!fee.clientInfo?.rateConfirmed) return true;
+      if (fee.clientInfo?.rateConfirmed) return true;
       const assigneeOpt = selectOptionsStore.getSortedOptions("assignee").find(
         (o) => o.email === fee.assignee || o.label === fee.assignee
       );
       return assigneeOpt?.noFee === true;
     }
     case "invoiced": {
-      if (!!fee.clientInfo?.invoiced) return true;
+      if (fee.clientInfo?.invoiced) return true;
       if (!ctx) return false;
       return ctx.clientInvoices.some((inv) => inv.feeIds.includes(fee.id));
     }
@@ -286,11 +286,11 @@ export function useTableViews(userId?: string) {
   }, [storageKey, activeKey]);
 
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch { /* 可能被封鎖或超額，略過即可 */ }
   }, [views, storageKey]);
 
   useEffect(() => {
-    try { localStorage.setItem(activeKey, activeViewId); } catch {}
+    try { localStorage.setItem(activeKey, activeViewId); } catch { /* 可能被封鎖或超額，略過即可 */ }
   }, [activeViewId, activeKey]);
 
   const activeView = useMemo(() =>

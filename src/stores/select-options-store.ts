@@ -428,13 +428,13 @@ export const selectOptionsStore = {
     ]);
 
     const settingsMap = new Map<string, { note: string; no_fee: boolean; sort_order: number; frozen: boolean }>();
-    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0, frozen: s.frozen || false }));
+    (settings || []).forEach((s) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0, frozen: s.frozen || false }));
 
     const options: SelectOption[] = [];
     const registeredEmails = new Set<string>();
 
     // Registered members (exclude frozen)
-    (profiles || []).forEach((p: any, i: number) => {
+    (profiles || []).forEach((p, i) => {
       registeredEmails.add(p.email);
       const s = settingsMap.get(p.email);
       if (s?.frozen) return;
@@ -453,7 +453,7 @@ export const selectOptionsStore = {
     });
 
     // Invited but not registered (exclude frozen)
-    (invitations || []).forEach((inv: any, i: number) => {
+    (invitations || []).forEach((inv, i) => {
       if (!registeredEmails.has(inv.email)) {
         const s = settingsMap.get(inv.email);
         if (s?.frozen) return; // Skip frozen members
