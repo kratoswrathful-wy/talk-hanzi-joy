@@ -93,7 +93,7 @@ export function humanizeModelId(modelId) {
  *   - 不刪除既有 ai_provider_models 列，本次未回傳者只標 is_currently_available=false。
  *   - cat_ai_model_options 只對「穩定候選且 DB 尚無此 model_id」的模型建立新草稿；
  *     既有列一律 skip，不 update（保護人工設定與 gpt-4.1-mini seed）。
- *   - 新草稿一律 enabled=false、is_default=false。
+ *   - 新草稿一律 enabled=false、is_default=false、supports_chat_completions=true、supports_responses_api=true。
  *
  * @param {{
  *   providerKey: string,
@@ -134,6 +134,8 @@ export function buildSyncPlan(input) {
       model_id: m.id,
       enabled: false,
       is_default: false,
+      supports_chat_completions: true,
+      supports_responses_api: true,
       display_name_zh: humanizeModelId(m.id),
       use_case: "general",
       tier: "standard",

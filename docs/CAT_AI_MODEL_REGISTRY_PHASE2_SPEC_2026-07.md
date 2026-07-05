@@ -115,7 +115,7 @@
 **`cat_ai_model_options`**：
 
 - 僅對穩定候選 **insert** 新列
-- 新列：`enabled=false`、`is_default=false`、`sort_order=999`
+- 新列：`enabled=false`、`is_default=false`、`supports_chat_completions=true`、`supports_responses_api=true`、`sort_order=999`
 - **已存在列 skip**（含 `gpt-4.1-mini` seed）
 - sync **不得**改 `enabled`、`is_default`、既有文案
 

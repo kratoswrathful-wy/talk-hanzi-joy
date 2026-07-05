@@ -24,6 +24,8 @@ describe("buildSyncPlan", () => {
     const draft = plan.optionDrafts[0];
     expect(draft.enabled).toBe(false);
     expect(draft.is_default).toBe(false);
+    expect(draft.supports_chat_completions).toBe(true);
+    expect(draft.supports_responses_api).toBe(true);
     expect(draft.display_name_zh).toBe("GPT-5 mini");
   });
 

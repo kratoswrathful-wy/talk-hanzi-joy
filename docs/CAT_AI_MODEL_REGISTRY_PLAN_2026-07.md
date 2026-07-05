@@ -148,7 +148,7 @@ v2 計畫驗收條件 9、10 要求記錄 `resolved_model_id`、`display_name_sn
 1. **授權（見架構條件 C）**：request 必須帶**外層 TMS React session 的 Supabase access token（JWT）**；後端用 token 取得 user id，再查 DB `user_roles` 權威角色確認為 **executive only**（pm 不可），非此角色一律拒絕。**不可信任 `_tmsRole` 或任何前端傳來的 role 字串**；`_isCatExecutive()` 只能做 UI 顯示 gating。
 2. 讀 Vercel env `OPENAI_API_KEY`，呼叫 `GET /v1/models`。
 3. 用 Supabase service role key（Vercel server-side env；新增前先確認是否已有既定命名，有則沿用，沒有才新增 `SUPABASE_SERVICE_ROLE_KEY`）upsert `ai_provider_models`：本次見到的標 `is_currently_available=true`，之前有這次沒有的標 `false`。
-4. 對新 model 建立 `cat_ai_model_options` 草稿（`enabled=false`、`display_name_zh` = humanized id、`usage_hint_zh` 留待設定）。
+4. 對新 model 建立 `cat_ai_model_options` 草稿（`enabled=false`、`supports_chat_completions=true`、`supports_responses_api=true`、`display_name_zh` = humanized id、`usage_hint_zh` 留待設定）。
 5. 寫 `ai_model_sync_runs`。
 6. 回傳「找到 N、新增 X、消失 Y、上次同步時間」。
 
