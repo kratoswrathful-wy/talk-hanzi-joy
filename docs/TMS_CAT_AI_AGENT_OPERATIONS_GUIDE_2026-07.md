@@ -1,6 +1,6 @@
 # TMS + CAT AI 整合操作指南（Claude 首讀）
 
-> **狀態**：2026-07-04（含 W9-A DOM 定位標記、W9-C C3 匯入檔案 file_upload 轉送、W9 wave 2 A 類 bridge 優先鐵律、W9 wave 2 C2 批次翻譯進度查詢）  
+> **狀態**：2026-07-05（含 W9-A DOM 定位標記、W9-C C3 匯入檔案 file_upload 轉送、W9 wave 2 A 類 bridge 優先鐵律；**W9 wave 2 C 類全數結案**：C2 批次進度查詢／C1 工具欄位寫入／C3 案件導覽 id 診斷）  
 > **對象**：瀏覽器自動化 AI（Claude in Chrome、`Runtime.evaluate`、Playwright）  
 > **預設環境**：`https://talk-hanzi-joy.vercel.app` + **測試模式**（`env=test`，與正式營運資料隔離）  
 > **次讀**：LMS API 速查 [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)、CAT API [`CAT_AI_AGENT_BRIDGE_2026-07.md`](CAT_AI_AGENT_BRIDGE_2026-07.md)
@@ -598,7 +598,7 @@ do {
 
 田野實測第 3 項——工具區塊多行文字欄位（伺服器／帳號／密碼等）只能截圖走 UI。新增 `__lmsAgent.tool.setField({ caseId, toolLabel, fieldKey, value, ... })`，寫入後自動 store 回讀驗證（`verified: true`）。用法見 §5.1。**驗收（2026-07-05）**：Fable 5 分支預覽站實測寫入、`allowed` 錯誤自修正、整頁重載後仍持久化，核准併入 `main`。
 
-### 11.11 W9 wave 2 C3：`case.getCurrentId()`（2026-07-05，已落地，待驗收）
+### 11.11 W9 wave 2 C3：`case.getCurrentId()`（2026-07-05，已落地並驗收，`c565f8f3`）
 
 田野實測第 2 項——複製案件後標題不刷新（state bleed）。查證後確認目前經由官方「複製本頁」按鈕的人工流程無標題殘留（`key={id}` 全頁 remount＋既有 `duplicateExpectedTitle` 導覽狀態合併機制已生效）；本輪新增 `__lmsAgent.case.getCurrentId()` 診斷 API，回傳：
 
