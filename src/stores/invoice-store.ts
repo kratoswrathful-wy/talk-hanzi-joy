@@ -34,6 +34,32 @@ interface DbInvoice {
   edit_logs?: SimplePersistedLog[] | null;
 }
 
+function paymentsFromJson(raw: Json): PaymentRecord[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PaymentRecord[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, Json>;
+    if (typeof o.id !== "string") continue;
+    out.push({
+      id: o.id,
+      type: o.type === "partial" ? "partial" : "full",
+      ...(typeof o.amount === "number" ? { amount: o.amount } : {}),
+      timestamp: typeof o.timestamp === "string" ? o.timestamp : "",
+    });
+  }
+  return out;
+}
+
+function paymentsToJson(payments: PaymentRecord[]): Json {
+  return payments.map((p) => ({
+    id: p.id,
+    type: p.type,
+    ...(p.amount !== undefined ? { amount: p.amount } : {}),
+    timestamp: p.timestamp,
+  }));
+}
+
 function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
   return {
     id: row.id,
@@ -46,7 +72,7 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     feeIds,
-    payments: Array.isArray(row.payments) ? (row.payments as unknown as PaymentRecord[]) : [],
+    payments: paymentsFromJson(row.payments),
     editLogStartedAt: row.edit_log_started_at || undefined,
     edit_logs: Array.isArray(row.edit_logs) ? row.edit_logs : undefined,
   };
@@ -208,7 +234,7 @@ export const invoiceStore = {
     if (updates.transferDate !== undefined) dbUpdates.transfer_date = updates.transferDate || null;
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
-    if (updates.payments !== undefined) dbUpdates.payments = updates.payments as unknown as Json;
+    if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
     if (updates.comments !== undefined) dbUpdates.comments = updates.comments as Json;
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs as Json;
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;

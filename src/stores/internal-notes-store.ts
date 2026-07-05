@@ -1,7 +1,7 @@
 /**
  * Internal Notes store with DB persistence via Lovable Cloud.
  */
-import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
+import type { InternalNote, NoteComment } from "@/hooks/use-internal-notes-table-views";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,47 @@ function notify() {
 }
 
 // ── DB ↔ App mapping ──
+
+function commentsFromJson(raw: Json | null | undefined): NoteComment[] {
+  if (!Array.isArray(raw)) return [];
+  const out: NoteComment[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, Json>;
+    if (typeof o.id !== "string") continue;
+    const imageUrls = Array.isArray(o.imageUrls) ? o.imageUrls.filter((u): u is string => typeof u === "string") : undefined;
+    const fileUrls = Array.isArray(o.fileUrls)
+      ? o.fileUrls.reduce<{ name: string; url: string }[]>((acc, f) => {
+          if (f && typeof f === "object" && !Array.isArray(f) && typeof (f as Record<string, Json>).name === "string" && typeof (f as Record<string, Json>).url === "string") {
+            acc.push({ name: (f as Record<string, Json>).name as string, url: (f as Record<string, Json>).url as string });
+          }
+          return acc;
+        }, [])
+      : undefined;
+    out.push({
+      id: o.id,
+      author: typeof o.author === "string" ? o.author : "",
+      content: typeof o.content === "string" ? o.content : "",
+      ...(imageUrls?.length ? { imageUrls } : {}),
+      ...(fileUrls?.length ? { fileUrls } : {}),
+      ...(typeof o.replyTo === "string" ? { replyTo: o.replyTo } : {}),
+      createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
+    });
+  }
+  return out;
+}
+
+function commentsToJson(comments: NoteComment[]): Json {
+  return comments.map((c) => ({
+    id: c.id,
+    author: c.author,
+    content: c.content,
+    ...(c.imageUrls ? { imageUrls: c.imageUrls } : {}),
+    ...(c.fileUrls ? { fileUrls: c.fileUrls.map((f) => ({ name: f.name, url: f.url })) } : {}),
+    ...(c.replyTo !== undefined ? { replyTo: c.replyTo } : {}),
+    createdAt: c.createdAt,
+  }));
+}
 
 function dbToApp(row: Tables<"internal_notes">): InternalNote {
   return {
@@ -44,7 +85,7 @@ function dbToApp(row: Tables<"internal_notes">): InternalNote {
     referenceFiles: Array.isArray(row.reference_files)
       ? (row.reference_files as InternalNote["referenceFiles"])
       : [],
-    comments: Array.isArray(row.comments) ? (row.comments as unknown as InternalNote["comments"]) : [],
+    comments: commentsFromJson(row.comments),
     invalidated: row.invalidated ?? false,
     invalidatedBy: row.invalidated_by ?? undefined,
     invalidatedAt: row.invalidated_at ?? undefined,
@@ -72,7 +113,7 @@ function appToDb(note: Partial<InternalNote>): Record<string, Json> {
   if (note.questionOrNote !== undefined) m.question_or_note = note.questionOrNote;
   if (note.questionOrNoteBlocks !== undefined) m.question_or_note_blocks = note.questionOrNoteBlocks;
   if (note.referenceFiles !== undefined) m.reference_files = note.referenceFiles;
-  if (note.comments !== undefined) m.comments = note.comments as unknown as Json;
+  if (note.comments !== undefined) m.comments = commentsToJson(note.comments);
   if (note.invalidated !== undefined) m.invalidated = note.invalidated;
   if (note.invalidatedBy !== undefined) m.invalidated_by = note.invalidatedBy;
   if (note.invalidatedAt !== undefined) m.invalidated_at = note.invalidatedAt;

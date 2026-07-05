@@ -122,8 +122,12 @@ export function useAuth() {
     };
   }, []);
 
+  // 取出 user?.id 為獨立的原始值依賴：user 物件其他欄位變動（例如 token 刷新產生的新物件參考）
+  // 不應重跑 profile/roles 載入，effect 內只讀 userId（非整個 user 物件），exhaustive-deps 可自然滿足。
+  const userId = user?.id;
+
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setProfile(null);
       setRoles([]);
       setTestAccountFlag(null);
@@ -135,9 +139,9 @@ export function useAuth() {
     setLoading(true);
 
     // profile 不阻塞全螢幕 loading（缺 migration 欄位、大 JSON 等不應讓 member 永遠轉圈）
-    void fetchProfile(user.id);
+    void fetchProfile(userId);
 
-    void withTimeout(fetchRoles(user.id), ROLES_LOAD_TIMEOUT_MS, "fetchRoles")
+    void withTimeout(fetchRoles(userId), ROLES_LOAD_TIMEOUT_MS, "fetchRoles")
       .catch((e) => {
         console.error("[useAuth] fetchRoles failed:", e);
       })
@@ -148,9 +152,7 @@ export function useAuth() {
     return () => {
       active = false;
     };
-    // 刻意只依 user?.id（非整個 user 物件參考）：user 物件其他欄位變動不應重跑 profile/roles 載入。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, fetchProfile, fetchRoles]);
+  }, [userId, fetchProfile, fetchRoles]);
 
   const isAdmin = roles.some((r) => r.role === "pm" || r.role === "executive");
   // user_roles can return multiple rows with no guaranteed order; pick highest privilege.

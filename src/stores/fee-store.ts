@@ -1,9 +1,178 @@
-import { type TranslatorFee, type ClientInfo, type FeeEditLogPhases, type FeeTaskItem, type Note, type EditLog, defaultClientInfo } from "@/data/fee-mock-data";
+import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditLogPhases, type FeeTaskItem, type Note, type EditLog, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
+
+const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+const BILLING_UNITS: BillingUnit[] = ["字", "小時"];
+
+function readTaskType(v: Json | undefined): TaskType {
+  return typeof v === "string" && (TASK_TYPES as string[]).includes(v) ? (v as TaskType) : "翻譯";
+}
+function readBillingUnit(v: Json | undefined): BillingUnit {
+  return typeof v === "string" && (BILLING_UNITS as string[]).includes(v) ? (v as BillingUnit) : "字";
+}
+
+function taskItemsFromJson(raw: Json): FeeTaskItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FeeTaskItem[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, Json>;
+    if (typeof o.id !== "string") continue;
+    out.push({
+      id: o.id,
+      taskType: readTaskType(o.taskType),
+      billingUnit: readBillingUnit(o.billingUnit),
+      unitCount: typeof o.unitCount === "number" ? o.unitCount : 0,
+      unitPrice: typeof o.unitPrice === "number" ? o.unitPrice : 0,
+    });
+  }
+  return out;
+}
+
+function taskItemsToJson(items: FeeTaskItem[]): Json {
+  return items.map((i) => ({
+    id: i.id,
+    taskType: i.taskType,
+    billingUnit: i.billingUnit,
+    unitCount: i.unitCount,
+    unitPrice: i.unitPrice,
+  }));
+}
+
+function clientTaskItemsFromJson(raw: Json | undefined): ClientTaskItem[] {
+  if (!Array.isArray(raw)) return defaultClientInfo.clientTaskItems;
+  const out: ClientTaskItem[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, Json>;
+    if (typeof o.id !== "string") continue;
+    out.push({
+      id: o.id,
+      taskType: readTaskType(o.taskType),
+      billingUnit: readBillingUnit(o.billingUnit),
+      unitCount: typeof o.unitCount === "number" ? o.unitCount : 0,
+      clientPrice: typeof o.clientPrice === "number" ? o.clientPrice : 0,
+    });
+  }
+  return out;
+}
+
+function clientInfoFromJson(raw: Json | undefined): ClientInfo {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ...defaultClientInfo };
+  const o = raw as Record<string, Json>;
+  const link = o.clientCaseLink && typeof o.clientCaseLink === "object" && !Array.isArray(o.clientCaseLink)
+    ? (o.clientCaseLink as Record<string, Json>)
+    : {};
+  return {
+    clientTaskItems: clientTaskItemsFromJson(o.clientTaskItems),
+    sameCase: typeof o.sameCase === "boolean" ? o.sameCase : defaultClientInfo.sameCase,
+    isFirstFee: typeof o.isFirstFee === "boolean" ? o.isFirstFee : defaultClientInfo.isFirstFee,
+    notFirstFee: typeof o.notFirstFee === "boolean" ? o.notFirstFee : defaultClientInfo.notFirstFee,
+    client: typeof o.client === "string" ? o.client : defaultClientInfo.client,
+    contact: typeof o.contact === "string" ? o.contact : defaultClientInfo.contact,
+    clientCaseId: typeof o.clientCaseId === "string" ? o.clientCaseId : defaultClientInfo.clientCaseId,
+    eciKeywords: typeof o.eciKeywords === "string" ? o.eciKeywords : defaultClientInfo.eciKeywords,
+    clientPoNumber: typeof o.clientPoNumber === "string" ? o.clientPoNumber : defaultClientInfo.clientPoNumber,
+    clientCaseLink: {
+      url: typeof link.url === "string" ? link.url : defaultClientInfo.clientCaseLink.url,
+      label: typeof link.label === "string" ? link.label : defaultClientInfo.clientCaseLink.label,
+    },
+    dispatchRoute: typeof o.dispatchRoute === "string" ? o.dispatchRoute : defaultClientInfo.dispatchRoute,
+    reconciled: typeof o.reconciled === "boolean" ? o.reconciled : defaultClientInfo.reconciled,
+    rateConfirmed: typeof o.rateConfirmed === "boolean" ? o.rateConfirmed : defaultClientInfo.rateConfirmed,
+    invoiced: typeof o.invoiced === "boolean" ? o.invoiced : defaultClientInfo.invoiced,
+  };
+}
+
+function clientInfoToJson(ci: ClientInfo): Json {
+  return {
+    clientTaskItems: ci.clientTaskItems.map((i) => ({
+      id: i.id,
+      taskType: i.taskType,
+      billingUnit: i.billingUnit,
+      unitCount: i.unitCount,
+      clientPrice: i.clientPrice,
+    })),
+    sameCase: ci.sameCase,
+    isFirstFee: ci.isFirstFee,
+    notFirstFee: ci.notFirstFee,
+    client: ci.client,
+    contact: ci.contact,
+    clientCaseId: ci.clientCaseId,
+    eciKeywords: ci.eciKeywords,
+    clientPoNumber: ci.clientPoNumber,
+    clientCaseLink: { url: ci.clientCaseLink.url, label: ci.clientCaseLink.label },
+    dispatchRoute: ci.dispatchRoute,
+    reconciled: ci.reconciled,
+    rateConfirmed: ci.rateConfirmed,
+    invoiced: ci.invoiced,
+  };
+}
+
+function notesFromJson(raw: Json): Note[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Note[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, Json>;
+    if (typeof o.id !== "string") continue;
+    out.push({
+      id: o.id,
+      author: typeof o.author === "string" ? o.author : "",
+      text: typeof o.text === "string" ? o.text : "",
+      createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
+    });
+  }
+  return out;
+}
+
+function notesToJson(notes: Note[]): Json {
+  return notes.map((n) => ({ id: n.id, author: n.author, text: n.text, createdAt: n.createdAt }));
+}
+
+function editLogsFromJson(raw: Json): EditLog[] {
+  if (!Array.isArray(raw)) return [];
+  const out: EditLog[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, Json>;
+    if (typeof o.id !== "string") continue;
+    out.push({
+      id: o.id,
+      author: typeof o.author === "string" ? o.author : "",
+      field: typeof o.field === "string" ? o.field : "",
+      oldValue: typeof o.oldValue === "string" ? o.oldValue : "",
+      newValue: typeof o.newValue === "string" ? o.newValue : "",
+      timestamp: typeof o.timestamp === "string" ? o.timestamp : "",
+      ...(typeof o.fieldKey === "string" ? { fieldKey: o.fieldKey } : {}),
+    });
+  }
+  return out;
+}
+
+function editLogsToJson(logs: EditLog[]): Json {
+  return logs.map((l) => ({
+    id: l.id,
+    author: l.author,
+    field: l.field,
+    oldValue: l.oldValue,
+    newValue: l.newValue,
+    timestamp: l.timestamp,
+    ...(l.fieldKey !== undefined ? { fieldKey: l.fieldKey } : {}),
+  }));
+}
+
+function editLogPhasesToJson(phases: FeeEditLogPhases): Json {
+  return {
+    ...(phases.basic !== undefined ? { basic: phases.basic } : {}),
+    ...(phases.revenue !== undefined ? { revenue: phases.revenue } : {}),
+    ...(phases.task !== undefined ? { task: phases.task } : {}),
+  };
+}
 
 type Listener = () => void;
 
@@ -42,7 +211,7 @@ function parseEditLogPhases(row: DbFee): FeeEditLogPhases | undefined {
     row.edit_log_phases && typeof row.edit_log_phases === "object" && !Array.isArray(row.edit_log_phases)
       ? { ...(row.edit_log_phases as FeeEditLogPhases) }
       : {};
-  const ci = row.client_info as unknown as ClientInfo | undefined;
+  const ci = row.client_info ? clientInfoFromJson(row.client_info) : undefined;
   if (!raw.basic && row.status === "finalized" && row.title?.trim() && row.assignee) {
     raw.basic = row.finalized_at || row.created_at;
   }
@@ -63,10 +232,10 @@ function dbToApp(row: DbFee): TranslatorFee {
     status: row.status as TranslatorFee["status"],
     internalNote: row.internal_note,
     internalNoteUrl: row.internal_note_url || undefined,
-    taskItems: Array.isArray(row.task_items) ? (row.task_items as unknown as FeeTaskItem[]) : [],
-    clientInfo: row.client_info ? (row.client_info as unknown as ClientInfo) : { ...defaultClientInfo },
-    notes: Array.isArray(row.notes) ? (row.notes as unknown as Note[]) : [],
-    editLogs: Array.isArray(row.edit_logs) ? (row.edit_logs as unknown as EditLog[]) : [],
+    taskItems: taskItemsFromJson(row.task_items),
+    clientInfo: row.client_info ? clientInfoFromJson(row.client_info) : { ...defaultClientInfo },
+    notes: notesFromJson(row.notes),
+    editLogs: editLogsFromJson(row.edit_logs),
     editLogPhases: parseEditLogPhases(row),
     createdBy: row.created_by || "",
     createdAt: row.created_at,
@@ -82,11 +251,11 @@ function appToDb(fee: Partial<TranslatorFee>): Record<string, Json> {
   if (fee.status !== undefined) m.status = fee.status;
   if (fee.internalNote !== undefined) m.internal_note = fee.internalNote;
   if (fee.internalNoteUrl !== undefined) m.internal_note_url = fee.internalNoteUrl;
-  if (fee.taskItems !== undefined) m.task_items = fee.taskItems as unknown as Json;
-  if (fee.clientInfo !== undefined) m.client_info = fee.clientInfo as unknown as Json;
-  if (fee.notes !== undefined) m.notes = fee.notes as unknown as Json;
-  if (fee.editLogs !== undefined) m.edit_logs = fee.editLogs as unknown as Json;
-  if (fee.editLogPhases !== undefined) m.edit_log_phases = fee.editLogPhases as unknown as Json;
+  if (fee.taskItems !== undefined) m.task_items = taskItemsToJson(fee.taskItems);
+  if (fee.clientInfo !== undefined) m.client_info = clientInfoToJson(fee.clientInfo);
+  if (fee.notes !== undefined) m.notes = notesToJson(fee.notes);
+  if (fee.editLogs !== undefined) m.edit_logs = editLogsToJson(fee.editLogs);
+  if (fee.editLogPhases !== undefined) m.edit_log_phases = editLogPhasesToJson(fee.editLogPhases);
   if (fee.finalizedBy !== undefined) m.finalized_by = fee.finalizedBy;
   if (fee.finalizedAt !== undefined) m.finalized_at = fee.finalizedAt;
   return m;

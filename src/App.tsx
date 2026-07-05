@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { DeleteConfirmProvider } from "@/hooks/use-delete-confirm";
+import { DeleteConfirmProvider } from "@/components/providers/DeleteConfirmProvider";
 import { BrowserRouter, Routes, Route, Navigate, useParams, Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/hooks/use-auth";

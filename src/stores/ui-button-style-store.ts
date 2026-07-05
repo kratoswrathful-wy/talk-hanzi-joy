@@ -448,10 +448,12 @@ export function useUiButtonColors(id: string): UiButtonColors {
     () => JSON.stringify(uiButtonStyleStore.getOverrides()[id] ?? {}),
     () => JSON.stringify(uiButtonStyleStore.getOverrides()[id] ?? {})
   );
-  // overrideKey 僅作為 store 變更時強制重算的快取鍵，函式體內未直接讀取，故 eslint 判定為多餘依賴；
-  // 實際上拿掉會導致 override 改變後畫面不刷新，此為刻意設計，非缺陷。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => getUiButtonColors(id), [id, overrideKey]);
+  // overrideKey 僅作為 store 變更時強制重算的快取鍵；下方 void 參照使其成為真實依賴，
+  // 讓 exhaustive-deps 判定合法，同時不改變回傳值（拿掉會導致 override 改變後畫面不刷新）。
+  return useMemo(() => {
+    void overrideKey;
+    return getUiButtonColors(id);
+  }, [id, overrideKey]);
 }
 
 export function useUiButtonLabel(id: string | undefined): string | undefined {
@@ -461,10 +463,9 @@ export function useUiButtonLabel(id: string | undefined): string | undefined {
     () => (id ? JSON.stringify(uiButtonStyleStore.getOverrides()[id] ?? {}) : "__none__")
   );
   return useMemo(() => {
+    void key; // key 為 store 變更快取鍵，理由同上（useUiButtonColors）
     if (!id) return undefined;
     return getUiButtonLabel(id);
-    // key 為 store 變更快取鍵，理由同上（useUiButtonColors）。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, key]);
 }
 
@@ -474,9 +475,10 @@ export function useToolbarLayoutWidthRem(): number {
     () => JSON.stringify(uiButtonStyleStore.getLayout()),
     () => JSON.stringify(uiButtonStyleStore.getLayout())
   );
-  // key 為 store 變更快取鍵，理由同上。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => uiButtonStyleStore.getLayout().widthRem, [key]);
+  return useMemo(() => {
+    void key; // key 為 store 變更快取鍵，理由同上
+    return uiButtonStyleStore.getLayout().widthRem;
+  }, [key]);
 }
 
 export function useUiButtonIconResolved(id: string): ResolvedUiButtonIcon | null {
@@ -485,9 +487,10 @@ export function useUiButtonIconResolved(id: string): ResolvedUiButtonIcon | null
     () => JSON.stringify(uiButtonStyleStore.getOverrides()[id] ?? {}),
     () => JSON.stringify(uiButtonStyleStore.getOverrides()[id] ?? {})
   );
-  // key 為 store 變更快取鍵，理由同上。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => getUiButtonIconResolved(id), [id, key]);
+  return useMemo(() => {
+    void key; // key 為 store 變更快取鍵，理由同上
+    return getUiButtonIconResolved(id);
+  }, [id, key]);
 }
 
 /** 訂閱 store 並回傳可直接餵給 &lt;Button&gt; 的 props（含 MODULE_TOOLBAR_BTN） */
@@ -506,11 +509,10 @@ export function useToolbarButtonUiProps(id: string): { style: CSSProperties; cla
       })
   );
   return useMemo(() => {
+    void toolbarKey; // toolbarKey 為 store 變更快取鍵，理由同上
     const def = getUiButtonDef(id);
     const colors = getUiButtonColors(id);
     return appearanceExtras(def, colors, uiButtonStyleStore.getLayout().widthRem);
-    // toolbarKey 為 store 變更快取鍵，理由同上。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, toolbarKey]);
 }
 
@@ -551,6 +553,7 @@ export function useCasesListFlowDetailToolbarUi(): CasesListFlowDetailToolbarUi 
       })
   );
   return useMemo(() => {
+    void toolbarKey; // toolbarKey 為 store 變更快取鍵，理由同上
     const widthRem = uiButtonStyleStore.getLayout().widthRem;
     const propsById: Record<string, { style: CSSProperties; className: string }> = {};
     const labelById: Record<string, string> = {};
@@ -561,8 +564,6 @@ export function useCasesListFlowDetailToolbarUi(): CasesListFlowDetailToolbarUi 
       labelById[id] = getUiButtonLabel(id);
     }
     return { propsById, labelById };
-    // toolbarKey 為 store 變更快取鍵，理由同上。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolbarKey]);
 }
 
@@ -575,9 +576,10 @@ export function useToolbarButtonUiPropsMaybe(
     () => (id ? JSON.stringify({ o: uiButtonStyleStore.getOverrides()[id] ?? {}, l: uiButtonStyleStore.getLayout() }) : "_"),
     () => (id ? JSON.stringify({ o: uiButtonStyleStore.getOverrides()[id] ?? {}, l: uiButtonStyleStore.getLayout() }) : "_")
   );
-  // key 為 store 變更快取鍵，理由同上。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => (id ? getToolbarButtonUiProps(id) : null), [id, key]);
+  return useMemo(() => {
+    void key; // key 為 store 變更快取鍵，理由同上
+    return id ? getToolbarButtonUiProps(id) : null;
+  }, [id, key]);
 }
 
 export function useModuleToolbarGroups(module: string): ModuleToolbarGroupsState {
@@ -587,9 +589,8 @@ export function useModuleToolbarGroups(module: string): ModuleToolbarGroupsState
     () => JSON.stringify(uiButtonStyleStore.getLayout().groupsByModule ?? {})
   );
   return useMemo(() => {
+    void key; // key 為 store 變更快取鍵，理由同上
     const raw = uiButtonStyleStore.getLayout().groupsByModule?.[module];
     return mergeGroupsWithRegistry(module, raw);
-    // key 為 store 變更快取鍵，理由同上。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module, key]);
 }
