@@ -58,11 +58,22 @@ test.describe("W10 Phase 2 — 譯者端遮罩（fees_visible）", () => {
   });
 
   // 換人流程 2026-07-05 修復後改為實跑
+  // fixture 補齊：不依賴外部固定注入的 W10_FOREIGN_FEE_ID（環境測試資料會隨時間變動、
+  // 固定 id 易失效或需人工重建）。改為在切換為譯者一「之前」，以預設身分（線上測試模式
+  // 進站帳號，非遮罩對象）動態查一筆「草稿」費用單 id 當「他人／草稿」fixture——
+  // 草稿費用單本來就只有建立者／PM 可見，符合本測項「非本人可見」的驗證意圖。
   test("W10-T-2 — 譯者直開他人／草稿費用單 URL 被擋", async ({ page }) => {
+    const foreignFeeId = await page.evaluate(() => {
+      const a = (
+        window as unknown as {
+          __lmsAgent: { fee: { list: (f: Record<string, unknown>) => { ok: boolean; data?: { id: string }[] } } };
+        }
+      ).__lmsAgent;
+      const r = a.fee.list({ status: "draft" });
+      return r.ok && r.data && r.data.length ? r.data[0].id : null;
+    });
     await switchToTestPersona(page, "譯者一");
-    // 需由管理員側預先提供一個「非本人或草稿」的 feeId 作為固定 fixture（換人流程修好後補）。
-    const foreignFeeId = process.env.W10_FOREIGN_FEE_ID;
-    test.skip(!foreignFeeId, "缺少他人/草稿 feeId fixture（換人流程修復後補）");
+    test.skip(!foreignFeeId, "當前測試環境無草稿費用單可作 fixture（環境資料不足時略過）");
     await page.goto(`/fees/${foreignFeeId}`);
     // 遮罩 view + 列級 RLS：store 無該筆 → 詳情頁應為找不到／導回，不得顯示內容
     await expect(page.getByText("營收內容")).toHaveCount(0);
