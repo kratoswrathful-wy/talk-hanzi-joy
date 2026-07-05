@@ -46,7 +46,16 @@ async function requestSwitchToken(email: string): Promise<string | null> {
 }
 
 async function consumeTokenAndReload(token: string) {
-  await supabase.auth.signOut();
+  // 不在此處呼叫 signOut：verifyOtp 會直接以新 session 覆寫本機 session，
+  // 隨後 window.location.reload() 亦會清掉記憶體與 realtime 訂閱。
+  //
+  // 過去這裡先呼叫 signOut() 反而是換人「靜默失效」的根因：GoTrue 的
+  // POST /logout?scope=local 會在「伺服器端」撤銷目前這張 session（local=僅目前這張，
+  // 非「不打伺服器」）。測試模式中多個 Playwright context 共用同一張假執行長 session，
+  // 任一 context 一旦 signOut，其餘 context 的 token 就在伺服器端失效，換人時
+  // dev-switch-user 內的 getUser 回 401 → 換人失敗卻仍以原身分執行（誤判通過）。
+  // 實測（tests/_diag3-verifyotp-revoke）確認 verifyOtp 消費 magic link 不會撤銷簽發者
+  // session，故移除 signOut 即可讓共用 session 存活、換人穩定成功。
   const { error } = await supabase.auth.verifyOtp({ token_hash: token, type: "magiclink" });
   if (error) {
     console.error("[test-mode] verifyOtp failed:", error.message);
@@ -144,7 +153,8 @@ export function DevRoleSwitcher() {
         return;
       }
       // 無返回票（票已用過／逾時）：登出回登入頁，請執行長以本人帳號重新登入。
-      await supabase.auth.signOut();
+      // 同樣用 scope: "local"，避免撤銷共用測試假人的其他 session。
+      await supabase.auth.signOut({ scope: "local" });
       resetEnvironmentCache();
       window.location.href = "/";
     } catch (e) {
