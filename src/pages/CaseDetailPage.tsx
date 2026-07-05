@@ -324,6 +324,7 @@ function TitleInput({ value, onSave, autoFocusSelect }: { value: string; onSave:
     <input
       ref={inputRef}
       type="text"
+      data-testid="case-title-input"
       value={local}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={() => {
@@ -890,6 +891,13 @@ function caseDetailLoadTimeoutPromise(): Promise<never> {
 
 type CaseDetailLocationState = { autoFocusTitle?: boolean; duplicateExpectedTitle?: string };
 
+declare global {
+  interface Window {
+    /** W9 wave 2 C3：目前實際渲染中的案件 id（供 __lmsAgent.case.getCurrentId() 讀取，偵測 state bleed） */
+    __caseDetailRenderedCaseId?: string | null;
+  }
+}
+
 const CASE_LOG_SKIP_KEYS = new Set<string>([
   "updatedAt",
   "edit_logs",
@@ -1200,6 +1208,19 @@ export default function CaseDetailPage() {
     if (caseData.title !== duplicateExpectedTitle) return;
     navigate(".", { replace: true, state: { autoFocusTitle: locState?.autoFocusTitle } });
   }, [id, caseData?.id, caseData?.title, duplicateExpectedTitle, locState?.autoFocusTitle, navigate]);
+
+  // W9 wave 2 C3：曝露目前實際渲染的案件 id，供 __lmsAgent.case.getCurrentId() 對照
+  // URL 上的 id，偵測導覽後 React state 殘留（state bleed）。純讀取用途，不影響任何欄位渲染邏輯。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const renderedId = caseData?.id ?? null;
+    window.__caseDetailRenderedCaseId = renderedId;
+    return () => {
+      if (window.__caseDetailRenderedCaseId === renderedId) {
+        window.__caseDetailRenderedCaseId = null;
+      }
+    };
+  }, [caseData?.id]);
 
   useEffect(() => {
     const uid = caseData?.createdBy;
@@ -2537,13 +2558,13 @@ export default function CaseDetailPage() {
         <div className="grid grid-cols-2 gap-4">
           <Field label="關鍵字">
             <div className="flex items-center gap-1">
-              <IMESafeInput value={caseData.keyword} onSave={(v) => save({ keyword: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶端案號或關鍵字" className="flex-1" />
+              <IMESafeInput value={caseData.keyword} onSave={(v) => save({ keyword: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶端案號或關鍵字" className="flex-1" testId="case-keyword-input" />
               <CopyButton value={caseData.keyword} />
             </div>
           </Field>
           <Field label="客戶 PO#">
             <div className="flex items-center gap-1">
-              <IMESafeInput value={caseData.clientPoNumber} onSave={(v) => save({ clientPoNumber: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶 PO 編號" className="flex-1" />
+              <IMESafeInput value={caseData.clientPoNumber} onSave={(v) => save({ clientPoNumber: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶 PO 編號" className="flex-1" testId="case-client-po-input" />
               <CopyButton value={caseData.clientPoNumber} />
             </div>
           </Field>
