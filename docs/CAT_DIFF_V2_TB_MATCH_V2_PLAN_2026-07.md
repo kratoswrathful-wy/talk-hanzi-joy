@@ -1,8 +1,8 @@
 # CAT 追蹤修訂 Diff v2 ＋ TB Match Engine v2 — 技術變更計畫
 
-**狀態**：規劃中（待專案擁有者確認後始可實作）  
-**日期**：2026-07-05  
-**範圍**：`cat-tool/`（Vanilla CAT）；不含 DB migration  
+**狀態**：規劃中（決策已確認；待其他改動告一段落後始可實作）  
+**日期**：2026-07-05（決策更新：2026-07-05）  
+**範圍**：`cat-tool/`（Vanilla CAT）；**不含 DB migration**（`matchFlags` 以 optional field 擴充即可）  
 **前置文件**：[`CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md`](./CAT_REVISION_TRACKING_PHASE_C_SPEC_2026-06.md)、[`CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md`](./CAT_TB_DEDUP_AND_SUPPRESS_2026-06.md)
 
 ---
@@ -13,10 +13,18 @@
 
 | 代號 | 問題 | 目標 |
 |------|------|------|
-| **A. Diff v2** | 追蹤修訂與 CAT 比對欄以**字元級 LCS** 顯示差異，英文單字被切碎 | 共用 **readable token diff**；保留 fine-grained char diff 為可選 |
-| **B. TB Match v2** | `termMatches` 預設 `wholeWord: false` → 子字串誤命中（Layer→player） | 統一 **token boundary + 英文詞形** 比對入口；CJK 維持子字串 |
+| **A. Diff v2** | 追蹤修訂與 CAT 比對欄以**字元級 LCS** 顯示差異，英文單字被切碎 | 共用 **readable token diff**；Phase C **可見**「精細 diff」checkbox（預設關） |
+| **B. TB Match v2** | `termMatches` 預設 `wholeWord: false` → 子字串誤命中（Layer→player） | 預設 **token boundary** + 英文**保守**詞形；`allowSubstring` 作舊式逃生口 |
 
 兩者共用 **`cat-text-tokenizer.js`**（切 token／atomic 判斷／語言正規化），但 **diff engine 與 TB engine 各自獨立**，互不 import renderer 或比對 UI。
+
+### 已確認決策（2026-07-05）
+
+| # | 決策 | 摘要 |
+|---|------|------|
+| 1 | **TB 預設 token boundary + `allowSubstring` 逃生口** | 英文／拉丁預設不再 `includes` 子字串；僅 `matchFlags.allowSubstring === true` 時恢復舊式子字串 |
+| 2 | **Phase C 可見「精細 diff」checkbox** | 預設關；readable 為預設體驗；`localStorage` 可記住選擇；CAT 比對欄加低調切換 |
+| 3 | **英文 morphology 保守策略** | 完整 token 相等優先；僅從術語產生**已知 suffix 白名單**表面形式；禁止任意 stem 截斷 |
 
 ---
 
@@ -110,7 +118,7 @@ ActiveTbTerms
        └─ termMatches(s.sourceText, t.source, t._matchFlags)
 ```
 
-**譯文側**「是否已套用譯法」仍用 `termMatches(tgtPlain, term.target, mf)`；v2 主要改**原文命中**與 **ranges**；譯文側可沿用或同步升級（見 §6.2）。
+**譯文側**「是否已套用譯法」仍用 `termMatches(tgtPlain, term.target, mf)`；v2 主要改**原文命中**與 **ranges**；譯文側第一版維持現有邏輯（降低 scope）。
 
 ### 2.4 後處理（保留）
 
@@ -137,7 +145,7 @@ ActiveTbTerms
 | **`cat-text-tokenizer.js`** | 共用 tokenization、atomic 判斷、`normalizeLangCode` / `isEnglishSourceLang` |
 | **`cat-diff-engine.js`** | token LCS、readable／char 模式、大幅修改 fallback、HTML render 核心 |
 | **`cat-diff-engine.test.mjs`** | Vitest 可 import 之 pure 測試（見 §9） |
-| **`tb-match-engine.js`** | `findTbTermRanges`、`termMatchesV2`、`matchTermInHaystack` |
+| **`tb-match-engine.js`** | `findTbTermRanges`、`termMatches`、`matchTermInHaystack`、`expandEnglishSurfaceForms` |
 | **`tb-match-engine.test.mjs`** | 驗收案例回歸 |
 
 ### 3.2 重構（薄包裝，行為遷至新模組）
@@ -146,14 +154,15 @@ ActiveTbTerms
 |------|------|
 | **`tm-utils.js`** | `diffCharsCurrentVsTm` → 委派 `CatDiffEngine`；保留 window 別名；`buildTm*` 改用統一 render |
 | **`rev-track-diff.js`** | 移除重複 LCS；`renderSnapshotCell` 改用 `CatDiffEngine` + tag token 適配層 |
-| **`app.js`** | `termMatches` / `findTermHitRangesInPlainText` → 薄 wrapper 呼叫 `TbMatchEngine`；呼叫點**不換名**（降低 diff 面積） |
-| **`index.html`** | 在 `tm-utils.js` **之前**載入 `cat-text-tokenizer.js`、`cat-diff-engine.js`、`tb-match-engine.js` |
+| **`rev-track.js`** | 讀取 `#revTrackChkFineDiff`；切換時 `reload()` grid |
+| **`app.js`** | `termMatches` / `findTermHitRangesInPlainText` → 薄 wrapper 呼叫 `TbMatchEngine`；呼叫點**不換名** |
+| **`index.html`** | 在 `tm-utils.js` **之前**載入新模組；Phase C bar 加 checkbox；CAT 面板加低調切換 |
 
 ### 3.3 樣式
 
 | 檔案 | 變更 |
 |------|------|
-| **`style.css`** | 新增 `.cat-diff-fallback-banner`、可選 `.cat-diff-mode-toggle`；必要時統一 del/ins 色票 alias |
+| **`style.css`** | `.cat-diff-fallback-banner`、`.cat-diff-fallback-old/new`、`.cat-diff-mode-link`、`.rev-track-bar-label` 延伸 |
 
 ### 3.4 文件（實作後）
 
@@ -165,9 +174,9 @@ ActiveTbTerms
 ### 3.5 不在本次修改
 
 - TM 相似度 `levenshtein`（`tm-utils.js`）
-- TB 合併／隱藏／footer UI 邏輯（僅換底層命中）
-- Supabase／Dexie schema
-- `public/cat/`（`npm run sync:cat` 自動同步）
+- TB 合併／隱藏／footer 編輯 UI 邏輯（僅換底層命中；**allowSubstring UI 延後**）
+- Supabase schema migration（`matchFlags` 已是 JSONB／Dexie 物件，**optional field 即可**）
+- 實作完成前**不**先改 `public/cat/`（見 §13、§14）
 
 ---
 
@@ -192,14 +201,6 @@ tokensToPlain(tokens)
 mapPlainOffsetToToken(text, offset)  // TB ranges 對齊用
 ```
 
-#### `options`
-
-| 欄位 | 說明 |
-|------|------|
-| `tags` | XLIFF tag 陣列 → 以 `pos` 切出 `{N}` pill 位置為 `kind:'tag'` |
-| `lang` | 影響 CJK 連續切分 vs 拉丁規則 |
-| `includeWhitespace` | diff 用：是否獨立 whitespace token（預設 true，保留排版） |
-
 #### Token 結構
 
 ```javascript
@@ -209,34 +210,11 @@ mapPlainOffsetToToken(text, offset)  // TB ranges 對齊用
 
 ### 4.2 Tokenization 規則（第一版）
 
-掃描順序（長模式優先）：
-
-1. **Placeholder**：`\{[^{}]+\}`、`%\d*[sdif]`、`%\([^)]+\)[sdif]`、`\{(\d+)\}`（與既有 pill 占位一致）
-2. **URL**：`https?://…`、`www.…`
-3. **Email**：簡化 RFC 子集
-4. **XML/HTML tag 字面量**：`<[^>]+>`（diff／TB 對 plain text 比對時）
-5. **識別 key**：`[A-Z][A-Z0-9_]{2,}`（`UI_BUTTON_START_GAME`）、可選 `snake_case` 全段
-6. **數字+單位**：`(\d+(?:\.\d+)?)(%|[a-zA-Z]{1,6})?` → 盡量合併為單 token（`15%`、`3.5s`、`120 HP`）
-7. **CJK 連續串**：`\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}` 連續（Unicode property；不逐字切）
-8. **拉丁詞**：`[A-Za-z]+(?:'[A-Za-z]+)?`（含 `don't`）
-9. **底線檔名**：含 `.` 與 `\w` 的檔名樣式（`foo_bar.txt`）
-10. **其餘**：空白獨立；標點單獨或相鄰同類合併
+掃描順序（長模式優先）：placeholder → URL → email → XML/HTML tag → key → 數字+單位 → CJK 連續串 → 拉丁詞 → 檔名 → 其餘標點／空白。
 
 **Atomic 不可拆**：placeholder、tag、url、email、filename、key、number+unit 整段。
 
 ### 4.3 語言正規化
-
-```javascript
-function normalizeLangCode(lang) {
-  // EN, en, EN_US, en-us, en_US, en-GB … → 'en'
-  // zh*, ja*, ko* → 對應碼
-  // 其他拉丁語系（fr, de, es…）→ 'latin'
-  // 空值 → 'und'
-}
-function isEnglishSourceLang(lang) {
-  return normalizeLangCode(lang) === 'en';
-}
-```
 
 來源語言讀取優先序：`window.ActiveFileLangs.sourceLang` → 句段 `sourceLang` → 專案 `sourceLangs[0]`。
 
@@ -248,11 +226,10 @@ function isEnglishSourceLang(lang) {
 
 ```javascript
 computeDiff(oldText, newText, options?)     // → DiffOp[]
-renderDiffHtml(oldText, newText, options?)   // → HTML string
-renderTrackStackHtml(oldText, newText, options?)  // 三列 TM 追蹤
-renderInlineMergedHtml(oldText, newText, options?) // 單行（譯文更新紀錄）
-
-// DiffOp: { type: 'equal'|'delete'|'insert', text, tokens?, tokenKind? }
+renderDiffHtml(oldText, newText, options?)
+renderTrackStackHtml(oldText, newText, options?)
+renderInlineMergedHtml(oldText, newText, options?)
+getDiffMode() / setDiffMode('readable'|'char')  // 讀寫 localStorage
 ```
 
 #### `options`
@@ -261,59 +238,64 @@ renderInlineMergedHtml(oldText, newText, options?) // 單行（譯文更新紀�
 |------|------|------|
 | `mode` | `'readable'` | `'readable'` \| `'char'` |
 | `tagsOld` / `tagsNew` | — | Phase C／tag-aware diff |
-| `semantics` | `'current-vs-reference'` | TM 面板用；Phase C 用 `'old-vs-new'` 映射 class |
+| `semantics` | `'current-vs-reference'` | TM 面板；Phase C 用 `'old-vs-new'` |
 | `maxTokens` | 4000 | 超過則 fallback |
 | `fallbackRatio` | 0.55 | 變更 token 占比超過 → 大幅修改 UI |
-| `classDel` / `classIns` | 依 semantics 選 tm 或 rev class | 統一 render 規則 |
 
 ### 5.2 Readable diff 演算法
 
-1. `oldTokens = tokenizeForCatText(old)`、`newTokens = tokenize(...)`（**同 tokenizer**）
-2. 對 atomic token：LCS 在 **token 序列**上比對（value 相等即 equal；tag 可比 `display`+`ph`）
-3. 非 atomic 且 mode=`char`：該 token 內部可降級字元 LCS（僅 fine 模式）
-4. **英文拉丁詞**：readable 模式下整 token 替換（不拆 `degraded`/`degrade` 共用 `de`）
-5. **CJK token**：整段替換；僅 fine 模式才 intra-token char diff
-6. 合併相鄰同 type ops → `mergeDiffOps`
+Token 序列 LCS；atomic token 不拆分；CJK 整段替換；僅 `mode:'char'` 才 intra-token 字元 diff。
 
 ### 5.3 大幅修改 Fallback
 
-當 `changedTokens / max(len(old), len(new)) > fallbackRatio` 或 token 數 > `maxTokens`：
+`.cat-diff-fallback-banner` + 上下純文字對照列（`.cat-diff-fallback-old` / `.cat-diff-fallback-new`）。
 
-```html
-<div class="cat-diff-fallback-banner">本句修改幅度較大，以下為上下對照</div>
-<div class="cat-diff-fallback-old">…escape old…</div>
-<div class="cat-diff-fallback-new">…escape new…</div>
-```
+### 5.4 Fine-grained / char diff 切換（**已確認：可見 UI**）
 
-TM 三列 stack 仍可保留 row1/row3 純文字，row2 改 banner + 雙列或省略 inline merge。
+#### Phase C — 主控制項
 
-### 5.4 Fine-grained / char diff 切換
+| 項目 | 規格 |
+|------|------|
+| **位置** | `#revTrackBar`（[`index.html`](../cat-tool/index.html) L801–806），與「修訂標記」checkbox **同一列** |
+| **DOM id** | `#revTrackChkFineDiff`（新建） |
+| **label** | `精細 diff`（class：`.rev-track-bar-label`，與 `#revTrackChkMarks` 一致） |
+| **預設** | **未勾選** → `mode: 'readable'` |
+| **行為** | 勾選 → `CatDiffEngine.setDiffMode('char')` + `CatRevTrack.reload()` 重繪可見列 |
+| **JS 觸點** | [`rev-track.js`](../cat-tool/js/rev-track.js) `bindEvents()`、`renderGrid()`、`state.layerVisibility` 旁新增 `fineDiff` 狀態 |
 
-| UI 位置 | 控制 |
-|---------|------|
-| Phase C `revTrackBar` | 新增「精細 diff」checkbox（`revTrackChkFineDiff`），預設**關** |
-| CAT 比對追蹤區 | 可選小連結「字元級 diff」；預設 readable |
-| 持久化 | `localStorage catDiffMode = 'readable'|'char'`（可選） |
+#### CAT 比對欄 — 低調切換
+
+| 項目 | 規格 |
+|------|------|
+| **位置** | `#catTrackChangePanel` 內、`#liveTrackChangeContent` **上方**或右上角 |
+| **DOM id** | `#catDiffModeLink`（`<button type="button" class="cat-diff-mode-link">` 或 `<a>`） |
+| **文案** | 預設顯示「字元級 diff」連結；已開啟時顯示「可讀 diff」可切回 |
+| **預設** | readable；**本次一併實作**（非延後） |
+| **JS 觸點** | `updateCatTrackPanelContent()` 前讀 mode；點擊後重呼叫 panel + footer diff |
+
+#### localStorage 持久化
+
+| 鍵 | 值 | 說明 |
+|----|-----|------|
+| `catDiffMode` | `'readable'` \| `'char'` | Phase C checkbox 與 CAT 連結**共用**同一設定 |
+| 預設缺省 | `'readable'` | 首次進入或未寫入時 |
+
+**兩處 UI 同步**：任一端切換時，更新 localStorage 並刷新另一處控件狀態（若同時可見）。
+
+#### 會動到的 CSS class
+
+- 既有：`.rev-diff-del`、`.rev-diff-ins`、`.tm-diff-cur-only`、`.tm-diff-tm-only`
+- 新增：`.cat-diff-mode-link`、`.cat-diff-fallback-*`
+- Phase C bar：沿用 `.rev-track-bar-label`、`.rev-track-layer-chk` 模式
 
 ### 5.5 統一 render 規則
 
 | 語意 | delete 樣式 | insert 樣式 |
 |------|-------------|-------------|
-| TM 追蹤（current vs TM） | `.tm-diff-cur-only` 新側独有 | `.tm-diff-tm-only` 舊側独有 |
+| TM 追蹤（current vs TM） | `.tm-diff-cur-only` | `.tm-diff-tm-only` |
 | Phase C／譯文更新（old vs new） | `.rev-diff-del` | `.rev-diff-ins` |
 
-**色票維持現有**（紅刪除、藍新增），避免使用者重新適應。
-
-### 5.6 `rev-track-diff.js` 遷移策略
-
-- 保留 `CatRevTrackDiff` 公開面（`renderSnapshotCell`、`tokenizeWithTags` 可 thin-wrap）
-- `tokenizeWithTags` 改呼叫 `CatTextTokenizer` + tags 選項
-- 刪除重複 `computeCharDiff`；char 模式委派 `CatDiffEngine` `mode:'char'`
-
-### 5.7 `tm-utils.js` 遷移策略
-
-- `diffCharsCurrentVsTm` 保留為 alias → `CatDiffEngine.computeDiff(..., { mode: 'char' })`（向後相容測試／外部腳本）
-- `buildTmTrackChangeStackHtml` / `buildTmTargetRevisionDiffHtml` 改呼叫 `renderTrackStackHtml` / `renderInlineMergedHtml`
+**同一 `CatDiffEngine` 核心**；僅 `semantics` + class 映射不同。
 
 ---
 
@@ -322,125 +304,114 @@ TM 三列 stack 仍可保留 row1/row3 純文字，row2 改 banner + 雙列或�
 ### 6.1 模組：`window.TbMatchEngine`
 
 ```javascript
-findTbTermRanges(text, term, options?)   // → { start, end, matchedText }[]
-termMatches(haystack, needle, flags, options?)  // boolean
-matchTermInHaystack(haystack, needle, flags, options?) // { matched, ranges, surfaceForms? }
-expandEnglishTermVariants(term)          // 英文詞形候選（內部）
+findTbTermRanges(text, term, options?)
+termMatches(haystack, needle, flags, options?)
+matchTermInHaystack(haystack, needle, flags, options?)
+expandEnglishSurfaceForms(term)   // 內部：白名單 suffix 展開
 ```
-
-#### `options`
-
-| 欄位 | 預設 | 說明 |
-|------|------|------|
-| `sourceLang` | `ActiveFileLangs.sourceLang` | 決定英文 morphology |
-| `flags` | `{ caseInsensitive: true, wholeWord: false }` | 保留既有 TB 設定 |
-| `forTargetSide` | false | 譯文比對時語言規則（通常 targetLang） |
 
 ### 6.2 比對策略矩陣
 
-| 來源語言 | 拉丁/數字術語 | 片語（含空白） | CJK 術語 |
-|----------|---------------|----------------|----------|
-| **英文** (`isEnglishSourceLang`) | token boundary + **英文詞形** | token-by-token morphology | N/A |
-| **其他拉丁** | token boundary only | 逐 token 相等（case 依 flags） | N/A |
-| **中文/日/韓** | 不套用英文詞形 | 維持 **子字串包含** + 長詞優先 | 同左 |
+| 來源語言 | 拉丁/數字術語 | 片語 | CJK 術語 |
+|----------|---------------|------|----------|
+| **英文** | token boundary + **保守詞形** | token-by-token 白名單表面形式 | N/A |
+| **其他拉丁** | token boundary only | 逐 token 相等 | N/A |
+| **中文/日/韓** | 子字串包含（不受 token boundary 限制） | 同左 | 同左 |
 | **全部** | placeholder/tag/url/email/key **內部禁止命中** | | |
 
-#### Token boundary（非 CJK）
+#### Token boundary（非 CJK，且 `allowSubstring !== true`）
 
-- 術語與原文皆先 `tokenizeForCatText`
-- 命中須對齊 **完整 token 邊界**（`start`/`end` 與 token 邊界一致）
-- `wholeWord: true`（TB「精確比對」）：維持更嚴格邊界，且不跨 token
-- **`wholeWord: false` 新預設行為**：仍要求 token boundary（**不再** `includes` 子字串）— 這是 v2 **行為變更**核心
+- 術語與原文皆 `tokenizeForCatText`
+- 命中須對齊 **完整 token**（range 與 token `start`/`end` 一致）
+- `wholeWord: true`（TB「精確比對」）：在 token boundary 之上維持更嚴格邊界
+- **v2 預設**（`allowSubstring` 未設或 `false`）：**禁止**一般 `includes` 子字串
 
-#### 英文 Morphology（第一版：規則型，無外部 NLP 庫）
+範例（預設）：
 
-對**單 token 術語**產生表面形式候選：
+- `Layer` **不**命中 `player`
+- `Sion` **不**命中 `permission`
+- `lat` **不**命中 `humiliation`
 
-- 複數：`-s`, `-es`, `-ies`（`Boundary→Boundaries`, `Game→Games`）
-- 動詞：`-s`, `-ed`, `-ing`（`Apply→applies/applied/applying`）
-- 形容詞比較級不在第一版
+#### `allowSubstring` 逃生口（**已確認**）
 
-對**多 token 片語**（`Game Mode`）：
+| 項目 | 規格 |
+|------|------|
+| **存放位置** | 術語 `matchFlags` 物件：`{ caseInsensitive, wholeWord, allowSubstring }` |
+| **型別** | `boolean`；optional |
+| **舊資料預設** | 欄位不存在 → **`allowSubstring: false`**（走 token boundary） |
+| **為 true 時** | 英文／拉丁恢復**舊式** `haystack.includes(needle)`（仍尊重 `caseInsensitive`；`wholeWord` 疊加既有 RegExp 邏輯） |
+| **CJK 術語** | 不受 `allowSubstring` 影響（向來為子字串包含） |
+| **Engine option** | `TbMatchEngine.findTbTermRanges(..., { flags, allowSubstring })` 與 flags 同步 |
+| **第一版 UI** | **不做**術語庫／footer 編輯勾選；僅 engine + 文件說明 |
+| **後續 UI** | 可於 TB footer「比對屬性」區加第四項「允許子字串比對」；與精確比對並列 |
+| **DB migration** | **不需要**。Dexie `terms[].matchFlags` 與 Supabase TB JSON 已為自由物件；讀取時 `flags.allowSubstring === true` 才啟用 |
+| **系統預設** | [`mapDbTermToActiveTbTerm`](../cat-tool/app.js) 維持 `{ caseInsensitive: true, wholeWord: false }`；**不**預設 `allowSubstring: true` |
 
-- 逐 token 產生變形集合，笛卡爾組合**僅限相鄰 token 一一對應**（不爆炸）
-- 例：`Game Mode` 可命中 `Game Modes`；`Boundary Layer` → `Boundary Layers`
+#### 英文 Morphology（**保守策略 — 已確認**）
 
-比對：在原文 token 序列上滑動窗口，窗口長度 = 術語 token 數；每 slot 比對「術語 token 變形集 vs 原文 token 正規化後表面形」。
+**禁止**：任意 stem 截斷、stem 相等、編輯距離、或「去掉 suffix 後比對」。
 
-**Lemma 正規化（簡化）**：小寫 + 剝離常見 suffix 得 stem；stem 相等即視為詞形命中。
+**允許**：僅當原文 token **完整字串**等於下列之一時命中：
+
+1. 術語 surface form 本身（大小寫依 `caseInsensitive`）
+2. 由術語 **逐 token** 套用**已知安全 suffix 表**所產生的候選表面形式
+
+**已知 suffix 白名單（第一版）**：
+
+| 類型 | 規則 | 範例 |
+|------|------|------|
+| 複數 | `+s`（詞尾已有 s/x/z/ch/sh → `+es`；consonant+y → 去 y + `ies`） | `Game→Games`、`Boundary→Boundaries` |
+| 第三人稱 | `+s` / `+es` | `Apply→applies` |
+| 過去式 | `+ed`；規則音變僅限**明確拼寫**（如 e 去加 `d`：`applied`） | `Apply→applied` |
+| 現在分詞 | `+ing`；僅限**明確拼寫**（`applying`） | `Apply→applying` |
+| 同詞幹其他 | `Unlock→unlocks`、`unlocked`、`unlocking` | 同上規則生成 |
+
+**明確不生成、不命中**：
+
+- `Apply` → `application`（`-tion` 不在白名單）
+- `press` → `pressure`（`-ure` 不在白名單）
+- `use` → `user`（`-r` 不在白名單）
+
+**片語**（`Game Mode`）：
+
+- 對**每個 token** 各自展開候選集合
+- 滑動窗口長度 = 術語 token 數
+- 窗口內第 i 槽：原文 token 必須 **完整等於** 術語第 i token 的某一候選表面形式
+- 例：`Game Mode` 可命中 `Game Modes`；不可因 stem 命中 `Game Moderation`
+
+**比對優先序**：
+
+1. 原文 token === 術語 token（精確／大小寫規則）
+2. 原文 token ∈ `expandEnglishSurfaceForms(術語 token)`（完整字串）
+3. 否則不命中（**不做** fallback stem）
 
 ### 6.3 `termMatches` 向後相容
 
-```javascript
-// app.js — 保留函式名，內部委派
-function termMatches(haystack, needle, flags) {
-  return TbMatchEngine.termMatches(haystack, needle, flags, {
-    sourceLang: getActiveSourceLang(),
-  });
-}
-function findTermHitRangesInPlainText(text, needle, flags) {
-  return TbMatchEngine.findTbTermRanges(text, needle, { flags, sourceLang: getActiveSourceLang() });
-}
-```
+`app.js` 保留函式名，內部委派 `TbMatchEngine`；`flags` 原樣傳入（含 optional `allowSubstring`）。
 
-**譯文側**（target 是否含譯法）：使用 `targetLang`；CJK 譯文仍可用子字串；英文譯文可選 token boundary（第一版：譯文側維持現有 `termMatches` 邏輯，降低 scope；若 QA 誤報再同步）。
+### 6.4 命中表面形式（UI — 延後至低衝突階段）
 
-### 6.4 命中表面形式（UI）
-
-右欄 TB footer／比對列 metadata 新增（當命中變形時）：
-
-```text
-Game → 遊戲
-命中：Games
-```
-
-實作：`matchTermInHaystack` 回傳 `surfaceForm`；`renderLiveTmMatches` footer 模板增加一行。
+右欄 TB footer 顯示「命中：Games」等；見 §14 步驟 6。
 
 ### 6.5 與既有後處理銜接
 
-```text
-findTbTermRanges (v2)
-  → tbHits + ranges + matchedText
-  → shouldSuppressTbHit（不變）
-  → groupBy / dedupe / hidden filter（不變）
-  → decorateTbInlineHints（ranges 改 token 對齊；pullCrossNodeWordSuffix 改讀 tokenizer 邊界）
-```
+`findTbTermRanges (v2)` → `shouldSuppressTbHit` → groupBy / dedupe / hidden → UI。**Card/card**、**Mark Anthony** 邏輯不變。
 
-**Card/card**：壓制仍靠 `isTbSourceStrictSubstring` **嚴格大小寫**；v2 邊界比對不應合併兩者。
+### 6.6 Placeholder
 
-**Mark Anthony / Anthony**：長詞壓短詞僅在 **合法命中** 後執行；句中另一獨立 `Anthony` 無 `Mark Anthony` range 涵蓋 → 仍顯示。
-
-### 6.6 `{player_name}` 與 placeholder
-
-- Tokenizer 將 `{player_name}` 標為 atomic
-- `findTbTermRanges` 跳過 `kind === 'placeholder'|'tag'` 的 token 內部
-- `Layer` 不得命中 `player` 子串；亦不得命中 placeholder 內文字
+`{player_name}` 為 atomic；`Layer`／`player` 不得命中 placeholder 內部。
 
 ---
 
 ## 7. 兩者如何共用 tokenization，但保持模組獨立
 
 ```text
-                    cat-text-tokenizer.js
-                    (tokenize, atomic, lang)
-                           │
-           ┌───────────────┴───────────────┐
-           ▼                               ▼
-   cat-diff-engine.js              tb-match-engine.js
-   (LCS, render, fallback)         (ranges, morphology)
-           │                               │
-           ▼                               ▼
-   tm-utils.js / rev-track-diff.js   app.js wrappers
-   (CAT 面板 + Phase C UI)           (右欄/TB inline/QA/AI)
+cat-text-tokenizer.js
+        ├─ cat-diff-engine.js   → tm-utils / rev-track-diff / rev-track
+        └─ tb-match-engine.js   → app.js wrappers
 ```
 
-**依賴規則**
-
-- `cat-text-tokenizer.js`：**零依賴**其他 CAT 模組
-- `cat-diff-engine.js`：僅 import tokenizer
-- `tb-match-engine.js`：僅 import tokenizer
-- **禁止** diff → tb 或 tb → diff
-- **禁止** tokenizer 依賴 diff/tb
+**禁止** diff ↔ TB 互相 import。
 
 ---
 
@@ -448,16 +419,11 @@ findTbTermRanges (v2)
 
 | 風險 | 影響 | 緩解 |
 |------|------|------|
-| 英文 morphology 過寬／過窄 | 漏命中或誤命中 | 規則表 + 驗收案例鎖定；可 per-term 關閉（flags 保留） |
-| 非英文拉丁語系被誤套英文變形 | 法文等誤命中 | 以 `isEnglishSourceLang` 閘門；其他 latin 僅 boundary |
-| CJK 行為變更 | 使用者依賴子字串 | CJK **明確維持** contains；加測試 |
-| TB `wholeWord:false` 語意變更 | 舊專案依賴子字串命中 | 產品決定：v2 預設改 boundary；必要時 flags 加 `allowSubstring` 舊模式 |
-| Phase C 大檔 diff 效能 | token LCS O(n·m) | 沿用 lazy 渲染；超 `maxTokens` fallback |
-| inline TB 與 `rt.textContent` 偏移 | 底線錯位 | ranges 必須對 **plain text** 與 DOM text node 一致；tag pill 仍 skip |
-| Card/card 回歸 | 誤壓制 | 保留 strict substring 五條件；加案例 |
-| QA 與右欄不一致 | 隱藏術語仍 QA 報 | 規格已如此；v2 不改 |
-| `public/cat` 漏 sync | 部署舊版 | 每 commit 跑 `npm run sync:cat` |
-| Vitest 預設不含 cat-tool | 測試漏跑 | 新增 `*.test.mjs` + 擴充 vitest `include` 或 npm script `test:cat` |
+| morphology 白名單漏覆蓋 | 合法複數未命中 | 驗收 T6–T11 + 消極案例 T16–T18 |
+| `allowSubstring` 未暴露 UI | 舊專案少數 intentional 子字串需手改 JSON | 文件說明；後續 footer UI |
+| 與其他分支改 `app.js` 衝突 | merge 痛苦 | §12–§14 拆工；wrapper 延後 |
+| `public/cat` 大量 diff | 與他人 sync 衝突 | 最後一步才 sync |
+| Phase C + 其他 rev-track 改動 | checkbox 衝突 | engine 先完成；UI 後接 |
 
 ---
 
@@ -467,26 +433,28 @@ findTbTermRanges (v2)
 
 | # | 輸入 | 預期（readable 模式） |
 |---|------|------------------------|
-| D1 | `degraded` → `degrade` | 整詞 delete + 整詞 insert，不僅 `ed` |
-| D2 | `will degrade` → `will not degrade` | `not ` 為 insert token；`degrade` 保持 equal |
-| D3 | `15%` → `20%` | 整段 `15%` delete、`20%` insert（或 number+unit 各一 token） |
-| D4 | `3.5s` → `4s` | 數字+單位整 token 替換 |
-| D5 | `{player_name}` → `{user_name}` | 各 placeholder 整段 del/ins，不拆內部 |
-| D6 | `<b>Start</b>` → `<strong>Start</strong>` | tag/字面量 atomic；`Start` 可 equal |
-| D7 | `UI_BUTTON_START_GAME` → `UI_BUTTON_BEGIN_GAME` | key token 整段替換 |
-| D8 | 中文句局部修改 | CJK 連續 token 替換，非逐字紅藍碎裂 |
-| D9 | 全文改寫 >55% token | 顯示「本句修改幅度較大」+ 上下對照 |
-| D10 | CAT 追蹤面板 vs footer 譯文更新 | **同一** diff engine；class 依 semantics 不同 |
-| D11 | Phase C 追蹤修訂模式 | 與 CAT 面板 readable 規則一致；勾「精細 diff」→ char |
-| D12 | 含 XLIFF tag pill 句段 | tag 整 pill del/ins，不拆 display 字元 |
+| D1 | `degraded` → `degrade` | 整詞 delete + insert |
+| D2 | `will degrade` → `will not degrade` | `not` 為 insert token |
+| D3 | `15%` → `20%` | 數字+單位整 token 替換 |
+| D4 | `3.5s` → `4s` | 整 token 替換 |
+| D5 | `{player_name}` → `{user_name}` | placeholder 整段 del/ins |
+| D6 | `<b>Start</b>` → `<strong>Start</strong>` | tag atomic |
+| D7 | `UI_BUTTON_*` key 替換 | key 整段替換 |
+| D8 | 中文句局部修改 | CJK 連續 token，非逐字碎裂 |
+| D9 | 大幅改寫 | fallback banner + 上下對照 |
+| D10 | CAT 面板 vs footer 譯文更新 | **同一** diff engine；semantics／class 各正確 |
+| D11 | Phase C 預設 | checkbox **未勾** → readable |
+| D12 | Phase C 勾「精細 diff」 | char diff |
+| D13 | CAT `#catDiffModeLink` | 與 Phase C **共用** `catDiffMode` localStorage |
+| D14 | 含 XLIFF tag pill | tag 整 pill del/ins |
 
 ### 9.2 TB Match v2
 
 | # | 原文 | 術語 | 預期 |
 |---|------|------|------|
-| T1 | `player` | `Layer` | **不命中** |
-| T2 | `Layer.` | `Layer` | 命中（標點外 boundary） |
-| T3 | `Layers` | `Layer` | 命中（英文複數） |
+| T1 | `player` | `Layer` | **不命中**（預設 boundary） |
+| T2 | `Layer.` | `Layer` | 命中 |
+| T3 | `Layers` | `Layer` | 命中（白名單複數） |
 | T4 | `permission` | `Sion` | **不命中** |
 | T5 | `humiliation` | `lat` | **不命中** |
 | T6 | `Games` | `Game` | 命中 |
@@ -495,47 +463,175 @@ findTbTermRanges (v2)
 | T9 | `unlocks` / `unlocked` / `unlocking` | `Unlock` | 命中 |
 | T10 | `Game Modes` | `Game Mode` | 命中 |
 | T11 | `Power Utilities` | `Power Utility` | 命中 |
-| T12 | `Mark Anthony … Anthony` | `Mark Anthony` + `Anthony` | 前者壓制後者**僅 Mark Anthony 範圍內**；句中另一 `Anthony` 仍命中 |
-| T13 | `Card` vs `card` 兩 TB | 各別 | **兩列**，無誤壓制 |
-| T14 | `{player_name}` | `Layer` / `player` | **不命中** placeholder 內 |
-| T15 | 右欄／原文底線／QA／AI 批次 | 同句 | **同一**命中結果（AI 為 filter 後子集） |
+| T12 | `Mark Anthony … Anthony` | 長詞壓短詞 | 僅範圍內壓制 |
+| T13 | `Card` / `card` | 兩 TB | 兩列，無誤壓制 |
+| T14 | `{player_name}` | `Layer` / `player` | **不命中** |
+| T15 | 右欄／inline／QA／AI | 同句 | **同一**命中結果 |
+| T16 | `application` | `Apply` | **不命中** |
+| T17 | `pressure` | `press` | **不命中** |
+| T18 | `user` | `use` | **不命中** |
+| T19 | `player` + `allowSubstring: true` | `lay` | **命中**（舊式子字串） |
+| T20 | `player` + `allowSubstring` 未設 | `Layer` | **不命中** |
 
 ### 9.3 測試落地
 
-- Pure：`cat-tool/js/cat-diff-engine.test.mjs`、`tb-match-engine.test.mjs`
-- Vitest：擴充 `vitest.config.ts` `include` 或 `npm run test:cat`
-- 手動：CAT 編輯器開檔 → 右欄 + 原文上標 + QA + AI 批次預覽
+- Pure：`cat-tool/js/*.test.mjs`
+- Vitest：擴充 `vitest.config.ts` 或 `npm run test:cat`
+- 手動：CAT 編輯器全流程
 
 ---
 
-## 10. 建議實作順序
+## 10. 建議實作順序（單人線性版）
 
-1. **`cat-text-tokenizer.js`** + 單元測試（token 邊界、atomic、lang normalize）
-2. **`cat-diff-engine.js`** readable LCS + fallback + render；接 `tm-utils.js`
-3. **Phase C** `rev-track-diff.js` 遷移 + fine diff toggle
-4. **`tb-match-engine.js`** boundary + CJK 分支 + placeholder 跳過
-5. **英文 morphology** + 片語窗口比對
-6. **`app.js` 薄 wrapper** + `renderLiveTmMatches` surface form UI
-7. **`decorateTbInlineHints`** 對齊 token ranges + `pullCrossNodeWordSuffix` 調整
-8. **CSS** fallback banner + 文件更新
-9. **`npm run sync:cat`** + 全量驗收
+> 若與其他改動並行，請改依 **§14 拆工策略**。
+
+1. tokenizer + tests（新檔 only）
+2. diff engine + tm-utils 接入
+3. Phase C rev-track-diff + rev-track checkbox + style
+4. tb-match-engine boundary + morphology + tests
+5. app.js wrappers
+6. decorateTbInlineHints 對齊
+7. surface form UI、allowSubstring UI（可選）、sync、CODEMAP
 
 ---
 
 ## 11. 建議拆 commit 方式
 
-| 順序 | Commit 訊息（建議） | 內容 |
-|------|---------------------|------|
-| 1 | `feat(cat): add shared text tokenizer for diff and TB` | `cat-text-tokenizer.js` + tests + index.html script |
-| 2 | `feat(cat): diff engine v2 with readable token diff` | `cat-diff-engine.js` + tm-utils 接入 + tests |
-| 3 | `refactor(cat): unify Phase C rev-track diff on diff engine v2` | `rev-track-diff.js` + bar toggle + tests |
-| 4 | `feat(cat): TB match engine v2 with token boundaries` | `tb-match-engine.js` + app wrappers + CJK/boundary tests |
-| 5 | `feat(cat): English morphology for TB phrase matching` | morphology + 片語 + surface form UI |
-| 6 | `fix(cat): align TB inline hints with token-based ranges` | decorateTbInlineHints + pullCrossNodeWordSuffix |
-| 7 | `style(cat): diff fallback banner and docs` | CSS + CODEMAP + 本檔狀態更新 |
-| 8 | `chore(cat): sync public/cat` | `npm run sync:cat` 產物 |
+| 順序 | Commit | 內容 |
+|------|--------|------|
+| 1 | `feat(cat): add shared text tokenizer` | 新檔 + tests + index script |
+| 2 | `feat(cat): diff engine v2` | cat-diff-engine + tm-utils |
+| 3 | `feat(cat): Phase C fine diff checkbox` | rev-track* + style + index |
+| 4 | `feat(cat): TB match engine v2` | tb-match-engine + tests |
+| 5 | `feat(cat): wire TB engine in app.js` | wrappers only |
+| 6 | `fix(cat): TB inline hints token ranges` | decorateTbInlineHints |
+| 7 | `feat(cat): TB surface form footer` | renderLiveTmMatches UI |
+| 8 | `chore(cat): sync public/cat` | 最後 |
 
-**原則**：tokenizer → diff → TB boundary → morphology → UI 整合 → sync；每 commit 可獨立過測試，避免巨型 PR。
+---
+
+## 12. 預計動到的檔案、函式與衝突風險
+
+| 檔案 | 預計動到的函式 / DOM / CSS | 修改目的 | 衝突風險 | 為什麼可能衝突 | 建議降低衝突 |
+|------|---------------------------|----------|----------|----------------|--------------|
+| **`cat-tool/js/cat-text-tokenizer.js`**（新） | 全檔新建 | 共用 tokenization | **低** | 新檔，不與既有行衝突 | **可最先 merge** |
+| **`cat-tool/js/cat-diff-engine.js`**（新） | 全檔新建 | readable/char diff、render | **低** | 新檔 | 與 tokenizer 同 PR |
+| **`cat-tool/js/tb-match-engine.js`**（新） | 全檔新建 | TB 比對 v2 | **低** | 新檔 | 與 tokenizer 同 PR 或獨立 PR |
+| **`cat-tool/js/*.test.mjs`**（新） | 測試 | 回歸 | **低** | 新檔 | 與對應 engine 同 commit |
+| **`cat-tool/js/tm-utils.js`** | `diffCharsCurrentVsTm`、`buildTmTrackChangeStackHtml`、`buildTmTargetRevisionDiffHtml` | 接 diff engine | **中** | 比對欄/footer 若他人改 TM 區塊 | Diff 階段先做；避開他人改 tm-utils 時段 |
+| **`cat-tool/js/rev-track-diff.js`** | `computeCharDiff`、`renderDiffHtml`、`renderDiffTokens`、`renderSnapshotCell` | 統一 diff 核心 | **中** | Phase C 若他人改 diff/tag | engine 穩定後再改；與 rev-track.js 同批 |
+| **`cat-tool/js/rev-track.js`** | `bindEvents`、`renderGrid`、`state`；讀 `#revTrackChkFineDiff` | 精細 diff checkbox | **高** | Phase C 追蹤修訂模式常並行開發 | **等 Phase C 其他改動穩定**再加 checkbox |
+| **`cat-tool/app.js`** | **`termMatches`**、**`findTermHitRangesInPlainText`**、**`renderLiveTmMatches`**、**`decorateTbInlineHintsForSegId`**、**`_qaPushSegmentRuleFindings`**、AI 批次 `termMatches` filter（約 L36325+、L37682+）、`updateCatTrackPanelContent`、`formatCatTmChangeLogForFooter` | TB wrapper、inline、panel diff 刷新 | **高** | 巨型檔；W9／workflow／TB UI 常改 | wrapper **單獨小 commit**；inline **最後**；與他人 diff app.js 前先 rebase |
+| **`cat-tool/index.html`** | `<script src="js/cat-text-tokenizer.js">` 等順序；`#revTrackChkFineDiff`；`#catDiffModeLink` | 載入新模組、UI 控件 | **中** | script 區與 editor 區多人改 | script 追加在 tm-utils **前**；UI 控件與 rev-track 同批 |
+| **`cat-tool/style.css`** | `.cat-diff-fallback-*`、`.cat-diff-mode-link`；可能觸及 `.tm-diff-*`、`.rev-diff-*` | diff fallback、toggle 樣式 | **中** | 全檔 4600+ 行，CAT/TB 樣式常改 | 新增區塊放 Phase C 區末；少改既有 selector |
+| **`public/cat/**`** | 上述檔案鏡像 | sync 產物 | **高**（合併時） | 任何 cat-tool 變更都複製整包 | **驗收後一次** `npm run sync:cat`；實作中不同步 |
+| **`vitest.config.ts` / `package.json`** | `include` 或 `test:cat` script | 跑 cat-tool 測試 | **低** | 與 W6 vitest 批次可能同改 | 獨立小 commit |
+| **`docs/CODEMAP.md`** | 新增模組條目 | 驗收後現況 | **低** | 多人補文件 | 最後 commit |
+| **本檔** | 計畫維護 | 規格 | **低** | 僅文件 | 已更新 |
+
+### 12.1 高風險區詳表
+
+#### `app.js`
+
+| 函式／區塊 | 變更類型 | 與他工衝突情境 |
+|-----------|----------|----------------|
+| `termMatches` / `findTermHitRangesInPlainText` | 改為 3–5 行 wrapper | 他人改 TB 比對屬性、QA |
+| `renderLiveTmMatches` | tbHits 收集邏輯不變；footer 加 surface form（後段） | 右欄比對 UI、MqInserted |
+| `decorateTbInlineHintsForSegId` | ranges 來源改 token 對齊；`pullCrossNodeWordSuffix` | 虛擬捲動、TB 上標 |
+| `_qaPushSegmentRuleFindings` | 間接（wrapper 行為變） | QA 波次 |
+| AI 批次 `termMatches` filter | 間接 | AI 批次穩定修正 |
+| `updateCatTrackPanelContent` | 讀 diff mode；可能掛 `#catDiffModeLink`  handler | CAT 面板 UX |
+
+#### `rev-track.js` / `rev-track-diff.js`
+
+| 項目 | 變更 |
+|------|------|
+| `#revTrackChkFineDiff` | 新 checkbox + event |
+| `CatRevTrackDiff.*` | 委派 `CatDiffEngine` |
+| 風險 | 追蹤修訂模式、快照、評註 UI 並行修改 |
+
+#### `tm-utils.js`
+
+| 項目 | 變更 |
+|------|------|
+| `buildTmTrackChangeStackHtml` 等 | 接 diff engine；**不**改 `levenshtein` |
+| 風險 | TM 相似度或比對欄他人調整 |
+
+#### `index.html`
+
+| 項目 | 風險 |
+|------|------|
+| script 順序 | 新模組必須在 `tm-utils.js`、`rev-track-diff.js` 之前 |
+| `#revTrackBar` DOM | 與 Phase C 工具列其他 checkbox 衝突 |
+
+#### `style.css`
+
+| 項目 | 風險 |
+|------|------|
+| `.cat-diff-fallback-banner` 等 | 與 CAT 面板高度／rev-track 區塊樣式並改 |
+| `.tm-diff-*` / `.rev-diff-*` | 尽量只读不改色票 |
+
+#### `public/cat`
+
+| 項目 | 風險 |
+|------|------|
+| 整包 mirror | 他人若手改 public 或 sync 不同步 → merge 噪音 |
+| 策略 | **本計畫實作期不同步**；merge 前再跑 sync |
+
+---
+
+## 13. 實作前檢查
+
+在開始修改 **任何** `cat-tool/` 執行檔之前，請依序確認：
+
+1. **工作樹乾淨或已提交**：`git status` 無未提交變更，或已 stash；避免計畫與實作混在同一 diff。
+2. **分支 rebase**：若 `app.js`、`style.css`、`index.html`、`rev-track.js`、`rev-track-diff.js`、`tm-utils.js` 在**其他分支**有進行中改動，先 merge/rebase 到實作分支，或**暫停**本工項對該檔的修改。
+3. **新模組優先**：`cat-text-tokenizer.js`、`cat-diff-engine.js`、`tb-match-engine.js` 與測試可**獨立 PR**，幾乎不與他人衝突。
+4. **延後 `public/cat` sync**：`cat-tool` 驗收通過後再執行 `npm run sync:cat`；實作中途不同步，減少 binary 式整包 diff。
+5. **Diff 先行、TB wrapper 可延後**：若他人正在改 `app.js`，可先完成 tokenizer + diff engine + `tm-utils.js`；TB 的 `termMatches` wrapper 與 `renderLiveTmMatches` 後接。
+6. **Phase C checkbox 可延後**：若他人正在改 `rev-track.js`／Phase C，先完成 diff engine 與測試；**不要**先加 `#revTrackChkFineDiff`。
+7. **allowSubstring 僅 engine**：若他人正在改 TB footer／術語庫 UI，**不要**加 allowSubstring 勾選；只實作 `matchFlags.allowSubstring` 讀取與文件說明。
+8. **跑測試**：每階段 `npm run test:cat`（或擴充後 vitest）+ 手動 CAT 抽查。
+
+---
+
+## 14. 建議拆工與避免衝突策略（多人／多工並行）
+
+以下步驟標註 **可安全先做**（🟢） vs **易與其他改動衝突**（🔴） vs **中等**（🟡）。
+
+| 步驟 | 內容 | 檔案 | 標記 | 說明 |
+|------|------|------|------|------|
+| **1** | 純新增 tokenizer + diff/TB engine + 測試 | 新 `.js` / `.test.mjs`；`vitest.config.ts`；`index.html` **僅加 script  tag** | 🟢 | 不改 app.js 行為；可先 merge |
+| **2** | Diff 接入 **僅 tm-utils** | `tm-utils.js`；`updateCatTrackPanelContent` 若需 mode 可最小觸 app.js | 🟡 | CAT 比對欄 readable diff；**不**動 Phase C checkbox |
+| **3** | Phase C：rev-track-diff + checkbox + style | `rev-track-diff.js`、`rev-track.js`、`index.html` `#revTrackChkFineDiff`、`style.css` | 🔴 | **等 Phase C 其他改動完成** |
+| **4** | CAT 比對欄低調切換 | `#catDiffModeLink`、`style.css`、panel handler | 🟡 | 可與步驟 2 同批或緊接 |
+| **5** | TB engine **app.js wrapper** | `termMatches`、`findTermHitRangesInPlainText` | 🔴 | 確認右欄、QA、AI 同一結果；**避開他人改 app.js** |
+| **6** | TB inline hints | `decorateTbInlineHintsForSegId`、`pullCrossNodeWordSuffix` | 🔴 | 依賴步驟 5；虛擬捲動區易衝突 |
+| **7** | surface form footer UI | `renderLiveTmMatches` footer 模板 | 🟡 | 純展示；可與步驟 6 分開 |
+| **8** | allowSubstring UI（可選／後續） | TB footer、術語庫表單 | 🔴 | 第一版**不做**；僅 engine |
+| **9** | `npm run sync:cat` + CODEMAP | `public/cat/**`、`docs/CODEMAP.md` | 🟡 | **全功能驗收後一次** |
+
+### 14.1 與其他工項並行時的建議時序
+
+```text
+現在（其他改動進行中）
+  → 僅 merge 步驟 1（新模組 + 測試）✅ 安全
+
+他人改 app.js 期間
+  → 步驟 2 tm-utils + 步驟 4 CAT toggle（小觸 app.js）🟡
+  → 跳過步驟 5–6
+
+他人改 Phase C 期間
+  → 跳過步驟 3
+  → 步驟 1–2 仍可進行
+
+他人改 TB UI 期間
+  → 步驟 5 wrapper 可做（若 app.js 可 rebase）
+  → 跳過步驟 7–8 UI
+
+全部穩定後
+  → 步驟 3、5–6、9
+```
 
 ---
 
@@ -551,17 +647,17 @@ findTbTermRanges (v2)
 
 - `renderLiveTmMatches` — 收集 tbHits
 - `decorateTbInlineHintsForSegId` — inline 底線／上標
-- `updateTbInlineMissingStateForRow` — 譯文缺失狀態
 - `_qaPushSegmentRuleFindings` — QA 術語
-- `_buildAiOptions` / 批次 filter — AI 術語子集
-- `liveFooterContent` TB 編輯 — 不直接比對，但顯示 `matchFlags`
+- AI 批次 — `termMatches` filter
 
 ---
 
-## 附錄 B：需您確認的決策點
+## 附錄 B：決策紀錄（已關閉）
 
-1. **TB v2 預設改 token boundary**（即使「精確比對」未勾）：是否接受舊專案可能少命中 intentionally substring 的術語？
-2. **Phase C 是否加「精細 diff」toggle**，或僅 hidden `localStorage`？
-3. **英文 morphology 第一版**是否允許少量誤命中（例如 `apply` 命中 `application`）— 若不行需加「完整 token 相等優先、stem 僅限已知 suffix 表」。
+| 原問題 | 決定 |
+|--------|------|
+| TB 預設 boundary vs 舊子字串 | 預設 boundary；`matchFlags.allowSubstring` 逃生口；第一版無 UI |
+| Phase C fine diff | **可見** checkbox，預設關；localStorage 共用 |
+| morphology 寬度 | **保守**白名單表面形式；禁止 stem |
 
-確認後依 §10 順序實作。
+實作依 **§14** 拆工；**§13** 檢查通過後開始。
