@@ -179,6 +179,15 @@
 | 預設群組版面 | `src/lib/ui-toolbar-groups-defaults.ts` |
 | 圖示渲染 | `src/lib/ui-button-icon-render.tsx` |
 
+## Vercel Serverless API（`api/`）
+
+| 項目 | 位置 |
+|------|------|
+| OpenAI Chat 代理（公司 key） | `api/cat-openai.js`；本機 dev：`vite.config.ts` `cat-openai-dev-proxy` |
+| Google 試算表 CSV 代理 | `api/cat-google-sheet-csv.js` |
+| **CAT AI 模型 registry 同步**（Phase 2；executive-only JWT；OpenAI `/v1/models` → registry 表） | `api/cat-ai-model-sync.js`；授權 `api/lib/require-executive.js`；規則 `api/lib/model-sync-rules.js`；規格 [`docs/CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md`](./CAT_AI_MODEL_REGISTRY_PHASE2_SPEC_2026-07.md) |
+| 篩選／sync plan 型別 re-export | `src/lib/cat-ai-model-sync/`（re-export `api/lib/model-sync-rules.js`） |
+
 ## 下拉選項與標籤樣式
 
 | 項目 | 位置 |
