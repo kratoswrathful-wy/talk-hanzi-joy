@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en" target-language="zh-TW" datatype="plaintext" original="minimal-generic.txt">
+    <body>
+      <trans-unit id="1">
+        <source>Hello <bpt id="1" type="bold">[b]</bpt>world<ept id="1">[/b]</ept> and <ph id="2" ctype="x-img"/> plus <g id="3" ctype="italic">emphasis</g>.</source>
+        <target>Hello <bpt id="1" type="bold">[b]</bpt>world<ept id="1">[/b]</ept> and <ph id="2" ctype="x-img"/> plus <g id="3" ctype="italic">emphasis</g>.</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

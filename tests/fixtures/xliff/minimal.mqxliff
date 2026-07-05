@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:mq="MQXliff">
+  <file source-language="en" target-language="zh-TW" datatype="plaintext" original="minimal.mqxliff">
+    <body>
+      <trans-unit id="1" mq:unitId="u1">
+        <source>Hello <bpt id="1" type="bold">**</bpt>world<ept id="1">**</ept> and <ph id="2" displaytext="{0}" type="x-mq-ph">{0}</ph>.</source>
+        <target>Hello <bpt id="1" type="bold">**</bpt>world<ept id="1">**</ept> and <ph id="2" displaytext="{0}" type="x-mq-ph">{0}</ph>.</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
