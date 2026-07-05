@@ -189,7 +189,7 @@
 | 篩選／sync plan 型別 re-export | `src/lib/cat-ai-model-sync/`（re-export `api/lib/model-sync-rules.js`） |
 | **CAT AI GPT-5.5 temperature 相容**（PR #7；GPT-5.5 家族省略 `temperature`） | `cat-tool/js/ai-model-temperature.js`；`cat-tool/js/ai-translate.js` 委派 `buildOpenAiChatBody`；測試 `api/lib/cat-ai-model-temperature.test.js` |
 | **production registry 現況**（2026-07-05） | enabled：`gpt-4.1-mini`、`gpt-5.5`；default：**gpt-5.5**（PM 已正式採納）；fallback：`gpt-4.1-mini` |
-| **CAT AI Model Registry Phase 3**（規劃中；executive 管理 UI） | 規格 [`docs/CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md`](./CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md) |
+| **CAT AI Model Registry Phase 3A**（唯讀列表 + executive 路由；**無 DB 寫入**） | 頁面 `src/pages/CatAiModelRegistryPage.tsx`；路由 `/settings/cat-ai-models`（`RequireExecutive`）；lib `src/lib/cat-ai-model-registry/`（`list-registry-options.ts`、`registry-display.ts`、`model-capabilities.ts`、`route-access.ts`）；側欄 executive 入口「CAT AI 模型」；規格 [`docs/CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md`](./CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md) §Phase 3A |
 
 ## 下拉選項與標籤樣式
 

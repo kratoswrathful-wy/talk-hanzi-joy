@@ -17,6 +17,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import MembersPage from "@/pages/MembersPage";
 import PermissionsPage from "@/pages/PermissionsPage";
+import CatAiModelRegistryPage from "@/pages/CatAiModelRegistryPage";
 import InvoicesPage from "@/pages/InvoicesPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import ClientInvoicesPage from "@/pages/ClientInvoicesPage";
@@ -283,6 +284,14 @@ function AuthenticatedRoutes() {
           element={
             <RequireExecutive label="權限管理">
               <PermissionsPage />
+            </RequireExecutive>
+          }
+        />
+        <Route
+          path="/settings/cat-ai-models"
+          element={
+            <RequireExecutive label="CAT AI 模型 registry">
+              <CatAiModelRegistryPage />
             </RequireExecutive>
           }
         />
