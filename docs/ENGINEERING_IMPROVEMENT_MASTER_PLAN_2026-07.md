@@ -440,9 +440,9 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 | A2 | 第 5 項 | 匯入時三個彈出對話框（語言對／連結 LMS 案件／確認） | **零程式改動**——`import.fromBytes` 已支援 `langChoice`／`caseInfo` 參數，傳入即跳過對話框；改寫操作指南列為鐵律 |
 | B1 | 第 4 項 | 新增專案語言勾選（原文／譯文兩欄易勾錯） | 加 `data-lang-col="source|target"` + `data-lang-code="<code>"` 標記 |
 | B2 | 第 6／8／5（備援）／1 項 | 編輯器身分選擇彈窗、準備完成按鈕、匯入對話框確認鈕、登入鈕 | 各加 `data-testid` 標記 |
-| C1 | 第 3 項 | 工具區塊多行欄位「寫入」——現況 `__lmsAgent` 只能 `getToolSchema` 讀，不能寫 | 新增 bridge 寫入方法，寫入後回讀驗證（屬 W9-B，較費工，分項獨立做） |
-| C2 | 第 8 項 | 批次翻譯進度查詢——現況只能截圖看「X/20」 | 新增 `aiBatch.getProgress()` 回結構化狀態（第幾批/總批/完成句數），供 AI 用 JS 輪詢（屬 W9-B） |
-| C3 | 第 2 項 | 複製案件後標題不刷新（state bleed） | bridge 寫入後觸發 UI 刷新，或提供 `case.getCurrentId()` 供對照確認渲染的是哪一筆（屬 W9-B） |
+| C1 | 第 3 項 | 工具區塊多行欄位「寫入」——現況 `__lmsAgent` 只能 `getToolSchema` 讀，不能寫 | 新增 bridge 寫入方法，寫入後回讀驗證（屬 W9-B，較費工，分項獨立做） —— **已驗收併入 main**（`a2ca0d21`） |
+| C2 | 第 8 項 | 批次翻譯進度查詢——現況只能截圖看「X/20」 | 新增 `aiBatch.getProgress()` 回結構化狀態（第幾批/總批/完成句數），供 AI 用 JS 輪詢（屬 W9-B） —— **已驗收併入 main**（`be071206`） |
+| C3 | 第 2 項 | 複製案件後標題不刷新（state bleed） | bridge 寫入後觸發 UI 刷新，或提供 `case.getCurrentId()` 供對照確認渲染的是哪一筆（屬 W9-B） —— **已驗收併入 main**（`c565f8f3`，查證後採方案二 `getCurrentId()`） |
 
 **驗收方式**：涉及 CAT 的項目由 Fable 5 以 Chrome 工具實測（比照 W9-C C3：走官方入口，不作弊、不注入自訂元素）；A 類本質是文件與使用方式修正，驗收條件為「操作指南更新後，AI 依指南操作可跳過對應截圖環節」。
 
@@ -528,8 +528,16 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 - **新增** [`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts) 的 `__lmsAgent.case.getCurrentId()`：比對 `window.location.pathname` 解析出的 `urlCaseId` 與 [`CaseDetailPage.tsx`](../src/pages/CaseDetailPage.tsx) 新增的 `window.__caseDetailRenderedCaseId`（單一 `useEffect` 跟隨 `caseData?.id` 同步，卸載時清除），回傳 `{ urlCaseId, renderedCaseId, matches }`。
 - **新增** 兩個 `data-testid`（`case-title-input`、`case-keyword-input`、`case-client-po-input`）供 Playwright／AI 程式化讀值，不改變任何欄位邏輯或樣式。
 - **測試（已實跑）**：[`tests/case-copy-title-refresh.spec.ts`](../tests/case-copy-title-refresh.spec.ts)——建案件→**走真實「複製本頁」UI 按鈕**（不作弊、不注入自訂元素）→斷言：①新頁標題即時等於預期複製標題（`sourceTitle + todayYYMMDD`）且不殘留來源標題；②依規格應清空的「客戶 PO#」欄位確實為空（防止「為修標題而過度刷新」把其他欄位誤帶過去的回歸——呼應「不做局部 hack」要求）；③`case.getCurrentId()` 回傳 `urlCaseId === renderedCaseId === matches:true`。全數通過，`npm run typecheck` 全過。
-- **文件**：本節；操作指南 §11.11 待補（驗收後）。
-- **待驗收**：Fable 5／擁有者於分支預覽站以真人或 AI 瀏覽器抽查複製流程，並確認未影響其他既有欄位渲染。
+- **文件**：本節；操作指南 §11.11。
+- **驗收結果（2026-07-05，從簡流程，擁有者核定）**：驗收方靜態逐行審查（`useEffect` 純寫診斷值、有清理、零渲染邏輯改動；`getCurrentId()` 語意正確；`window as unknown as` 為測試檔既有慣例，核可為允許例外）＋ `npm run typecheck` 過、122 項測試親跑全過；執行期部分**採信本輪代理已實跑的 Playwright 證據**（真實「複製本頁」按鈕、標題即時正確、PO# 依規格清空、與 C1／C2 迴歸套跑 5 項全過），**本輪未做第三方瀏覽器複測，驗收紀錄如實註明——此為擁有者核定的從簡流程，非漏驗**。「查證舊症狀已不存在→不做局部 hack、改落地診斷 API」之判斷經驗收方肯定。**核准併入 main，merge commit `c565f8f3`**（CI [run #28725190996](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28725190996) 綠燈）。
+
+### W9 wave 2 收斂（2026-07-05，已驗收，細節以程式為準）
+
+C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立驗收通過並併入 `main`，**W9 wave 2 全數結案**。現行行為摘要：
+
+- `__catAgent.aiBatch.getProgress()`（CAT 編輯器內）、`__lmsAgent.tool.setField()`、`__lmsAgent.case.getCurrentId()` 三支 bridge API 已上線，用法見操作指南 §10.3／§5.1／§11.11。
+- 附帶查證但**本輪不修**、列為待辦：OBS-4（`describe()`／`aiBatch.getSettings()` 的 `projectId`/`fileId` 恆 `null`，且 `setSettings()` 偏好從未真正持久化），等擁有者排程。
+- 此後本節不再更新；後續變更請開新工項小節。
 
 ### W9-C C3 落地紀錄（2026-07-04，分支 `feature/w9c-cat-import-testid-bridge`）
 
