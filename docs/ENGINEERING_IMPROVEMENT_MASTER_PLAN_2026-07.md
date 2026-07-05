@@ -163,7 +163,7 @@ flowchart LR
 
 - **vitest 基礎** — 狀態：**已驗收**（乾淨環境實測 `main@5e0ac5e`：`npm run test` 4 檔 21 項全過；驗收方：Fable 後任，2026-07-04）— commit：—（既有基礎，無新 commit）
 - **vitest 第一批（`src/lib` 純函式，6 檔 90 項）** — 狀態：**已驗收併入 main**（`edit-log-permission-filter`／`fee-finalize-eligibility`／`ai-agent-array-merge`／`edit-log-coalesce`／`fee-field-locks`／`generate-case-fees`；過程細節見 [DEVLOG](W6_LINT_CLEANUP_VITEST_W9C_SESSION_DEVLOG_2026-07.md) §6）— commit：`7bbc3dd8`
-- **vitest 第二批（XLIFF harness）** — 狀態：規劃中 — commit：—
+- **vitest 第二批（XLIFF harness）** — 狀態：**已驗收併入 main**（`cat-tool/js/xliff-tag-pipeline.js` 三格式最小合成樣本回歸測試；分支 `test/w6-vitest-xliff-harness-batch2`；過程細節見下方新增章節）— merge commit：`b245c285`（CI [run #28730610071](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28730610071) 綠燈）
 - **W6（CI 第一版）** — 狀態：**已落地待驗收**（GitHub Actions：push main + PR 觸發，typecheck／test 擋關，lint `continue-on-error` 暫不擋關；本機 `npm run lint` 現存 357 error／51 warning，主要為既有 `no-explicit-any`，清零策略見下方 W6-C 評估）— commit：`7f8117b`；merge commit：`70a0bc8`（`cursor/w6-ci-v1` → `main`）；**Actions 執行記錄**：run [`#28696148596`](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28696148596)，`status=completed`／`conclusion=success`（綠燈），lint 步驟已完整跑過（本機重現同一份 357/51 報告）且未影響整體結果
 - **W6-B（Hook 條件呼叫熱修，隨 CI 盤點一併發現的真風險）** — 狀態：**已驗收**（本機 `npm run typecheck`／`npm run test` 全過；新增回歸測試已驗證「復原舊碼會失敗、修復後會通過」）— commit：`3e84603`；merge commit：`102df30`（`cursor/w6-hook-order-fix` → `main`）
 - **Playwright 測試模式** — 狀態：規劃中 — commit：—
@@ -623,3 +623,22 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 - **待辦**：查清 GoTrue 對已使用過的快取權杖的淘汰時機與機制；短期可能對策為 Playwright 全域 setup 改「每個需換人的測試檔各自產生獨立 `storageState`」而非全專案共用一份，或在 `switchToTestPersona` 內加重試。列為新待辦 **OBS-5**，非本輪 `dev-switch-user` 核心修復範圍（核心症狀——換人靜默失敗且誤判通過——已解決；殘留問題是「換人明確失敗」而非「靜默誤判」，風險等級較低）。
 
 **驗收**：`npm run typecheck`／`npm run test`（184 項）皆過；本代理獨立於分支預覽以 Playwright 實測（非僅採信子代理回報）。**核准併入 main，merge commit `e1ed9373`**。
+
+## 13. Vitest 批次 2：XLIFF harness（2026-07-05，分支 `test/w6-vitest-xliff-harness-batch2`）
+
+**背景**：`cat-tool/js/xliff-tag-pipeline.js` 是 CRITICAL 模組（tag 擷取與匯出還原），此前完全沒有自動化測試；`testing.mdc` 規則 2 明文要求 XLIFF 家族修改須測 mqxliff／sdlxliff／一般 XLIFF 三格式。與擁有者確認兩項開工決策：(1) 用 `Function` 建構子在 jsdom 內載入原始 IIFE 原始碼（不改動 CRITICAL 原始碼本體、不做雙軌匯出改寫）；(2) 本輪先建 3 份最小合成樣本驗證核心不變量，既有 bug-report 語料回填列為後續待辦（範圍可控，避免一次拉大戰線）。
+
+**產出**：
+
+- [`tests/helpers/xliff-tag-pipeline.ts`](../tests/helpers/xliff-tag-pipeline.ts)：讀檔＋`new Function("window","document",code)` 執行，掛回 `window.CatToolXliffTags`；另提供 `parseXmlDoc`／`serializeNode`／`firstElementByLocalName` 小工具。
+- [`tests/fixtures/xliff/`](../tests/fixtures/xliff/) 三份最小合成樣本：`minimal-generic.xliff`（bpt/ept 配對＋ph 單獨＋g 配對）、`minimal.sdlxliff`（結構 `<g>` 包 `<mrk>`，`<mrk>` 內另有真實行內 `<g>` 配對）、`minimal.mqxliff`（bpt/ept id 配對＋`ph displaytext="{0}"`）。
+- [`tests/xliff-tag-pipeline.test.ts`](../tests/xliff-tag-pipeline.test.ts)（3 項測試）：每格式驗證 `extractTaggedText` → `replacePlaceholders` → `setXmlTargetContent` 寫回 → 再次 `extractTaggedText` 的核心不變量（文字與標籤形狀須與第一次擷取一致，對應「匯出後重新匯入不失真」）；sdlxliff 額外驗證 `transparentG` 兩層語意（source 直接子 `<g>` 為結構包裝需 `transparentG:true` 略過、`<mrk>` 內才是真實行內標籤需 `transparentG:false`，§3.1）與匯出只填 `<mrk>` 不動外層結構（§3.3）；mqxliff 額外驗證 memoQ `{0}` 0-based 顯示格式保留（§4.1）。
+- `vitest.config.ts` 的 `include` 補上 `tests/**/*.test.ts`（與 Playwright 專用的 `*.spec.ts` 副檔名不同，不會互相誤跑）。
+
+**過程中發現並修正的測試設計問題**：初版測試對 `replacePlaceholders` 還原後的字串做逐字比對，實測發現失敗——原因是 fixture 的 `<xliff>` 根層宣告了預設 `xmlns`（真實 mqxliff／sdlxliff 皆如此，已用既有樣本 [`tests/fixtures/Test_Small.mqxliff`](../tests/fixtures/Test_Small.mqxliff) 對照確認非本次假設有誤），單獨序列化繼承此預設命名空間的子元素時，規格要求補上 `xmlns="…"` 才能讓該片段獨立解析有效，這是正確行為而非缺陷。修正：拿掉還原字串的逐字比對，改為只驗證「寫回→再擷取」語意層不變量，避免測試綁死於序列化細節而變得脆弱。
+
+**驗證測試有效性**：暫時打斷 `<ept>` 的 `id`→`bptMap` 配對邏輯（改成一律 `++counter`），重跑測試——一般 XLIFF／mqxliff 兩項如預期轉紅（`{/1}`→`{/2}` 之類的配對錯位），sdlxliff 因該樣本未用 bpt/ept 故不受影響、正確維持綠燈；還原程式碼後三項全部轉綠。確認測試會在真實回歸時失敗，不是空殼斷言。
+
+**驗收**：`npm run typecheck`／`npm run test`（195 項全過，含新增 3 項）／`npx eslint`（新增檔案 0 error）／`npm run check:encoding` 皆過；新增 diff 全文 grep 四項禁用手法（`as unknown as`／`as any`／`@ts-expect-error`／`eslint-disable`）= 0 處。**核准併入 main，merge commit `b245c285`**（CI [run #28730610071](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28730610071) 綠燈）。
+
+**待辦（不擋此輪結案）**：既有已驗收 bug-report 語料（Bug #9～#12 等 mq:rxt／bpt-ph 型別不符樣本）回填進 `tests/fixtures/` 成 regression corpus，列為 Vitest 後續批次。
