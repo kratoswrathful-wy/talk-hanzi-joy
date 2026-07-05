@@ -124,6 +124,8 @@
 - **Phase 4**：前台選單改讀 registry、BYOK 收斂
 - **Phase 5**：AI job log 快照
 
+**Phase 3 規格**（2026-07-05）：[`docs/CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md)
+
 ---
 
 ## 6. commit 對照
