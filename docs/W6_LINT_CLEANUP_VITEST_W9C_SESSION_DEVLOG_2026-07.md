@@ -1,4 +1,4 @@
-狀態：實作中（W6 lint 批次 1–4 已驗收併 main；階段三 Vitest 第一批已完成撰寫、待驗收併入；W9-C C3 已驗收併 main）
+狀態：實作中（W6 lint 批次 1–4 已驗收併 main；階段三 Vitest 第一批已驗收併 main；W9-C C3 已驗收併 main）
 
 # W6 Lint 清零＋階段三 Vitest 第一批＋W9-C C3 開發紀錄（2026-07-04 單一聊天室彙整）
 
@@ -15,7 +15,7 @@
 | 1 | W6 lint 批次 1：`CatToolPage.tsx` + `TranslatorFeeDetail.tsx` | `cursor/w6-lint-batch1-cattoolpage-fee` | merge `fbca22e` | 已驗收 |
 | 2 | W6 lint 批次 2：`client-invoice-store.ts` + `CommentInput.tsx` | `cursor/w6-lint-batch2-clientinvoice-commentinput` | 修正 `7080927`；merge `d3cf299` | 已驗收 |
 | 3 | W6 lint 批次 3：`PermissionsPage.tsx` + `case-store.ts` + 其他小檔 | `cursor/w6-lint-batch3-permissions-casestore` | merge `270ab72`（含新 CI 編碼防線 `a48279e`） | 已驗收 |
-| 4 | 階段三 Vitest 第一批：5 個 `src/lib/*.ts` 純函式、90 項測試 | `test/w6-vitest-lib-batch1-permission-filter`（另有較早的 `cursor/w6-phase3-vitest-batch1-fee-permission-logic`，內容相同性質，未使用） | 實作 `7bbc3dd` | **已完成撰寫，尚未驗收併入 main** |
+| 4 | 階段三 Vitest 第一批：5 個 `src/lib/*.ts` 純函式、90 項測試 | `test/w6-vitest-lib-batch1-permission-filter`（另有較早的 `cursor/w6-phase3-vitest-batch1-fee-permission-logic`，內容相同性質，未使用） | 直接進 `main`：`7bbc3dd8` | **已驗收併入 main**（更正：先前記載「尚未併入」已過時，`git branch --contains 7bbc3dd8` 確認在 `main` 歷史內） |
 | 5 | W9-C C3：CAT 匯入檔案 input 對自動化可及 | `feature/w9c-cat-import-testid-bridge` | 實作 `c0cdfd3`；merge `4316fbd` | 已驗收（Chrome 實測通過） |
 | 6 | W6 lint 批次 4：`src/stores` 剩餘（`fee-store.ts`／`internal-notes-store.ts`／`invoice-store.ts`／`icon-library-store.ts`／`select-options-store.ts`／`settings-persistence.ts`／`ui-button-style-store.ts`／`undo-store.ts`）＋ `src/hooks`（8 檔） | `fix/w6-lint-cleanup-batch4` | merge `4c98fbd2`；**退回重修** `3fd7e6b9`（同日直接推 `main`） | 已驗收（含一次退回重修，見 §9） |
 
@@ -187,9 +187,9 @@ expect(result).toEqual({ ok: false, reason: expect.stringContaining("已向譯�
 
 **教訓**：寫時間視窗相關的邊界測試時，**先明確算出窗口常數的實際數值再決定測試用的時間戳**，不要憑直覺塞一個「看起來夠大」的數字；否則測試綠燈但完全沒測到目標分支。
 
-### 6.4 目前狀態
+### 6.4 目前狀態（更正，2026-07-05）
 
-已在本機驗證：`npm run typecheck`／`npm run test`（新增 90 項全過）／`npm run check:encoding`／`npx eslint`（0 error）；四項禁用手法在新增 diff 中 grep 0 處。**尚未取得驗收方確認、尚未併入 `main`**——main 上目前 `src/lib/` 底下沒有這些測試檔（可用 `git log --oneline -1` 對照 `4316fbd`（W9-C 併入後的 main）確認）。下一步待擁有者或 Fable 5 驗證後再由代理直接 `merge main`。
+已在本機驗證：`npm run typecheck`／`npm run test`（新增 90 項全過）／`npm run check:encoding`／`npx eslint`（0 error）；四項禁用手法在新增 diff 中 grep 0 處。**已併入 `main`**（`7bbc3dd8`，直接接續 lint 批次 3 之後的 `main` 歷史，無獨立 merge commit）——先前記載「尚未取得驗收方確認、main 上沒有這些測試檔」為撰寫當下的即時狀態快照，之後已完成併入，本節僅更正紀錄使其與現況一致。
 
 ---
 

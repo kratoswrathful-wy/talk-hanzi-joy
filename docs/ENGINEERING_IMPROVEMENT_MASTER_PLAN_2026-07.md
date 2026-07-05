@@ -162,6 +162,8 @@ flowchart LR
 ### 階段三
 
 - **vitest 基礎** — 狀態：**已驗收**（乾淨環境實測 `main@5e0ac5e`：`npm run test` 4 檔 21 項全過；驗收方：Fable 後任，2026-07-04）— commit：—（既有基礎，無新 commit）
+- **vitest 第一批（`src/lib` 純函式，6 檔 90 項）** — 狀態：**已驗收併入 main**（`edit-log-permission-filter`／`fee-finalize-eligibility`／`ai-agent-array-merge`／`edit-log-coalesce`／`fee-field-locks`／`generate-case-fees`；過程細節見 [DEVLOG](W6_LINT_CLEANUP_VITEST_W9C_SESSION_DEVLOG_2026-07.md) §6）— commit：`7bbc3dd8`
+- **vitest 第二批（XLIFF harness）** — 狀態：規劃中 — commit：—
 - **W6（CI 第一版）** — 狀態：**已落地待驗收**（GitHub Actions：push main + PR 觸發，typecheck／test 擋關，lint `continue-on-error` 暫不擋關；本機 `npm run lint` 現存 357 error／51 warning，主要為既有 `no-explicit-any`，清零策略見下方 W6-C 評估）— commit：`7f8117b`；merge commit：`70a0bc8`（`cursor/w6-ci-v1` → `main`）；**Actions 執行記錄**：run [`#28696148596`](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28696148596)，`status=completed`／`conclusion=success`（綠燈），lint 步驟已完整跑過（本機重現同一份 357/51 報告）且未影響整體結果
 - **W6-B（Hook 條件呼叫熱修，隨 CI 盤點一併發現的真風險）** — 狀態：**已驗收**（本機 `npm run typecheck`／`npm run test` 全過；新增回歸測試已驗證「復原舊碼會失敗、修復後會通過」）— commit：`3e84603`；merge commit：`102df30`（`cursor/w6-hook-order-fix` → `main`）
 - **Playwright 測試模式** — 狀態：規劃中 — commit：—
