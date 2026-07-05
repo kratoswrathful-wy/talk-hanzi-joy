@@ -1,4 +1,4 @@
-狀態：規劃中
+狀態：Phase 3A 實作中（2026-07-05）；D1／D8 已定案
 
 # CAT AI Model Registry Phase 3 — 管理 UI 規格（2026-07）
 
@@ -313,15 +313,17 @@ sequenceDiagram
 
 採 **方案 A′**（React 管理頁 + CAT 入口連結）。子階段可獨立 merge、獨立驗收。
 
-### Phase 3A — 唯讀模型列表（executive）
+### Phase 3A — 唯讀模型列表（executive）— **實作中（PR Phase 3A）**
 
 | 項目 | 內容 |
 |---|---|
 | **目的** | executive 看見全部 options + provider 可用性 + capability 提示 |
-| **修改檔案** | `CatAiModelRegistryPage.tsx`、`admin-queries.ts`、`model-capabilities.ts`、路由、vitest |
+| **路由** | **`/settings/cat-ai-models`**（D8 已定案） |
+| **修改檔案** | `CatAiModelRegistryPage.tsx`、`list-registry-options.ts`、`registry-display.ts`、`model-capabilities.ts`、`route-access.ts`、`App.tsx` 路由、`AppSidebar.tsx` executive 入口、vitest |
 | **驗收** | executive 可見 ≥70 列；pm/member 路由拒絕；表格含 gpt-5.5 default 標記與 temperature 提示 |
 | **風險** | 低 |
 | **production DB 寫入** | 否 |
+| **CAT iframe 入口** | **Phase 3A 不做**（留 Phase 3E） |
 
 ### Phase 3B — 文案編輯
 
@@ -417,16 +419,23 @@ sequenceDiagram
 
 ## 9. 風險與待決策
 
+### 已定案（2026-07-05）
+
+| # | 決策 | 定案 |
+|---|---|---|
+| D1 | **UI 位置** | **A′** — React executive 管理頁（`/settings/cat-ai-models`）+ CAT「AI 管理」入口（Phase 3E）；iframe **不做**完整 CRUD |
+| D8 | **路由路徑** | **`/settings/cat-ai-models`** |
+
+### 仍待決策
+
 | # | 待決策 | 建議 |
 |---|---|---|
-| D1 | **UI 位置**：純 cat-tool vs React vs A′ | **A′**（CAT 入口 + React 頁） |
 | D2 | **Phase 3 是否含 sync 按鈕** | **含（3D）**；production 執行仍 **PM 核准** |
 | D3 | **tier／use_case／sort_order 是否 Phase 3 可編** | **3A–3B 不做**；3C 後 optional 子 PR |
 | D4 | **audit log** | Phase 3 **不做**；若需合規再加 migration |
 | D5 | **先補 gpt-5.5 文案** | **建議 3B 第一筆驗收資料**（可在 3B merge 後立即填） |
 | D6 | **成本提醒文案** | 設 default 確認框必含；gpt-5.5 vs mini 對照一句話 |
 | D7 | **set-default 原子性** | 先兩步 update + 測試；有競態再 migration RPC |
-| D8 | **路由路徑** | `/settings/cat-ai-models` vs `/cat/admin/models` — 請 PM 選擇 |
 
 ### 風險登記
 
