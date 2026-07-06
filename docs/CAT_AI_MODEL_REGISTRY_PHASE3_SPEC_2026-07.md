@@ -39,13 +39,14 @@
 
 ### 後續 Phase 3 新工項（規劃中）
 
-**Phase 3B′ — CAT AI 設定精選模型選單**（名稱待定）：
+**Phase 3B′ — CAT AI 設定精選模型選單**（詳細規格見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)）：
 
 - 讀取 `fetchEnabledCatAiModelOptions()`（`enabled=true` only）
 - 顯示 `display_name_zh`／`short_label_zh`／`usage_hint_zh`
 - 預設選中 `is_default=true`（gpt-5.5）
 - GPT-5.5 family temperature 提示沿用 `model-capabilities.ts`
 - **不做** CRUD、sync 按鈕、70 列表格
+- **2026-07-06**：production read-only audit 完成；4 候選皆存在；目前僅 2 個 enabled；文案多數 null
 
 ---
 
@@ -61,7 +62,7 @@
 | GPT-5.5 temperature hotfix | ✅ merge `ab4b9005`（PR #7）；production smoke 通過 |
 | Phase 2 收尾文件 | ✅ merge `95cb9c37`（PR #8） |
 
-### production registry 現況（2026-07-05）
+### production registry 現況（2026-07-06 audit）
 
 | 項目 | 值 |
 |---|---|
@@ -69,7 +70,10 @@
 | `is_default=true` | `gpt-5.5`（全表恰好 1 筆） |
 | `ai_provider_models` | 74 列 |
 | `cat_ai_model_options` | 70 列 |
-| gpt-5.5 文案 | `usage_hint_zh`／`short_label_zh` 仍為 null |
+| PM 精選待啟用 | `gpt-5.4-mini`、`gpt-4.1`（存在、`enabled=false`） |
+| 文案 | gpt-5.5／gpt-5.4-mini／gpt-4.1 的 short／usage 仍 null；gpt-4.1-mini 已有 |
+
+完整 audit 表見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md) §1。
 
 ### PM 決策（已採納）
 
