@@ -1391,7 +1391,7 @@ function FeeRow({
           className="px-2 py-3 text-center cursor-pointer select-none"
           onClick={(e) => {
             e.stopPropagation();
-            onSelect(fee.id, e as unknown as React.MouseEvent);
+            onSelect(fee.id, e);
           }}
         >
           <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />

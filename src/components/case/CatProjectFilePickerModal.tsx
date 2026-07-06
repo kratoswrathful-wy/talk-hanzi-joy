@@ -79,15 +79,14 @@ export function CatProjectFilePickerModal({
     }
     setLoadingFiles(true);
     try {
-      // cat_files.env 為新欄位（尚未進 generated types），用 as any 避免型別過深推導。
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("cat_files")
         .select("id, name, related_lms_case_id, related_lms_case_title")
         .eq("project_id", projectId)
         .eq("env", getEnvironment())
         .order("name");
       if (error) throw error;
-      setFiles((data ?? []) as unknown as CatFileOption[]);
+      setFiles((data ?? []) as CatFileOption[]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       toast({ title: "無法載入檔案清單", description: msg, variant: "destructive" });

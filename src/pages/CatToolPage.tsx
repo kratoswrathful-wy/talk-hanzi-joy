@@ -733,15 +733,20 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     );
   }, [isPmOrAbove, isTranslatorOnly, user]);
 
-  // Re-send when meaningful auth fields change — omit sendIdentity/sendAssignments deps so
-  // token refresh / object reference churn does not spam the iframe postMessage.
+  // Re-send when meaningful auth fields change — 用 ref 存最新版本的三個函式，讓下方
+  // effect 只在下列原始型別真正改變時觸發，不因 token refresh／函式參考變動而重發。
+  const sendIdentityRef = useRef(sendIdentity);
+  sendIdentityRef.current = sendIdentity;
+  const sendAssignmentsRef = useRef(sendAssignments);
+  sendAssignmentsRef.current = sendAssignments;
+  const sendAssignableUsersRef = useRef(sendAssignableUsers);
+  sendAssignableUsersRef.current = sendAssignableUsers;
   useEffect(() => {
-    sendIdentity();
+    sendIdentityRef.current();
     if (mode === "team") {
-      void sendAssignments();
-      void sendAssignableUsers();
+      void sendAssignmentsRef.current();
+      void sendAssignableUsersRef.current();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- primitives above drive when to resync iframe
   }, [
     mode,
     user?.id,

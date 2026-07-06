@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,14 +133,20 @@ export default function PageTemplateEditorPage() {
   const [enabledFields, setEnabledFields] = useState<Set<string>>(new Set());
   const [fieldValues, setFieldValues] = useState<Record<string, TemplateFieldValue>>({});
 
+  // 故意只在 template.id 變動時重新初始化（避免 store 因 realtime 更新同一筆範本時
+  // 覆寫使用者正在編輯的內容）；用 ref 讀最新 template 內容，不需列入 deps。
+  const templateRef = useRef(template);
+  templateRef.current = template;
+
   // Initialize from template
   useEffect(() => {
-    if (!template) return;
-    setTemplateName(template.name);
-    const enabled = new Set(Object.keys(template.fieldValues));
+    const t = templateRef.current;
+    if (!t) return;
+    setTemplateName(t.name);
+    const enabled = new Set(Object.keys(t.fieldValues));
     setEnabledFields(enabled);
-    setFieldValues({ ...template.fieldValues });
-  }, [template?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    setFieldValues({ ...t.fieldValues });
+  }, [template?.id]);
 
   if (!template) {
     return (

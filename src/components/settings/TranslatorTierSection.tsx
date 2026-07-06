@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -342,23 +342,28 @@ export function TranslatorTierSection() {
   }, [modalEditValue, updateTierRow]);
 
   const billingUnits = buOptions.map((o) => o.label);
-  const groups: TierGroup[] = [];
-  const seenGroups = new Set<string>();
-  for (const tier of tiers) {
-    if (seenGroups.has(tier.groupId)) continue;
-    seenGroups.add(tier.groupId);
-    const groupTiers = tiers.filter((t) => t.groupId === tier.groupId);
-    const taskTypes = [...new Set(groupTiers.map((t) => t.taskType))];
-    const rowMap = new Map<string, TranslatorTier>();
-    for (const t of groupTiers) {
-      const rk = `${t.minPrice}::${t.maxPrice}::${t.translatorPrice}`;
-      if (!rowMap.has(rk)) rowMap.set(rk, t);
+  // 用 useMemo 讓 groups 參考在 tiers／uncommittedIds 不變時保持穩定，下方兩個 effect
+  // 才能把 groups 本身列為 deps（滿足 exhaustive-deps）而不會每次 render 都誤觸發。
+  const groups: TierGroup[] = useMemo(() => {
+    const out: TierGroup[] = [];
+    const seenGroups = new Set<string>();
+    for (const tier of tiers) {
+      if (seenGroups.has(tier.groupId)) continue;
+      seenGroups.add(tier.groupId);
+      const groupTiers = tiers.filter((t) => t.groupId === tier.groupId);
+      const taskTypes = [...new Set(groupTiers.map((t) => t.taskType))];
+      const rowMap = new Map<string, TranslatorTier>();
+      for (const t of groupTiers) {
+        const rk = `${t.minPrice}::${t.maxPrice}::${t.translatorPrice}`;
+        if (!rowMap.has(rk)) rowMap.set(rk, t);
+      }
+      const committedRows = [...rowMap.values()].filter((t) => !uncommittedIds.has(t.id));
+      const uncommittedRows = [...rowMap.values()].filter((t) => uncommittedIds.has(t.id));
+      const rows = [...committedRows.sort((a, b) => a.minPrice - b.minPrice), ...uncommittedRows];
+      out.push({ groupId: tier.groupId, taskTypes, billingUnit: tier.billingUnit, rows });
     }
-    const committedRows = [...rowMap.values()].filter((t) => !uncommittedIds.has(t.id));
-    const uncommittedRows = [...rowMap.values()].filter((t) => uncommittedIds.has(t.id));
-    const rows = [...committedRows.sort((a, b) => a.minPrice - b.minPrice), ...uncommittedRows];
-    groups.push({ groupId: tier.groupId, taskTypes, billingUnit: tier.billingUnit, rows });
-  }
+    return out;
+  }, [tiers, uncommittedIds]);
 
   // Re-validate when modal is open
   useEffect(() => {
@@ -370,8 +375,7 @@ export function TranslatorTierSection() {
       setErrorTierIds(errors);
       if (Object.keys(errors).length === 0) { setErrorModalOpen(false); setErrorGroupId(null); }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiers, errorModalOpen, errorGroupId]);
+  }, [groups, uncommittedIds, errorModalOpen, errorGroupId]);
 
   // Validate all groups on tier change
   useEffect(() => {
@@ -386,8 +390,7 @@ export function TranslatorTierSection() {
         break;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiers, errorModalOpen]);
+  }, [groups, uncommittedIds, errorModalOpen]);
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 

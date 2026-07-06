@@ -210,7 +210,7 @@ export default function ColorPicker({
     ctx.fillRect(0, 0, w, h);
   }, [showWheel, hsv[0], hsv[1]]);
 
-  const handleWheelInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleWheelInteraction = useCallback((e: { clientX: number; clientY: number }) => {
     const canvas = wheelRef.current!;
     const rect = canvas.getBoundingClientRect();
     const scale = canvas.width / rect.width;
@@ -230,7 +230,8 @@ export default function ColorPicker({
     onChange(hex);
   }, [hsv, onChange]);
 
-  const handleSatSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  // 用與 startDrag 一致的結構型別，讓 React 合成事件與 window 原生 mousemove 事件皆可直接傳入。
+  const handleSatSliderInteraction = useCallback((e: { clientX: number; clientY: number }) => {
     const canvas = satSliderRef.current!;
     const rect = canvas.getBoundingClientRect();
     const y = e.clientY - rect.top;
@@ -242,7 +243,7 @@ export default function ColorPicker({
     onChange(hex);
   }, [hsv, onChange]);
 
-  const handleValSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleValSliderInteraction = useCallback((e: { clientX: number; clientY: number }) => {
     const canvas = valSliderRef.current!;
     const rect = canvas.getBoundingClientRect();
     const y = e.clientY - rect.top;
@@ -254,9 +255,9 @@ export default function ColorPicker({
     onChange(hex);
   }, [hsv, onChange]);
 
-  const startDrag = useCallback((handler: (e: React.MouseEvent<HTMLCanvasElement>) => void) => (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const startDrag = useCallback((handler: (e: { clientX: number; clientY: number }) => void) => (e: React.MouseEvent<HTMLCanvasElement>) => {
     handler(e);
-    const onMove = (ev: MouseEvent) => handler(ev as unknown as React.MouseEvent<HTMLCanvasElement>);
+    const onMove = (ev: MouseEvent) => handler(ev);
     const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);

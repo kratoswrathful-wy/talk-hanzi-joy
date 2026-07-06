@@ -31,7 +31,26 @@ interface DbInvoice {
   payments: Json;
   comments?: Json;
   edit_log_started_at?: string | null;
-  edit_logs?: SimplePersistedLog[] | null;
+  edit_logs?: Json | null;
+}
+
+function editLogsFromJson(raw: Json | null | undefined): SimplePersistedLog[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: SimplePersistedLog[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    const o = x as Record<string, Json>;
+    if (typeof o.id !== "string" || typeof o.changedBy !== "string") continue;
+    if (typeof o.description !== "string" || typeof o.timestamp !== "string") continue;
+    out.push({
+      id: o.id,
+      changedBy: o.changedBy,
+      description: o.description,
+      timestamp: o.timestamp,
+      ...(typeof o.fieldKey === "string" ? { fieldKey: o.fieldKey } : {}),
+    });
+  }
+  return out;
 }
 
 function paymentsFromJson(raw: Json): PaymentRecord[] {
@@ -74,7 +93,7 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     feeIds,
     payments: paymentsFromJson(row.payments),
     editLogStartedAt: row.edit_log_started_at || undefined,
-    edit_logs: Array.isArray(row.edit_logs) ? row.edit_logs : undefined,
+    edit_logs: editLogsFromJson(row.edit_logs),
   };
 }
 
@@ -161,7 +180,7 @@ export const invoiceStore = {
       }
     }
 
-    invoices = (invData as unknown as DbInvoice[]).map((row) =>
+    invoices = (invData as DbInvoice[]).map((row) =>
       dbToApp(row, feeMap.get(row.id) || [])
     );
     loaded = true;
