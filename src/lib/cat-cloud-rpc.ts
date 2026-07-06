@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import { getEnvironment } from "@/lib/environment";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
+import { fetchEnabledCatAiModelOptions } from "@/lib/cat-ai-model-registry/list-registry-options";
+import { mapEnabledModelOptionsToRpc } from "@/lib/cat-ai-model-registry/rpc-enabled-models";
 
 type RpcPayload = Record<string, any>;
 
@@ -2095,6 +2097,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .eq("id", payload.id);
       if (error) throw error;
       return true;
+    }
+    case "db.listEnabledCatAiModelOptions": {
+      const rows = await fetchEnabledCatAiModelOptions();
+      return mapEnabledModelOptionsToRpc(rows);
     }
     case "db.getAiSettings": {
       const { data, error } = await supabase

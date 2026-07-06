@@ -57,3 +57,19 @@ export function pickDefaultModelOption<T extends { model_id: string; is_default:
   if (rows.length === 0) return undefined;
   return rows.find((row) => row.is_default) ?? rows[0];
 }
+
+/**
+ * 保留已存 model（若在 enabled 清單內）；否則 fallback registry default（gpt-5.5）。
+ * 不自動寫入 cat_ai_settings。
+ */
+export function resolveSavedModelId(
+  savedModel: string | null | undefined,
+  options: Array<{ model_id: string; is_default: boolean }>,
+  fallbackModelId = "gpt-5.5",
+): string {
+  const normalized = String(savedModel ?? "").trim();
+  if (normalized && options.some((row) => row.model_id === normalized)) {
+    return normalized;
+  }
+  return pickDefaultModelOption(options)?.model_id ?? fallbackModelId;
+}

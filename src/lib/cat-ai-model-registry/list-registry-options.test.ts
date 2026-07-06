@@ -5,6 +5,7 @@ import {
   formatNullableZh,
   getRegistryRowFlags,
   pickDefaultModelOption,
+  resolveSavedModelId,
   sortRegistryRows,
 } from "./registry-display";
 
@@ -16,6 +17,23 @@ describe("filterEnabledModelOptions", () => {
     ]);
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.model_id).toBe("gpt-5.5");
+  });
+});
+
+describe("resolveSavedModelId", () => {
+  const options = [
+    { model_id: "gpt-5.5", is_default: true },
+    { model_id: "gpt-4.1", is_default: false },
+    { model_id: FALLBACK_MODEL_ID, is_default: false },
+  ];
+
+  it("keeps saved model when it is in enabled list (gpt-4.1)", () => {
+    expect(resolveSavedModelId("gpt-4.1", options)).toBe("gpt-4.1");
+  });
+
+  it("falls back to registry default when saved model is not enabled", () => {
+    expect(resolveSavedModelId("gpt-4o", options)).toBe("gpt-5.5");
+    expect(resolveSavedModelId("", options)).toBe("gpt-5.5");
   });
 });
 
@@ -145,6 +163,16 @@ describe("registry display helpers", () => {
     });
     expect(fallbackFlags.isFallback).toBe(true);
     expect(fallbackFlags.omitTemperature).toBe(false);
+
+    const proFlags = getRegistryRowFlags({
+      model_id: "gpt-5.5-pro",
+      enabled: true,
+      is_default: false,
+      usage_hint_zh: "hint",
+      short_label_zh: "最高品質",
+      providerAvailable: true,
+    });
+    expect(proFlags.omitTemperature).toBe(true);
   });
 
   it("formatNullableZh does not crash on null", () => {

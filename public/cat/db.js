@@ -2084,6 +2084,14 @@ const DBService = {
         } catch (_) { /* ignore */ }
     },
 
+    /** 精選模型（enabled=true）；offline 使用靜態 manifest。 */
+    async listEnabledCatAiModelOptions() {
+        if (typeof window !== 'undefined' && window.CatAiModelPicker && Array.isArray(window.CatAiModelPicker.OFFLINE_MANIFEST)) {
+            return window.CatAiModelPicker.OFFLINE_MANIFEST.slice();
+        }
+        return [];
+    },
+
     // ---- AI Project Settings（每專案 AI 指令：已勾選準則 ID、特殊指示）----
     async getAiProjectSettings(projectId) {
         if (!projectId) return null;
@@ -2503,6 +2511,7 @@ const DBService = {
     DBService.restoreAiCategoryTag = async (id) => rpc('db.restoreAiCategoryTag', { id });
     DBService.getAiSettings = async () => rpc('db.getAiSettings');
     DBService.saveAiSettings = async (settings) => rpc('db.saveAiSettings', { settings });
+    DBService.listEnabledCatAiModelOptions = async () => rpc('db.listEnabledCatAiModelOptions');
     DBService.getAiProjectSettings = async (projectId) => rpc('db.getAiProjectSettings', { projectId });
     DBService.saveAiProjectSettings = async (projectId, patch) => rpc('db.saveAiProjectSettings', { projectId, patch });
     DBService.getAiUserBatchPrefs = async (projectId, userId) => rpc('db.getAiUserBatchPrefs', { projectId, userId });
