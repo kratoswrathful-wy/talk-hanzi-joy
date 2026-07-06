@@ -1,8 +1,8 @@
-狀態：規劃中（2026-07-06 audit + 規格；**未實作**）
+狀態：Phase 3B′ 精選模型選單已實作（2026-07-06）；production enabled=5；待 merge PR
 
 # CAT AI Model Registry Phase 3B′ — CAT 精選模型選單規格
 
-背景：PR #11（`941c5dd8`）已 merge，Phase 3A registry 管理頁 pivot rollback 完成。PM 決策改在 CAT「AI 管理／AI 設定」提供**精選模型選單**（約 4 個 `enabled=true`），不做完整 registry 管理頁、不顯示 70 筆草稿。
+背景：PR #11（`941c5dd8`）已 merge，Phase 3A registry 管理頁 pivot rollback 完成。PM 決策改在 CAT「AI 管理／AI 設定」提供**精選模型選單**（`enabled=true` only）；**2026-07-06 production** 已啟用 **5** 個精選模型（含 gpt-5.5-pro）。不做完整 registry 管理頁、不顯示 70 筆草稿。
 
 上層索引：[`CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md`](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md)、Phase 3 總規 [`CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md) §0。
 

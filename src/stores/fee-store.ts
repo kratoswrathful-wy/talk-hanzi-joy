@@ -310,7 +310,7 @@ async function requeryFeeFromView(id: string) {
     }
     return;
   }
-  const updated = dbToApp(data as unknown as DbFee);
+  const updated = dbToApp(data as DbFee);
   if (fees.some((f) => f.id === updated.id)) {
     fees = fees.map((f) => (f.id === updated.id ? updated : f));
   } else {
@@ -381,7 +381,7 @@ export const feeStore = {
 
     if (seq !== loadSeq) return { error: null };
     if (!error && data) {
-      fees = (data as unknown as DbFee[]).map(dbToApp);
+      fees = (data as DbFee[]).map(dbToApp);
       loaded = true;
       notify();
     }

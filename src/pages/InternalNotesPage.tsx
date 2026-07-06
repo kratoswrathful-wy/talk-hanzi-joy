@@ -985,7 +985,7 @@ export default function InternalNotesPage() {
                     className="w-[40px] px-2 py-1.5 text-center cursor-pointer select-none"
                     onClick={(e) => {
                       e.stopPropagation();
-                      rowSelection.handleClick(note.id, e as unknown as React.MouseEvent);
+                      rowSelection.handleClick(note.id, e);
                     }}
                   >
                     <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />
