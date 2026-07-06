@@ -25,7 +25,7 @@ import type { TranslatorFee, ClientTaskItem } from "@/data/fee-mock-data";
 import type { Json } from "@/integrations/supabase/types";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useCurrencies } from "@/stores/currency-store";
-import { type ClientInvoiceAdjustmentLine, type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
+import { type ClientInvoice, type ClientInvoiceAdjustmentLine, type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -132,6 +132,90 @@ interface CommentEntry {
 
 type EditLogEntry = SimplePersistedLog;
 
+/** comments／edit_logs 為持久化用 JSONB 欄位（不在 ClientInvoice 正式型別內），
+ * 逐欄位重建為 JSON 相容純值，取代整包 `as unknown as Json`。 */
+function commentsToJson(comments: CommentEntry[]): Json {
+  return comments.map((c) => ({
+    id: c.id,
+    author: c.author,
+    content: c.content,
+    ...(c.imageUrls ? { imageUrls: c.imageUrls } : {}),
+    ...(c.fileUrls ? { fileUrls: c.fileUrls.map((f) => ({ name: f.name, url: f.url })) } : {}),
+    ...(c.replyTo ? { replyTo: c.replyTo } : {}),
+    timestamp: c.timestamp,
+  }));
+}
+
+function editLogsToJson(logs: EditLogEntry[]): Json {
+  return logs.map((l) => ({
+    id: l.id,
+    changedBy: l.changedBy,
+    description: l.description,
+    timestamp: l.timestamp,
+    ...(l.fieldKey ? { fieldKey: l.fieldKey } : {}),
+  }));
+}
+
+function nameUrlFromJson(x: Json): { name: string; url: string } | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.name !== "string" || typeof x.url !== "string") return undefined;
+  return { name: x.name, url: x.url };
+}
+
+function commentEntryFromJson(x: Json): CommentEntry | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.author !== "string" || typeof x.content !== "string" || typeof x.timestamp !== "string") {
+    return undefined;
+  }
+  const imageUrls = Array.isArray(x.imageUrls) ? x.imageUrls.filter((u): u is string => typeof u === "string") : undefined;
+  const fileUrls = Array.isArray(x.fileUrls) ? x.fileUrls.flatMap((f) => { const p = nameUrlFromJson(f); return p ? [p] : []; }) : undefined;
+  return {
+    id: x.id,
+    author: x.author,
+    content: x.content,
+    timestamp: x.timestamp,
+    ...(imageUrls?.length ? { imageUrls } : {}),
+    ...(fileUrls?.length ? { fileUrls } : {}),
+    ...(typeof x.replyTo === "string" ? { replyTo: x.replyTo } : {}),
+  };
+}
+
+function commentEntriesFromJson(raw: unknown): CommentEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CommentEntry[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+    const entry = commentEntryFromJson(item as Json);
+    if (entry) out.push(entry);
+  }
+  return out;
+}
+
+function editLogEntryFromJson(x: Json): EditLogEntry | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.changedBy !== "string" || typeof x.description !== "string" || typeof x.timestamp !== "string") {
+    return undefined;
+  }
+  return {
+    id: x.id,
+    changedBy: x.changedBy,
+    description: x.description,
+    timestamp: x.timestamp,
+    ...(typeof x.fieldKey === "string" ? { fieldKey: x.fieldKey } : {}),
+  };
+}
+
+function editLogEntriesFromJson(raw: unknown): EditLogEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: EditLogEntry[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+    const entry = editLogEntryFromJson(item as Json);
+    if (entry) out.push(entry);
+  }
+  return out;
+}
+
 const fieldLabels: Record<string, string> = {
   title: "標題",
   invoiceNumber: "請款單編號",
@@ -229,26 +313,14 @@ export default function ClientInvoiceDetailPage() {
   }, [invoice?.createdBy]);
 
   // Initialize from invoice data
-  // 註：comments／edit_logs 不在 ClientInvoice 型別內（dbToApp 未映射此二欄），
-  // 此處以 unknown 保留既有「讀不到即略過」行為，不新增邏輯。
+  // 註：comments／edit_logs 不在 ClientInvoice 正式型別內，是 clientInvoiceStore.updateInvoice
+  // 透過物件展開（{ ...inv, ...updates }）動態附加到記憶體物件的持久化用欄位（見該檔案註解）。
+  // 以擴充交集型別單層 `as`（非 as unknown as）讀取，保留既有「讀不到即略過」行為，不新增邏輯。
   useEffect(() => {
     if (!invoice) return;
-    const rawComments = (invoice as unknown as { comments?: unknown }).comments;
-    if (Array.isArray(rawComments)) {
-      setComments((rawComments as CommentEntry[]).map((c) => ({
-        id: c.id, author: c.author, content: c.content, imageUrls: c.imageUrls, fileUrls: c.fileUrls, replyTo: c.replyTo, timestamp: c.timestamp,
-      })));
-    }
-    const rawEditLogs = (invoice as unknown as { edit_logs?: unknown }).edit_logs;
-    if (Array.isArray(rawEditLogs)) {
-      setEditLog((rawEditLogs as EditLogEntry[]).map((l) => ({
-        id: l.id,
-        changedBy: l.changedBy,
-        description: l.description,
-        timestamp: l.timestamp,
-        fieldKey: l.fieldKey,
-      })));
-    }
+    const invWithLegacyFields = invoice as ClientInvoice & { comments?: unknown; edit_logs?: unknown };
+    setComments(commentEntriesFromJson(invWithLegacyFields.comments));
+    setEditLog(editLogEntriesFromJson(invWithLegacyFields.edit_logs));
     burstMapRef.current = {};
   }, [invoice?.id]);
 
@@ -279,7 +351,7 @@ export default function ClientInvoiceDetailPage() {
         burstMap: burstMapRef.current,
       });
       burstMapRef.current = nextBurstMap;
-      if (id) clientInvoiceStore.updateInvoice(id, { edit_logs: nextLogs as unknown as Json });
+      if (id) clientInvoiceStore.updateInvoice(id, { edit_logs: editLogsToJson(nextLogs) });
       return nextLogs;
     });
   }, [id, profile]);
@@ -677,7 +749,7 @@ export default function ClientInvoiceDetailPage() {
     const updated = [...comments, newComment];
     setComments(updated);
     if (id) {
-      clientInvoiceStore.updateInvoice(id, { comments: updated as unknown as Json });
+      clientInvoiceStore.updateInvoice(id, { comments: commentsToJson(updated) });
     }
   };
 

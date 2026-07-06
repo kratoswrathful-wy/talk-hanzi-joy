@@ -1,4 +1,4 @@
-狀態：Phase 3A 已 pivot（2026-07-06）；新方向：CAT 精選模型選單（非 registry 管理頁）
+狀態：Phase 3A 已 pivot（2026-07-06）；**Phase 3B′ 已驗收**（2026-07-06）；新方向：CAT 精選模型選單（非 registry 管理頁）
 
 # CAT AI Model Registry Phase 3 — 管理 UI 規格（2026-07）
 
@@ -39,14 +39,14 @@
 
 ### 後續 Phase 3 新工項（規劃中）
 
-**Phase 3B′ — CAT AI 設定精選模型選單**（詳細規格見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)）：
+**Phase 3B′ — CAT AI 設定精選模型選單**（**已驗收**，2026-07-06；詳細規格見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)，開發紀錄見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_DEVLOG_2026-07.md)）：
 
 - 讀取 `fetchEnabledCatAiModelOptions()`（`enabled=true` only）
 - 顯示 `display_name_zh`／`short_label_zh`／`usage_hint_zh`
-- 預設選中 `is_default=true`（gpt-5.5）
+- 預設選中 `is_default=true`（gpt-5.5）；已存 `cat_ai_settings.model` 優先
 - GPT-5.5 family temperature 提示沿用 `model-capabilities.ts`
+- PR #19：直達／reload `/cat/team/ai-settings` 須 populate + executive 鎖定
 - **不做** CRUD、sync 按鈕、70 列表格
-- **2026-07-06**：production read-only audit 完成；4 候選皆存在；目前僅 2 個 enabled；文案多數 null
 
 ---
 
@@ -362,15 +362,15 @@ sequenceDiagram
 | **處置** | 移除 `/settings/cat-ai-models`、側欄入口、`CatAiModelRegistryPage`；保留 lib helper |
 | **production DB** | 未變更 |
 
-### Phase 3B′ — CAT AI 設定精選模型選單（**下一工項，規劃中**）
+### Phase 3B′ — CAT AI 設定精選模型選單（**已驗收**，2026-07-06）
 
 | 項目 | 內容 |
 |---|---|
-| **目的** | CAT iframe「AI 管理／AI 設定」只顯示 `enabled=true` 精選模型（約 4～5 個） |
-| **資料** | `fetchEnabledCatAiModelOptions()`；RLS 已允許 member 讀 enabled 列 |
-| **UI** | 模型選單 + 文案；預設 gpt-5.5；temperature 提示 |
-| **不做** | 70 列表格、CRUD、sync 按鈕 |
-| **sync:cat** | **是**（改 cat-tool AI 設定 UI） |
+| **PR** | #15 `41fba21c`、hotfix #19 `da149f74` |
+| **目的** | CAT iframe「AI 管理／AI 設定」只顯示 `enabled=true` 精選模型（production 5 個） |
+| **資料** | `fetchEnabledCatAiModelOptions()`；`CatAiModelPicker.populate` |
+| **UI** | 模型選單 + 文案；executive-only 儲存；直達 URL 經 `openAiSettingsView` |
+| **紀錄** | [`CAT_AI_MODEL_REGISTRY_PHASE3B_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_DEVLOG_2026-07.md) |
 
 ### ~~Phase 3B～3E~~（舊規格，**不再執行**；以下保留查證用）
 

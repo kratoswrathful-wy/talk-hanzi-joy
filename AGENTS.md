@@ -101,6 +101,18 @@
 - 細節與 Cursor 常駐規則：[`/.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)（`alwaysApply: true`）。
 - 除非使用者另有明確指示，否則每次完成可提交的變更後，預設流程為：**直接推送**，並依下方「變更完成並推送後的回報」結構回覆。
 
+### 推送前品質閘門（R2，2026-07-06 正式生效）
+
+推送 `main` 或準備 merge 前，**必須**本機全過下列五關（CI 同五關皆擋關）：
+
+1. `npm run typecheck`
+2. `npm run test`
+3. `npm run lint`
+4. `npm run check:encoding`（防 PowerShell 等管線把中文壓成問號）
+5. `npm run check:forbidden-casts`（非測試 `src` 檔禁止 `as unknown as` 與 `@ts-expect-error`；記名白名單除外，見 `scripts/check-forbidden-casts.mjs`）
+
+**多代理併行**：優先使用獨立 git worktree，勿共用工作目錄；無法分離時 merge 前必須 `git status` 自查，不得夾帶他人暫存或 build 產物。
+
 ### Claude AI 驗收（Slack）
 
 當專案擁有者表示**某次變更的驗收要由 Claude（或 AI）處理**（或語意相同，例如「請 Claude 驗收」「AI 驗收」）時，Cursor 代理**必須**：
