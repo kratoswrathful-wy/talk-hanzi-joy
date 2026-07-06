@@ -4422,6 +4422,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 與 WordCountEngine.DEFAULT_DISCOUNTS 一致；TM 95–100%／檔內重複可由分析 Modal 覆寫 */
     let _wcDiscounts = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00, ctx101: 0.00 };
     /** per fileId / viewId / editor fileId — 見 docs/CAT_WORD_COUNT_WORKER_AND_UI.md §6 */
+    /** W1-B: 暫停加權字數 UI；引擎保留，日常一律 raw */
+    const _WC_WEIGHTED_UI_DISABLED = true;
     const _fileProgressModeById = Object.create(null);
     const _viewProgressModeById = Object.create(null);
     const _editorProgressModeByFileId = Object.create(null);
@@ -4440,13 +4442,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _wcGetFileMode(fileId) {
+        if (_WC_WEIGHTED_UI_DISABLED) return 'raw';
         return _fileProgressModeById[String(fileId)] === 'weighted' ? 'weighted' : 'raw';
     }
     function _wcGetViewMode(viewId) {
+        if (_WC_WEIGHTED_UI_DISABLED) return 'raw';
         return _viewProgressModeById[String(viewId)] === 'weighted' ? 'weighted' : 'raw';
     }
     function _wcGetEditorModeForFile(fileId) {
         if (fileId == null || fileId === '') return 'raw';
+        if (_WC_WEIGHTED_UI_DISABLED) return 'raw';
         return _editorProgressModeByFileId[String(fileId)] === 'weighted' ? 'weighted' : 'raw';
     }
 
@@ -5610,6 +5615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (btnViewsToolbarWordCount) {
         btnViewsToolbarWordCount.addEventListener('click', async () => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             const ids = getSelectedViewIds();
             if (!ids.length) { alert('請先勾選句段集。'); return; }
             if (!currentProjectId || !wordCountModal || !wordCountTmCheckboxes) return;
@@ -5648,6 +5654,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (btnViewsToolbarSplit) {
         btnViewsToolbarSplit.addEventListener('click', async () => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             const ids = getSelectedViewIds();
             if (!ids.length) { alert('請先勾選句段集。'); return; }
             // 以句段集 segment_ids 代替 file IDs 進行拆分計算
@@ -7125,7 +7132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (disp === 'review_confirmed' && _isActingAsTranslator()) {
             showCatToast('審稿已確認，未實質編輯內容', 'info');
-            return { focusNext: false, tmOnly: true };
+            return { focusNext: true, tmOnly: true, noop: true };
         }
 
         if (disp === 'trans_confirmed' && _isActingAsReviewer()) {
@@ -9235,11 +9242,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     function syncEditorWordCountToolbarBtn() {
         const btn = document.getElementById('btnEditorWordCount');
         if (!btn) return;
+        if (_WC_WEIGHTED_UI_DISABLED) {
+            btn.style.display = 'none';
+            return;
+        }
         const ok = activeView === 'viewEditor' && !!currentProjectId && (currentSegmentsList && currentSegmentsList.length > 0);
         btn.style.display = ok ? '' : 'none';
     }
 
     async function openWordCountModalFromEditor() {
+        if (_WC_WEIGHTED_UI_DISABLED) return;
         if (!currentProjectId || !wordCountModal || !wordCountTmCheckboxes) return;
         if (activeView !== 'viewEditor' || !currentSegmentsList || !currentSegmentsList.length) {
             alert('目前沒有可統計的句段。');
@@ -9291,6 +9303,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function openWordCountModalWithSelection() {
+        if (_WC_WEIGHTED_UI_DISABLED) return;
         const ids = getSelectedProjectFileIds();
         if (!ids.length) {
             alert('請先勾選要納入分析的檔案。');
@@ -9325,6 +9338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function runWordCountAnalysis() {
+        if (_WC_WEIGHTED_UI_DISABLED) return;
         const WCE = window.WordCountEngine;
         const progEl = document.getElementById('wordCountAnalysisProgress');
         const discEl = document.getElementById('wordCountResultDisclaimer');
@@ -9847,6 +9861,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function openSplitHintModal() {
+        if (_WC_WEIGHTED_UI_DISABLED) return;
         const ids = getSelectedProjectFileIds();
         if (!ids.length) {
             alert('請先勾選檔案。');
@@ -20177,6 +20192,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
         }
         syncSelectedRowAbutmentTopClass();
+        // W1-C: non-virtual grid has no onAfterRender flush for filter anchor
+        if (_filterAnchorPending && !(window.CatVirtGrid && window.CatVirtGrid.isEnabled())) {
+            flushFilterAnchorAfterVirtRender();
+        }
     }
 
     /** Phase 2.3k：virt 換窗後為已掛載列補搜尋上色與 TB 狀態。 */
@@ -27081,8 +27100,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnToggleFileProgressMode = document.getElementById('btnToggleFileProgressMode');
     if (btnToggleFileProgressMode) {
         btnToggleFileProgressMode.textContent = '切換字數';
+        if (_WC_WEIGHTED_UI_DISABLED) btnToggleFileProgressMode.classList.add('hidden');
         _wcRefreshFileToolbarTitle();
         btnToggleFileProgressMode.addEventListener('click', async () => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             btnToggleFileProgressMode.disabled = true;
             const fl = window._lastFilesListForProject;
             const s = _wcFileListModeSummary(fl || []);
@@ -27108,8 +27129,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnToggleViewProgressMode = document.getElementById('btnToggleViewProgressMode');
     if (btnToggleViewProgressMode) {
         btnToggleViewProgressMode.textContent = '切換字數';
+        if (_WC_WEIGHTED_UI_DISABLED) btnToggleViewProgressMode.classList.add('hidden');
         _wcRefreshViewToolbarTitle();
         btnToggleViewProgressMode.addEventListener('click', async () => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             btnToggleViewProgressMode.disabled = true;
             const vs = _currentViewsList || [];
             const sum = _wcViewListModeSummary(vs);
@@ -27133,7 +27156,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnToggleEditorWordMode = document.getElementById('btnToggleEditorWordMode');
     if (btnToggleEditorWordMode) {
         btnToggleEditorWordMode.textContent = '切換字數';
+        if (_WC_WEIGHTED_UI_DISABLED) btnToggleEditorWordMode.classList.add('hidden');
         btnToggleEditorWordMode.addEventListener('click', async () => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             if (currentFileId == null) return;
             const cur = _wcGetEditorModeForFile(currentFileId);
             _editorProgressModeByFileId[String(currentFileId)] = cur === 'raw' ? 'weighted' : 'raw';
@@ -27146,6 +27171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (filesListBody && !filesListBody.dataset.wcFileProgressClick) {
         filesListBody.dataset.wcFileProgressClick = '1';
         filesListBody.addEventListener('click', async (e) => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             const cell = e.target.closest('.file-progress-cell');
             if (!cell || !filesListBody.contains(cell)) return;
             e.preventDefault();
@@ -27162,6 +27188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (viewsListBody && !viewsListBody.dataset.wcViewProgressClick) {
         viewsListBody.dataset.wcViewProgressClick = '1';
         viewsListBody.addEventListener('click', async (e) => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             const cell = e.target.closest('.view-progress-cell');
             if (!cell || !viewsListBody.contains(cell)) return;
             e.preventDefault();
@@ -27180,6 +27207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (editorProgressTrack && !editorProgressTrack.dataset.wcEditorProgressClick) {
         editorProgressTrack.dataset.wcEditorProgressClick = '1';
         editorProgressTrack.addEventListener('click', async () => {
+            if (_WC_WEIGHTED_UI_DISABLED) return;
             if (currentFileId == null) return;
             const cur = _wcGetEditorModeForFile(currentFileId);
             _editorProgressModeByFileId[String(currentFileId)] = cur === 'raw' ? 'weighted' : 'raw';
