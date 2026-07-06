@@ -838,7 +838,7 @@ export interface LmsAgentApi {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<ClientInvoice[]>;
     get: (id: string) => AgentResult<ClientInvoice>;
     create: (input: { client: string; title?: string; feeIds?: string[] }) => Promise<
-      AgentResult<{ invoice: ClientInvoice; verified: boolean }>
+      AgentResult<{ invoice: ClientInvoice; created: boolean; verified: boolean }>
     >;
     update: (id: string, patch: Record<string, unknown>) => Promise<AgentResult<ClientInvoice>>;
     delete: (id: string) => Promise<AgentResult<{ id: string }>>;
@@ -927,13 +927,31 @@ async function assertClientInvoiceWriteAccess(): Promise<AgentResult<void>> {
   return assertPmPlusFromRoles(roles);
 }
 
-async function reloadClientInvoiceFromStore(id: string): Promise<ClientInvoice | null> {
-  await clientInvoiceStore.loadInvoices();
-  return clientInvoiceStore.getInvoiceById(id) ?? null;
-}
-
 async function ensureFeesLoaded(): Promise<void> {
   if (!feeStore.isLoaded()) await feeStore.loadFees();
+}
+
+/**
+ * 【W10 clientInvoice bridge 退回修正，高危 bug 根因】
+ * 先前的「回讀驗證」是呼叫 `clientInvoiceStore.loadInvoices()` 做一次全新的
+ * 網路 SELECT，但當時 `updateInvoice`／`deleteInvoice` 是 fire-and-forget
+ * （寫入 promise 未被 await），SELECT 經常搶在 UPDATE／DELETE 送達伺服器
+ * 之前就先執行，讀回舊資料，導致「回讀不一致」對所有寫入方法恆為 true
+ * （即使資料庫其實已寫入成功）。驗收發現此為高危 bug：呼叫端誤判失敗而
+ * 重試，導致 create 產生重複請款單。
+ *
+ * 修正：store 的寫入方法已改為 async 並 await 實際的 DB 寫入（`update`／
+ * `delete` 皆帶 `.select()` 取回權威資料列，寫入完成才 resolve）。因此
+ * bridge 這裡不再需要、也不應該再觸發第二次網路 reload 來「驗證」——
+ * 只要 await 寫入方法回傳且 `error` 為 null，直接讀本地 store（此時已由
+ * 寫入方法用伺服器回傳的權威列同步過）即為可信的最新狀態，沒有競態。
+ * 「重新整理後仍在」的持久化標準改由 Playwright 的 `page.reload()` 驗證
+ * （比照 C1），不在此函式重複做網路來回。
+ */
+function describeStoreError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  return String(e);
 }
 
 const CLIENT_INVOICE_ADJUST_MODES: readonly ClientInvoiceAdjustMode[] = ["set_target", "add", "subtract"];
@@ -1170,25 +1188,31 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const clientCheck = validateScalar("clientInvoice.client", CLIENT_INVOICE_FIELDS.client, clientVal);
         if (clientCheck.ok === false) return failFrom(clientCheck);
 
+        let trimmedTitle: string | undefined;
         if (title !== undefined) {
           const titleCheck = validateScalar("clientInvoice.title", CLIENT_INVOICE_FIELDS.title, String(title));
           if (titleCheck.ok === false) return failFrom(titleCheck);
+          trimmedTitle = String(title).trim();
         }
 
         const created = await clientInvoiceStore.createInvoice(clientVal, feeIds);
-        if (!created) return fail("建立客戶請款失敗（可能無 PM 以上權限或 RLS 拒絕）");
+        if (!created) return fail("建立客戶請款失敗（可能無 PM 以上權限或 RLS 拒絕，資料庫確認未寫入）");
 
-        if (title !== undefined && String(title).trim()) {
-          clientInvoiceStore.updateInvoice(created.id, { title: String(title).trim() });
+        // 【防重複保障】INSERT 已成功、DB 已有此筆列——此後不論後續（例如
+        // 補寫 title）是否順利，一律回 ok:true + created:true，只在
+        // verified 欄位反映是否完全符合預期，禁止回 ok:false 讓呼叫端
+        // 誤判「未建立」而重試造成重複請款單。
+        let finalInvoice: ClientInvoice = created;
+        let verified = finalInvoice.client === clientVal;
+
+        if (trimmedTitle) {
+          const { error: titleErr } = await clientInvoiceStore.updateInvoice(created.id, { title: trimmedTitle });
+          const latest = clientInvoiceStore.getInvoiceById(created.id);
+          if (latest) finalInvoice = latest;
+          verified = verified && !titleErr && finalInvoice.title === trimmedTitle;
         }
 
-        const reloaded = await reloadClientInvoiceFromStore(created.id);
-        if (!reloaded) return fail("建立後重新載入請款失敗");
-        const verified =
-          reloaded.client === clientVal &&
-          (title === undefined || reloaded.title === String(title).trim());
-        if (!verified) return fail("建立後回讀不一致");
-        return ok({ invoice: reloaded, verified: true });
+        return ok({ invoice: finalInvoice, created: true, verified });
       },
 
       update: async (id, patch) => {
@@ -1198,8 +1222,11 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (!existing) return fail(`找不到客戶請款 id=${id}`);
         const validated = validateClientInvoicePatch(patch);
         if (validated.ok === false) return failFrom(validated);
-        clientInvoiceStore.updateInvoice(id, validated.data);
-        const updated = await reloadClientInvoiceFromStore(id);
+
+        const { error } = await clientInvoiceStore.updateInvoice(id, validated.data);
+        if (error) return fail(`更新失敗：${describeStoreError(error)}`);
+
+        const updated = clientInvoiceStore.getInvoiceById(id);
         return updated ? ok(updated) : fail("更新後讀取請款失敗");
       },
 
@@ -1207,9 +1234,9 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const perm = await assertClientInvoiceWriteAccess();
         if (perm.ok === false) return failFrom(perm);
         if (!clientInvoiceStore.getInvoiceById(id)) return fail(`找不到客戶請款 id=${id}`);
-        clientInvoiceStore.deleteInvoice(id);
-        await clientInvoiceStore.loadInvoices();
-        if (clientInvoiceStore.getInvoiceById(id)) return fail("刪除後請款仍存在");
+
+        const { error } = await clientInvoiceStore.deleteInvoice(id);
+        if (error) return fail(`刪除失敗：${describeStoreError(error)}`);
         return ok({ id });
       },
 
@@ -1227,20 +1254,20 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const plan = planClientInvoiceAddFees(feeIds, invoice, feesById, allLinked);
 
         if (plan.toAdd.length > 0) {
-          await clientInvoiceStore.addFeesToInvoice(invoiceId, plan.toAdd);
+          const { error } = await clientInvoiceStore.addFeesToInvoice(invoiceId, plan.toAdd);
+          if (error) return fail(`加入費用失敗：${describeStoreError(error)}`);
         }
 
-        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
-        if (!reloaded) return fail("加入費用後重新載入請款失敗");
+        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        if (!updated) return fail("加入費用後讀取請款失敗");
 
-        const verified = plan.toAdd.length === 0 || verifyFeeIdsOnInvoice(reloaded, plan.toAdd);
-        if (!verified) return fail("加入費用後回讀不一致");
+        const verified = plan.toAdd.length === 0 || verifyFeeIdsOnInvoice(updated, plan.toAdd);
 
         return ok({
-          invoice: reloaded,
+          invoice: updated,
           added: plan.toAdd,
           skipped: plan.skipped,
-          verified: true,
+          verified,
         });
       },
 
@@ -1248,9 +1275,12 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const perm = await assertClientInvoiceWriteAccess();
         if (perm.ok === false) return failFrom(perm);
         if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
-        await clientInvoiceStore.removeFeeFromInvoice(invoiceId, feeId);
-        const updated = await reloadClientInvoiceFromStore(invoiceId);
-        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+
+        const { error } = await clientInvoiceStore.removeFeeFromInvoice(invoiceId, feeId);
+        if (error) return fail(`移除費用失敗：${describeStoreError(error)}`);
+
+        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        return updated ? ok(updated) : fail("移除費用後讀取請款失敗");
       },
 
       adjustAmount: async (invoiceId, input) => {
@@ -1301,21 +1331,18 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (computed.ok === false) return fail(computed.error);
 
         if (computed.noop) {
-          const current = await reloadClientInvoiceFromStore(invoiceId);
-          return current
-            ? ok({ invoice: current, line: null, noop: true, verified: true })
-            : fail("讀取請款失敗");
+          return ok({ invoice, line: null, noop: true, verified: true });
         }
 
         if (!computed.line) return fail("無法產生調整列");
         const nextLines = [...(invoice.adjustmentLines || []), computed.line];
-        clientInvoiceStore.updateInvoice(invoiceId, { adjustmentLines: nextLines });
+        const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { adjustmentLines: nextLines });
+        if (error) return fail(`調整請款額失敗：${describeStoreError(error)}`);
 
-        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
-        if (!reloaded) return fail("調整後重新載入請款失敗");
-        const hasLine = (reloaded.adjustmentLines || []).some((l) => l.id === computed.line!.id);
-        if (!hasLine) return fail("調整後回讀不一致");
-        return ok({ invoice: reloaded, line: computed.line, verified: true });
+        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        if (!updated) return fail("調整後讀取請款失敗");
+        const verified = (updated.adjustmentLines || []).some((l) => l.id === computed.line!.id);
+        return ok({ invoice: updated, line: computed.line, verified });
       },
 
       setChannel: async (invoiceId, channel) => {
@@ -1330,12 +1357,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
         );
         if (validated.ok === false) return failFrom(validated);
 
-        clientInvoiceStore.updateInvoice(invoiceId, { billingChannel: validated.data as string });
-        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
-        if (!reloaded) return fail("設定請款管道後重新載入失敗");
-        const verified = reloaded.billingChannel === validated.data;
-        if (!verified) return fail("設定請款管道後回讀不一致");
-        return ok({ invoice: reloaded, verified: true });
+        const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { billingChannel: validated.data as string });
+        if (error) return fail(`設定請款管道失敗：${describeStoreError(error)}`);
+
+        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        if (!updated) return fail("設定請款管道後讀取請款失敗");
+        const verified = updated.billingChannel === validated.data;
+        return ok({ invoice: updated, verified });
       },
 
       setExpectedDate: async (invoiceId, isoDate) => {
@@ -1348,12 +1376,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (!isValidDateOnlyOrIso(raw)) return fail("isoDate 須為 YYYY-MM-DD 或合法 ISO 日期");
         const normalized = normalizeExpectedCollectionDate(raw);
 
-        clientInvoiceStore.updateInvoice(invoiceId, { expectedCollectionDate: normalized });
-        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
-        if (!reloaded) return fail("設定預計收款日後重新載入失敗");
-        const verified = reloaded.expectedCollectionDate === normalized;
-        if (!verified) return fail("設定預計收款日後回讀不一致");
-        return ok({ invoice: reloaded, verified: true });
+        const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { expectedCollectionDate: normalized });
+        if (error) return fail(`設定預計收款日失敗：${describeStoreError(error)}`);
+
+        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        if (!updated) return fail("設定預計收款日後讀取請款失敗");
+        const verified = updated.expectedCollectionDate === normalized;
+        return ok({ invoice: updated, verified });
       },
     },
 

@@ -6,7 +6,7 @@ import {
   uniqueTitle,
   waitForTmsAgent,
 } from "./helpers/ai-agent-eval";
-import { expectOnlineTestMode, switchToTestPersona } from "./helpers/test-mode-persona";
+import { expectListPageReady, expectOnlineTestMode, switchToTestPersona } from "./helpers/test-mode-persona";
 
 const ctx = new PwTestContext();
 let canWriteClientInvoice = false;
@@ -98,7 +98,11 @@ test.describe("LMS clientInvoice bridge（慢軌 High）", () => {
     expect(r.channel).toBeTruthy();
     expect(r.expectedDate).toBe("2026-08-01");
 
+    // 【C1 持久化標準】重新整理後須真正等待 clientInvoiceStore 完成重新載入
+    // （非僅等 __tmsAgent 掛載），否則會在 store 尚未 loadInvoices() 完成時
+    // 讀到空快取而誤判為「未持久化」。
     await page.reload();
+    await expectListPageReady(page, "客戶請款");
     await waitForTmsAgent(page);
     const afterReload = await page.evaluate((id) => {
       const inv = (window as unknown as {
@@ -149,7 +153,8 @@ test.describe("LMS clientInvoice bridge（慢軌 High）", () => {
 
     expect(r.ok, JSON.stringify(r)).toBe(true);
     expect(r.line?.operation).toBe("add");
-    expect(r.line?.amount).toBe(500);
+    // 幣別換算涉及浮點運算，容許極小誤差（非本次回讀驗證修正的範疇）。
+    expect(r.line?.amount ?? 0).toBeCloseTo(500, 6);
     if (r.id) ctx.clientInvoiceId = r.id;
   });
 
