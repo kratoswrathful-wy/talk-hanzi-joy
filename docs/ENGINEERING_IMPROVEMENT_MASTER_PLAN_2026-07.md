@@ -1,4 +1,4 @@
-狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三已開工——lint 清零批次 1–4、Vitest 批次 2、`dev-switch-user` 核心修復均已驗收（殘留 OBS-5 待辦）；**lint 批次 5 已完成三關本機自測、分支已推送，待驗收方獨立驗證後才可併入 main**（見 §14）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項、排程待定（見 §15）；階段四未開工）
+狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三已開工——lint 清零批次 1–5、Vitest 批次 2、`dev-switch-user` 核心修復均已驗收併入 main（殘留 OBS-5 待辦）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項、排程待定（見 §15）；**R2 三關正式生效前置**：`npm run lint` 現存 116 error 須先清零才可切擋關，清零計畫見 §17；階段四未開工）
 
 # 1UP 工程改善主計畫
 
@@ -258,6 +258,7 @@ flowchart LR
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) — 部署與 migration 檢核
 - [TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11 — W9-A DOM 定位標記對照表（AI 代理操作用）
 - [supabase/tests/w10_translator_read_check.sql](../supabase/tests/w10_translator_read_check.sql)、[w10_fees_visible_mask_check.sql](../supabase/tests/w10_fees_visible_mask_check.sql)、[w10_fees_write_check.sql](../supabase/tests/w10_fees_write_check.sql) — W10 三批次 DB 層驗證腳本（權威回歸基準）
+- [CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md) — **獨立於本計畫**的 CAT AI 模型 registry 專案（不計入 R/W 工項編號）；Phase 3A 已 pivot，見 §16
 
 ---
 
@@ -653,7 +654,7 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 2. **`use-auth.ts` 的 `Profile` 轉型**：根因是 `PROFILE_SELECT_COLUMNS` 由陣列 `.join(", ")` 動態組出、非字面量型別字串，Supabase-js 因此無法從 `Database` 型別推導 `.select()` 結果形狀（退回 `GenericStringError`），逼呼叫端用雙層轉型繞過。改法：把 `PROFILE_SELECT_COLUMNS` 改回**字面量字串常數**（`as const` 模板字串），讓 Supabase-js 能正確推導 Row 型別；並新增 `profileFromRow()` 防禦性 mapper 逐欄位讀取，取代整包轉型。
 3. **`react-hooks/exhaustive-deps` 行內 disable（4 處，`CaseDetailPage.tsx`／`PageTemplateEditorPage.tsx`／`CatToolPage.tsx`／`TranslatorTierSection.tsx` 2 處）**：皆屬「effect 只想在特定原始型別變動時觸發、但函式本體需讀取非穩定參考（callback prop／衍生物件）」的合法情境，改用 `useRef` 存最新值（`onUpdateRef`／`templateRef`／`sendIdentityRef` 等）或 `useMemo` 讓衍生物件（`groups`）本身變成可安全列入 deps 的穩定參考，取代 disable，行為零改變。
 
-**本機自測結果（尚待驗收方獨立驗證，未經核准不得併入 main）**：分支 `fix/w6-lint-cleanup-batch5` 已 rebase 至最新 `main`（含 PR #12 Phase 3B′ 文件）；`npm run typecheck`／`npm run test`（205 項全過，含 rebase 後既有的 CAT AI registry 測試）／`npm run check:encoding` 皆過；全 repo 掃描確認**非測試檔已無任何 `as unknown as` 實際轉型**（僅剩解說性註解中提及此詞）、**無任何行內 `eslint-disable`**（僅剩 `cat-cloud-rpc.ts` 檔案級 disable，見下節獨立工項）；`npm run lint` 116 error／40 warning（較批次 4 驗收時 117 error 略降，其餘為既有 `no-explicit-any` 等未清項目，非本批範圍）。
+**驗收**：分支 `fix/w6-lint-cleanup-batch5` 已 rebase 至最新 `main`（含 PR #12 Phase 3B′ 文件）；`npm run typecheck`／`npm run test`（205 項全過，含 rebase 後既有的 CAT AI registry 測試）／`npm run check:encoding` 皆過；全 repo 掃描確認**非測試檔已無任何 `as unknown as` 實際轉型**（僅剩解說性註解中提及此詞）、**無任何行內 `eslint-disable`**（僅剩 `cat-cloud-rpc.ts` 檔案級 disable，見下節獨立工項）；`npm run lint` 116 error／40 warning（較批次 4 驗收時 117 error 略降，其餘為既有 `no-explicit-any` 等未清項目，非本批範圍）。驗收方（Fable）獨立驗證三關＋編碼全綠、`cat-cloud-rpc.ts` 三處修改逐行核可、`architecture.mdc` §8 核可。**核准併入 main，merge commit `a9c93be3`**。
 
 ## 15.（獨立工項，排程待定）`cat-cloud-rpc.ts` 檔案級 `eslint-disable` 與 297 處 `any` 清理
 
@@ -672,3 +673,22 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 | 其餘（屬性存取／巢狀轉型等） | 約 72 | 需逐行分類，含少量 `Record<string, any>` |
 
 **建議排程**：留待階段四 W1（`src/stores` 一律用工廠）評估時一併處理——屆時 store 與 RPC 邊界的型別本來就要重新檢視，`cat_cloud_rpc.ts` 的 action-based 大檔案結構屆時很可能也需要拆分（架構規則 6 單檔行數警戒早已超標），一次性處理型別與結構可避免分兩次改動同一批程式碼。**在此之前**：任何觸碰到此檔既有程式碼的其他工項，若順手能把該行的 `any` 改掉（例如已確認的表格改用真實型別），鼓勵隨手清，但不強制、不因此卡住其他工項進度。
+
+## 16. 交叉引用：CAT AI Model Registry Phase 3A pivot（獨立專案，非本計畫工項；供驗收方單一入口查閱，2026-07-06）
+
+**背景**：CAT AI 模型 registry 是與本工程改善主計畫**無直接關聯**的獨立產品專案（完整規劃見 [`CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md`](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md)），未計入本計畫 R1–R7／W1–W8 工項編號。因其 Phase 3A 於本計畫階段三收斂期間併入又 pivot，時間點易與本計畫工項交錯，故在此補一段交叉引用時間線，避免驗收方（如 Fable）從本計畫單一入口查閱時漏看。
+
+**一句話摘要**：Phase 3A（executive 專用完整 registry 管理頁）已於 merge 後約 18 小時內因 **PM 產品方向 pivot**（非 bug、非事故、未動 production DB／migration）而移除 UI，改為規劃中的 **Phase 3B′**（CAT「AI 管理」內精選模型選單，約 4～5 個 `enabled=true` 模型，非完整管理頁）。
+
+**時間線（UTC+8）**：
+
+| 時間 | commit / PR | 事件 |
+|---|---|---|
+| 2026-07-05 14:05 | `e6c39036` | Phase 3A 實作：唯讀管理頁 + 側欄入口 + Vitest |
+| 2026-07-05 20:29 | PR #10 → `d87e6e77` | Phase 3A **merge 進 main** |
+| 2026-07-06 08:43 | `96ca36c2` | pivot：移除路由／側欄／`CatAiModelRegistryPage`；保留 `src/lib/cat-ai-model-registry/` helper 供新方向使用 |
+| 2026-07-06 08:50 | PR #11 → `941c5dd8` | pivot 分支 **merge 進 main** |
+| 2026-07-06 09:14 | `85cee697` | 新方向規格：Phase 3B′ 精選模型選單 + production read-only audit |
+| 2026-07-06 09:25 | PR #12 → `49156215` | 3B′ 規格文件 merge（僅 docs，未實作） |
+
+**現況（`main`）**：`/settings/cat-ai-models` 路由與 `CatAiModelRegistryPage.tsx` 已移除；`src/lib/cat-ai-model-registry/` helper 仍在；DB registry 四表與 sync endpoint 未受影響；下一步規劃見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)（規劃中，未實作，未動 production DB）。
