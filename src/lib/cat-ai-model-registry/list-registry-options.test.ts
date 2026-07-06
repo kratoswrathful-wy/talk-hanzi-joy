@@ -1,11 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { mergeRegistryRows } from "./list-registry-options";
+import { filterEnabledModelOptions, mergeRegistryRows } from "./list-registry-options";
 import {
   FALLBACK_MODEL_ID,
   formatNullableZh,
   getRegistryRowFlags,
+  pickDefaultModelOption,
   sortRegistryRows,
 } from "./registry-display";
+
+describe("filterEnabledModelOptions", () => {
+  it("keeps only enabled=true options for curated UI", () => {
+    const filtered = filterEnabledModelOptions([
+      { model_id: "gpt-5.5", enabled: true },
+      { model_id: "draft-model", enabled: false },
+    ]);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.model_id).toBe("gpt-5.5");
+  });
+});
+
+describe("pickDefaultModelOption", () => {
+  it("prefers is_default row (gpt-5.5)", () => {
+    const picked = pickDefaultModelOption([
+      { model_id: FALLBACK_MODEL_ID, is_default: false },
+      { model_id: "gpt-5.5", is_default: true },
+    ]);
+    expect(picked?.model_id).toBe("gpt-5.5");
+  });
+});
 
 describe("mergeRegistryRows", () => {
   it("joins provider availability by provider_key + model_id", () => {

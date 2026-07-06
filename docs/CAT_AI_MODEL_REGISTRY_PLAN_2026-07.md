@@ -1,4 +1,4 @@
-狀態：Phase 1 已完整完成（2026-07-05）；Phase 2 已驗收（2026-07-05）；Phase 3A 實作中（唯讀列表 + executive 路由；見 [`CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md)）；Phase 4 未開始
+狀態：Phase 1 已完整完成（2026-07-05）；Phase 2 已驗收（2026-07-05）；Phase 3A 已 pivot（2026-07-06，移除 registry 管理頁；下一工項：CAT 精選模型選單）；Phase 4 未開始
 
 # CAT AI 模型清單管理：可行性回應與變更計畫（Cursor 版）
 
