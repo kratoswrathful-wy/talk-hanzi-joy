@@ -20177,6 +20177,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
         }
         syncSelectedRowAbutmentTopClass();
+        // W1-C: non-virtual grid has no onAfterRender flush for filter anchor
+        if (_filterAnchorPending && !(window.CatVirtGrid && window.CatVirtGrid.isEnabled())) {
+            flushFilterAnchorAfterVirtRender();
+        }
     }
 
     /** Phase 2.3k：virt 換窗後為已掛載列補搜尋上色與 TB 狀態。 */
