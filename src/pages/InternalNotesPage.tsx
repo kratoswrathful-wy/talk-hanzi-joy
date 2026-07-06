@@ -66,7 +66,7 @@ const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
 function generateNoteTitle(caseTitle: string): string {
-  const baseId = caseTitle.replace(/[_\-]?\d{6,8}$/g, "").replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
+  const baseId = caseTitle.replace(/[_-]?\d{6,8}$/g, "").replace(/[_-]?\d{4}[-/]?\d{2}[-/]?\d{2}$/, "").trim() || caseTitle;
   const prefix = `${baseId}_Note_`;
   const maxSeq = internalNotesStore.getMaxSeqForPrefix(prefix);
   const nextSeq = String(maxSeq + 1).padStart(5, "0");

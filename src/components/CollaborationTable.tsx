@@ -123,7 +123,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
         linkFileId: f.id,
       }));
       if (projectIds.length) {
-        const { data: views } = await (supabase as any)
+        const { data: views } = await supabase
           .from("cat_views")
           .select("id, name, project_id, file_ids")
           .in("project_id", projectIds);
@@ -219,13 +219,13 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
   const resolveCollabRowFileIds = async (row: CollabRow): Promise<string[]> => {
     if (row.linkedCatFileId) return [row.linkedCatFileId];
     if (!row.linkedCatViewId) return [];
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("cat_views")
       .select("file_ids")
       .eq("id", row.linkedCatViewId)
       .maybeSingle();
     if (error || !data) return [];
-    const fileIds = (data as { file_ids?: string[] }).file_ids;
+    const fileIds = data.file_ids;
     return Array.isArray(fileIds) ? fileIds.map(String).filter(Boolean) : [];
   };
 
@@ -442,7 +442,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                     checked={!!row.accepted}
                     disabled={acceptedDisabled}
                     onCheckedChange={(v) => {
-                      if (!!v) {
+                      if (v) {
                         const uncheckedCount = rows.filter((r, ri) => !r.accepted && ri !== idx).length;
                         if (uncheckedCount === 0) {
                           setLastAcceptConfirm({ idx });
