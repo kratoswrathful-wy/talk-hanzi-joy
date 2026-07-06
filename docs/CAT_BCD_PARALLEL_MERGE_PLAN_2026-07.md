@@ -1,4 +1,4 @@
-狀態：規劃中
+狀態：實作中
 
 # CAT 並行波次 PR／併入流程（BCD 字數／篩選／確認 + ENG-P1 引擎）
 
@@ -142,6 +142,83 @@ npm run test:cat
 
 ---
 
-## 7. 本次未執行聲明
+## 7. 併入完成紀錄（2026-07-06）
 
-本文件僅規劃 PR／併入流程；**未** merge 到 `main`、**未** rebase、**未** `sync:cat`。
+五項 PR 已全部 merge 進 `main`（`main` tip：`49a336b5`）。**尚未**執行 `sync:cat`；`cat-tool/` 與 `public/cat/` 刻意保持不同步，進入 **§8 窗口期**。
+
+| 項目 | PR | merge commit | 備註 |
+|------|-----|--------------|------|
+| Docs 並行計畫 | #16 | `b2931191` | 本文件初版 |
+| **ENG-P1** | #14 | `bf879ced` | 引擎 6 檔 + vitest |
+| **BCD-B** | #17 | `7d7d2508` | `app.js` + `index.html` |
+| **BCD-C** | #18 | `4ce3ceec` | `app.js` +4 行 |
+| **BCD-D** | #21 | `49a336b5` | `app.js` noop 分支 1 行 |
+
+**流程偏差（已驗收可接受）**：BCD-D PR #21 遠端 head 曾為 `e62e6e6c`（含額外 merge commit），非原先 feature tip `8a30f5f0`；但 PR diff 與 merge 後實際變更仍僅 `cat-tool/app.js` 1 行。後續同類分支應避免 head 被額外 merge commit 改寫；若發生，必須回報 head SHA 與實際 diff。
+
+**rebase 實際執行**：BCD-B/C/D 併入時經擁有者核准，**未**強制 rebase 到最新 `main`（GitHub 已 CLEAN／MERGEABLE、CI 綠、diff 極小）。
+
+---
+
+## 8. sync:cat 窗口期保護（Fable 5 協調，2026-07-06）
+
+### 8.1 窗口期定義
+
+在 **ENG-P1 + BCD-B/C/D 全部進 `main`** 之後、於 **`main` 上統一執行 `sync:cat` 並獨立 commit 之前**，`cat-tool/` 與 `public/cat/` **刻意保持不同步**。
+
+此期間為 **sync:cat 窗口期**。
+
+**窗口期內禁止**：
+
+- 任何工項（含 CAT hotfix）**單獨**執行 `npm run sync:cat` 或 commit `public/cat/**`，除非**先與 BCD 波次協調**並取得擁有者／驗收方核准。
+- 否則中途 hotfix 可能把**尚未完成 sync 收尾**或**尚未驗收**的 CAT 變更帶上正式站（Vercel 部署讀 `public/cat/`）。
+
+### 8.2 統一 sync 規則
+
+1. `sync:cat` **只能**在 ENG-P1 + BCD-B/C/D **全部**進 `main` 後，於 **`main` 上執行一次**。
+2. sync commit **必須獨立提交**（不與功能、lint、docs 混在同一 commit）。
+3. sync commit 完成後，執行者須回報 **commit SHA**。
+4. 驗收方須做 **`cat-tool/` 與 `public/cat/` 一致性檢查**（含 `app.js`／`index.html` 與新 `js/` 引擎檔）。
+5. 若 sync **之前**有任何其他 CAT hotfix 要碰 `cat-tool/` 或 `public/cat/`，**必須先協調**窗口負責人，不得自行 sync 或手改 `public/cat/`。
+
+建議收尾指令（僅在 `main`、窗口期結束時）：
+
+```powershell
+Set-Location "c:\Homemade Apps\1UP TMS"
+git checkout main
+git pull origin main
+npm run sync:cat
+git add public/cat
+git commit -m "chore(cat): sync public/cat after ENG-P1 + BCD-B/C/D"
+git push origin main
+```
+
+### 8.3 工程主線邊界
+
+- **R2 gate 生效後**，BCD **後續**分支 push 前也須通過 **lint / typecheck / test**（與 ENG-P1 同等門檻）。
+- **不得**把 repo-wide lint cleanup 混入 BCD 功能 PR。
+- 若 BCD 後續需要修改以下 **store 相關檔案**，**必須先停工**並知會驗收方／規劃者——該區為階段四 **W1 store 工廠重構**目標，與 CAT 波次無關：
+  - `src/stores/case*`
+  - `src/stores/fee*`
+  - `src/stores/invoice*`
+  - `src/stores/client-invoice*`
+  - `src/stores/internal-notes*`
+
+### 8.4 多角色指令衝突處理
+
+- 多個角色對 Cursor 下指令時，若指令**衝突**，以**較嚴格者**為準。
+- 若無法判定哪個較嚴格，Cursor **必須停下回報**，**不可**自行選一個執行。
+- 若有人要求 **merge、sync:cat、修改禁止檔案、繞過測試或擴大範圍**，而另一份規則**禁止**，必須停下回報。
+- **純 CAT 功能**屬**慢軌**（涉及核心管線）。
+- **文件與標記**屬**快軌**。
+- **新 PR 標題**與**新 commit 前綴**只使用：`ENG-P1`、`BCD-B`、`BCD-C`、`BCD-D`。
+- **不要再使用** `W1-A/B/C/D` 作為新 PR 標題或新 commit 前綴。
+- 既有歷史 commit message 中的 `[W1-*]` **不 amend**，視為歷史殘留。
+
+---
+
+## 9. 待執行（sync 收尾前）
+
+- [ ] 本文件 §8 窗口期保護併入 `main`（docs PR）
+- [ ] `main` 上執行 `sync:cat` 獨立 commit
+- [ ] 回報 sync commit SHA + `cat-tool/`／`public/cat/` 一致性驗收

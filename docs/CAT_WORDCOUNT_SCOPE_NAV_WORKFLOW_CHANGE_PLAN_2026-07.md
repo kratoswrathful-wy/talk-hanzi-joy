@@ -615,6 +615,23 @@ Diff/TB 引擎（與本六項碰撞評估相關）：**ENG-P1**，分支 `featur
 
 PR／併入順序與 CI 鐵律：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md)。
 
+**併入狀態（2026-07-06）**：ENG-P1（#14）與 BCD-B/C/D（#17/#18/#21）已全部進 `main`；`public/cat/**` **尚未** sync。窗口期內禁止單獨 `sync:cat`——詳 §8：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md) §8。
+
+---
+
+## 附錄 B：sync:cat 窗口期（2026-07-06）
+
+本六項變更中，BCD-B／C／D 已 merge；在 `main` 統一 `sync:cat` 之前，`cat-tool/` 與 `public/cat/` 刻意不同步。
+
+| 規則 | 說明 |
+|------|------|
+| 禁止單獨 sync | 窗口期內任何 CAT hotfix 不得自行 `npm run sync:cat` 或 commit `public/cat/**`，須先與 BCD 波次協調 |
+| 統一 sync 時機 | 僅在 ENG-P1 + BCD-B/C/D 全進 `main` 後，於 `main` 執行**一次**，**獨立 commit** |
+| 驗收 | sync 後須回報 SHA，並做 `cat-tool/`／`public/cat/` 一致性檢查 |
+| store 邊界 | BCD 後續若需改 `src/stores/case*`／`fee*`／`invoice*` 等，須先停工知會（階段四 W1 store 工廠） |
+
+完整條文（含指令衝突、快／慢軌、代號命名）：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md) §8.3–§8.4。
+
 ---
 
 ## 附錄：相關文件
