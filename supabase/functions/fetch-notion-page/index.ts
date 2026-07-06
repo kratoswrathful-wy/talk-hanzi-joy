@@ -3,6 +3,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// Notion API 回應為外部未受控 JSON，僅定義本檔實際讀取到的欄位形狀，其餘一律當作 unknown。
+interface NotionRichTextItem {
+  plain_text: string;
+}
+interface NotionSelectOption {
+  name: string;
+}
+interface NotionPersonItem {
+  id: string;
+  name?: string;
+  person?: { email?: string };
+}
+type NotionProperty =
+  | { type: 'title'; title: NotionRichTextItem[] }
+  | { type: 'select'; select: NotionSelectOption | null }
+  | { type: 'multi_select'; multi_select: NotionSelectOption[] }
+  | { type: 'people'; people: NotionPersonItem[] }
+  | { type: 'date'; date: { start: string } | null }
+  | { type: 'number'; number: number | null }
+  | { type: 'rich_text'; rich_text: NotionRichTextItem[] }
+  | { type: 'checkbox'; checkbox: boolean }
+  | { type: 'status'; status: NotionSelectOption | null }
+  | { type: 'relation'; relation: { id: string }[] }
+  | { type: string; [key: string]: unknown };
+interface NotionPage {
+  url: string;
+  properties: Record<string, NotionProperty>;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -32,7 +61,7 @@ Deno.serve(async (req) => {
     };
 
     // Try as page first
-    let res = await fetch(`https://api.notion.com/v1/pages/${page_id}`, { headers });
+    const res = await fetch(`https://api.notion.com/v1/pages/${page_id}`, { headers });
 
     if (!res.ok) {
       const errBody = await res.text();
@@ -55,48 +84,48 @@ Deno.serve(async (req) => {
       });
     }
 
-    const page = await res.json();
+    const page = await res.json() as NotionPage;
     const props = page.properties || {};
 
     // --- Extract helpers ---
-    const extractTitle = (prop: any): string => {
+    const extractTitle = (prop: NotionProperty | undefined): string => {
       if (!prop || prop.type !== 'title' || !Array.isArray(prop.title)) return '';
-      return prop.title.map((t: any) => t.plain_text).join('');
+      return prop.title.map((t) => t.plain_text).join('');
     };
-    const extractMultiSelect = (prop: any): string[] => {
+    const extractMultiSelect = (prop: NotionProperty | undefined): string[] => {
       if (!prop || prop.type !== 'multi_select') return [];
-      return prop.multi_select.map((s: any) => s.name);
+      return prop.multi_select.map((s) => s.name);
     };
-    const extractSelect = (prop: any): string => {
+    const extractSelect = (prop: NotionProperty | undefined): string => {
       if (!prop || prop.type !== 'select' || !prop.select) return '';
       return prop.select.name;
     };
-    const extractPeople = (prop: any): { name: string; email?: string }[] => {
+    const extractPeople = (prop: NotionProperty | undefined): { name: string; email?: string }[] => {
       if (!prop || prop.type !== 'people') return [];
-      return prop.people.map((p: any) => ({
+      return prop.people.map((p) => ({
         name: p.name || p.id,
         email: p.person?.email || undefined,
       }));
     };
-    const extractDate = (prop: any): string => {
+    const extractDate = (prop: NotionProperty | undefined): string => {
       if (!prop || prop.type !== 'date' || !prop.date) return '';
       return prop.date.start || '';
     };
-    const extractNumber = (prop: any): number | null => {
+    const extractNumber = (prop: NotionProperty | undefined): number | null => {
       if (!prop || prop.type !== 'number') return null;
       return prop.number;
     };
-    const extractRichText = (prop: any): string => {
+    const extractRichText = (prop: NotionProperty | undefined): string => {
       if (!prop || prop.type !== 'rich_text') return '';
-      return (prop.rich_text || []).map((t: any) => t.plain_text).join('');
+      return (prop.rich_text || []).map((t) => t.plain_text).join('');
     };
-    const extractCheckbox = (prop: any): boolean => {
+    const extractCheckbox = (prop: NotionProperty | undefined): boolean => {
       if (!prop || prop.type !== 'checkbox') return false;
       return !!prop.checkbox;
     };
 
     // Build result
-    const result: Record<string, any> = {
+    const result: Record<string, unknown> = {
       notionPageId: page_id,
       notionUrl: page.url,
     };
@@ -105,7 +134,7 @@ Deno.serve(async (req) => {
     const relationProps: { key: string; ids: string[] }[] = [];
 
     for (const [key, value] of Object.entries(props)) {
-      const prop = value as any;
+      const prop = value;
       switch (prop.type) {
         case 'title':
           result[key] = extractTitle(prop);
@@ -136,7 +165,7 @@ Deno.serve(async (req) => {
           break;
         case 'relation':
           if (Array.isArray(prop.relation) && prop.relation.length > 0) {
-            relationProps.push({ key, ids: prop.relation.map((r: any) => r.id) });
+            relationProps.push({ key, ids: prop.relation.map((r) => r.id) });
           }
           break;
         default:
@@ -151,11 +180,11 @@ Deno.serve(async (req) => {
         try {
           const relRes = await fetch(`https://api.notion.com/v1/pages/${relId}`, { headers });
           if (relRes.ok) {
-            const relPage = await relRes.json();
+            const relPage = await relRes.json() as NotionPage;
             const relProps = relPage.properties || {};
             let relTitle = '';
             for (const v of Object.values(relProps)) {
-              if ((v as any).type === 'title') {
+              if (v.type === 'title') {
                 relTitle = extractTitle(v);
                 break;
               }
