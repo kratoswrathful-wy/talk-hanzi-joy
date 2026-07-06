@@ -14006,6 +14006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ];
             const globalSelectId = 'batchMqGlobalSelect';
             let html = `<div style="padding:0 0.25rem;">
+                <h2 id="batchMqRoleTitle" style="margin:0 0 0.75rem 0; font-size:1.2rem;">匯入時：選擇本次作業身分</h2>
                 <p style="margin:0 0 1rem 0; font-size:0.85rem; color:#ef4444; font-weight:600;">請務必選擇與客戶指派相同的身分。</p>
                 <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem; cursor:pointer; flex-wrap:wrap;">
                     <input type="checkbox" id="batchMqSameRole" checked />
@@ -15275,6 +15276,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Backward compat: old 'T' maps to 'T_ALLOW_R1'
             const normalizedDefault = opts.defaultRole === 'T' ? 'T_ALLOW_R1' : opts.defaultRole;
             const defaultRole = validRoles.includes(normalizedDefault) ? normalizedDefault : 'T_ALLOW_R1';
+            const titleEl = document.getElementById('mqRoleModalTitle');
+            if (titleEl) titleEl.textContent = '開啟時：選擇本次作業身分';
             document.querySelectorAll('input[name="mqRoleChoice"]').forEach(r => { r.checked = (r.value === defaultRole); });
             if (opts.hideWizardFirst && wizardOverlay) wizardOverlay.classList.add('hidden');
             const finish = (val) => {
