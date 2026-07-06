@@ -15,6 +15,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:cat": "vitest run cat-tool/js",
     "test:cat-sf": "node scripts/test-cat-sf-row-range.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
