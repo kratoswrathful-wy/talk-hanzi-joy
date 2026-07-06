@@ -44,6 +44,21 @@ import {
   agentFail as fail,
   agentFailFrom as failFrom,
 } from "@/lib/ai-agent-types";
+import {
+  assertPmPlusFromRoles,
+  computeAdjustmentSumInClientCurrency,
+  computeClientInvoiceAdjustmentLine,
+  computeFeeTotalsByCurrency,
+  isValidDateOnlyOrIso,
+  normalizeExpectedCollectionDate,
+  planClientInvoiceAddFees,
+  resolveClientCurrency,
+  verifyFeeIdsOnInvoice,
+  type ClientInvoiceAddFeeSkip,
+  type ClientInvoiceAdjustAmountInput,
+  type ClientInvoiceAdjustMode,
+} from "@/lib/ai-agent-client-invoice-bridge";
+import { currencyStore } from "@/stores/currency-store";
 import { supabase } from "@/integrations/supabase/client";
 
 export type { AgentResult } from "@/lib/ai-agent-types";
@@ -731,6 +746,21 @@ function buildFieldCatalog() {
     clientInvoice: {
       fields: scalarFields(CLIENT_INVOICE_FIELDS),
       statusFields: statusFields(CLIENT_INVOICE_FIELDS),
+      bridgeMethods: [
+        "clientInvoice.create({ client, title?, feeIds? })",
+        "clientInvoice.addFees(invoiceId, feeIds[]) → { added, skipped, verified }",
+        "clientInvoice.adjustAmount(invoiceId, { mode, currency, targetAmount })",
+        "clientInvoice.setChannel(invoiceId, channel)",
+        "clientInvoice.setExpectedDate(invoiceId, isoDate)",
+      ],
+      addFeeSkipReasons: [
+        "not_found",
+        "already_on_invoice",
+        "linked_to_other_invoice",
+        "client_mismatch",
+        "not_reconciled",
+      ],
+      permissions: "寫入須 PM 以上（is_admin／user_roles pm|executive）；譯者呼叫回 ok:false",
     },
     upload: {
       method: "upload.fromBytes({ fileName, base64|bytes, contentType?, bucket?, pathPrefix? })",
@@ -807,11 +837,42 @@ export interface LmsAgentApi {
   clientInvoice: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<ClientInvoice[]>;
     get: (id: string) => AgentResult<ClientInvoice>;
-    create: (input: { client: string; feeIds?: string[]; title?: string }) => Promise<AgentResult<ClientInvoice>>;
-    update: (id: string, patch: Record<string, unknown>) => AgentResult<ClientInvoice>;
-    delete: (id: string) => AgentResult<{ id: string }>;
-    addFees: (invoiceId: string, feeIds: string[]) => Promise<AgentResult<ClientInvoice>>;
+    create: (input: { client: string; title?: string; feeIds?: string[] }) => Promise<
+      AgentResult<{ invoice: ClientInvoice; verified: boolean }>
+    >;
+    update: (id: string, patch: Record<string, unknown>) => Promise<AgentResult<ClientInvoice>>;
+    delete: (id: string) => Promise<AgentResult<{ id: string }>>;
+    addFees: (
+      invoiceId: string,
+      feeIds: string[],
+    ) => Promise<
+      AgentResult<{
+        invoice: ClientInvoice;
+        added: string[];
+        skipped: ClientInvoiceAddFeeSkip[];
+        verified: boolean;
+      }>
+    >;
     removeFee: (invoiceId: string, feeId: string) => Promise<AgentResult<ClientInvoice>>;
+    adjustAmount: (
+      invoiceId: string,
+      input: ClientInvoiceAdjustAmountInput,
+    ) => Promise<
+      AgentResult<{
+        invoice: ClientInvoice;
+        line: ClientInvoiceAdjustmentLine | null;
+        noop?: boolean;
+        verified: boolean;
+      }>
+    >;
+    setChannel: (
+      invoiceId: string,
+      channel: string,
+    ) => Promise<AgentResult<{ invoice: ClientInvoice; verified: boolean }>>;
+    setExpectedDate: (
+      invoiceId: string,
+      isoDate: string,
+    ) => Promise<AgentResult<{ invoice: ClientInvoice; verified: boolean }>>;
   };
   tool: {
     setField: (input: ToolSetFieldInput) => Promise<AgentResult<ToolSetFieldResult>>;
@@ -853,6 +914,29 @@ function filterList<T extends { title?: string; status?: string; client?: string
   const limit = filter?.limit ?? 50;
   return result.slice(0, Math.max(1, limit));
 }
+
+async function assertClientInvoiceWriteAccess(): Promise<AgentResult<void>> {
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabase.auth.getUser();
+  if (authErr || !user) return fail("未登入");
+  const { data: rows, error } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+  if (error) return fail(`讀取角色失敗：${error.message}`);
+  const roles = (rows ?? []).map((r) => r.role);
+  return assertPmPlusFromRoles(roles);
+}
+
+async function reloadClientInvoiceFromStore(id: string): Promise<ClientInvoice | null> {
+  await clientInvoiceStore.loadInvoices();
+  return clientInvoiceStore.getInvoiceById(id) ?? null;
+}
+
+async function ensureFeesLoaded(): Promise<void> {
+  if (!feeStore.isLoaded()) await feeStore.loadFees();
+}
+
+const CLIENT_INVOICE_ADJUST_MODES: readonly ClientInvoiceAdjustMode[] = ["set_target", "add", "subtract"];
 
 function pathForType(type: string, id: string): string {
   switch (type) {
@@ -1078,41 +1162,198 @@ export function buildLmsAgentApi(): LmsAgentApi {
       },
 
       create: async ({ client, feeIds = [], title }) => {
-        const created = await clientInvoiceStore.createInvoice(client, feeIds);
-        if (!created) return fail("建立客戶請款失敗");
-        if (title) clientInvoiceStore.updateInvoice(created.id, { title });
-        const final = clientInvoiceStore.getInvoiceById(created.id);
-        return final ? ok(final) : fail("建立後讀取請款失敗");
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
+
+        const clientVal = String(client || "").trim();
+        if (!clientVal) return fail("client 必填");
+        const clientCheck = validateScalar("clientInvoice.client", CLIENT_INVOICE_FIELDS.client, clientVal);
+        if (clientCheck.ok === false) return failFrom(clientCheck);
+
+        if (title !== undefined) {
+          const titleCheck = validateScalar("clientInvoice.title", CLIENT_INVOICE_FIELDS.title, String(title));
+          if (titleCheck.ok === false) return failFrom(titleCheck);
+        }
+
+        const created = await clientInvoiceStore.createInvoice(clientVal, feeIds);
+        if (!created) return fail("建立客戶請款失敗（可能無 PM 以上權限或 RLS 拒絕）");
+
+        if (title !== undefined && String(title).trim()) {
+          clientInvoiceStore.updateInvoice(created.id, { title: String(title).trim() });
+        }
+
+        const reloaded = await reloadClientInvoiceFromStore(created.id);
+        if (!reloaded) return fail("建立後重新載入請款失敗");
+        const verified =
+          reloaded.client === clientVal &&
+          (title === undefined || reloaded.title === String(title).trim());
+        if (!verified) return fail("建立後回讀不一致");
+        return ok({ invoice: reloaded, verified: true });
       },
 
-      update: (id, patch) => {
+      update: async (id, patch) => {
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
         const existing = clientInvoiceStore.getInvoiceById(id);
         if (!existing) return fail(`找不到客戶請款 id=${id}`);
         const validated = validateClientInvoicePatch(patch);
         if (validated.ok === false) return failFrom(validated);
         clientInvoiceStore.updateInvoice(id, validated.data);
-        const updated = clientInvoiceStore.getInvoiceById(id);
+        const updated = await reloadClientInvoiceFromStore(id);
         return updated ? ok(updated) : fail("更新後讀取請款失敗");
       },
 
-      delete: (id) => {
+      delete: async (id) => {
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
         if (!clientInvoiceStore.getInvoiceById(id)) return fail(`找不到客戶請款 id=${id}`);
         clientInvoiceStore.deleteInvoice(id);
+        await clientInvoiceStore.loadInvoices();
+        if (clientInvoiceStore.getInvoiceById(id)) return fail("刪除後請款仍存在");
         return ok({ id });
       },
 
       addFees: async (invoiceId, feeIds) => {
-        if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
-        await clientInvoiceStore.addFeesToInvoice(invoiceId, feeIds);
-        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
-        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
+
+        const invoice = clientInvoiceStore.getInvoiceById(invoiceId);
+        if (!invoice) return fail(`找不到客戶請款 id=${invoiceId}`);
+        if (!Array.isArray(feeIds) || feeIds.length === 0) return fail("feeIds 須為非空陣列");
+
+        await ensureFeesLoaded();
+        const feesById = new Map(feeStore.getFees().map((f) => [f.id, f]));
+        const allLinked = clientInvoiceStore.getLinkedFeeIds();
+        const plan = planClientInvoiceAddFees(feeIds, invoice, feesById, allLinked);
+
+        if (plan.toAdd.length > 0) {
+          await clientInvoiceStore.addFeesToInvoice(invoiceId, plan.toAdd);
+        }
+
+        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
+        if (!reloaded) return fail("加入費用後重新載入請款失敗");
+
+        const verified = plan.toAdd.length === 0 || verifyFeeIdsOnInvoice(reloaded, plan.toAdd);
+        if (!verified) return fail("加入費用後回讀不一致");
+
+        return ok({
+          invoice: reloaded,
+          added: plan.toAdd,
+          skipped: plan.skipped,
+          verified: true,
+        });
       },
 
       removeFee: async (invoiceId, feeId) => {
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
         if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
         await clientInvoiceStore.removeFeeFromInvoice(invoiceId, feeId);
-        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
+        const updated = await reloadClientInvoiceFromStore(invoiceId);
         return updated ? ok(updated) : fail("更新後讀取請款失敗");
+      },
+
+      adjustAmount: async (invoiceId, input) => {
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
+
+        const invoice = clientInvoiceStore.getInvoiceById(invoiceId);
+        if (!invoice) return fail(`找不到客戶請款 id=${invoiceId}`);
+        if (!input || typeof input !== "object") return fail("input 必須為物件");
+
+        const mode = String(input.mode || "") as ClientInvoiceAdjustMode;
+        if (!CLIENT_INVOICE_ADJUST_MODES.includes(mode)) {
+          return fail(`mode 須為 set_target／add／subtract 之一`, [...CLIENT_INVOICE_ADJUST_MODES]);
+        }
+
+        const currency = String(input.currency || "").trim();
+        const currencyCodes = currencyStore.getCurrencies().map((c) => c.code);
+        if (!currency || !currencyCodes.includes(currency)) {
+          return fail(`currency 須為已設定幣別代碼`, currencyCodes);
+        }
+
+        const targetAmount = Number(input.targetAmount);
+        if (!Number.isFinite(targetAmount)) return fail("targetAmount 須為數字");
+
+        await ensureFeesLoaded();
+        const clientOptions = selectOptionsStore.getSortedOptions("client");
+        const linkedFees = invoice.feeIds
+          .map((fid) => feeStore.getFeeById(fid))
+          .filter(Boolean) as TranslatorFee[];
+        const clientCurrency = resolveClientCurrency(invoice.client, clientOptions);
+        const getTwdRate = currencyStore.getTwdRate.bind(currencyStore);
+        const feeTotals = computeFeeTotalsByCurrency(linkedFees, clientOptions);
+        const adjSum = computeAdjustmentSumInClientCurrency(
+          invoice.adjustmentLines || [],
+          clientCurrency,
+          getTwdRate,
+        );
+
+        const computed = computeClientInvoiceAdjustmentLine({
+          mode,
+          currency,
+          targetAmount,
+          feeTotalsByCurrency: feeTotals,
+          adjustmentSumInClientCurrency: adjSum,
+          clientCurrency,
+          getTwdRate,
+        });
+        if (computed.ok === false) return fail(computed.error);
+
+        if (computed.noop) {
+          const current = await reloadClientInvoiceFromStore(invoiceId);
+          return current
+            ? ok({ invoice: current, line: null, noop: true, verified: true })
+            : fail("讀取請款失敗");
+        }
+
+        if (!computed.line) return fail("無法產生調整列");
+        const nextLines = [...(invoice.adjustmentLines || []), computed.line];
+        clientInvoiceStore.updateInvoice(invoiceId, { adjustmentLines: nextLines });
+
+        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
+        if (!reloaded) return fail("調整後重新載入請款失敗");
+        const hasLine = (reloaded.adjustmentLines || []).some((l) => l.id === computed.line!.id);
+        if (!hasLine) return fail("調整後回讀不一致");
+        return ok({ invoice: reloaded, line: computed.line, verified: true });
+      },
+
+      setChannel: async (invoiceId, channel) => {
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
+
+        if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
+        const validated = validateScalar(
+          "clientInvoice.billingChannel",
+          CLIENT_INVOICE_FIELDS.billingChannel,
+          String(channel ?? ""),
+        );
+        if (validated.ok === false) return failFrom(validated);
+
+        clientInvoiceStore.updateInvoice(invoiceId, { billingChannel: validated.data as string });
+        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
+        if (!reloaded) return fail("設定請款管道後重新載入失敗");
+        const verified = reloaded.billingChannel === validated.data;
+        if (!verified) return fail("設定請款管道後回讀不一致");
+        return ok({ invoice: reloaded, verified: true });
+      },
+
+      setExpectedDate: async (invoiceId, isoDate) => {
+        const perm = await assertClientInvoiceWriteAccess();
+        if (perm.ok === false) return failFrom(perm);
+
+        if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
+        const raw = String(isoDate ?? "").trim();
+        if (!raw) return fail("isoDate 必填");
+        if (!isValidDateOnlyOrIso(raw)) return fail("isoDate 須為 YYYY-MM-DD 或合法 ISO 日期");
+        const normalized = normalizeExpectedCollectionDate(raw);
+
+        clientInvoiceStore.updateInvoice(invoiceId, { expectedCollectionDate: normalized });
+        const reloaded = await reloadClientInvoiceFromStore(invoiceId);
+        if (!reloaded) return fail("設定預計收款日後重新載入失敗");
+        const verified = reloaded.expectedCollectionDate === normalized;
+        if (!verified) return fail("設定預計收款日後回讀不一致");
+        return ok({ invoice: reloaded, verified: true });
       },
     },
 

@@ -737,7 +737,8 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 
 | 優先 | 工項 | 軌道 | 狀態 |
 |---|---|---|---|
-| — | CAT 彈窗狀態查詢 bridge：比照 `getProgress` 唯讀模式，新增「開啟編輯器身分選擇彈窗」「準備完成確認彈窗」存在與預設值查詢 | 慢軌 | 分支 `feat/cat-modal-state-bridge` 已實作待驗收 |
+| — | **clientInvoice bridge 擴充**（create/addFees/adjustAmount/setChannel/setExpectedDate） | 慢軌 High | 分支 `feat/lms-client-invoice-bridge` 已實作待驗收 |
+| — | CAT 彈窗狀態查詢 bridge（getMqRoleState／getPrepConfirmState） | 慢軌 | 分支 `feat/cat-modal-state-bridge` 已實作待驗收 |
 | — | 匯入時角色指派彈窗／開啟時身分選擇彈窗標題加註「匯入時／開啟時」區隔 | 快軌 | **已落地** merge `040c3aad` |
 | — | 批次翻譯預設值改團隊組態 | 與 OBS-4 綁定，等擁有者裁定時間 | 待辦 |
 | — | 「準備中／準備完成」用語變更 | 等擁有者定稿後另發 | 待辦 |
