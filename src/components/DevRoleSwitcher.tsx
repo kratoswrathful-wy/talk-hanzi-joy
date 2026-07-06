@@ -78,8 +78,7 @@ export function DevRoleSwitcher() {
     if (!isRealExecutive && !isTestAccount) return;
     let active = true;
     void (async () => {
-      // profiles.is_test 為新欄位（尚未進 generated types），用 as any 避免型別過深推導。
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("profiles")
         .select("email, display_name")
         .eq("is_test", true)

@@ -441,13 +441,19 @@ export default function ColorPicker({
                         className="h-8 w-8 shrink-0 p-0"
                         onClick={async () => {
                           try {
-                            const dropper = new (window as any).EyeDropper();
+                            // EyeDropper API 尚未列入標準 DOM lib 型別，此處補最小介面
+                            type EyeDropperCtor = new () => { open(): Promise<{ sRGBHex: string }> };
+                            const EyeDropper = (window as unknown as { EyeDropper?: EyeDropperCtor }).EyeDropper;
+                            if (!EyeDropper) return;
+                            const dropper = new EyeDropper();
                             const result = await dropper.open();
                             const hex = result.sRGBHex.toUpperCase();
                             setHexInput(hex);
                             setHsv(hexToHsv(hex));
                             onChange(hex);
-                          } catch {}
+                          } catch {
+                            // 使用者取消選色或瀏覽器不支援，略過
+                          }
                         }}
                       >
                         <Pipette className="h-3.5 w-3.5" />

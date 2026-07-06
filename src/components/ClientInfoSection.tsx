@@ -125,7 +125,7 @@ export default function ClientInfoSection({
     onChange({ ...clientInfo, ...updates });
   };
 
-  const updateItem = (id: string, field: keyof ClientTaskItem, value: any) => {
+  const updateItem = (id: string, field: keyof ClientTaskItem, value: ClientTaskItem[keyof ClientTaskItem]) => {
     update(
       "clientTaskItems",
       clientInfo.clientTaskItems.map((item) =>
@@ -580,7 +580,7 @@ export default function ClientInfoSection({
                             value={item.clientPrice}
                             onChange={(e) => {
                               const v = e.target.value;
-                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
+                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v);
                             }}
                             onFocus={() => handleClientPriceFocus(item.id)}
                             onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
@@ -602,7 +602,7 @@ export default function ClientInfoSection({
                             value={item.unitCount}
                             onChange={(e) => {
                               const v = e.target.value;
-                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
+                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v);
                             }}
                             onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
                             className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"

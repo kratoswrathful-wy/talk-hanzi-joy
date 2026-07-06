@@ -12,7 +12,9 @@ function getUtcLabel(tz: string): string {
     const parts = fmt.formatToParts(d);
     const tzPart = parts.find(p => p.type === "timeZoneName");
     if (tzPart) return `(${tzPart.value.replace("GMT", "UTC")})`;
-  } catch {}
+  } catch {
+    // 時區資訊取得失敗，回退預設值
+  }
   return "(UTC+8)";
 }
 

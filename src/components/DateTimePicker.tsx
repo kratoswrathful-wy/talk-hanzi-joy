@@ -41,7 +41,9 @@ function getTzLabel(tz: string): string {
     const parts = fmt.formatToParts(d);
     const tzPart = parts.find(p => p.type === "timeZoneName");
     if (tzPart) return tzPart.value.replace("GMT", "UTC");
-  } catch {}
+  } catch {
+    // 時區資訊取得失敗，回退預設值
+  }
   return "UTC+8";
 }
 
@@ -663,7 +665,7 @@ export default function DateTimePicker({
     </Popover>
 
     <AlertDialog open={!!validationMsg} onOpenChange={() => {}}>
-      <AlertDialogContent className="max-w-sm" onEscapeKeyDown={(e: any) => e.preventDefault()}>
+      <AlertDialogContent className="max-w-sm" onEscapeKeyDown={(e: KeyboardEvent) => e.preventDefault()}>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />

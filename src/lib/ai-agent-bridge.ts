@@ -380,7 +380,7 @@ function validateToolEntries(
       obj.fieldValues && typeof obj.fieldValues === "object" && !Array.isArray(obj.fieldValues)
         ? (obj.fieldValues as Record<string, string>)
         : {};
-    let fileValues: ToolEntry["fileValues"] = {};
+    const fileValues: ToolEntry["fileValues"] = {};
     if (obj.fileValues && typeof obj.fileValues === "object" && !Array.isArray(obj.fileValues)) {
       for (const [fk, fv] of Object.entries(obj.fileValues as Record<string, unknown>)) {
         const fi = validateFileItems(`${path}[${i}].fileValues.${fk}`, fv);
