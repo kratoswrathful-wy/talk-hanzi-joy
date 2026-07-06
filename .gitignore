@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 
+# TypeScript 增量編譯快取（本機產物，勿進 Git；每次 tsc -b 都會變動造成噪音）
+*.tsbuildinfo
+
 # Local Storage export (migration download)
 storage-backup/
 dist-ssr
