@@ -158,6 +158,20 @@
      * batchTotalHint／progressLabel，不另建第二套進度狀態。取陣列中最新一筆
      * kind === 'batch_translate' 的紀錄（陣列以 unshift 維護，新的在前）。
      */
+    function getMqRoleState() {
+        if (!global.CatModalStateBridge || typeof global.CatModalStateBridge.getMqRoleState !== 'function') {
+            return agentFail('CatModalStateBridge 不可用（請確認 cat-modal-state-bridge.js 已載入）');
+        }
+        return agentOk(global.CatModalStateBridge.getMqRoleState());
+    }
+
+    function getPrepConfirmState() {
+        if (!global.CatModalStateBridge || typeof global.CatModalStateBridge.getPrepConfirmState !== 'function') {
+            return agentFail('CatModalStateBridge 不可用（請確認 cat-modal-state-bridge.js 已載入）');
+        }
+        return agentOk(global.CatModalStateBridge.getPrepConfirmState());
+    }
+
     function getProgress() {
         if (typeof global._loadAiTaskLogs !== 'function') {
             return agentFail('_loadAiTaskLogs 不可用（請確認已開啟專案且批次功能已載入）');
@@ -271,7 +285,7 @@
             fileId: global.currentFileId || null,
             segmentCount: Array.isArray(global.currentSegmentsList) ? global.currentSegmentsList.length : 0,
             virtGridEnabled: !!(global.CatVirtGrid && global.CatVirtGrid.isEnabled && global.CatVirtGrid.isEnabled()),
-            apis: ['describe', 'aiBatch.getSettings', 'aiBatch.setSettings', 'aiBatch.openModal', 'aiBatch.run', 'aiBatch.getProgress', 'import.fromBytes', 'import.forwardToInput'],
+            apis: ['describe', 'aiBatch.getSettings', 'aiBatch.setSettings', 'aiBatch.openModal', 'aiBatch.run', 'aiBatch.getProgress', 'modals.getMqRoleState', 'modals.getPrepConfirmState', 'import.fromBytes', 'import.forwardToInput'],
         });
     }
 
@@ -308,6 +322,10 @@
             import: {
                 fromBytes: importFromBytes,
                 forwardToInput: forwardFilesToInput,
+            },
+            modals: {
+                getMqRoleState: getMqRoleState,
+                getPrepConfirmState: getPrepConfirmState,
             },
         };
     }
