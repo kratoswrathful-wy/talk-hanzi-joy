@@ -258,6 +258,7 @@ flowchart LR
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) — 部署與 migration 檢核
 - [TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11 — W9-A DOM 定位標記對照表（AI 代理操作用）
 - [supabase/tests/w10_translator_read_check.sql](../supabase/tests/w10_translator_read_check.sql)、[w10_fees_visible_mask_check.sql](../supabase/tests/w10_fees_visible_mask_check.sql)、[w10_fees_write_check.sql](../supabase/tests/w10_fees_write_check.sql) — W10 三批次 DB 層驗證腳本（權威回歸基準）
+- [CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md) — **獨立於本計畫**的 CAT AI 模型 registry 專案（不計入 R/W 工項編號）；Phase 3A 已 pivot，見 §16
 
 ---
 
@@ -642,3 +643,24 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 **驗收**：`npm run typecheck`／`npm run test`（195 項全過，含新增 3 項）／`npx eslint`（新增檔案 0 error）／`npm run check:encoding` 皆過；新增 diff 全文 grep 四項禁用手法（`as unknown as`／`as any`／`@ts-expect-error`／`eslint-disable`）= 0 處。**核准併入 main，merge commit `b245c285`**（CI [run #28730610071](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28730610071) 綠燈）。
 
 **待辦（不擋此輪結案）**：既有已驗收 bug-report 語料（Bug #9～#12 等 mq:rxt／bpt-ph 型別不符樣本）回填進 `tests/fixtures/` 成 regression corpus，列為 Vitest 後續批次。
+
+## 14. 交叉引用：CAT AI Model Registry Phase 3A pivot（獨立專案，非本計畫工項；供驗收方單一入口查閱，2026-07-06）
+
+> **編號註記**：本節與另一未併入 `main` 的分支（`fix/w6-lint-cleanup-batch5`，同樣新增 §14／§15）平行開出，兩者 merge 先後將產生章節編號衝突，屬預期內、merge 時人工重編號即可，不影響內容正確性。
+
+**背景**：CAT AI 模型 registry 是與本工程改善主計畫**無直接關聯**的獨立產品專案（完整規劃見 [`CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md`](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md)），未計入本計畫 R1–R7／W1–W8 工項編號。因其 Phase 3A 於本計畫階段三收斂期間併入又 pivot，時間點易與本計畫工項交錯，故在此補一段交叉引用時間線，避免驗收方（如 Fable）從本計畫單一入口查閱時漏看。
+
+**一句話摘要**：Phase 3A（executive 專用完整 registry 管理頁）已於 merge 後約 18 小時內因 **PM 產品方向 pivot**（非 bug、非事故、未動 production DB／migration）而移除 UI，改為規劃中的 **Phase 3B′**（CAT「AI 管理」內精選模型選單，約 4～5 個 `enabled=true` 模型，非完整管理頁）。
+
+**時間線（UTC+8）**：
+
+| 時間 | commit / PR | 事件 |
+|---|---|---|
+| 2026-07-05 14:05 | `e6c39036` | Phase 3A 實作：唯讀管理頁 + 側欄入口 + Vitest |
+| 2026-07-05 20:29 | PR #10 → `d87e6e77` | Phase 3A **merge 進 main** |
+| 2026-07-06 08:43 | `96ca36c2` | pivot：移除路由／側欄／`CatAiModelRegistryPage`；保留 `src/lib/cat-ai-model-registry/` helper 供新方向使用 |
+| 2026-07-06 08:50 | PR #11 → `941c5dd8` | pivot 分支 **merge 進 main** |
+| 2026-07-06 09:14 | `85cee697` | 新方向規格：Phase 3B′ 精選模型選單 + production read-only audit |
+| 2026-07-06 09:25 | PR #12 → `49156215` | 3B′ 規格文件 merge（僅 docs，未實作） |
+
+**現況（`main`）**：`/settings/cat-ai-models` 路由與 `CatAiModelRegistryPage.tsx` 已移除；`src/lib/cat-ai-model-registry/` helper 仍在；DB registry 四表與 sync endpoint 未受影響；下一步規劃見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)（規劃中，未實作，未動 production DB）。
