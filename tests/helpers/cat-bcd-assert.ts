@@ -125,7 +125,7 @@ export async function prepareReviewConfirmedSegmentForTranslator(
     .locator(`.grid-data-row[data-seg-id="${segId}"]`)
     .waitFor({ state: "visible", timeout: 10_000 });
 
-  let wf = await getRowWfState(frame, segId);
+  const wf = await getRowWfState(frame, segId);
   if (wf !== "trans_confirmed") {
     await expect
       .poll(async () => getRowWfState(frame, segId), { timeout: 8_000 })

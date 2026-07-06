@@ -23,7 +23,8 @@ import { useInvoice, invoiceStore, useInvoicesLoaded } from "@/hooks/use-invoice
 import { useFees } from "@/hooks/use-fee-store";
 import type { FeeTaskItem } from "@/data/fee-mock-data";
 import { useSelectOptions } from "@/stores/select-options-store";
-import { type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
+import { type Invoice, type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
+import type { Json } from "@/integrations/supabase/types";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -116,6 +117,41 @@ interface CommentEntry {
 
 type EditLogEntry = SimplePersistedLog;
 
+function nameUrlFromJson(x: Json): { name: string; url: string } | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.name !== "string" || typeof x.url !== "string") return undefined;
+  return { name: x.name, url: x.url };
+}
+
+function commentEntryFromJson(x: Json): CommentEntry | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.author !== "string" || typeof x.content !== "string" || typeof x.timestamp !== "string") {
+    return undefined;
+  }
+  const imageUrls = Array.isArray(x.imageUrls) ? x.imageUrls.filter((u): u is string => typeof u === "string") : undefined;
+  const fileUrls = Array.isArray(x.fileUrls) ? x.fileUrls.flatMap((f) => { const p = nameUrlFromJson(f); return p ? [p] : []; }) : undefined;
+  return {
+    id: x.id,
+    author: x.author,
+    content: x.content,
+    timestamp: x.timestamp,
+    ...(imageUrls?.length ? { imageUrls } : {}),
+    ...(fileUrls?.length ? { fileUrls } : {}),
+    ...(typeof x.replyTo === "string" ? { replyTo: x.replyTo } : {}),
+  };
+}
+
+function commentEntriesFromJson(raw: unknown): CommentEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CommentEntry[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+    const entry = commentEntryFromJson(item as Json);
+    if (entry) out.push(entry);
+  }
+  return out;
+}
+
 const fieldLabels: Record<string, string> = {
   title: "標題",
   status: "狀態",
@@ -199,32 +235,12 @@ export default function InvoiceDetailPage() {
   useEffect(() => {
     if (!invoice) return;
     // Load comments
-    // 註：comments／internalComments 不在 Invoice 型別內，此處以 unknown 保留既有「讀不到即略過」行為。
-    const rawComments = (invoice as unknown as { comments?: unknown }).comments;
-    if (Array.isArray(rawComments)) {
-      setComments((rawComments as CommentEntry[]).map((c) => ({
-        id: c.id,
-        author: c.author,
-        content: c.content,
-        imageUrls: c.imageUrls,
-        fileUrls: c.fileUrls,
-        replyTo: c.replyTo,
-        timestamp: c.timestamp,
-      })));
-    }
-    // Load internal comments
-    const rawInternalComments = (invoice as unknown as { internalComments?: unknown }).internalComments;
-    if (Array.isArray(rawInternalComments)) {
-      setInternalComments((rawInternalComments as CommentEntry[]).map((c) => ({
-        id: c.id,
-        author: c.author,
-        content: c.content,
-        imageUrls: c.imageUrls,
-        fileUrls: c.fileUrls,
-        replyTo: c.replyTo,
-        timestamp: c.timestamp,
-      })));
-    }
+    // 註：comments／internalComments 不在 Invoice 正式型別內，是 invoiceStore.updateInvoice
+    // 透過物件展開（{ ...inv, ...updates }）動態附加到記憶體物件的持久化用欄位。
+    // 以擴充交集型別單層 `as`（非 as unknown as）讀取，保留既有「讀不到即略過」行為。
+    const invWithLegacyFields = invoice as Invoice & { comments?: unknown; internalComments?: unknown };
+    setComments(commentEntriesFromJson(invWithLegacyFields.comments));
+    setInternalComments(commentEntriesFromJson(invWithLegacyFields.internalComments));
     const rawEditLogs = invoice.edit_logs;
     if (Array.isArray(rawEditLogs)) {
       setEditLog(rawEditLogs.map((l) => ({

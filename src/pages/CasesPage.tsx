@@ -933,7 +933,7 @@ export default function CasesPage() {
       const c = cases.find((x) => x.id === id);
       if (!c) continue;
 
-      const oldValue = (c as unknown as Record<string, unknown>)[field] ?? "";
+      const oldValue = (c as CaseRecord & Record<string, unknown>)[field] ?? "";
       undoEntries.push({ recordId: id, oldValue });
       caseStore.update(id, { [field]: value });
       editedCount++;

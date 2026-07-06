@@ -1,4 +1,4 @@
-狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三已開工——lint 清零批次 1–8 已全數併入 main、`npm run lint` error 降至 0（見 §17）、Vitest 批次 2、`dev-switch-user` 核心修復均已驗收併入 main（殘留 OBS-5 待辦）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項、排程待定（見 §15）；**R2 三關擋關前置條件已達成，待正式切換**（移除 `ci.yml` lint 的 `continue-on-error`、更新 `AGENTS.md`）；階段四未開工）
+狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三——lint 清零批次 1–8 已全數併入 main、Vitest 批次 2、`dev-switch-user` 核心修復均已驗收併入 main（殘留 OBS-5 待辦）；**R2 五關正式生效待併**（分支 `fix/r2-formalize-forbidden-casts-cleanup`，見 §18）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項（§15）；階段四未開工）
 
 # 1UP 工程改善主計畫
 
@@ -167,7 +167,7 @@ flowchart LR
 - **W6（CI 第一版）** — 狀態：**已落地待驗收**（GitHub Actions：push main + PR 觸發，typecheck／test 擋關，lint `continue-on-error` 暫不擋關；本機 `npm run lint` 現存 357 error／51 warning，主要為既有 `no-explicit-any`，清零策略見下方 W6-C 評估）— commit：`7f8117b`；merge commit：`70a0bc8`（`cursor/w6-ci-v1` → `main`）；**Actions 執行記錄**：run [`#28696148596`](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28696148596)，`status=completed`／`conclusion=success`（綠燈），lint 步驟已完整跑過（本機重現同一份 357/51 報告）且未影響整體結果
 - **W6-B（Hook 條件呼叫熱修，隨 CI 盤點一併發現的真風險）** — 狀態：**已驗收**（本機 `npm run typecheck`／`npm run test` 全過；新增回歸測試已驗證「復原舊碼會失敗、修復後會通過」）— commit：`3e84603`；merge commit：`102df30`（`cursor/w6-hook-order-fix` → `main`）
 - **Playwright 測試模式** — 狀態：規劃中 — commit：—
-- **R2** — 狀態：**前置條件已達成，待正式切換**（lint 清零批次 1–8 完成，`npm run lint` error=0，見 §17；尚未移除 `ci.yml` 的 `continue-on-error`）— commit：—
+- **R2** — 狀態：**正式生效待併**（lint 清零批次 1–8 完成；`check-forbidden-casts` 新增；批次 7/8 抽驗 `as unknown as` 退回慢軌修正中，見 §18）— commit：—
 
 ### 階段四
 
@@ -707,4 +707,37 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 
 **驗收**：每批合併前皆本機重跑 typecheck／test（252 項全過）／lint／`check:encoding`，merge 後追加 `git status` 自查（無夾帶 build 產物或無關檔案）與 main CI 綠燈確認（GitHub Actions `run` 逐批綠燈）。**批次 8 併入後 `npm run lint` 降至 0 error（40 warning，非擋關項）**，達成 R2 正式生效前置條件。
 
-**下一步**：R2 正式生效——`ci.yml` 移除 `lint` 的 `continue-on-error`、`AGENTS.md` 推送慣例更新為三關全過才可推送。
+**下一步**：~~R2 正式生效~~ → 見 §18（2026-07-06 擁有者核准切換，分支待驗收併入）。
+
+## 18. R2 正式生效 ＋ 批次 7/8 抽驗 `as unknown as` 退回修正（2026-07-06）
+
+**背景**：lint 清零批次 8 併入後 `npm run lint` error=0，達成 R2 前置條件。快軌抽驗發現批次 7/8 重新引入約 8 處 `as unknown as`（JSONB 讀寫與 `bodyContent`），lint 規則管不到此類雙層轉型；擁有者核准立即切換 R2，並新增 `check-forbidden-casts` CI 防線（比照 `check-encoding`）。
+
+**R2 切換內容**（分支 `fix/r2-formalize-forbidden-casts-cleanup`）：
+
+1. `.github/workflows/ci.yml`：移除 lint 的 `continue-on-error`；新增 `npm run check:forbidden-casts` 步驟；CI 五關全擋。
+2. `AGENTS.md`：推送慣例更新為五關全過才可推送；補多代理 worktree 建議。
+3. `scripts/check-forbidden-casts.mjs`：掃非測試 `src` 檔的 `as unknown as` 與 `@ts-expect-error`；記名白名單：`ColorPicker.tsx` EyeDropper 瀏覽器 API 偵測。
+
+**修正單**（慢軌：push→回報→驗收→併）：
+
+| 檔案 | 修法 |
+|---|---|
+| `case-store.ts` | `bodyContent` 改 `blockFromJson` + `toTypedArray`（驗證 id/type 後單層 `as Block`） |
+| `CasesPage.tsx` | 動態欄位讀取改 `CaseRecord & Record<string, unknown>` 單層索引 |
+| `ClientInvoiceDetailPage.tsx` | comments/edit_logs 讀寫改 `commentEntryFromJson`／`commentsToJson`／`editLogsToJson` |
+| `InvoiceDetailPage.tsx` | comments/internalComments 讀取改 `commentEntryFromJson` |
+| `ColorPicker.tsx` | EyeDropper 保留 `as unknown as`，記名白名單 |
+
+**驗收條件**：`npm run check:forbidden-casts` 0 命中（白名單除外）；五關全綠；編碼檢查必跑。
+
+**分級制**：本修正單因抽驗失守走慢軌一次；結案後 lint 類批次恢復快軌資格。
+
+**待辦追加**（擁有者 2026-07-06，未排入本分支）：
+
+| 優先 | 工項 | 軌道 |
+|---|---|---|
+| — | CAT 彈窗狀態查詢 bridge：比照 `getProgress` 唯讀模式，新增「開啟編輯器身分選擇彈窗」「準備完成確認彈窗」存在與預設值查詢 | 慢軌 |
+| — | 匯入時角色指派彈窗／開啟時身分選擇彈窗標題加註「匯入時／開啟時」區隔 | 快軌 |
+| — | 批次翻譯預設值改團隊組態 | 與 OBS-4 綁定，等擁有者裁定時間 |
+| — | 「準備中／準備完成」用語變更 | 等擁有者定稿後另發 |

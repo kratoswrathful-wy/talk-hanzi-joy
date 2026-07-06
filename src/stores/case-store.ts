@@ -107,6 +107,17 @@ function declineRecordFromJson(x: Json): DeclineRecord | undefined {
   };
 }
 
+/**
+ * BlockNote Block 結構深且多型（props/content/children 依 block type 各異），
+ * 此處僅驗證最小必要欄位（id／type 皆為字串）即信任其餘形狀交給編輯器自行容錯，
+ * 不做逐欄位重建；單層 `as` 而非 `as unknown as`，符合 check-forbidden-casts 規則。
+ */
+function blockFromJson(x: Json): Block | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.type !== "string") return undefined;
+  return x as Block;
+}
+
 function collabRowFromJson(x: Json): CollabRow | undefined {
   if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
   if (
@@ -334,7 +345,7 @@ function fromDb(row: DbCase): CaseRecord {
     internalRecords: toTypedArray(row.internal_records, internalRecordFromJson),
     comments: toTypedArray(row.comments, caseCommentFromJson),
     internalComments: toTypedArray(row.internal_comments, caseCommentFromJson),
-    bodyContent: Array.isArray(row.body_content) ? (row.body_content as unknown as Block[]) : [],
+    bodyContent: toTypedArray(row.body_content, blockFromJson),
     multiCollab: row.multi_collab ?? false,
     collabCount: Number(row.collab_count) || 0,
     collabRows: toTypedArray(row.collab_rows, collabRowFromJson),

@@ -8,6 +8,7 @@
     "typecheck": "tsc -b",
     "typecheck:e2e": "tsc -p tsconfig.playwright.json",
     "check:encoding": "node scripts/check-encoding.mjs",
+    "check:forbidden-casts": "node scripts/check-forbidden-casts.mjs",
     "sync:cat": "node scripts/sync-cat.mjs",
     "prebuild": "npm run sync:cat",
     "build": "tsc -b && vite build",
