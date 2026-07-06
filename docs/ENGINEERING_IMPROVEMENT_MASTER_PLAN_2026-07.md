@@ -1,4 +1,4 @@
-狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三已開工——lint 清零批次 1–5、Vitest 批次 2、`dev-switch-user` 核心修復均已驗收併入 main（殘留 OBS-5 待辦）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項、排程待定（見 §15）；**R2 三關正式生效前置**：`npm run lint` 現存 116 error 須先清零才可切擋關，清零計畫見 §17；階段四未開工）
+狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三已開工——lint 清零批次 1–8 已全數併入 main、`npm run lint` error 降至 0（見 §17）、Vitest 批次 2、`dev-switch-user` 核心修復均已驗收併入 main（殘留 OBS-5 待辦）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項、排程待定（見 §15）；**R2 三關擋關前置條件已達成，待正式切換**（移除 `ci.yml` lint 的 `continue-on-error`、更新 `AGENTS.md`）；階段四未開工）
 
 # 1UP 工程改善主計畫
 
@@ -167,7 +167,7 @@ flowchart LR
 - **W6（CI 第一版）** — 狀態：**已落地待驗收**（GitHub Actions：push main + PR 觸發，typecheck／test 擋關，lint `continue-on-error` 暫不擋關；本機 `npm run lint` 現存 357 error／51 warning，主要為既有 `no-explicit-any`，清零策略見下方 W6-C 評估）— commit：`7f8117b`；merge commit：`70a0bc8`（`cursor/w6-ci-v1` → `main`）；**Actions 執行記錄**：run [`#28696148596`](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28696148596)，`status=completed`／`conclusion=success`（綠燈），lint 步驟已完整跑過（本機重現同一份 357/51 報告）且未影響整體結果
 - **W6-B（Hook 條件呼叫熱修，隨 CI 盤點一併發現的真風險）** — 狀態：**已驗收**（本機 `npm run typecheck`／`npm run test` 全過；新增回歸測試已驗證「復原舊碼會失敗、修復後會通過」）— commit：`3e84603`；merge commit：`102df30`（`cursor/w6-hook-order-fix` → `main`）
 - **Playwright 測試模式** — 狀態：規劃中 — commit：—
-- **R2** — 狀態：規劃中（lint 尚未擋關，三關未全部生效）— commit：—
+- **R2** — 狀態：**前置條件已達成，待正式切換**（lint 清零批次 1–8 完成，`npm run lint` error=0，見 §17；尚未移除 `ci.yml` 的 `continue-on-error`）— commit：—
 
 ### 階段四
 
@@ -692,3 +692,19 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 | 2026-07-06 09:25 | PR #12 → `49156215` | 3B′ 規格文件 merge（僅 docs，未實作） |
 
 **現況（`main`）**：`/settings/cat-ai-models` 路由與 `CatAiModelRegistryPage.tsx` 已移除；`src/lib/cat-ai-model-registry/` helper 仍在；DB registry 四表與 sync endpoint 未受影響；下一步規劃見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)（規劃中，未實作，未動 production DB）。
+
+## 17. lint 清零批次 6–8：`npm run lint` error 由 116 → 0（2026-07-06，達成 R2 擋關前置條件）
+
+**背景**：批次 5 驗收後仍餘 116 個既有 `no-explicit-any`／`no-useless-escape`／`no-empty` 等 error，為 R2（推送前三關擋關）正式生效的前置條件。依裁示原則「檔案集中度高→低排序；與階段四 W1 目標 store（case/fee/invoice/client-invoice/internal-notes）重疊者集中排最後一批」分三批處理。
+
+**批次 6**（41 處，高集中度、無 W1 重疊檔案）：`supabase/functions/fetch-notion-page/index.ts`（Notion API 回應改具名 interface＋判別聯集，取代 16 處 `any`）、`internal-note-title.ts`／`InternalNotesPage.tsx`（`no-useless-escape` regex 各 6 處）、`RichTextEditor.tsx`（BlockNote 泛型與 `getActiveStyles()` 回傳型別）、`TableFooterStats.tsx`（`unknown` 取代泛型 `any`）、`CollaborationTable.tsx`（`cat_views` 查詢移除 `supabase as any`，改用重生後 types）。merge commit：`6df9caf4`。
+
+**批次 6 修正工單**（規劃者 Fable 5 覆核發現）：`tsconfig.app.tsbuildinfo`／`tsconfig.node.tsbuildinfo` 兩個 TypeScript 增量編譯快取檔誤入版控（每次 `tsc -b` 皆變動，先前多次造成 `git checkout` 卡住），`git rm --cached` 移除並於 `.gitignore` 補 `*.tsbuildinfo` 規則。merge commit：`b06edc14`。
+
+**批次 7**（59 處，高集中度頁面，無 W1 重疊）：`ApplyTemplateButton.tsx`／`CreateWithTemplateButton.tsx`（`TemplateFieldValue` 取代 `Record<string, any>`）、`CaseIconUploader.tsx`（`catch (err: unknown)` 安全取訊息）、`realtime-poll.ts`（動態表名改具名聯集型別，非 `any`）、`CaseDetailPage.tsx`／`CasesPage.tsx`／`ClientInvoiceDetailPage.tsx`／`ClientInvoicesPage.tsx`／`InvoiceDetailPage.tsx`（`TranslatorFee`／`ClientTaskItem`／`ClientPaymentRecord`／`DeclineRecord`／`FileItem`／`FeeTaskItem` 等既有型別取代 `any`；`comments`／`edit_logs` 等不在正式型別內的舊欄位改用 `unknown` 保留原「讀不到即略過」行為，零邏輯改動）。過程中一次 PowerShell `Get-Content -Raw | Set-Content` 文字取代不慎造成 `ClientInvoicesPage.tsx` 中文字元編碼損毀，已即時以 `git checkout` 撤回、改用正規編輯工具重做，最終編碼檢查確認乾淨——**教訓：批次修改一律用結構化編輯工具，禁止用 shell 文字流處理含中文的原始碼檔**。merge commit：`51228157`。
+
+**批次 8**（16 處，剩餘小檔，無 W1 重疊）：`ClientInfoSection.tsx`（`ClientTaskItem[keyof ClientTaskItem]` 聯集型別）、`ColorPicker.tsx`（EyeDropper 瀏覽器 API 補最小型別介面，`no-empty` 補說明性註解）、`DateTimePicker.tsx`（`no-empty` 補註解、`onEscapeKeyDown` 型別為 `KeyboardEvent`）、`DevRoleSwitcher.tsx`（`profiles.is_test` 已進重生後 types，移除過時 `as any`）、`ui/command.tsx`／`ui/textarea.tsx`（空 interface 改 type alias）、`case-types.ts`／`case-store.ts`（`bodyContent` 改 `Block[]`，`@blocknote/core`）、`ai-agent-bridge.ts`／`tests/ai-bridge-phase2.spec.ts`（`prefer-const`）、`cat-collab-task-complete.ts`（`SupabaseClient<Database>` 取代 `as any`）、`format-timestamp.ts`（`no-empty` 補註解）、`tailwind.config.ts`（`require()` 改 ESM `import`）。merge commit：`e9343a39`。
+
+**驗收**：每批合併前皆本機重跑 typecheck／test（252 項全過）／lint／`check:encoding`，merge 後追加 `git status` 自查（無夾帶 build 產物或無關檔案）與 main CI 綠燈確認（GitHub Actions `run` 逐批綠燈）。**批次 8 併入後 `npm run lint` 降至 0 error（40 warning，非擋關項）**，達成 R2 正式生效前置條件。
+
+**下一步**：R2 正式生效——`ci.yml` 移除 `lint` 的 `continue-on-error`、`AGENTS.md` 推送慣例更新為三關全過才可推送。
