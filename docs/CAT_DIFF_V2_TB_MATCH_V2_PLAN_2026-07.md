@@ -18,6 +18,25 @@
 
 兩者共用 **`cat-text-tokenizer.js`**（切 token／atomic 判斷／語言正規化），但 **diff engine 與 TB engine 各自獨立**，互不 import renderer 或比對 UI。
 
+### 工項代號與分支命名（2026-07-06 定案）
+
+**勿使用 `W1` 作為本計畫前綴**——與 [`ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](./ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md) 的 **W1～W10** 工程工項編號衝突；亦勿與多分支並行暫稱「波次一／W1-A」混用。
+
+本計畫改用 **ENG-P***（**Eng**ine **P**hase，Diff／TB 共用引擎階段）：
+
+| 代號 | 內容 | Git 分支（建議） | Commit 前綴 |
+|------|------|------------------|-------------|
+| **ENG-P1** | 純引擎 + tests（不接線） | `feature/cat-diff-tb-eng-p1` | `[ENG-P1]` |
+| **ENG-P2** | `tm-utils.js` 接 `CatDiffEngine` | `feature/cat-diff-tb-eng-p2-tm-utils`（待開） | `[ENG-P2]` |
+| **ENG-P3** | Phase C fine diff（`rev-track*`） | 待開 | `[ENG-P3]` |
+| **ENG-P4** | `app.js` TB wrapper | 待開 | `[ENG-P4]` |
+| **ENG-P5** | TB inline hints 對齊 | 待開 | `[ENG-P5]` |
+| **ENG-P6** | surface form UI、`sync:cat`、CODEMAP | 待開 | `[ENG-P6]` |
+
+**舊稱對照**：並行規劃暫用「W1-A」→ 正式 **ENG-P1**。已推送 commit `f7191182` 訊息仍為 `[W1-A]`（歷史保留）；**2026-07-06 起**分支更名為 `feature/cat-diff-tb-eng-p1`，新 commit 一律 `[ENG-P1]`。
+
+**與其他並行 CAT 分支的關係**（字數／篩選／確認跳轉等）使用各自 `feature/cat-*` 描述性分支名，**不共用 ENG-P*** 編號。
+
 ### 已確認決策（2026-07-05）
 
 | # | 決策 | 摘要 |
@@ -499,14 +518,12 @@ cat-text-tokenizer.js
 
 | 順序 | Commit | 內容 |
 |------|--------|------|
-| 1 | `feat(cat): add shared text tokenizer` | 新檔 + tests + index script |
-| 2 | `feat(cat): diff engine v2` | cat-diff-engine + tm-utils |
-| 3 | `feat(cat): Phase C fine diff checkbox` | rev-track* + style + index |
-| 4 | `feat(cat): TB match engine v2` | tb-match-engine + tests |
-| 5 | `feat(cat): wire TB engine in app.js` | wrappers only |
-| 6 | `fix(cat): TB inline hints token ranges` | decorateTbInlineHints |
-| 7 | `feat(cat): TB surface form footer` | renderLiveTmMatches UI |
-| 8 | `chore(cat): sync public/cat` | 最後 |
+| 1 | `[ENG-P1] feat(cat): add shared CAT text engines` | 三引擎 + tests（**不含** index script，P1 不接線） |
+| 2 | `[ENG-P2] feat(cat): diff engine v2 in tm-utils` | cat-diff-engine + tm-utils |
+| 3 | `[ENG-P3] feat(cat): Phase C fine diff checkbox` | rev-track* + style + index |
+| 4 | `[ENG-P4] feat(cat): wire TB engine in app.js` | wrappers only |
+| 5 | `[ENG-P5] fix(cat): TB inline hints token ranges` | decorateTbInlineHints |
+| 6 | `[ENG-P6] feat(cat): TB surface form + sync` | footer UI + `sync:cat` + CODEMAP |
 
 ---
 
@@ -601,7 +618,7 @@ cat-text-tokenizer.js
 
 | 步驟 | 內容 | 檔案 | 標記 | 說明 |
 |------|------|------|------|------|
-| **1** | 純新增 tokenizer + diff/TB engine + 測試 | 新 `.js` / `.test.mjs`；`vitest.config.ts`；`index.html` **僅加 script  tag** | 🟢 | 不改 app.js 行為；可先 merge |
+| **1** | **ENG-P1**：純新增 tokenizer + diff/TB engine + 測試 | 新 `.js` / `.test.mjs`；`vitest.config.ts` | 🟢 | 不改 app.js；分支 `feature/cat-diff-tb-eng-p1` |
 | **2** | Diff 接入 **僅 tm-utils** | `tm-utils.js`；`updateCatTrackPanelContent` 若需 mode 可最小觸 app.js | 🟡 | CAT 比對欄 readable diff；**不**動 Phase C checkbox |
 | **3** | Phase C：rev-track-diff + checkbox + style | `rev-track-diff.js`、`rev-track.js`、`index.html` `#revTrackChkFineDiff`、`style.css` | 🔴 | **等 Phase C 其他改動完成** |
 | **4** | CAT 比對欄低調切換 | `#catDiffModeLink`、`style.css`、panel handler | 🟡 | 可與步驟 2 同批或緊接 |
