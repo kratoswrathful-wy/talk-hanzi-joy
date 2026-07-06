@@ -5,18 +5,17 @@ import {
   clearSearchFilterNav,
   expectCenteredOnSeg,
   expectWeightedWordCountUiHidden,
-  findReviewConfirmedRow,
+  focusTargetAtDisplay,
+  focusTargetCell,
   getRowWfState,
-  prepareReviewConfirmedSegmentForTranslator,
+  resolveReviewConfirmedSegmentForTranslator,
 } from "./helpers/cat-bcd-assert";
 import {
-  clickTargetAtDisplay,
   dismissBlockingModals,
   getCatNavigationState,
   jumpToDisplayIndex,
 } from "./helpers/cat-nav-assert";
 import { assertVirtEnabled, openOfflineCatWithFile } from "./helpers/cat-offline-open";
-
 const SMALL_FIXTURE = resolveCatFixture("small");
 
 test.describe("BCD 波次驗收（sync 後 UI）", () => {
@@ -54,7 +53,7 @@ test.describe("BCD 波次驗收（sync 後 UI）", () => {
       expect(filteredCount).toBeGreaterThan(0);
       expect(filteredCount).toBeLessThan(40);
 
-      await clickTargetAtDisplay(frame, anchorDisplay);
+      await focusTargetAtDisplay(frame, anchorDisplay);
       const beforeClear = await getCatNavigationState(frame);
       expect(beforeClear.activeSegId).toBe(anchorSegId);
 
@@ -78,19 +77,16 @@ test.describe("BCD 波次驗收（sync 後 UI）", () => {
       });
       await dismissBlockingModals(frame);
 
-      const prepared = await prepareReviewConfirmedSegmentForTranslator(frame, 20);
-      const reviewRow = (await findReviewConfirmedRow(frame)) ?? prepared;
-      expect(reviewRow.segId).toBeTruthy();
+      const prepared = await resolveReviewConfirmedSegmentForTranslator(frame, 17);
+      expect(prepared.segId).toBeTruthy();
 
-      const wfBefore = await getRowWfState(frame, reviewRow.segId);
+      const wfBefore = await getRowWfState(frame, prepared.segId);
       expect(wfBefore).toBe("review_confirmed");
 
-      await frame
-        .locator(`.grid-data-row[data-seg-id="${reviewRow.segId}"] .col-target .grid-textarea`)
-        .click();
+      await focusTargetCell(frame, prepared.segId);
 
       const beforeNav = await getCatNavigationState(frame);
-      expect(beforeNav.activeSegId).toBe(reviewRow.segId);
+      expect(beforeNav.activeSegId).toBe(prepared.segId);
 
       await frame.locator(".grid-textarea:focus").press("Control+Enter");
 
@@ -99,9 +95,9 @@ test.describe("BCD 波次驗收（sync 後 UI）", () => {
           const nav = await getCatNavigationState(frame);
           return nav.activeSegId;
         }, { timeout: 10_000 })
-        .not.toBe(reviewRow.segId);
+        .not.toBe(prepared.segId);
 
-      const wfAfter = await getRowWfState(frame, reviewRow.segId);
+      const wfAfter = await getRowWfState(frame, prepared.segId);
       expect(wfAfter).toBe("review_confirmed");
 
       const afterNav = await getCatNavigationState(frame);
