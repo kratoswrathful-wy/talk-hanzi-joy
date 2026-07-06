@@ -1,4 +1,4 @@
-狀態：Phase 1 已完整完成（2026-07-05）；Phase 2 已驗收（2026-07-05）；Phase 3A 已 pivot（2026-07-06，移除 registry 管理頁；下一工項：CAT 精選模型選單）；Phase 4 未開始
+狀態：Phase 1 已完整完成（2026-07-05）；Phase 2 已驗收（2026-07-05）；Phase 3A 已 pivot（2026-07-06，PR #11 merge）；**Phase 3B′ 規劃中**（CAT 精選模型選單，見 [`CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)）；Phase 4 未開始
 
 # CAT AI 模型清單管理：可行性回應與變更計畫（Cursor 版）
 
@@ -286,7 +286,7 @@ Phase 1 merge 前曾嘗試 Supabase Branching「從零重建」驗證，因**既
 - 四張 registry 表已存在於 production DB；**首次 production sync 已成功**（見 [`CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md)）。
 - **Phase 2** 已驗收（endpoint + sync + PR #7 hotfix）。
 - **production default**：PM 已正式採納 **`gpt-5.5`**；`gpt-4.1-mini` 保留 `enabled=true` 作 fallback。
-- **Phase 3**（管理 UI：default／enabled／文案）**規劃中** — 規格 [`docs/CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md)；**Phase 4**（前台選單／BYOK 收斂）尚未開始。
+- **Phase 3B′**（CAT AI 設定精選模型選單）**規劃中** — audit + 規格 [`docs/CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3B_PRIME_SPEC_2026-07.md)；總規 [`docs/CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE3_SPEC_2026-07.md) §0；**Phase 4**（proxy 白名單／BYOK 收斂）尚未開始。
 
 ### 產品決策：AI 管理為系統預設值（Phase 3/4 備註）
 
