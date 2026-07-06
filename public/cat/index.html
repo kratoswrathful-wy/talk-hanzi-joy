@@ -1343,25 +1343,10 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">模型</label>
-                        <select id="aiSettingsModel" class="form-input">
-                            <optgroup label="GPT-4.1 系列">
-                                <option value="gpt-4.1">gpt-4.1（旗艦）</option>
-                                <option value="gpt-4.1-mini" selected>gpt-4.1-mini（建議 · 高 CP 值）</option>
-                                <option value="gpt-4.1-nano">gpt-4.1-nano（最省費用）</option>
-                            </optgroup>
-                            <optgroup label="GPT-4o 系列">
-                                <option value="gpt-4o">gpt-4o</option>
-                                <option value="gpt-4o-mini">gpt-4o-mini</option>
-                            </optgroup>
-                            <optgroup label="GPT-5 系列" id="aiModelOptGpt5">
-                                <option value="gpt-5">gpt-5</option>
-                                <option value="gpt-5-mini">gpt-5-mini</option>
-                            </optgroup>
-                            <optgroup label="動態載入的模型" id="aiModelOptDynamic" style="display:none;"></optgroup>
-                            <option value="__custom__">── 自訂輸入 ──</option>
-                        </select>
-                        <input type="text" id="aiSettingsModelCustom" class="form-input" placeholder="輸入自訂模型名稱…" style="display:none; margin-top:0.35rem;">
-                        <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">點「測試連線」後系統會嘗試自動拉取你帳號可用的模型清單。</p>
+                        <select id="aiSettingsModel" class="form-input"></select>
+                        <p id="aiSettingsModelStatus" style="font-size:0.75rem; color:#64748b; margin:0.35rem 0 0 0;"></p>
+                        <p id="aiSettingsModelHint" style="font-size:0.78rem; color:#475569; margin:0.35rem 0 0 0; line-height:1.45;"></p>
+                        <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">僅顯示系統精選模型（registry enabled=true），不含完整 OpenAI 清單。</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">API Base URL（選填）</label>
@@ -3538,6 +3523,7 @@
     <script src="js/xliff-tag-pipeline.js"></script>
     <script src="js/xliff-build-segments.js"></script>
     <script src="js/ai-model-temperature.js"></script>
+    <script src="js/ai-model-picker.js"></script>
     <script src="js/ai-translate.js"></script>
     <script src="js/xliff-import.js"></script>
     <script src="js/xliff-to-tm.js"></script>

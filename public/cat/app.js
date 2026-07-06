@@ -31258,7 +31258,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const exec = _isCatExecutive();
         const apiKeyEl = document.getElementById('aiSettingsApiKey');
         const modelSelect = document.getElementById('aiSettingsModel');
-        const modelCustom = document.getElementById('aiSettingsModelCustom');
+        const modelHintEl = document.getElementById('aiSettingsModelHint');
+        const modelStatusEl = document.getElementById('aiSettingsModelStatus');
         const baseUrlEl = document.getElementById('aiSettingsBaseUrl');
         const batchSizeEl = document.getElementById('aiSettingsBatchSize');
         const preferProxyEl = document.getElementById('aiSettingsPreferProxy');
@@ -31291,47 +31292,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (baseUrlEl) { baseUrlEl.value = settings.apiBaseUrl || ''; baseUrlEl.readOnly = !exec; }
         if (batchSizeEl) { batchSizeEl.value = settings.batchSize ?? 20; batchSizeEl.readOnly = !exec; }
         if (modelSelect) modelSelect.disabled = !exec;
-        if (modelCustom) modelCustom.readOnly = !exec;
         const saveBtn0 = document.getElementById('btnSaveAiSettings');
         if (saveBtn0) saveBtn0.style.display = exec ? '' : 'none';
         const testBtn0 = document.getElementById('btnTestAiSettings');
         if (testBtn0) testBtn0.style.display = exec ? '' : 'none';
 
-        // 設定模型選單的選取值
-        function _setModelValue(model) {
-            if (!modelSelect) return;
-            const savedModel = model || 'gpt-4.1-mini';
-            let found = false;
-            for (const opt of modelSelect.options) {
-                if (opt.value === savedModel) { opt.selected = true; found = true; break; }
-            }
-            if (!found) {
-                // 不在清單中：選「自訂輸入」並填入文字欄
-                const customOpt = modelSelect.querySelector('option[value="__custom__"]');
-                if (customOpt) customOpt.selected = true;
-                if (modelCustom) { modelCustom.style.display = ''; modelCustom.value = savedModel; }
-            }
-        }
-        _setModelValue(settings.model);
-
-        // 自訂輸入切換
-        if (modelSelect) {
-            modelSelect.addEventListener('change', () => {
-                if (!modelCustom) return;
-                if (modelSelect.value === '__custom__') {
-                    modelCustom.style.display = '';
-                    modelCustom.focus();
-                } else {
-                    modelCustom.style.display = 'none';
-                }
-            });
+        // 精選模型選單（registry enabled=true）
+        if (window.CatAiModelPicker && typeof window.CatAiModelPicker.populate === 'function') {
+            await window.CatAiModelPicker.populate(modelSelect, modelHintEl, modelStatusEl, settings.model);
         }
 
-        // 讀取目前選取的模型名稱
         function _getSelectedModel() {
-            if (!modelSelect) return 'gpt-4.1-mini';
-            if (modelSelect.value === '__custom__') return modelCustom?.value?.trim() || 'gpt-4.1-mini';
-            return modelSelect.value || 'gpt-4.1-mini';
+            if (window.CatAiModelPicker && typeof window.CatAiModelPicker.getSelectedModelId === 'function') {
+                return window.CatAiModelPicker.getSelectedModelId(modelSelect);
+            }
+            return modelSelect?.value || 'gpt-5.5';
         }
 
         const saveBtn = document.getElementById('btnSaveAiSettings');
@@ -31386,13 +31361,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!apiKey) { testResult.textContent = '若僅用主站代打可不填，改以佈署環境變數測試。若要直連測試請先填入本機金鑰'; testResult.style.color = '#b45309'; return; }
                 const baseUrl = (baseUrlEl?.value?.trim() || 'https://api.openai.com').replace(/\/$/, '');
                 const model = _getSelectedModel();
+                const testBody = (window.CatAiModelTemperature && typeof window.CatAiModelTemperature.buildOpenAiChatBody === 'function')
+                    ? window.CatAiModelTemperature.buildOpenAiChatBody({ model }, [{ role: 'user', content: 'hi' }], { max_tokens: 1 })
+                    : { model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 };
 
-                // 1. 嘗試用 Chat Completions 測試連線（不依賴 List models 權限）
+                // 測試連線（Chat Completions；不拉取 /v1/models 全量清單）
                 try {
                     const r = await fetch(`${baseUrl}/v1/chat/completions`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 })
+                        body: JSON.stringify(testBody)
                     });
                     if (r.ok || r.status === 400) {
                         // 400 可能是參數問題但連線 OK；200 是正常回應
@@ -31415,30 +31393,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     testResult.style.color = '#ef4444';
                     return;
                 }
-
-                // 2. 嘗試動態拉取模型清單（若有 List models 權限則更新選單）
-                try {
-                    const mr = await fetch(`${baseUrl}/v1/models`, {
-                        headers: { 'Authorization': `Bearer ${apiKey}` }
-                    });
-                    if (mr.ok) {
-                        const data = await mr.json();
-                        const gptModels = (data.data || [])
-                            .map(m => m.id)
-                            .filter(id => /^(gpt|o\d)/i.test(id))
-                            .sort();
-                        if (gptModels.length > 0) {
-                            const dynGroup = document.getElementById('aiModelOptDynamic');
-                            if (dynGroup) {
-                                dynGroup.innerHTML = gptModels.map(id => `<option value="${id}">${id}</option>`).join('');
-                                dynGroup.style.display = '';
-                                // 若目前選的 model 在動態清單裡，切換至動態選項
-                                const dynOpt = dynGroup.querySelector(`option[value="${model}"]`);
-                                if (dynOpt) dynOpt.selected = true;
-                            }
-                        }
-                    }
-                } catch (_) { /* 無 List models 權限，忽略 */ }
             };
         }
 
