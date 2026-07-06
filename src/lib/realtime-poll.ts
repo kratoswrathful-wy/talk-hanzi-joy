@@ -3,6 +3,14 @@ import { getEnvironment } from "@/lib/environment";
 
 const isBrowser = typeof document !== "undefined";
 
+/** 可輪詢的資料表：須同時具備 `updated_at`／`env` 欄位，僅列出目前實際呼叫端使用的表名。 */
+type PollableTable =
+  | "invoices"
+  | "fees"
+  | "internal_notes"
+  | "client_invoices"
+  | "cases";
+
 /**
  * Creates a polling fallback for a Supabase table.
  * Checks max(updated_at) every `interval` ms; calls `onChanged` when it differs.
@@ -11,7 +19,7 @@ const isBrowser = typeof document !== "undefined";
  * 回到前景時立即補跑一次，避免背景分頁持續空打資料庫。
  */
 export function createPollFallback(
-  table: string,
+  table: PollableTable,
   onChanged: () => void,
   interval = 30000
 ) {
@@ -23,14 +31,14 @@ export function createPollFallback(
     try {
       const env = getEnvironment();
       const { data } = await supabase
-        .from(table as any)
+        .from(table)
         .select("updated_at")
         .eq("env", env)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      const latest = (data as any)?.updated_at ?? null;
+      const latest = data?.updated_at ?? null;
       if (lastMaxUpdatedAt !== null && latest !== lastMaxUpdatedAt) {
         onChanged();
       }

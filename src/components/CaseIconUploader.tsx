@@ -117,8 +117,9 @@ export function CaseIconUploader({ caseId, currentIconUrl, onUploaded, onRemoved
       setCropOpen(false);
       setImageSrc(null);
       toast({ title: "圖示已更新" });
-    } catch (err: any) {
-      toast({ title: "上傳失敗", description: err.message, variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: "上傳失敗", description: message, variant: "destructive" });
     } finally {
       setUploading(false);
     }
@@ -129,8 +130,9 @@ export function CaseIconUploader({ caseId, currentIconUrl, onUploaded, onRemoved
       await supabase.storage.from("case-icons").remove([`${caseId}/icon.png`]);
       onRemoved();
       toast({ title: "圖示已移除" });
-    } catch (err: any) {
-      toast({ title: "移除失敗", description: err.message, variant: "destructive" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: "移除失敗", description: message, variant: "destructive" });
     }
   };
 

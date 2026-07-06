@@ -12,6 +12,8 @@ import { TableRowSelectCheckbox } from "@/components/ui/checkbox-patterns";
 import { Input } from "@/components/ui/input";
 import { useClientInvoices, clientInvoiceStore } from "@/hooks/use-client-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
+import type { TranslatorFee, ClientTaskItem } from "@/data/fee-mock-data";
+import type { ClientPaymentRecord } from "@/data/client-invoice-types";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { type ClientInvoiceStatus, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
@@ -80,20 +82,20 @@ import { currencyStore } from "@/stores/currency-store";
 const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
-function getFeeRevenueOriginal(fee: any): { amount: number; currency: string } {
-  const ci = fee.clientInfo as any;
+function getFeeRevenueOriginal(fee: TranslatorFee): { amount: number; currency: string } {
+  const ci = fee.clientInfo;
   if (!ci?.clientTaskItems) return { amount: 0, currency: "TWD" };
   if (ci.notFirstFee) return { amount: 0, currency: "TWD" };
   const amount = ci.clientTaskItems.reduce(
-    (s: number, i: any) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
+    (s: number, i: ClientTaskItem) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
   );
   const clientOpts = selectOptionsStore.getSortedOptions("client");
-  const clientOpt = clientOpts.find((o: any) => o.label === ci.client);
+  const clientOpt = clientOpts.find((o) => o.label === ci.client);
   const currency = clientOpt?.currency || "TWD";
   return { amount, currency };
 }
 
-function getFeeRevenueTwd(fee: any): number {
+function getFeeRevenueTwd(fee: TranslatorFee): number {
   const { amount, currency } = getFeeRevenueOriginal(fee);
   return amount * currencyStore.getTwdRate(currency);
 }
@@ -254,7 +256,7 @@ export default function ClientInvoicesPage() {
       render: (inv) => {
         const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
         const paid = inv.payments.reduce(
-          (s: number, p: any) =>
+          (s: number, p: ClientPaymentRecord) =>
             s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
           0
         );
@@ -272,7 +274,7 @@ export default function ClientInvoicesPage() {
       render: (inv) => {
         const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
         const paid = inv.payments.reduce(
-          (s: number, p: any) =>
+          (s: number, p: ClientPaymentRecord) =>
             s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
           0
         );
@@ -294,7 +296,7 @@ export default function ClientInvoicesPage() {
       render: (inv) => {
         const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
         const paid = inv.payments.reduce(
-          (s: number, p: any) =>
+          (s: number, p: ClientPaymentRecord) =>
             s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
           0
         );
@@ -310,7 +312,7 @@ export default function ClientInvoicesPage() {
       render: (inv) => {
         const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
         const paid = inv.payments.reduce(
-          (s: number, p: any) =>
+          (s: number, p: ClientPaymentRecord) =>
             s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
           0
         );
@@ -762,7 +764,7 @@ export default function ClientInvoicesPage() {
               { key: "receiptTotalOriginal", getValue: (inv: ClientInvoice) => {
                 const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
                 const paid = inv.payments.reduce(
-                  (s: number, p: any) =>
+                  (s: number, p: ClientPaymentRecord) =>
                     s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
                   0
                 );
@@ -771,7 +773,7 @@ export default function ClientInvoicesPage() {
               { key: "receiptTotalTwd", getValue: (inv: ClientInvoice) => {
                 const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
                 const paid = inv.payments.reduce(
-                  (s: number, p: any) =>
+                  (s: number, p: ClientPaymentRecord) =>
                     s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
                   0
                 );
@@ -781,7 +783,7 @@ export default function ClientInvoicesPage() {
                 if (inv.status !== "collected") return 0;
                 const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
                 const paid = inv.payments.reduce(
-                  (s: number, p: any) =>
+                  (s: number, p: ClientPaymentRecord) =>
                     s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
                   0
                 );
@@ -792,7 +794,7 @@ export default function ClientInvoicesPage() {
                 if (inv.status !== "collected") return 0;
                 const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
                 const paid = inv.payments.reduce(
-                  (s: number, p: any) =>
+                  (s: number, p: ClientPaymentRecord) =>
                     s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
                   0
                 );

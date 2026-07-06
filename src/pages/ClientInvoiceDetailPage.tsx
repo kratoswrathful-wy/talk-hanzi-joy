@@ -19,8 +19,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useClientInvoice, clientInvoiceStore, useClientInvoicesLoaded } from "@/hooks/use-client-invoice-store";
-import { useSelectOptions } from "@/stores/select-options-store";
+import { useSelectOptions, type SelectOption } from "@/stores/select-options-store";
 import { useFees } from "@/hooks/use-fee-store";
+import type { TranslatorFee, ClientTaskItem } from "@/data/fee-mock-data";
+import type { Json } from "@/integrations/supabase/types";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useCurrencies } from "@/stores/currency-store";
 import { type ClientInvoiceAdjustmentLine, type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
@@ -93,15 +95,15 @@ const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
 /** Compute a single fee's revenue in its original client currency */
-function getFeeRevenue(fee: any, clientOptions: any[]): { amount: number; currency: string } {
-  const ci = fee.clientInfo as any;
+function getFeeRevenue(fee: TranslatorFee, clientOptions: SelectOption[]): { amount: number; currency: string } {
+  const ci = fee.clientInfo;
   if (!ci?.clientTaskItems) return { amount: 0, currency: "TWD" };
   // For notFirstFee pages, revenue is attributed to the first fee, so skip
   if (ci.notFirstFee) return { amount: 0, currency: "TWD" };
   const amount = ci.clientTaskItems.reduce(
-    (s: number, i: any) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
+    (s: number, i: ClientTaskItem) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
   );
-  const clientOpt = clientOptions.find((o: any) => o.label === ci.client);
+  const clientOpt = clientOptions.find((o) => o.label === ci.client);
   const currency = clientOpt?.currency || "TWD";
   return { amount, currency };
 }
@@ -142,7 +144,7 @@ export default function ClientInvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const autoFocusTitle = !!(location.state as { autoFocusTitle?: boolean } | null)?.autoFocusTitle;
   const titleInputRef = useRef<HTMLInputElement>(null);
   const invoice = useClientInvoice(id);
   const fees = useFees();
@@ -227,17 +229,19 @@ export default function ClientInvoiceDetailPage() {
   }, [invoice?.createdBy]);
 
   // Initialize from invoice data
+  // 註：comments／edit_logs 不在 ClientInvoice 型別內（dbToApp 未映射此二欄），
+  // 此處以 unknown 保留既有「讀不到即略過」行為，不新增邏輯。
   useEffect(() => {
     if (!invoice) return;
-    const rawComments = (invoice as any).comments;
+    const rawComments = (invoice as unknown as { comments?: unknown }).comments;
     if (Array.isArray(rawComments)) {
-      setComments(rawComments.map((c: any) => ({
+      setComments((rawComments as CommentEntry[]).map((c) => ({
         id: c.id, author: c.author, content: c.content, imageUrls: c.imageUrls, fileUrls: c.fileUrls, replyTo: c.replyTo, timestamp: c.timestamp,
       })));
     }
-    const rawEditLogs = (invoice as any).edit_logs;
+    const rawEditLogs = (invoice as unknown as { edit_logs?: unknown }).edit_logs;
     if (Array.isArray(rawEditLogs)) {
-      setEditLog(rawEditLogs.map((l: any) => ({
+      setEditLog((rawEditLogs as EditLogEntry[]).map((l) => ({
         id: l.id,
         changedBy: l.changedBy,
         description: l.description,
@@ -275,7 +279,7 @@ export default function ClientInvoiceDetailPage() {
         burstMap: burstMapRef.current,
       });
       burstMapRef.current = nextBurstMap;
-      if (id) clientInvoiceStore.updateInvoice(id, { edit_logs: nextLogs } as any);
+      if (id) clientInvoiceStore.updateInvoice(id, { edit_logs: nextLogs as unknown as Json });
       return nextLogs;
     });
   }, [id, profile]);
@@ -295,7 +299,7 @@ export default function ClientInvoiceDetailPage() {
     if (!invoice) return [];
     return fees.filter((f) => {
       if (allLinkedFeeIds.has(f.id)) return false;
-      const ci = f.clientInfo as any;
+      const ci = f.clientInfo;
       if (!ci?.client || ci.client !== invoice.client) return false;
       if (!ci?.reconciled) return false;
       return true;
@@ -673,7 +677,7 @@ export default function ClientInvoiceDetailPage() {
     const updated = [...comments, newComment];
     setComments(updated);
     if (id) {
-      clientInvoiceStore.updateInvoice(id, { comments: updated } as any);
+      clientInvoiceStore.updateInvoice(id, { comments: updated as unknown as Json });
     }
   };
 

@@ -44,7 +44,8 @@ import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
 import DateTimePicker from "@/components/DateTimePicker";
-import FileField from "@/components/FileField";
+import FileField, { type FileItem } from "@/components/FileField";
+import type { TemplateFieldValue } from "@/stores/page-template-store";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { CommentContent } from "@/components/comments/CommentContent";
 
@@ -353,7 +354,7 @@ function Field({ label, children, className, action }: { label: string; children
 }
 
 /** Wrapper that renders a FileField with the + button next to the label */
-function FileFieldRow({ label, value, onChange }: { label: string; value: any[]; onChange: (v: any[]) => void }) {
+function FileFieldRow({ label, value, onChange }: { label: string; value: FileItem[]; onChange: (v: FileItem[]) => void }) {
   const addRef = useRef<(() => void) | null>(null);
   return (
     <Field
@@ -375,7 +376,7 @@ function FileFieldRow({ label, value, onChange }: { label: string; value: any[];
 
 /** Wrapper for tool file fields: + button in label, delete button beside content */
 function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField, testId }: {
-  fieldId: string; label: string; value: any[]; onChange: (v: any[]) => void;
+  fieldId: string; label: string; value: FileItem[]; onChange: (v: FileItem[]) => void;
   canRemoveField: boolean; onDeleteField: () => void; testId?: string;
 }) {
   const addRef = useRef<(() => void) | null>(null);
@@ -1590,10 +1591,10 @@ export default function CaseDetailPage() {
       };
       await internalNotesStore.add(newNote);
       navigate(`/internal-notes/${newNote.id}`);
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "無法建立註記",
-        description: e?.message || String(e),
+        description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
     }
@@ -1776,7 +1777,7 @@ export default function CaseDetailPage() {
     await runDuplicateWithSort(DEFAULT_DUPLICATE_SORT);
   };
 
-  const handleNewCase = async (templateValues: Record<string, any> = {}) => {
+  const handleNewCase = async (templateValues: Record<string, TemplateFieldValue> = {}) => {
     const newCase = await caseStore.create({ title: "", ...templateValues });
     if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
   };
@@ -3004,7 +3005,7 @@ export default function CaseDetailPage() {
           <FileFieldRow label="自製準則" value={caseData.customGuidelinesUrl} onChange={(v) => save({ customGuidelinesUrl: v })} />
           <FileFieldRow
             label="常用資訊"
-            value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as any).name || (item as any).label || "", url: item.url }))}
+            value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as { name?: string; label?: string }).name || item.label || "", url: item.url }))}
             onChange={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
           />
           <FileFieldRow label="譯者完稿" value={caseData.translatorFinal} onChange={(v) => save({ translatorFinal: v })} />

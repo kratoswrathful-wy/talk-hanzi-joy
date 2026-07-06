@@ -37,7 +37,8 @@ import {
 import { cn } from "@/lib/utils";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
-import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
+import type { CaseRecord, CaseStatus, CollabRow, DeclineRecord } from "@/data/case-types";
+import type { TemplateFieldValue } from "@/stores/page-template-store";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
 import { undoStore } from "@/stores/undo-store";
@@ -269,7 +270,7 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 120,
     render: (c, { editable, onCommit }) => {
       // Unique translators who declined
-      const declineNames = Array.from(new Set((c.declineRecords || []).map((d: any) => d.translator).filter(Boolean)));
+      const declineNames = Array.from(new Set((c.declineRecords || []).map((d: DeclineRecord) => d.translator).filter(Boolean)));
       const declineCount = declineNames.length;
       return (
         <div className="relative flex items-center group/title gap-1.5">
@@ -566,14 +567,14 @@ export default function CasesPage() {
   useEffect(() => {
     undoStore.registerModule("cases", (change, direction) => {
       if (change.type === "update" && change.fieldChanges) {
-        const updates: Record<string, any> = {};
+        const updates: Record<string, unknown> = {};
         for (const [field, vals] of Object.entries(change.fieldChanges)) {
           updates[field] = direction === "undo" ? vals.oldValue : vals.newValue;
         }
-        caseStore.update(change.recordId, updates);
+        caseStore.update(change.recordId, updates as Partial<CaseRecord>);
       } else if (change.type === "delete" && direction === "undo" && change.deletedSnapshot) {
         // Re-create the deleted record
-        caseStore.create(change.deletedSnapshot as any);
+        caseStore.create(change.deletedSnapshot as Partial<CaseRecord>);
       } else if (change.type === "create" && direction === "undo") {
         caseStore.remove(change.recordId);
       }
@@ -631,7 +632,7 @@ export default function CasesPage() {
   };
   const handleDragEnd = () => { dragColRef.current = null; setDragOverCol(null); };
 
-  const handleCreate = async (templateValues: Record<string, any> = {}) => {
+  const handleCreate = async (templateValues: Record<string, TemplateFieldValue> = {}) => {
     const newCase = await caseStore.create({ title: "新案件", ...templateValues });
     if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
   };
@@ -894,7 +895,7 @@ export default function CasesPage() {
 
   // Mark selected as delivered with undo
   const handleMarkDelivered = useCallback(async () => {
-    const entries: { recordId: string; oldValue: any }[] = [];
+    const entries: { recordId: string; oldValue: unknown }[] = [];
     for (const id of rowSelection.selectedIds) {
       const c = cases.find((x) => x.id === id);
       if (c) entries.push({ recordId: id, oldValue: c.status });
@@ -924,7 +925,7 @@ export default function CasesPage() {
     const isBatch = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1;
     const targetIds = isBatch ? Array.from(rowSelection.selectedIds) : [caseId];
 
-    const undoEntries: { recordId: string; oldValue: any }[] = [];
+    const undoEntries: { recordId: string; oldValue: unknown }[] = [];
     let editedCount = 0;
     const locked: { title: string; reason: string }[] = [];
 
@@ -932,7 +933,7 @@ export default function CasesPage() {
       const c = cases.find((x) => x.id === id);
       if (!c) continue;
 
-      const oldValue = (c as any)[field] ?? "";
+      const oldValue = (c as unknown as Record<string, unknown>)[field] ?? "";
       undoEntries.push({ recordId: id, oldValue });
       caseStore.update(id, { [field]: value });
       editedCount++;
