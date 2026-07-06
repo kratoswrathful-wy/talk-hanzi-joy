@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 export type ParsedLineRange = {
   lineStart: number | null;
@@ -23,7 +24,7 @@ export function parseCollabLineRange(range: string | null | undefined): ParsedLi
 
 /** 譯者勾選任務完成前：查受派範圍內未確認句段數 */
 export async function countUnconfirmedSegmentsInCollabRange(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   fileIds: string[],
   lineRange: string | null | undefined,
 ): Promise<{ count: number; error?: string }> {
@@ -32,7 +33,7 @@ export async function countUnconfirmedSegmentsInCollabRange(
 
   const { lineStart, lineEnd } = parseCollabLineRange(lineRange);
 
-  let query = (supabase as any)
+  let query = supabase
     .from("cat_segments")
     .select("id", { count: "exact", head: true })
     .in("file_id", ids)

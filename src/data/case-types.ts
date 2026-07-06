@@ -1,3 +1,5 @@
+import type { Block } from "@blocknote/core";
+
 export interface ToolEntryField {
   id: string;
   label: string;
@@ -119,7 +121,7 @@ export interface CaseRecord {
   internalRecords: { id: string; author: string; text: string; createdAt: string }[];
   comments: CaseComment[];
   internalComments: CaseComment[];
-  bodyContent: any[];
+  bodyContent: Block[];
   multiCollab: boolean;
   collabCount: number;
   collabRows: CollabRow[];

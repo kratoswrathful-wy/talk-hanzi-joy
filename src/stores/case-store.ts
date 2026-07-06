@@ -23,6 +23,7 @@ import { feeStore } from "@/stores/fee-store";
 import { invoiceStore } from "@/stores/invoice-store";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import type { CaseRecord, CaseStatus, ToolEntry, ToolEntryField, CaseComment, DeclineRecord, CollabRow, WorkGroup } from "@/data/case-types";
+import type { Block } from "@blocknote/core";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
@@ -333,7 +334,7 @@ function fromDb(row: DbCase): CaseRecord {
     internalRecords: toTypedArray(row.internal_records, internalRecordFromJson),
     comments: toTypedArray(row.comments, caseCommentFromJson),
     internalComments: toTypedArray(row.internal_comments, caseCommentFromJson),
-    bodyContent: Array.isArray(row.body_content) ? row.body_content : [],
+    bodyContent: Array.isArray(row.body_content) ? (row.body_content as unknown as Block[]) : [],
     multiCollab: row.multi_collab ?? false,
     collabCount: Number(row.collab_count) || 0,
     collabRows: toTypedArray(row.collab_rows, collabRowFromJson),

@@ -251,7 +251,7 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
       test.setTimeout(300_000);
       ctx.projectName = catProjectName;
 
-      let frame = await openOfflineCatWithFile(page, {
+      const frame = await openOfflineCatWithFile(page, {
         fixturePath: SMALL_FIXTURE,
         projectName: catProjectName,
         importTimeoutMs: 180_000,
