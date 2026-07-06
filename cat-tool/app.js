@@ -7132,7 +7132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (disp === 'review_confirmed' && _isActingAsTranslator()) {
             showCatToast('審稿已確認，未實質編輯內容', 'info');
-            return { focusNext: false, tmOnly: true };
+            return { focusNext: true, tmOnly: true, noop: true };
         }
 
         if (disp === 'trans_confirmed' && _isActingAsReviewer()) {
