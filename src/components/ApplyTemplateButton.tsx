@@ -6,11 +6,11 @@ import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { useToolbarButtonUiPropsMaybe, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePageTemplates, type PageModule } from "@/stores/page-template-store";
-import type { PageTemplate } from "@/stores/page-template-store";
+import type { PageTemplate, TemplateFieldValue } from "@/stores/page-template-store";
 
 interface ApplyTemplateButtonProps {
   module: PageModule;
-  onApply: (fieldValues: Record<string, any>) => void;
+  onApply: (fieldValues: Record<string, TemplateFieldValue>) => void;
   /** Optional toolbar style id (see ui-button-registry / ui-button-style-store). */
   uiButtonId?: string;
   size?: "sm" | "default";
@@ -41,7 +41,7 @@ export function ApplyTemplateButton({
   if (usableTemplates.length === 0) return null;
 
   const handleApply = (tpl: PageTemplate) => {
-    const filtered: Record<string, any> = {};
+    const filtered: Record<string, TemplateFieldValue> = {};
     for (const [k, v] of Object.entries(tpl.fieldValues)) {
       if (v !== undefined && v !== null && v !== "") {
         filtered[k] = v;

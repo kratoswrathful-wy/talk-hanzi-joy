@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/popover";
 import { useInvoice, invoiceStore, useInvoicesLoaded } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
+import type { FeeTaskItem } from "@/data/fee-mock-data";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
@@ -127,7 +128,7 @@ export default function InvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const autoFocusTitle = !!(location.state as { autoFocusTitle?: boolean } | null)?.autoFocusTitle;
   const titleInputRef = useRef<HTMLInputElement>(null);
   const invoice = useInvoice(id);
   const fees = useFees();
@@ -198,9 +199,10 @@ export default function InvoiceDetailPage() {
   useEffect(() => {
     if (!invoice) return;
     // Load comments
-    const rawComments = (invoice as any).comments;
+    // 註：comments／internalComments 不在 Invoice 型別內，此處以 unknown 保留既有「讀不到即略過」行為。
+    const rawComments = (invoice as unknown as { comments?: unknown }).comments;
     if (Array.isArray(rawComments)) {
-      setComments(rawComments.map((c: any) => ({
+      setComments((rawComments as CommentEntry[]).map((c) => ({
         id: c.id,
         author: c.author,
         content: c.content,
@@ -211,9 +213,9 @@ export default function InvoiceDetailPage() {
       })));
     }
     // Load internal comments
-    const rawInternalComments = (invoice as any).internalComments;
+    const rawInternalComments = (invoice as unknown as { internalComments?: unknown }).internalComments;
     if (Array.isArray(rawInternalComments)) {
-      setInternalComments(rawInternalComments.map((c: any) => ({
+      setInternalComments((rawInternalComments as CommentEntry[]).map((c) => ({
         id: c.id,
         author: c.author,
         content: c.content,
@@ -225,7 +227,7 @@ export default function InvoiceDetailPage() {
     }
     const rawEditLogs = invoice.edit_logs;
     if (Array.isArray(rawEditLogs)) {
-      setEditLog(rawEditLogs.map((l: any) => ({
+      setEditLog(rawEditLogs.map((l) => ({
         id: l.id,
         changedBy: l.changedBy,
         description: l.description,
@@ -276,7 +278,7 @@ export default function InvoiceDetailPage() {
         burstMap: burstMapRef.current,
       });
       burstMapRef.current = nextBurstMap;
-      if (id) invoiceStore.updateInvoice(id, { edit_logs: nextLogs } as any);
+      if (id) invoiceStore.updateInvoice(id, { edit_logs: nextLogs });
       return nextLogs;
     });
   }, [id, profile]);
@@ -486,7 +488,7 @@ export default function InvoiceDetailPage() {
     const updated = [...comments, newComment];
     setComments(updated);
     if (id) {
-      invoiceStore.updateInvoice(id, { comments: updated } as any);
+      invoiceStore.updateInvoice(id, { comments: updated });
     }
   };
 
@@ -504,7 +506,7 @@ export default function InvoiceDetailPage() {
     const updated = [...internalComments, newComment];
     setInternalComments(updated);
     if (id) {
-      invoiceStore.updateInvoice(id, { comments: [...comments], internalComments: updated } as any);
+      invoiceStore.updateInvoice(id, { comments: [...comments], internalComments: updated });
     }
   };
 
@@ -672,7 +674,7 @@ export default function InvoiceDetailPage() {
                     <p className="text-sm font-medium">加入費用</p>
                     <div className="max-h-48 overflow-y-auto space-y-1">
                       {availableFees.map((f) => {
-                        const fTotal = f.taskItems.reduce((s: number, i: any) => s + i.unitCount * i.unitPrice, 0);
+                        const fTotal = f.taskItems.reduce((s: number, i: FeeTaskItem) => s + i.unitCount * i.unitPrice, 0);
                         return (
                           <LabeledCheckbox
                             key={f.id}

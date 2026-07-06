@@ -7,11 +7,11 @@ import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { useToolbarButtonUiPropsMaybe, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePageTemplates, pageTemplateStore, type PageModule } from "@/stores/page-template-store";
-import type { PageTemplate } from "@/stores/page-template-store";
+import type { PageTemplate, TemplateFieldValue } from "@/stores/page-template-store";
 
 interface CreateWithTemplateButtonProps {
   module: PageModule;
-  onCreate: (templateFieldValues: Record<string, any>) => void;
+  onCreate: (templateFieldValues: Record<string, TemplateFieldValue>) => void;
   /** Button size variant */
   size?: "sm" | "default";
   /** Custom label */
@@ -47,7 +47,7 @@ export function CreateWithTemplateButton({
   const handleCreate = (tpl?: PageTemplate) => {
     const fieldValues = tpl?.fieldValues || defaultTemplate?.fieldValues || {};
     // Only pass non-empty values
-    const filtered: Record<string, any> = {};
+    const filtered: Record<string, TemplateFieldValue> = {};
     for (const [k, v] of Object.entries(fieldValues)) {
       if (v !== undefined && v !== null && v !== "") {
         filtered[k] = v;
