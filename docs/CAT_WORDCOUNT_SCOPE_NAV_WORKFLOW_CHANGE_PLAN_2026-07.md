@@ -601,8 +601,25 @@ PM 開檔預設審稿身分（`currentWfSessionKind='review'`），首次審稿�
 
 ---
 
+## 附錄 A：並行實作代號與分支（2026-07-06）
+
+**勿使用 `W1` 前綴**（與主計畫 W1～W10 工程工項衝突）。本文件六項變更中，已進入並行實作者：
+
+| 變更編號 | 新代號 | 分支 | commit |
+|----------|--------|------|--------|
+| 1 暫停加權字數 | **BCD-B** | `feature/cat-disable-weighted-word-count` | `941cdd77` |
+| 3 清除篩選置中 | **BCD-C** | `feature/cat-filter-clear-centering` | `8a3976d8` |
+| 6 noop 仍跳轉 | **BCD-D** | `feature/cat-noop-confirm-navigation` | `8a30f5f0` |
+
+Diff/TB 引擎（與本六項碰撞評估相關）：**ENG-P1**，分支 `feature/cat-diff-tb-eng-p1`，commit `f7191182`。
+
+PR／併入順序與 CI 鐵律：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md)。
+
+---
+
 ## 附錄：相關文件
 
+- [`docs/CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md) — 並行波次 PR／併入流程（ENG-P1 + BCD-B/C/D）
 - [`docs/CAT_DIFF_V2_TB_MATCH_V2_PLAN_2026-07.md`](CAT_DIFF_V2_TB_MATCH_V2_PLAN_2026-07.md) — Diff v2 / TB Match v2 計畫與衝突範圍
 - [`docs/CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md`](CAT_WORKFLOW_CONFIRM_STATUS_UX_2026-06.md) — 確認狀態五態
 - [`docs/CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md`](CAT_WORKFLOW_PREP_AND_REVIEW_B6_SPEC_2026-06.md) — prep 階段規格
