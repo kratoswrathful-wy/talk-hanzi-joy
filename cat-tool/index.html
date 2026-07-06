@@ -217,10 +217,11 @@
                                 <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectToolbarUpdate" data-tip="重新匯入所選檔案並合併句段（請先勾選一個檔案）">更新檔案</button>
                                 <button type="button" class="secondary-btn btn-sm" id="btnProjectBatchExport" data-tip="勾選一個檔案：直接下載；多個檔案：打包成 ZIP 匯出">匯出所選</button>
                                 <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnProjectToolbarDelete" data-tip="從專案移除所選檔案">移除</button>
-                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectWordCount" data-tip="字數與 TM 加權分析">分析</button>
-                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectSplitAssign" data-tip="依份數均分句段（僅提示，不指派）">拆分</button>
+                                <!-- W1-B: disable weighted word count UI -->
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui hidden" id="btnProjectWordCount" data-tip="字數與 TM 加權分析" hidden aria-hidden="true">分析</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui hidden" id="btnProjectSplitAssign" data-tip="依份數均分句段（僅提示，不指派）" hidden aria-hidden="true">拆分</button>
                                 <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewQuick" data-tip="建立句段集">建立句段集</button>
-                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnToggleFileProgressMode" data-tip="一次切換所有檔案顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）">切換字數</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui hidden" id="btnToggleFileProgressMode" data-tip="一次切換所有檔案顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）" hidden aria-hidden="true">切換字數</button>
                             </div>
                         </div>
                         <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
@@ -254,9 +255,10 @@
                         <div id="viewsToolbar" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.45rem; margin-bottom:0.5rem;">
                             <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarAssign" disabled data-tip="需先勾選句段集">指派</button>
                             <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnViewsToolbarDelete" disabled data-tip="從專案移除所選句段集">移除</button>
-                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarWordCount" disabled data-tip="統計所選句段集字數">分析</button>
-                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarSplit" disabled data-tip="以所選句段集均分工作量">拆分</button>
-                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnToggleViewProgressMode" data-tip="一次切換所有句段集顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）">切換字數</button>
+                            <!-- W1-B: disable weighted word count UI -->
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui hidden" id="btnViewsToolbarWordCount" disabled data-tip="統計所選句段集字數" hidden aria-hidden="true">分析</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui hidden" id="btnViewsToolbarSplit" disabled data-tip="以所選句段集均分工作量" hidden aria-hidden="true">拆分</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui hidden" id="btnToggleViewProgressMode" data-tip="一次切換所有句段集顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）" hidden aria-hidden="true">切換字數</button>
                         </div>
                         <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
                             <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
@@ -1300,7 +1302,8 @@
                             </div>
                         </div>
                         <button type="button" id="btnProgressRange" class="btn-progress-range-adjust" data-tip="設定統計範圍">調整統計範圍</button>
-                        <button type="button" id="btnToggleEditorWordMode" class="btn-progress-range-adjust" data-tip="一次切換所有檔案顯示的字數，目前顯示：原始字數（此為目前編輯檔）">切換字數</button>
+                        <!-- W1-B: disable weighted word count UI -->
+                        <button type="button" id="btnToggleEditorWordMode" class="btn-progress-range-adjust hidden" data-tip="一次切換所有檔案顯示的字數，目前顯示：原始字數（此為目前編輯檔）" hidden aria-hidden="true">切換字數</button>
                     </div>
                     <div id="progressRangeLabel" style="font-size:0.78rem; color:#7c3aed; display:none; font-weight:500;"></div>
                     <div style="display:flex; align-items:center; gap:0.45rem; min-width:220px;">
