@@ -79,12 +79,20 @@ npx playwright test -g "BCD 波次" --project=chromium
 
 本機預設 `PLAYWRIGHT_BASE_URL=http://localhost:8080`，`playwright.config` 會自動 `npm run dev`。
 
+**已有 `playwright/.auth/user.json`、且本輪刻意不跑 `auth.setup` 時**（例如乾淨 worktree 已人工放入 session 檔、或避免覆寫現有登入狀態），可加 `--no-deps` 略過 `setup` 專案：
+
+```powershell
+npx playwright test -g "BCD 波次" --project=chromium --no-deps
+```
+
+前提：`playwright/.auth/user.json` 仍有效；**勿 commit** 此檔。BCD 波次 spec 以離線 CAT 為主，不依賴測試模式假人切換。
+
 ---
 
 ## D. 常見錯誤
 
 | 訊息 | 處理 |
 |------|------|
-| 請在 .env 設定 PLAYWRIGHT_TEST_EMAIL / PASSWORD | 補 A1 密碼後重跑 auth.setup |
+| 請在 .env 設定 PLAYWRIGHT_TEST_EMAIL / PASSWORD | 補 A1 密碼後重跑 auth.setup；或已有有效 `user.json` 時改加 `--no-deps`（見 §C） |
 | 找不到 Test_Small.mqxliff | 確認 `tests/fixtures/Test_Small.mqxliff` 存在 |
 | 找不到「進入測試模式」 | 確認 `PLAYWRIGHT_ENTER_TEST_MODE=1` 且帳號為真人執行長 |
