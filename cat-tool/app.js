@@ -1942,6 +1942,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         enforceTeamRoleLayout();
         syncExecutiveCatDebugApi();
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+        refreshAiSettingsViewIfActive();
     }
 
     /** 顯示 TMS 個人資訊唯讀卡片。 */
@@ -4010,7 +4011,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else if (view === 'viewAiGuidelines') {
                         switchView('viewAiGuidelines');
                     } else if (view === 'viewAiSettings') {
-                        switchView('viewAiSettings');
+                        await openAiSettingsView();
                     } else if (view === 'viewAiExamples') {
                         switchView('viewAiExamples');
                     } else if (view === 'viewProjectDetail' && p.projectId) {
@@ -4977,13 +4978,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (btnEdWcNav) btnEdWcNav.style.display = 'none';
                 sidebar.classList.remove('collapsed');
             }
-            switchView(targetView);
+            if (targetView === 'viewAiSettings') {
+                await openAiSettingsView();
+            } else {
+                switchView(targetView);
+            }
 
             if(targetView === 'viewDashboard') await loadDashboardData();
             if(targetView === 'viewProjects') await loadProjectsList();
             if(targetView === 'viewTM') await loadTMList();
             if(targetView === 'viewTB') await loadTBList();
-            if(targetView === 'viewAiSettings') await loadAiSettingsView();
             if (targetView === 'viewAiGuidelines') {
                 await loadAiGuidelinesView().catch((e) => {
                     console.error('[CAT] loadAiGuidelinesView', e);
@@ -30879,7 +30883,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             if (view === 'viewAiSettings') {
-                switchView('viewAiSettings');
+                await openAiSettingsView();
                 return;
             }
             if (view === 'viewAiExamples') {
@@ -31280,6 +31284,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    /** 若 AI 設定 view 已顯示，重新套用 populate 與 executive 鎖定（TMS 身分晚到時）。 */
+    function refreshAiSettingsViewIfActive() {
+        const active = document.querySelector('.view-section:not(.hidden)');
+        if (active && active.id === 'viewAiSettings') {
+            void loadAiSettingsView();
+        }
+    }
+
+    /**
+     * 開啟 AI 設定 view：直連／reload 須等 TMS 身分後再 populate 與 executive 鎖定。
+     * 側欄點擊亦走此路徑（身分已就緒時 wait 立即 resolve）。
+     */
+    async function openAiSettingsView() {
+        if (isTeamMode()) {
+            try {
+                await waitForTmsIdentityReady(20000);
+            } catch (_) {
+                /* 超時仍載入；exec=false 時 UI 鎖定 */
+            }
+        }
+        switchView('viewAiSettings');
+        await loadAiSettingsView();
+    }
+
     // ---- AI 設定 View ----
     async function loadAiSettingsView() {
         const settings = await DBService.getAiSettings();
@@ -31329,6 +31357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.CatAiModelPicker && typeof window.CatAiModelPicker.populate === 'function') {
             await window.CatAiModelPicker.populate(modelSelect, modelHintEl, modelStatusEl, settings.model);
         }
+        if (modelSelect) modelSelect.disabled = !exec;
 
         function _getSelectedModel() {
             if (window.CatAiModelPicker && typeof window.CatAiModelPicker.getSelectedModelId === 'function') {
