@@ -15,16 +15,23 @@ export function mergeArrayById<T extends { id: string }>(
   return Array.from(map.values());
 }
 
-/** patch 若為陣列則整包取代；若為 { mergeById: true, items: [...] } 則合併 */
+/**
+ * patch 若為陣列則整包取代；若為 { mergeById: true, items: [...] } 則合併。
+ * 回傳 unknown[]（而非 T[]）：value 來自外部（AI agent）輸入，元素形狀未經驗證，
+ * 呼叫端本就需逐筆 typeof 檢查後才能安全取欄位，型別上誠實反映這點，避免呼叫端
+ * 誤以為已是 T 而略過驗證。
+ */
 export function resolveArrayPatch<T extends { id: string }>(
   existing: T[],
   value: unknown,
-): T[] | null {
-  if (Array.isArray(value)) return value as T[];
+): unknown[] | null {
+  if (Array.isArray(value)) return value;
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    const obj = value as { mergeById?: boolean; items?: T[] };
+    const obj = value as { mergeById?: boolean; items?: unknown[] };
     if (obj.mergeById && Array.isArray(obj.items)) {
-      return mergeArrayById(existing, obj.items);
+      // mergeById 需要以既有列的 T 形狀合併；items 元素是否真的符合 T 由
+      // mergeArrayById 內的 spread 與呼叫端後續逐欄驗證共同把關。
+      return mergeArrayById(existing, obj.items as T[]);
     }
     if (Array.isArray(obj.items)) return obj.items;
   }

@@ -73,7 +73,7 @@ function segmentExtraCamelToSnake(extra: Record<string, unknown> | null | undefi
 }
 
 function tryParseJson<T>(v: unknown, fallback: T): T {
-  if (Array.isArray(v)) return v as unknown as T;
+  if (Array.isArray(v)) return v as T;
   if (v !== null && typeof v === "object" && !Array.isArray(v)) return v as T;
   if (typeof v === "string" && v) {
     try { return JSON.parse(v) as T; } catch { /* ignore */ }
@@ -108,7 +108,7 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as unknown as number[]);
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
   }
   return btoa(binary);
 }
@@ -885,11 +885,11 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       } = await supabase.auth.getUser();
       if (!user) return null;
       const { data } = await supabase
-        .from("cat_user_ui_prefs" as any)
+        .from("cat_user_ui_prefs")
         .select("hide_completed_dashboard, qa_report_surface")
         .eq("user_id", user.id)
         .maybeSingle();
-      return (data as unknown as { hide_completed_dashboard: boolean; qa_report_surface?: string } | null) ?? null;
+      return (data as { hide_completed_dashboard: boolean; qa_report_surface?: string } | null) ?? null;
     }
     case "db.setUserUiPref": {
       const {
@@ -1219,7 +1219,6 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       } as any);
       if (rpcErr) {
         if (!isMissingOptimisticLockInfraError(rpcErr)) throw rpcErr;
-        /* eslint-disable no-console */
         console.warn(
           "[cat-cloud-rpc] apply_cat_segment_target_update 失敗，回退舊式 update。請在 Supabase 執行 migration 20260421120000_cat_segments_segment_revision.sql。",
           rpcErr
@@ -2712,10 +2711,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (payload.annotationAuthorUserId) recipientIds.add(String(payload.annotationAuthorUserId));
 
       const { data: stagesRaw } = await supabase
-        .from("cat_file_workflow_stages" as any)
+        .from("cat_file_workflow_stages")
         .select("id, stage_kind")
         .eq("file_id", fileId);
-      const stages = (stagesRaw || []) as unknown as { id: string; stage_kind: string }[];
+      const stages = (stagesRaw || []) as { id: string; stage_kind: string }[];
       const reviewStage = stages.find((s) => s.stage_kind === "review");
       if (reviewStage) {
         const { data: assigns } = await supabase

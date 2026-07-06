@@ -1296,7 +1296,7 @@ export default function CasesPage() {
                 >
                   <td
                     className="w-[40px] px-2 py-1.5 text-center cursor-pointer select-none"
-                    onClick={(e) => rowSelection.handleClick(c.id, e as unknown as React.MouseEvent)}
+                    onClick={(e) => rowSelection.handleClick(c.id, e)}
                   >
                     <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />
                   </td>

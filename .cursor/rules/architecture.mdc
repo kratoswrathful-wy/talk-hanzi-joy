@@ -46,3 +46,11 @@ alwaysApply: true
 - **DB 與版控不得脫鉤**：任何 `supabase db push`（或等效的遠端 DB 變更）所對應的 `supabase/migrations/*.sql`，**必須**與該次變更在**同一分支**、隨同一次 merge 進 `main`。禁止「DB 已套用但 migration 檔還留在別的分支」。
 - **migration 需 idempotent**：一律 `CREATE ... IF NOT EXISTS`／`DROP ... IF EXISTS` 後重建，確保檔案併入 `main` 後對已套用的 DB 重跑不出錯。
 - **合併前檢查**：merge 進 `main` 前確認該分支只含本工項相關檔案；跨工項的變更應拆分或分別 merge。
+
+## 8. 禁止新增「檔案級 `eslint-disable`」（2026-07-06 裁決）
+
+背景：`src/lib/cat-cloud-rpc.ts` 第 1 行 `/* eslint-disable @typescript-eslint/no-explicit-any */` 掩蓋了該檔約 295 處 `any`，直到 lint 批次 5 盤點才現形（初盤紀錄見 [`docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md`](../../docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md) §15）。檔案級 disable 會讓 lint 統計與 CI 完全看不到檔內新增的違規，風險遠高於行內 disable。
+
+- **禁止**在任何 `.ts`／`.tsx` 檔案**新增**檔案級 `eslint-disable`（放在檔案第一行、對整檔生效的形式）。`cat-cloud-rpc.ts` 現存的一處為**唯一既存特例**（清理排程見主計畫 §15，建議與階段四 W1 store 工廠協同），**不得再增加第二個**。
+- 需要放寬單一規則時，一律用**行內** `// eslint-disable-line <rule>` 或 `// eslint-disable-next-line <rule>`，且註明理由；行內 disable 仍受 [`testing.mdc`](testing.mdc) 與批次驗收流程的「新增 diff 四項禁用手法 grep」把關，能在 code review／lint 報表中逐行看見，不會像檔案級一樣整批隱形。
+- 更好的做法（優先於行內 disable）：改用 `unknown` + 縮小型別、防禦性 mapper 函式（`xxxFromJson`）、或補齊 `types.ts` 型別，參考 lint 批次 5（主計畫 §14）的實際修法案例。

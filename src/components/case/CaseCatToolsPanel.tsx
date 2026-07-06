@@ -119,7 +119,7 @@ export function CaseCatToolsPanel({
         .eq("related_lms_case_id", caseId)
         .order("name");
       if (error) throw error;
-      const rows = (data ?? []) as unknown as LinkedFileRow[];
+      const rows = (data ?? []) as LinkedFileRow[];
       const byId = new Map<string, LinkedFileRow>();
       rows.forEach((r) => byId.set(r.id, r));
       setLinkedFiles([...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-TW")));

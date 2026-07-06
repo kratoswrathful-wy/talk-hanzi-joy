@@ -14,7 +14,9 @@ export function useRowSelection(itemIds: string[]) {
   }, []);
 
   const handleClick = useCallback(
-    (id: string, e: React.MouseEvent) => {
+    // 僅讀 shiftKey/altKey，故用結構型別而非 React.MouseEvent，讓原生 MouseEvent
+    // 與 React 合成事件皆可直接傳入，呼叫端不必再 as unknown as 轉型。
+    (id: string, e: { shiftKey: boolean; altKey: boolean }) => {
       if (e.shiftKey && lastClickedRef.current) {
         // Range select
         const startIdx = itemIds.indexOf(lastClickedRef.current);

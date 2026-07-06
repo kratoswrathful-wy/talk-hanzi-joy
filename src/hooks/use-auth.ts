@@ -27,6 +27,31 @@ interface UserRole {
   role: "member" | "pm" | "executive";
 }
 
+/**
+ * PROFILE_SELECT_COLUMNS 是 join(", ") 組出的一般 string（非字面量型別），
+ * supabase-js 無法從中推導出精確欄位型別（退回 GenericStringError），故在此以
+ * Record<string, unknown> 逐欄位防禦性讀取，而非整包 as unknown as Profile。
+ */
+function profileFromRow(row: Record<string, unknown>): Profile {
+  return {
+    id: String(row.id ?? ""),
+    display_name: typeof row.display_name === "string" ? row.display_name : null,
+    avatar_url: typeof row.avatar_url === "string" ? row.avatar_url : null,
+    email: typeof row.email === "string" ? row.email : "",
+    timezone: typeof row.timezone === "string" ? row.timezone : null,
+    status_message: typeof row.status_message === "string" ? row.status_message : null,
+    phone: typeof row.phone === "string" ? row.phone : null,
+    mobile: typeof row.mobile === "string" ? row.mobile : null,
+    bio: typeof row.bio === "string" ? row.bio : null,
+    receive_translator_case_reply_slack_dms:
+      typeof row.receive_translator_case_reply_slack_dms === "boolean"
+        ? row.receive_translator_case_reply_slack_dms
+        : null,
+    slack_message_defaults: row.slack_message_defaults,
+    is_test: typeof row.is_test === "boolean" ? row.is_test : null,
+  };
+}
+
 /** 只擋「角色」載入；profile 另載入，避免 profiles 欄位／資料問題卡住全站 member */
 const ROLES_LOAD_TIMEOUT_MS = 12000;
 
@@ -74,7 +99,7 @@ export function useAuth() {
       return;
     }
 
-    const profileData = data as unknown as Profile;
+    const profileData = profileFromRow(data as Record<string, unknown>);
     setProfile(profileData);
     // 將 profiles.is_test 寫入環境模組（權威來源），供 getEnvironment() 身分優先判斷。
     setTestAccountFlag(profileData.is_test === true);

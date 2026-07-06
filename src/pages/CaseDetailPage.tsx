@@ -490,6 +490,11 @@ function ToolInstance({
 
   // Keep a stable ref of last resolved fields to prevent flicker during async toolOptions loading
   const lastFieldsRef = useRef<ToolEntryField[]>([]);
+  // onUpdate 每次 render 可能是新的函式參考；用 ref 存最新版本，讓下方 effect 只在
+  // entry.fields／resolvedFields.length 真正改變時觸發，不因 onUpdate 參考變動而誤發或需要
+  // eslint-disable。
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   const computedFields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
@@ -506,11 +511,14 @@ function ToolInstance({
   const fileValues = entry.fileValues || {};
 
   // Persist resolved fields so we don't depend on async toolOptions on every render
+  const resolvedFieldsRef = useRef(resolvedFields);
+  resolvedFieldsRef.current = resolvedFields;
   useEffect(() => {
-    if (!entry.fields && resolvedFields.length > 0) {
-      onUpdate({ fields: resolvedFields });
+    if (!entry.fields && resolvedFieldsRef.current.length > 0) {
+      onUpdateRef.current({ fields: resolvedFieldsRef.current });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // resolvedFields 每次 render 重算為新陣列參考，故意只用 .length 當觸發條件（避免
+    // 每次 render 都重跑）；透過 ref 讀最新內容，不需（也不應）把整個陣列列入 deps。
   }, [entry.fields, resolvedFields.length]);
 
   const fields = resolvedFields;

@@ -611,7 +611,7 @@ export default function InvoicesPage() {
                     className="px-2 py-3 text-center cursor-pointer select-none"
                     onClick={(e) => {
                       e.stopPropagation();
-                      rowSelection.handleClick(inv.id, e as unknown as React.MouseEvent);
+                      rowSelection.handleClick(inv.id, e);
                     }}
                   >
                     <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />

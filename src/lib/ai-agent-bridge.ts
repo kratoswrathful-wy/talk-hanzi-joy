@@ -370,7 +370,7 @@ function validateToolEntries(
   for (let i = 0; i < value.length; i++) {
     const row = value[i];
     if (!row || typeof row !== "object") return fail(`${path}[${i}] 必須為物件`);
-    const obj = row as unknown as Record<string, unknown>;
+    const obj = row as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `te-${Date.now()}-${i}`;
     const tool = typeof obj.tool === "string" ? obj.tool : "";
     if (tool && toolLabels.length > 0 && !toolLabels.includes(tool)) {
@@ -429,7 +429,7 @@ function validateWorkGroups(value: unknown, existing?: WorkGroup[]): AgentResult
   for (let i = 0; i < resolved.length; i++) {
     const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`workGroups[${i}] 必須為物件`);
-    const obj = row as unknown as Record<string, unknown>;
+    const obj = row as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `wg-${Date.now()}-${i}`;
     const validated = validateRecordFields(`workGroups[${i}].`, WORK_GROUP_FIELDS, obj);
     if (validated.ok === false) return failFrom(validated);
@@ -445,7 +445,7 @@ function validateCollabRows(value: unknown, existing?: CollabRow[]): AgentResult
   for (let i = 0; i < resolved.length; i++) {
     const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`collabRows[${i}] 必須為物件`);
-    const obj = row as unknown as Record<string, unknown>;
+    const obj = row as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `cr-${Date.now()}-${i}`;
     const validated = validateRecordFields(`collabRows[${i}].`, COLLAB_ROW_FIELDS, obj);
     if (validated.ok === false) return failFrom(validated);
@@ -473,7 +473,7 @@ function validateFeeTaskItems(value: unknown, existing?: FeeTaskItem[]): AgentRe
   for (let i = 0; i < resolved.length; i++) {
     const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`taskItems[${i}] 必須為物件`);
-    const obj = row as unknown as Record<string, unknown>;
+    const obj = row as Record<string, unknown>;
     const id = typeof obj.id === "string" ? obj.id : `item-${Date.now()}-${i}`;
     const validated = validateRecordFields(`taskItems[${i}].`, FEE_TASK_ITEM_FIELDS, obj);
     if (validated.ok === false) return failFrom(validated);
@@ -499,7 +499,7 @@ function validateClientTaskItemsArray(
   for (let i = 0; i < resolved.length; i++) {
     const row = resolved[i];
     if (!row || typeof row !== "object") return fail(`clientInfo.clientTaskItems[${i}] 必須為物件`);
-    const itemObj = row as unknown as Record<string, unknown>;
+    const itemObj = row as Record<string, unknown>;
     const itemId = typeof itemObj.id === "string" ? itemObj.id : `ci-${Date.now()}-${i}`;
     const itemValidated = validateRecordFields(
       `clientInfo.clientTaskItems[${i}].`,
