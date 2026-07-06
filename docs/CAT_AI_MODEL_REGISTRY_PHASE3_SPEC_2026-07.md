@@ -1,16 +1,51 @@
-狀態：Phase 3A 實作中（2026-07-05）；D1／D8 已定案
+狀態：Phase 3A 已 pivot（2026-07-06）；新方向：CAT 精選模型選單（非 registry 管理頁）
 
 # CAT AI Model Registry Phase 3 — 管理 UI 規格（2026-07）
 
 本文件為 **Level 2 規劃**（僅規格，不含實作）。背景見 [`CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md`](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md)、Phase 2 收尾 [`CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md`](CAT_AI_MODEL_REGISTRY_PHASE2_DEVLOG_2026-07.md)。
 
-**Phase 3 目標**：讓 executive 在介面中安全管理 `cat_ai_model_options` registry，**不再依賴手動改 production DB**。
+**Phase 3 目標（2026-07-06 調整後）**：在 CAT 既有「AI 管理／AI 設定」提供**精選模型選單**（約 4～5 個 `enabled=true` 模型），**不**做完整 registry 管理頁、**不**在 UI 顯示 70 筆草稿。
 
-**Phase 3 不做**（留 Phase 4）：
+**Phase 3 不做**（調整後仍適用）：
 
-- 前台 AI 批次翻譯模型選單改讀 registry
+- 完整 React `/settings/cat-ai-models` registry 管理頁（Phase 3A 已 merge 後 rollback，見 §0）
+- enabled／default／文案的 CRUD 編輯 UI
+- sync 按鈕 UI
+- 前台 AI 批次翻譯模型選單全面改讀 registry（留 Phase 4 或另案）
 - BYOK 收斂（僅可在文件註記現況）
 - 新增 migration／RLS（除非實作階段證明必要）
+
+---
+
+## 0. PM 方向調整（2026-07-06）
+
+### 新決策摘要
+
+| 項目 | 定案 |
+|---|---|
+| **不要** | 完整 `/settings/cat-ai-models` 模型管理頁；AI 管理中看到 70 個模型 |
+| **要** | CAT「AI 管理／AI 設定」內**精選模型選單**（約 4～5 個） |
+| **backend** | 保留 registry + sync；`ai_provider_models` 可存全部 OpenAI models；`cat_ai_model_options` 可存草稿（`enabled=false`） |
+| **UI 可見** | 僅 `cat_ai_model_options` 且 **`enabled=true`** |
+| **default** | **gpt-5.5**（維持） |
+| **fallback** | **gpt-4.1-mini**（`enabled=true`，維持） |
+| **後續精選** | 另案決定再啟用 2～3 個模型（改 DB `enabled`，**無** enabled 編輯 UI） |
+
+### Phase 3A（PR #10）處置
+
+- merge commit `d87e6e77` 曾新增 React 唯讀管理頁 + 側欄入口 + `/settings/cat-ai-models`
+- **2026-07-06 pivot PR** 移除上述正式 UI；保留 `src/lib/cat-ai-model-registry/` helper 供精選模型選單使用
+- **不修改 production DB**
+
+### 後續 Phase 3 新工項（規劃中）
+
+**Phase 3B′ — CAT AI 設定精選模型選單**（名稱待定）：
+
+- 讀取 `fetchEnabledCatAiModelOptions()`（`enabled=true` only）
+- 顯示 `display_name_zh`／`short_label_zh`／`usage_hint_zh`
+- 預設選中 `is_default=true`（gpt-5.5）
+- GPT-5.5 family temperature 提示沿用 `model-capabilities.ts`
+- **不做** CRUD、sync 按鈕、70 列表格
 
 ---
 
@@ -40,14 +75,16 @@
 
 - **正式 default**：`gpt-5.5`
 - **fallback**：`gpt-4.1-mini` 保留 `enabled=true`
-- **Phase 3 必須支援**：default／enabled／文案管理，避免再靠手動 DB
+- **UI 精選模型**：只顯示 `enabled=true`（目標約 4～5 個；目前 2 個）
+- **不做**完整 registry 管理頁（2026-07-06 pivot）
+- **enabled／default 變更**：仍由 DB／sync 後台處理，**無**產品 CRUD UI
 
-### Phase 3 要解決的問題
+### Phase 3 要解決的問題（2026-07-06 調整後）
 
-1. executive 無法在 UI 檢視／編輯 70 筆 registry（含 68 筆 `enabled=false` 草稿）
-2. 改 default／enabled／文案曾需直接改 DB（gpt-5.5 即為先例）
-3. sync 僅能 curl／腳本呼叫 endpoint，無操作紀錄 UI
-4. 特殊能力（GPT-5.5 省略 temperature）未在 registry 表達，需 UI 提示避免誤設
+1. CAT「AI 管理／AI 設定」模型選單仍為 hardcoded，未讀 registry 精選列
+2. 使用者不應看到 70 筆草稿模型
+3. 需顯示 `display_name_zh`／`short_label_zh`／`usage_hint_zh` 與 default（gpt-5.5）
+4. GPT-5.5 省略 temperature 需在選單或提示中表達
 
 ### 程式現況（盤點）
 
@@ -309,23 +346,41 @@ sequenceDiagram
 
 ---
 
-## 7. 建議拆工（PR）
+## 7. 建議拆工（PR）— **2026-07-06 已調整**
 
-採 **方案 A′**（React 管理頁 + CAT 入口連結）。子階段可獨立 merge、獨立驗收。
+~~採方案 A′（React 管理頁 + CAT 入口）~~ → **已 pivot**。以下舊 3A～3E 章節保留作歷史參考；**現行路線見 §0**。
 
-### Phase 3A — 唯讀模型列表（executive）— **實作中（PR Phase 3A）**
+### Phase 3A — 唯讀模型列表（executive）— **已 rollback（2026-07-06）**
 
 | 項目 | 內容 |
 |---|---|
-| **目的** | executive 看見全部 options + provider 可用性 + capability 提示 |
-| **路由** | **`/settings/cat-ai-models`**（D8 已定案） |
-| **修改檔案** | `CatAiModelRegistryPage.tsx`、`list-registry-options.ts`、`registry-display.ts`、`model-capabilities.ts`、`route-access.ts`、`App.tsx` 路由、`AppSidebar.tsx` executive 入口、vitest |
-| **驗收** | executive 可見 ≥70 列；pm/member 路由拒絕；表格含 gpt-5.5 default 標記與 temperature 提示 |
-| **風險** | 低 |
-| **production DB 寫入** | 否 |
-| **CAT iframe 入口** | **Phase 3A 不做**（留 Phase 3E） |
+| **原 PR** | #10 merge `d87e6e77` |
+| **處置** | 移除 `/settings/cat-ai-models`、側欄入口、`CatAiModelRegistryPage`；保留 lib helper |
+| **production DB** | 未變更 |
 
-### Phase 3B — 文案編輯
+### Phase 3B′ — CAT AI 設定精選模型選單（**下一工項，規劃中**）
+
+| 項目 | 內容 |
+|---|---|
+| **目的** | CAT iframe「AI 管理／AI 設定」只顯示 `enabled=true` 精選模型（約 4～5 個） |
+| **資料** | `fetchEnabledCatAiModelOptions()`；RLS 已允許 member 讀 enabled 列 |
+| **UI** | 模型選單 + 文案；預設 gpt-5.5；temperature 提示 |
+| **不做** | 70 列表格、CRUD、sync 按鈕 |
+| **sync:cat** | **是**（改 cat-tool AI 設定 UI） |
+
+### ~~Phase 3B～3E~~（舊規格，**不再執行**；以下保留查證用）
+
+<details>
+<summary>展開舊 Phase 3A～3E 規格（已 superseded）</summary>
+
+#### 舊 Phase 3A（React 管理頁，已 rollback）
+
+| 項目 | 內容 |
+|---|---|
+| **路由** | `/settings/cat-ai-models`（D8，已廢止） |
+| **處置** | pivot PR 移除 |
+
+#### 舊 Phase 3B — 文案編輯
 
 | 項目 | 內容 |
 |---|---|
@@ -364,6 +419,8 @@ sequenceDiagram
 | **驗收** | executive 在 CAT 可一鍵進管理頁；非 executive 不見入口 |
 | **風險** | 低 |
 | **sync:cat** | **是**（若改 index.html） |
+
+</details>
 
 ### Phase 3 刻意延後
 
@@ -419,12 +476,12 @@ sequenceDiagram
 
 ## 9. 風險與待決策
 
-### 已定案（2026-07-05）
+### 已定案（2026-07-05，部分已 pivot 2026-07-06）
 
-| # | 決策 | 定案 |
-|---|---|---|
-| D1 | **UI 位置** | **A′** — React executive 管理頁（`/settings/cat-ai-models`）+ CAT「AI 管理」入口（Phase 3E）；iframe **不做**完整 CRUD |
-| D8 | **路由路徑** | **`/settings/cat-ai-models`** |
+| # | 決策 | 定案 | 備註 |
+|---|---|---|---|
+| D1 | **UI 位置** | ~~A′ React 管理頁~~ → **CAT AI 設定精選模型選單** | 2026-07-06 pivot |
+| D8 | **路由路徑** | ~~`/settings/cat-ai-models`~~ **廢止** | 無 registry 管理頁 |
 
 ### 仍待決策
 

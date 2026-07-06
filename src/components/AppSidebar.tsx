@@ -1,4 +1,4 @@
-import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench, Table2, MessageSquareText, Languages, Bot } from "lucide-react";
+import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench, Table2, MessageSquareText, Languages } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -39,9 +39,6 @@ export function AppSidebar() {
     ...(canViewTools ? [{ title: "工具管理", url: "/tools", icon: Wrench }] : []),
     ...(canViewMembers ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
     ...(isExecutive ? [{ title: "權限管理", url: "/permissions", icon: Shield }] : []),
-    ...(isExecutive
-      ? [{ title: "CAT AI 模型", url: "/settings/cat-ai-models", icon: Bot }]
-      : []),
     { title: "個人檔案", url: "/profile", icon: User },
     ...(isAdmin ? [{ title: "設定", url: "/settings", icon: Settings }] : []),
     ...(canViewFieldRef ? [{ title: "內部資料", url: "/field-reference", icon: Table2 }] : []),

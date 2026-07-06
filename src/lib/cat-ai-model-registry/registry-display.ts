@@ -49,3 +49,11 @@ export function sortRegistryRows<T extends { sort_order: number; display_name_zh
     return a.display_name_zh.localeCompare(b.display_name_zh, "zh-Hant");
   });
 }
+
+/** 精選模型選單預設值：優先 `is_default=true`（目前 gpt-5.5），否則取排序後第一筆。 */
+export function pickDefaultModelOption<T extends { model_id: string; is_default: boolean }>(
+  rows: T[],
+): T | undefined {
+  if (rows.length === 0) return undefined;
+  return rows.find((row) => row.is_default) ?? rows[0];
+}
