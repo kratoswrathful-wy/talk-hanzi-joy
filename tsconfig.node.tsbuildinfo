@@ -1,1 +1,1 @@
-{"root":["./vite.config.ts"],"version":"5.8.3"}
+{"root":["./vite.config.ts","./api/cat-ai-model-sync.d.ts"],"version":"5.8.3"}

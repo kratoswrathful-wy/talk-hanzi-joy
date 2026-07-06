@@ -22,7 +22,7 @@ export interface NumericColumnConfig {
   /** Column key that matches ColumnDef.key */
   key: string;
   /** Function that extracts the numeric value from a data item */
-  getValue: (item: any, ...extra: any[]) => number | null;
+  getValue: (item: unknown, ...extra: unknown[]) => number | null;
   /** Whether to format as currency (default true) */
   isCurrency?: boolean;
 }
@@ -36,10 +36,10 @@ interface TableFooterStatsProps {
   columnWidths: Record<string, number>;
   /** Numeric columns that support sum/avg */
   numericColumns?: NumericColumnConfig[];
-  /** The visible data items */
-  data: any[];
+  /** The visible data items (only `id` is read directly by this component; rest is opaque to `getValue`) */
+  data: { id: string }[];
   /** Extra args to pass to getValue (e.g. for invoice totals) */
-  getValueExtra?: Map<string, any[]>;
+  getValueExtra?: Map<string, unknown[]>;
   /** Extra columns count at the end (e.g. comment/history icons in fees page) */
   extraColCount?: number;
 }

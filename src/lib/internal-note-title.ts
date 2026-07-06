@@ -6,8 +6,8 @@ export function buildInternalNoteTitleBase(caseTitle: string): string {
   const raw = String(caseTitle || "").trim();
   if (!raw) return "未命名案件";
   const baseId = raw
-    .replace(/[_\-]?\d{6,8}$/g, "")
-    .replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "")
+    .replace(/[_-]?\d{6,8}$/g, "")
+    .replace(/[_-]?\d{4}[-/]?\d{2}[-/]?\d{2}$/, "")
     .trim();
   return baseId || raw;
 }
@@ -31,7 +31,7 @@ export async function allocateNextInternalNoteTitle(
     .limit(2000);
 
   const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const maxSeq = (titleRows ?? []).reduce((acc, row: any) => {
+  const maxSeq = (titleRows ?? []).reduce((acc, row: { title: string | null }) => {
     const m = String(row?.title || "").match(new RegExp(`^${escapedPrefix}(\\d+)$`));
     if (!m) return acc;
     return Math.max(acc, Number(m[1]) || 0);

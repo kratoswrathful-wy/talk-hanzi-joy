@@ -60,8 +60,8 @@ const renameMap: Record<string, { title: string; subtext?: string }> = {
 };
 
 /** Copy/Paste Format button for the formatting toolbar */
-function CopyPasteFormatButton({ editor }: { editor: BlockNoteEditor<any, any, any> }) {
-  const [storedStyles, setStoredStyles] = useState<Record<string, any> | null>(null);
+function CopyPasteFormatButton({ editor }: { editor: BlockNoteEditor }) {
+  const [storedStyles, setStoredStyles] = useState<ReturnType<BlockNoteEditor["getActiveStyles"]> | null>(null);
 
   const handleClick = () => {
     if (storedStyles) {
