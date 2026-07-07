@@ -609,9 +609,11 @@ await __lmsAgent.case.getCurrentId();
 
 `matches: false` 代表畫面尚未同步到 URL 對應的案件（state bleed），AI 導覽後可先輪詢此 API 至 `matches: true` 再讀取其他欄位，避免讀到殘留畫面。純讀取診斷，不改變任何欄位渲染邏輯。
 
-### 11.13 客戶請款操作 bridge 優先（2026-07-06，慢軌 High，分支 `feat/lms-client-invoice-bridge`）
+### 11.13 客戶請款操作 bridge 優先（已驗收，2026-07-07；`feat/lms-client-invoice-bridge` `3aed4168` 併入 `main` `a6422f02`；addFees 加入成功路徑補測 `test/client-invoice-addfees-fixture` `3ba548f4` 併入 `main` `4b9b4836`）
 
 **背景**：田野回饋客戶請款詳情「調整請款額」等 UI 需點兩次才穩定渲染；**請款流程一律走 `__lmsAgent.clientInvoice.*`**，勿逐項勾選 UI。
+
+**AI 操作助理請注意**：本節已完整驗收（含分支預覽站真人重驗、main 五關綠），**可立即改用 bridge**，不必再點 UI 逐項操作。首輪驗收曾發現並修正一個高危 bug（回讀驗證誤判成功為失敗，可能造成重複請款單，已修復並重驗），故各方法內部已改為真正等待資料庫寫入完成後才回報結果，可信任 `verified` 欄位（`addFees` 例外，見下）。
 
 **權限**：寫入方法先查 `user_roles`（須 `pm` 或 `executive`）；譯者（`member`）呼叫回 `{ ok: false, error: "…PM 以上…" }`，與 RLS `is_admin` 一致。
 
@@ -638,7 +640,9 @@ await __lmsAgent.clientInvoice.setChannel(invoiceId, "V 信箱"); // 非法值�
 await __lmsAgent.clientInvoice.setExpectedDate(invoiceId, "2026-08-15"); // YYYY-MM-DD
 ```
 
-**驗收標準**：每步 `verified: true`；整頁重載後欄位仍在（比照 C1）。Playwright：`tests/lms-client-invoice-bridge.spec.ts`。
+**驗收標準**：每步 `verified: true`；整頁重載後欄位仍在（比照 C1）。Playwright：`tests/lms-client-invoice-bridge.spec.ts`（含 addFees 加入成功路徑，用固定 reconciled 費用 fixture，2026-07-07 起已覆蓋）。
+
+**`addFees` 已知限制（非本次修復範疇，留待 W1 store 工廠排入待辦）**：`client-invoice-store` 對 `client_invoices`／`client_invoice_fees` 的 realtime 變更會整表重載，且目前缺乏 in-flight 樂觀寫入保護；若短時間內連續呼叫 `create` 接 `addFees`，`addFees` 立即回傳的 `verified` **偶爾**會出現假陰性（實際已加入成功，只是回讀當下被稍舊的背景重載蓋過）。**AI 操作助理若遇到 `addFees` 回傳 `verified: false` 但 `added` 已列出該費用**，請以 `clientInvoice.get(invoiceId)` 重新查詢 `feeIds` 確認真實狀態，勿直接判定失敗重試（避免不必要的重複加入嘗試）。
 
 ### 11.12 後續（W9-B／W9 wave 2 C 類，未排入本輪）
 
