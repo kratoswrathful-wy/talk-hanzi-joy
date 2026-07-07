@@ -17,7 +17,15 @@ import { attachCatConsoleCollector, type CatConsoleCollector } from "./helpers/c
 import { assertVirtEnabled, openOfflineCatWithFile } from "./helpers/cat-offline-open";
 
 const SMALL_FIXTURE = resolveCatFixture("small");
-const LARGE_FIXTURE = resolveCatFixture("large");
+
+// 大檔 fixture 為機器本機檔案（從未進 repo），CI／未配置環境會缺席；
+// 缺席時「Test A–I — 大檔」整組優雅跳過，不讓整個 playwright test 行程崩潰（見下方 test.skip）。
+let LARGE_FIXTURE: string | null = null;
+try {
+  LARGE_FIXTURE = resolveCatFixture("large");
+} catch {
+  LARGE_FIXTURE = null;
+}
 
 let largeFileConsole: CatConsoleCollector | null = null;
 
@@ -85,6 +93,11 @@ test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
   });
 
   test.describe("Test A–I — 大檔", () => {
+    test.skip(
+      !LARGE_FIXTURE,
+      "找不到大檔 fixture（Test_Big.mqxliff）：本機需放入 tests/fixtures/ 或設定 PLAYWRIGHT_CAT_LARGE_FIXTURE／放在 Downloads/；CI 環境無此檔屬預期，略過本組",
+    );
+
     let sharedPage: Page;
     let sharedFrame: FrameLocator;
 
@@ -96,7 +109,7 @@ test.describe("Phase 2.3q CAT navigation (Playwright)", () => {
       sharedPage = await context.newPage();
       largeFileConsole = attachCatConsoleCollector(sharedPage);
       sharedFrame = await openOfflineCatWithFile(sharedPage, {
-        fixturePath: LARGE_FIXTURE,
+        fixturePath: LARGE_FIXTURE as string,
         projectName: `[PW] Nav Big ${Date.now()}`,
         importTimeoutMs: 600_000,
         editorTimeoutMs: 600_000,
