@@ -70,3 +70,14 @@ alwaysApply: true
 - `.env.example` 進版控、對外公開，**只能放欄位名與假佔位值**（如 `your@email`、`sk-...`、`your_password`），**絕不填真實帳密／金鑰**。
 - 真值只進本機 `.env`／`.env.playwright.local`（皆已 `.gitignore` 排除）或 GitHub Secrets／Vercel Project Settings。
 - 驗收方式：`git check-ignore .env` 與 `git check-ignore .env.playwright.local` 應命中（輸出對應規則），`git check-ignore .env.example` 不應命中（無輸出、exit code 1）。
+
+## 10. 平行代理禁止共用同一 working tree（強制，2026-07-07 裁決）
+
+背景：本機同時有多個 AI 代理工作階段，實測發現彼此**共用同一份 repo checkout**（同一個資料夾）。其中一個階段執行 `git checkout <branch>` 時，會把另一階段正在進行中的分支切走；未提交的變更也可能被另一階段的 `git stash`／`checkout` 動作連帶搬動。這會造成工作被覆蓋、遺失、或兩邊的提交互相摻雜，風險等級與「多人共用同一份未鎖定的檔案」相同。
+
+- **平行代理（同時段、不同工項）禁止共用同一份 working tree**。每個代理應各自使用：
+  - **獨立 clone**（各自資料夾各自 `git clone`），或
+  - **`git worktree`**（`git worktree add ../<dir> <branch>`，同一個 `.git`、不同工作目錄，各自互不干擾地 checkout 不同分支）。
+- 若環境限制無法做到實體隔離（例如同一個 IDE 工作區、同一顆 checkout），**必須序列化**：一次只讓一個代理對該 working tree 做 `git checkout`／`git stash`／`git commit` 等會改動工作目錄或分支指標的操作，確認對方已完成或明確交接後才能動。
+- 動手前的最低限度自保檢查：對同一 working tree 連續下兩次 `git status --porcelain` 與 `git branch --show-current`（中間間隔數秒），**結果不一致**即代表有其他代理正在同時操作，應立即停手並回報，不得逕自 `checkout`／`stash pop`／`reset`。
+- 發現已經共用且已有他方进行中的分支／未提交變更時：**先用 `git stash show -p > <tmp>.patch` 或等效方式落地存證**，確認內容是否已被對方的提交涵蓋，避免盲目 `stash pop` 蓋掉對方已提交的新版本（案例：2026-07-07 `.env` 收尾時，`stash@{0}` 的 `CLAUDE_RUNBOOK.md` 舊稿被另一代理已提交的新稿取代，比對後確認可直接丟棄）。

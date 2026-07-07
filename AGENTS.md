@@ -9,6 +9,7 @@
 - **[`.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)** — **全域常駐**：對話與文件僅台灣正體中文，禁止混用其他語言書寫說明正文。
 - **[`.cursor/rules/claude-ai-acceptance-slack.mdc`](.cursor/rules/claude-ai-acceptance-slack.mdc)** — **全域常駐**：使用者指定「Claude／AI 驗收」時，自動撰寫 AI 可執行驗收要求並發送到 Slack `#development`。
 - **[`.cursor/rules/architecture.mdc`](.cursor/rules/architecture.mdc) §9** — **全域常駐**：禁止整檔覆寫使用者本機 `.env`（含 `.env.playwright.local`），只能外科式追加缺少的鍵；`.env.example` 只放假佔位值；`.env` 禁止再加入 Git 版控。
+- **[`.cursor/rules/architecture.mdc`](.cursor/rules/architecture.mdc) §10** — **全域常駐**：平行代理（同時段、不同工項）禁止共用同一份 working tree；各自 clone 或用 `git worktree` 隔離，做不到就序列化，動手前先連續兩次 `git status`／`git branch --show-current` 確認無他方正在操作。
 - **[`docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)** — **AI 整合操作指南（Claude 首讀）**：建單、案件頁、CAT 導覽／匯入／AI 批次；預設線上測試模式。
 - **[`docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)** — **LMS 技能書（Claude 速查）**：`window.__lmsAgent`／`__tmsAgent`；Phase 2 見 [`docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md`](docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md)、Playwright 驗收見 [`docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md)、CAT 見 [`docs/CAT_AI_AGENT_BRIDGE_2026-07.md`](docs/CAT_AI_AGENT_BRIDGE_2026-07.md)。
 
