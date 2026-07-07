@@ -27,7 +27,7 @@ await window.__tmsAgent.cat.invoke("aiBatch.getSettings");
 | **CAT AI 批次設定** | iframe `__catAgent` 或 `__tmsAgent.cat.invoke` |
 | **CAT 匯入作業檔** | `cat.invoke('import.fromBytes', [...])`（見 Operations Guide §9） |
 | **產生本案費用單** | `case.generateFees(caseId)` |
-| **譯者／客戶請款** | `invoice.*` / `clientInvoice.*` |
+| **譯者／客戶請款** | `invoice.*` / **`clientInvoice.*`（客戶請款優先 bridge，見下）** |
 | 公布案件、Slack 通知 | 狀態可 `case.update`；Slack 等副作用可能需 UI |
 
 **前提**：使用者已登入 LMS；`__lmsAgent` 在 App 啟動後掛在 `window` 上（所有環境常駐）。
@@ -69,7 +69,8 @@ window.__lmsAgent.options.listKeys();
 | `fee.update(id, patch)` | 修改費用（含 `finalized` 定案，Phase 2） |
 | `case.generateFees(caseId)` | 依案件譯者產生費用單 |
 | `invoice.list` / `get` / `create` / `update` / `delete` / `addFees` / `removeFee` | 譯者請款 |
-| `clientInvoice.*` | 客戶請款（同上結構） |
+| `clientInvoice.create` / `addFees` / `adjustAmount` / `setChannel` / `setExpectedDate` | **客戶請款（優先）**；`addFees` 回 `added`+`skipped`；詳 §11.13 Operations Guide |
+| `clientInvoice.list` / `get` / `update` / `delete` / `removeFee` | 客戶請款其餘 CRUD |
 | `upload.fromBytes` | 上傳至 Storage，回傳 `{ name, url, size }` |
 | `navigate.urlFor({ type, id })` | 產生案件／費用／請款路徑 |
 | `cat.invoke(method, args)` | 代理 CAT iframe（須已開 `/cat/*`） |

@@ -249,7 +249,16 @@ export const clientInvoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (
+  /**
+   * 【W10 clientInvoice bridge 退回修正】此方法先前為 fire-and-forget
+   * （`.then()` 未被上層 await），bridge 端緊接著呼叫 `loadInvoices()`
+   * 做網路 SELECT 驗證回讀時，UPDATE 尚未送達伺服器就已比對，導致
+   * 「回讀不一致」永遠誤判為失敗（即使資料庫其實已寫入成功）。
+   * 現在改為 async 並 await 實際的 UPDATE（帶 `.select()` 拿回權威列與
+   * `updated_at`），呼叫端可安心 await 後直接信任回傳的 error 欄位，
+   * 不須再另外做一次網路 reload 才能驗證。
+   */
+  updateInvoice: async (
     id: string,
     updates: Partial<
       Pick<
@@ -273,7 +282,7 @@ export const clientInvoiceStore = {
       comments?: Json;
       edit_logs?: Json;
     }
-  ) => {
+  ): Promise<{ error: unknown }> => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -294,36 +303,58 @@ export const clientInvoiceStore = {
     if (updates.adjustmentLines !== undefined) dbUpdates.adjustment_lines = adjustmentLinesToJson(updates.adjustmentLines ?? []);
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
-    if (Object.keys(dbUpdates).length > 0) {
-      supabase
-        .from("client_invoices")
-        .update(dbUpdates)
-        .eq("id", id)
-        .then(({ error }) => {
-          if (error) console.error("Failed to update client invoice:", errorMessage(error));
-        });
+    if (Object.keys(dbUpdates).length === 0) return { error: null };
+
+    const { data, error } = await supabase
+      .from("client_invoices")
+      .update(dbUpdates)
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error("Failed to update client invoice:", errorMessage(error));
+      return { error };
     }
+    if (!data) {
+      // RLS 靜默擋下（0 筆受影響）：無 error 但也無資料列，須視為失敗，
+      // 否則呼叫端會誤信「無 error＝成功」。
+      const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
+      console.error("Failed to update client invoice:", blockedErr.message);
+      return { error: blockedErr };
+    }
+
+    const existing = invoices.find((inv) => inv.id === id);
+    const feeIds = existing?.feeIds ?? [];
+    invoices = invoices.map((inv) => (inv.id === id ? dbToApp(data, feeIds) : inv));
+    notify();
+
+    return { error: null };
   },
 
-  deleteInvoice: (id: string) => {
+  deleteInvoice: async (id: string): Promise<{ error: unknown }> => {
     invoices = invoices.filter((inv) => inv.id !== id);
     notify();
 
-    supabase
-      .from("client_invoices")
-      .delete()
-      .eq("id", id)
-      .then(({ error }) => {
-        if (error) console.error("Failed to delete client invoice:", errorMessage(error));
-      });
+    const { data, error } = await supabase.from("client_invoices").delete().eq("id", id).select();
+    if (error) {
+      console.error("Failed to delete client invoice:", errorMessage(error));
+      return { error };
+    }
+    if (!data || data.length === 0) {
+      const blockedErr = new Error("刪除未套用（可能被權限規則擋下或該筆已不存在）");
+      console.error("Failed to delete client invoice:", blockedErr.message);
+      return { error: blockedErr };
+    }
+    return { error: null };
   },
 
-  addFeesToInvoice: async (invoiceId: string, feeIds: string[]) => {
+  addFeesToInvoice: async (invoiceId: string, feeIds: string[]): Promise<{ error: unknown }> => {
     const inv = invoices.find((i) => i.id === invoiceId);
-    if (!inv) return;
+    if (!inv) return { error: new Error("找不到該筆客戶請款") };
 
     const newFeeIds = feeIds.filter((fid) => !inv.feeIds.includes(fid));
-    if (newFeeIds.length === 0) return;
+    if (newFeeIds.length === 0) return { error: null };
 
     invoices = invoices.map((i) =>
       i.id === invoiceId ? { ...i, feeIds: [...i.feeIds, ...newFeeIds] } : i
@@ -332,10 +363,19 @@ export const clientInvoiceStore = {
 
     const links = newFeeIds.map((feeId) => ({ client_invoice_id: invoiceId, fee_id: feeId, env: getEnvironment() }));
     const { error } = await supabase.from("client_invoice_fees").insert(links);
-    if (error) console.error("Failed to add fees to client invoice:", errorMessage(error));
+    if (error) {
+      console.error("Failed to add fees to client invoice:", errorMessage(error));
+      // 寫入失敗須撤銷樂觀本地狀態，避免本地與資料庫不同步
+      invoices = invoices.map((i) =>
+        i.id === invoiceId ? { ...i, feeIds: i.feeIds.filter((fid) => !newFeeIds.includes(fid)) } : i
+      );
+      notify();
+    }
+    return { error };
   },
 
-  removeFeeFromInvoice: async (invoiceId: string, feeId: string) => {
+  removeFeeFromInvoice: async (invoiceId: string, feeId: string): Promise<{ error: unknown }> => {
+    const inv = invoices.find((i) => i.id === invoiceId);
     invoices = invoices.map((i) =>
       i.id === invoiceId ? { ...i, feeIds: i.feeIds.filter((fid) => fid !== feeId) } : i
     );
@@ -346,7 +386,14 @@ export const clientInvoiceStore = {
       .delete()
       .eq("client_invoice_id", invoiceId)
       .eq("fee_id", feeId);
-    if (error) console.error("Failed to remove fee from client invoice:", errorMessage(error));
+    if (error) {
+      console.error("Failed to remove fee from client invoice:", errorMessage(error));
+      if (inv) {
+        invoices = invoices.map((i) => (i.id === invoiceId ? { ...i, feeIds: inv.feeIds } : i));
+        notify();
+      }
+    }
+    return { error };
   },
 
   getInvoiceById: (id: string) => invoices.find((i) => i.id === id),

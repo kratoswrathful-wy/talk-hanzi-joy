@@ -609,6 +609,37 @@ await __lmsAgent.case.getCurrentId();
 
 `matches: false` 代表畫面尚未同步到 URL 對應的案件（state bleed），AI 導覽後可先輪詢此 API 至 `matches: true` 再讀取其他欄位，避免讀到殘留畫面。純讀取診斷，不改變任何欄位渲染邏輯。
 
+### 11.13 客戶請款操作 bridge 優先（2026-07-06，慢軌 High，分支 `feat/lms-client-invoice-bridge`）
+
+**背景**：田野回饋客戶請款詳情「調整請款額」等 UI 需點兩次才穩定渲染；**請款流程一律走 `__lmsAgent.clientInvoice.*`**，勿逐項勾選 UI。
+
+**權限**：寫入方法先查 `user_roles`（須 `pm` 或 `executive`）；譯者（`member`）呼叫回 `{ ok: false, error: "…PM 以上…" }`，與 RLS `is_admin` 一致。
+
+**方法（validate → store → reload 回讀）**：
+
+```javascript
+// 建立（client 須在 options.get("client").labels）
+await __lmsAgent.clientInvoice.create({ client: "ECI", title: "[AI] 七月請款" });
+// → { ok, data: { invoice, verified: true } }
+
+// 批次加入費用（最高價值；取代逐筆勾選）
+await __lmsAgent.clientInvoice.addFees(invoiceId, [feeId1, feeId2, "bad-id"]);
+// → { invoice, added: [...], skipped: [{ feeId, reason }], verified: true }
+// reason: not_found | already_on_invoice | linked_to_other_invoice | client_mismatch | not_reconciled
+
+// 調整請款額（等同詳情頁「設為特定數額／加／減」）
+await __lmsAgent.clientInvoice.adjustAmount(invoiceId, {
+  mode: "set_target", // 或 "add" | "subtract"
+  currency: "TWD",
+  targetAmount: 120000,
+});
+
+await __lmsAgent.clientInvoice.setChannel(invoiceId, "V 信箱"); // 非法值回 allowed
+await __lmsAgent.clientInvoice.setExpectedDate(invoiceId, "2026-08-15"); // YYYY-MM-DD
+```
+
+**驗收標準**：每步 `verified: true`；整頁重載後欄位仍在（比照 C1）。Playwright：`tests/lms-client-invoice-bridge.spec.ts`。
+
 ### 11.12 後續（W9-B／W9 wave 2 C 類，未排入本輪）
 
 CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload` 攔截、語言對打字搜尋等項目，依擁有者裁定排程，詳見主計畫 §10 W9-B；OBS-4（bridge 偏好不持久化）維持待辦。完成時將回來補本節。
@@ -629,6 +660,7 @@ CAT 編輯器句段查詢／跳轉 API（`__catAgent` 擴充）、`beforeunload`
 | AI 批次 Modal 內 `<select>`（`handleUnconfirmed` 等）點不動／選錯 | 原生 `<select>` 對通用瀏覽器工具支援不穩定（W9 wave 2 田野實測） | 改用 `aiBatch.setSettings(patch)`（§10.2），**禁止**點選該 Modal 內下拉 |
 | 匯入時彈出「選擇語言對」「是否連結案件」對話框，AI 卡住需截圖點選 | `import.fromBytes` 呼叫時未帶 `sourceLang`／`targetLang`／`caseInfo` | 重新呼叫時**一次帶齊**這三組參數（§9.1），對話框即不出現 |
 | 批次翻譯進行中要靠截圖看「第 X/20 批」才知道進度 | 未使用進度查詢 API | 改用 `aiBatch.getProgress()` 輪詢（§10.3），不必截圖 |
+| 客戶請款「加入費用」勾選框／調整鈕要點兩次 | 走 UI 渲染時序 | **改用 `clientInvoice.addFees`／`adjustAmount` 等**（§11.13），勿點詳情頁勾選 |
 
 ---
 
