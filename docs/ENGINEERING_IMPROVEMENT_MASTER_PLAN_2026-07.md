@@ -1,4 +1,4 @@
-狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三——lint 清零批次 1–8 已全數併入 main、Vitest 批次 2、`dev-switch-user` 核心修復均已驗收併入 main（殘留 OBS-5 待辦）；**R2 五關正式生效待併**（分支 `fix/r2-formalize-forbidden-casts-cleanup`，見 §18）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項（§15）；階段四未開工）
+狀態：實作中（階段一二已落地；W10、W9-A、W9 wave 2 為擁有者插隊裁定工項，已落地並多半驗收；階段三——lint 清零批次 1–8、Vitest 批次 2、`dev-switch-user`、`R2` 五關均已驗收併入 main（殘留 OBS-5 待辦）；**e2e 接入 CI 已落地待驗收**（分支 `feat/e2e-ci-workflow`，見 §20）；`cat-cloud-rpc.ts` 297 處 `any` 另立獨立工項（§15）；階段四未開工）
 
 # 1UP 工程改善主計畫
 
@@ -166,8 +166,9 @@ flowchart LR
 - **vitest 第二批（XLIFF harness）** — 狀態：**已驗收併入 main**（`cat-tool/js/xliff-tag-pipeline.js` 三格式最小合成樣本回歸測試；分支 `test/w6-vitest-xliff-harness-batch2`；過程細節見下方新增章節）— merge commit：`b245c285`（CI [run #28730610071](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28730610071) 綠燈）
 - **W6（CI 第一版）** — 狀態：**已落地待驗收**（GitHub Actions：push main + PR 觸發，typecheck／test 擋關，lint `continue-on-error` 暫不擋關；本機 `npm run lint` 現存 357 error／51 warning，主要為既有 `no-explicit-any`，清零策略見下方 W6-C 評估）— commit：`7f8117b`；merge commit：`70a0bc8`（`cursor/w6-ci-v1` → `main`）；**Actions 執行記錄**：run [`#28696148596`](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/28696148596)，`status=completed`／`conclusion=success`（綠燈），lint 步驟已完整跑過（本機重現同一份 357/51 報告）且未影響整體結果
 - **W6-B（Hook 條件呼叫熱修，隨 CI 盤點一併發現的真風險）** — 狀態：**已驗收**（本機 `npm run typecheck`／`npm run test` 全過；新增回歸測試已驗證「復原舊碼會失敗、修復後會通過」）— commit：`3e84603`；merge commit：`102df30`（`cursor/w6-hook-order-fix` → `main`）
-- **Playwright 測試模式** — 狀態：規劃中 — commit：—
-- **R2** — 狀態：**正式生效待併**（lint 清零批次 1–8 完成；`check-forbidden-casts` 新增；批次 7/8 抽驗 `as unknown as` 退回慢軌修正中，見 §18）— commit：—
+- **Playwright 測試模式** — 狀態：**已驗收**（`dev-switch-user` 修復、譯者 spec 6 項全過；見 §12）— commit：`e1ed9373`
+- **e2e 接入 CI** — 狀態：**已落地待驗收**（獨立 `.github/workflows/e2e.yml`；非擋關：workflow_dispatch + nightly + pull_request；強制測試模式；secret 缺則 skip；失敗上傳 artifact；見 §20）— commit：—
+- **R2** — 狀態：**已驗收併入 main**（五關全過；lint 擋關已生效，見 §18）— merge commit：`e2e78d3e`
 
 ### 階段四
 
@@ -749,4 +750,21 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 
 **歷史**：該檔若曾提交過，內容仍留存於 **git 歷史**（公開 repo）。擁有者評估後決定**暫不執行歷史清理**（如 `git filter-repo`／BFG）。
 
-**防未來**（分支 `chore/protect-client-files-from-repo`）：`.gitignore` 忽略 `*.sdlxliff`／`*.mqxliff`／`*.xlf`／`*.xliff`／`*.tmx`／`*.xlsx`（放行 `tests/fixtures/`）；[`architecture.mdc`](../.cursor/rules/architecture.mdc) §11 鐵律；[`AGENTS.md`](../AGENTS.md) 補索引。
+**防未來**（分支 `chore/protect-client-files-from-repo`）：`.gitignore` 忽略 `*.sdlxliff`／`*.mqxliff`／`*.xlf`／`*.xliff`／`*.tmx`／`*.xlsx`（放行 `tests/fixtures/`）；[`architecture.mdc`](../.cursor/rules/architecture.mdc) §11 鐵律；[`AGENTS.md`](../AGENTS.md) 補索引。**已驗收併入 main**（merge `a8956bc1`，2026-07-07）。
+
+## 20. Playwright e2e 接入 CI（2026-07-07，慢軌，非擋關）
+
+**背景**：階段三 Playwright 測試模式與 `dev-switch-user` 修復已驗收；R2 五關（encoding／forbidden-casts／typecheck／test／lint）已生效。e2e 接入獨立 workflow，不與 `ci.yml` 五關打架、不擋日常 push main。
+
+**實作**（分支 `feat/e2e-ci-workflow`）：新增 [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml)，**不修改** [`ci.yml`](../.github/workflows/ci.yml)。
+
+| 護欄 | 內容 |
+|------|------|
+| 非擋關觸發 | `workflow_dispatch` + `schedule`（`cron: "0 18 * * *"` UTC nightly）+ `pull_request`；**不含** `push: main` |
+| 強制測試模式 | `PLAYWRIGHT_ENTER_TEST_MODE=1`、`PLAYWRIGHT_BASE_URL=http://localhost:8080`；`playwright.config.ts` `webServer` 自動 `npm run dev`；資料落 `env=test` |
+| secret 缺則 skip | 守衛步驟：`PLAYWRIGHT_TEST_PASSWORD` 空 → 整 job 略過（`::notice`），不 fail |
+| 失敗 artifact | `playwright-report/`、`test-results/` 上傳，retention 7 天 |
+
+**執行環境**：`CI=true`（config `retries=1`）；`npx playwright install --with-deps chromium`；secrets：`PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`、`VITE_SUPABASE_URL`／`VITE_SUPABASE_PUBLISHABLE_KEY`。
+
+**驗收**：Fable 5 手動 `workflow_dispatch` Run 一次；yaml 語法與四護欄符合後才併 main。
