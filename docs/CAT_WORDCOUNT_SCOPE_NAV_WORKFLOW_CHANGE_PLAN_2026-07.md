@@ -1,4 +1,4 @@
-狀態：規劃中
+狀態：規劃中（BCD-B/C/D 已驗收；其餘六項待後續工單）
 
 # CAT 字數／範圍／導覽／Workflow 變更計畫與碰撞風險文件
 
@@ -613,15 +613,17 @@ PM 開檔預設審稿身分（`currentWfSessionKind='review'`），首次審稿�
 
 Diff/TB 引擎（與本六項碰撞評估相關）：**ENG-P1**，分支 `feature/cat-diff-tb-eng-p1`，commit `f7191182`。
 
-PR／併入順序與 CI 鐵律：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md)。
+**併入與驗收狀態（2026-07-07）**：ENG-P1（#14）與 BCD-B/C/D（#17/#18/#21）已全部進 `main`；`sync:cat` **已完成**（`0312648c`）。Playwright spec PR #23（`6f6c4d68`）、穩定化 PR #25（`be04fd03`）。Cursor smoke 與 Claude browser acceptance 皆 **BCD-B/C/D 3/3 pass**。**BCD 波次可標記為驗收完成**；**等待下一波工單**，不再追加本波 CAT 程式碼變更。詳 [`CAT_BCD_WAVE_PLAYWRIGHT_ACCEPTANCE_2026-07.md`](CAT_BCD_WAVE_PLAYWRIGHT_ACCEPTANCE_2026-07.md) §0。
 
-**併入狀態（2026-07-06）**：ENG-P1（#14）與 BCD-B/C/D（#17/#18/#21）已全部進 `main`；`public/cat/**` **尚未** sync。窗口期內禁止單獨 `sync:cat`——詳 §8：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md) §8。
+PR／併入順序與 CI 鐵律：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md)。
 
 ---
 
-## 附錄 B：sync:cat 窗口期（2026-07-06）
+## 附錄 B：sync:cat 窗口期（2026-07-06）— **已結束**
 
-本六項變更中，BCD-B／C／D 已 merge；在 `main` 統一 `sync:cat` 之前，`cat-tool/` 與 `public/cat/` 刻意不同步。
+> **2026-07-07 更新**：`sync:cat` 已於 `0312648c` 完成；BCD-B/C/D 驗收完成。以下保留作歷史紀錄。
+
+本六項變更中，BCD-B／C／D 已 merge 並完成 sync；`cat-tool/` 與 `public/cat/` 已同步。
 
 | 規則 | 說明 |
 |------|------|

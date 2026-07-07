@@ -1,4 +1,4 @@
-狀態：實作中
+狀態：已驗收，細節以程式為準
 
 # CAT 並行波次 PR／併入流程（BCD 字數／篩選／確認 + ENG-P1 引擎）
 
@@ -144,7 +144,7 @@ npm run test:cat
 
 ## 7. 併入完成紀錄（2026-07-06）
 
-五項 PR 已全部 merge 進 `main`（`main` tip：`49a336b5`）。**尚未**執行 `sync:cat`；`cat-tool/` 與 `public/cat/` 刻意保持不同步，進入 **§8 窗口期**。
+五項 PR 已全部 merge 進 `main`（`main` tip：`49a336b5`）。**`sync:cat` 已於 `0312648c` 完成**；BCD 波次 Playwright 驗收 **已結案**（2026-07-07，見 §10）。
 
 | 項目 | PR | merge commit | 備註 |
 |------|-----|--------------|------|
@@ -153,6 +153,9 @@ npm run test:cat
 | **BCD-B** | #17 | `7d7d2508` | `app.js` + `index.html` |
 | **BCD-C** | #18 | `4ce3ceec` | `app.js` +4 行 |
 | **BCD-D** | #21 | `49a336b5` | `app.js` noop 分支 1 行 |
+| **sync:cat** | — | `0312648c` | `public/cat/` 與 `cat-tool/` 同步 |
+| **BCD Playwright spec** | #23 | `6f6c4d68` | `tests/cat-bcd-wave-acceptance.spec.ts` |
+| **BCD spec 穩定化** | #25 | `be04fd03` | helper／prep gate／docs（2026-07-06T12:41:57Z） |
 
 **流程偏差（已驗收可接受）**：BCD-D PR #21 遠端 head 曾為 `e62e6e6c`（含額外 merge commit），非原先 feature tip `8a30f5f0`；但 PR diff 與 merge 後實際變更仍僅 `cat-tool/app.js` 1 行。後續同類分支應避免 head 被額外 merge commit 改寫；若發生，必須回報 head SHA 與實際 diff。
 
@@ -160,13 +163,11 @@ npm run test:cat
 
 ---
 
-## 8. sync:cat 窗口期保護（Fable 5 協調，2026-07-06）
+## 8. sync:cat 窗口期保護（Fable 5 協調，2026-07-06）— **已結束**
 
-### 8.1 窗口期定義
+> **2026-07-07 更新**：`sync:cat` 已於 `main` 以獨立 commit `0312648c` 完成；窗口期結束。以下條文保留作歷史協調紀錄。
 
-在 **ENG-P1 + BCD-B/C/D 全部進 `main`** 之後、於 **`main` 上統一執行 `sync:cat` 並獨立 commit 之前**，`cat-tool/` 與 `public/cat/` **刻意保持不同步**。
-
-此期間為 **sync:cat 窗口期**。
+### 8.1 窗口期定義（歷史）
 
 **窗口期內禁止**：
 
@@ -217,8 +218,26 @@ git push origin main
 
 ---
 
-## 9. 待執行（sync 收尾前）
+## 9. 收尾完成紀錄（2026-07-07）
 
-- [ ] 本文件 §8 窗口期保護併入 `main`（docs PR）
-- [ ] `main` 上執行 `sync:cat` 獨立 commit
-- [ ] 回報 sync commit SHA + `cat-tool/`／`public/cat/` 一致性驗收
+- [x] 本文件 §8 窗口期保護併入 `main`（docs PR #16 等）
+- [x] `main` 上執行 `sync:cat` 獨立 commit（`0312648c`）
+- [x] PR #23 BCD Playwright acceptance specs（merge `6f6c4d68`）
+- [x] PR #25 穩定 BCD acceptance specs（merge `be04fd03`）
+- [x] Cursor smoke：BCD-B/C/D 3/3 pass
+- [x] Claude browser acceptance：BCD-B/C/D 3/3 pass
+- [x] BCD-B/C/D **驗收完成**；**等待下一波工單**，不再追加本波 CAT 程式碼變更
+
+---
+
+## 10. 驗收結案摘要
+
+**最終狀態**：`ENG-P1 + BCD-B/C/D implementation merged + sync completed + Cursor smoke pass + Claude browser acceptance pass`
+
+| 驗收項 | 結果 |
+|--------|------|
+| BCD-B | pass — 加權字數 UI 入口皆不可見 |
+| BCD-C | pass — 小檔 non-virtual grid 清除篩選後錨點置中（`rowCenterDeltaPx=0`） |
+| BCD-D | pass — `review_confirmed` noop `Ctrl+Enter` 後狀態不變、焦點跳下一句 |
+
+詳細 Playwright 規格與診斷：[`CAT_BCD_WAVE_PLAYWRIGHT_ACCEPTANCE_2026-07.md`](CAT_BCD_WAVE_PLAYWRIGHT_ACCEPTANCE_2026-07.md) §0。
