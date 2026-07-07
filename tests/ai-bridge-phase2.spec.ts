@@ -193,7 +193,7 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
           __lmsAgent: {
             options: { get: (k: string) => { ok: boolean; data?: { labels?: string[] } } };
             clientInvoice: {
-              create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
+              create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { invoice: { id: string } } }>;
               get: (id: string) => { ok: boolean; error?: string; data?: { id: string } };
             };
           };
@@ -203,10 +203,12 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
         if (!client) return { ok: false, error: "無可用 client 選項" };
         const created = await agent.clientInvoice.create({ client, title: invTitle });
         if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
-        const got = agent.clientInvoice.get(created.data.id);
+        // create 回傳的 id 巢狀在 data.invoice.id（與 get/update 直接回 data.id 不同形狀）。
+        const createdId = created.data.invoice.id;
+        const got = agent.clientInvoice.get(createdId);
         return {
-          ok: got.ok && got.data?.id === created.data.id,
-          clientInvoiceId: created.data.id,
+          ok: got.ok && got.data?.id === createdId,
+          clientInvoiceId: createdId,
           error: got.error,
         };
       }, title);
