@@ -81,3 +81,13 @@ alwaysApply: true
 - 若環境限制無法做到實體隔離（例如同一個 IDE 工作區、同一顆 checkout），**必須序列化**：一次只讓一個代理對該 working tree 做 `git checkout`／`git stash`／`git commit` 等會改動工作目錄或分支指標的操作，確認對方已完成或明確交接後才能動。
 - 動手前的最低限度自保檢查：對同一 working tree 連續下兩次 `git status --porcelain` 與 `git branch --show-current`（中間間隔數秒），**結果不一致**即代表有其他代理正在同時操作，應立即停手並回報，不得逕自 `checkout`／`stash pop`／`reset`。
 - 發現已經共用且已有他方进行中的分支／未提交變更時：**先用 `git stash show -p > <tmp>.patch` 或等效方式落地存證**，確認內容是否已被對方的提交涵蓋，避免盲目 `stash pop` 蓋掉對方已提交的新版本（案例：2026-07-07 `.env` 收尾時，`stash@{0}` 的 `CLAUDE_RUNBOOK.md` 舊稿被另一代理已提交的新稿取代，比對後確認可直接丟棄）。
+
+## 11. 客戶／正式案件檔禁止進 repo（強制，2026-07-07 裁決）
+
+背景：2026-07-07 發現真實客戶專案檔（Dawson 案 `.sdlxliff`，內含客戶路徑與 base64 內嵌 Excel）曾誤存 repo 根目錄；工作目錄已刪除，但**仍留存於 git 歷史**（擁有者評估後決定暫不清理歷史，見主計畫 §19）。本規則只防未來誤提交。
+
+- **客戶／正式案件檔絕不得放入 repo 目錄或提交**（含 repo 根、任意子目錄、`downloads/` 等）。
+- **僅去識別化最小樣本**可放 `tests/fixtures/`（例如 Vitest／Playwright 用的 `minimal.sdlxliff`）；新增 fixture 須確認不含真實客戶名稱、路徑、原文／譯文內容或可還原的 base64 內嵌檔。
+- `.gitignore` 已忽略 `*.sdlxliff`／`*.mqxliff`／`*.xlf`／`*.xliff`／`*.tmx`／`*.xlsx`，並以 `!tests/fixtures/**` 放行 fixture 目錄。
+- **禁止**用 `git add -f` 強制加入上述副檔名（fixture 目錄除外）；若誤加入，立即 `git rm --cached <path>` 並回報。
+- 驗收方式：`git check-ignore -v <repo根目錄下新建的同類檔>` 應命中；`git check-ignore -v tests/fixtures/` 下既有 fixture **不應**命中（exit code 1）。

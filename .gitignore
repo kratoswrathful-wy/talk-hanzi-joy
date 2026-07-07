@@ -46,6 +46,17 @@ scripts/profiles-migrate-users.csv
 # 本機預覽／臨時 HTML（勿進 Git）
 downloads/
 
+# --- 客戶／正式案件檔勿進 repo（僅 tests/fixtures/ 可放去識別化最小樣本）---
+# 規則見 .cursor/rules/architecture.mdc §11
+*.sdlxliff
+*.mqxliff
+*.xlf
+*.xliff
+*.tmx
+*.xlsx
+!tests/fixtures/
+!tests/fixtures/**
+
 .vercel
 
 # Playwright

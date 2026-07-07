@@ -742,3 +742,11 @@ C2（`be071206`）／C1（`a2ca0d21`）／C3（`c565f8f3`）三項皆已獨立�
 | — | 匯入時角色指派彈窗／開啟時身分選擇彈窗標題加註「匯入時／開啟時」區隔 | 快軌 | **已落地** merge `040c3aad` |
 | — | 批次翻譯預設值改團隊組態 | 與 OBS-4 綁定，等擁有者裁定時間 | 待辦 |
 | — | 「準備中／準備完成」用語變更 | 等擁有者定稿後另發 | 待辦 |
+
+## 19. 客戶專案檔誤入 repo 事件紀錄（2026-07-07，不清歷史）
+
+**事件**：2026-07-07 收尾 `.env` 工單時，於 repo 根目錄發現未追蹤的真實客戶專案檔 `多语言需求拆分0618-繁中.xlsx (1).sdlxliff`（Dawson 案；檔內 `original` 路徑含 `E:\2026项目\Dawson\...`，並含 base64 內嵌 Excel）。工作目錄已刪除；正式 fixture 仍為 `tests/fixtures/xliff/minimal.sdlxliff` 等去識別化最小樣本。
+
+**歷史**：該檔若曾提交過，內容仍留存於 **git 歷史**（公開 repo）。擁有者評估後決定**暫不執行歷史清理**（如 `git filter-repo`／BFG）。
+
+**防未來**（分支 `chore/protect-client-files-from-repo`）：`.gitignore` 忽略 `*.sdlxliff`／`*.mqxliff`／`*.xlf`／`*.xliff`／`*.tmx`／`*.xlsx`（放行 `tests/fixtures/`）；[`architecture.mdc`](../.cursor/rules/architecture.mdc) §11 鐵律；[`AGENTS.md`](../AGENTS.md) 補索引。
