@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function loadDotEnv() {
-  const envPath = path.resolve(__dirname, ".env");
+function loadDotEnvFile(filename: string) {
+  const envPath = path.resolve(__dirname, filename);
   if (!fs.existsSync(envPath)) return;
   for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -20,6 +20,12 @@ function loadDotEnv() {
     }
     if (process.env[key] == null) process.env[key] = val;
   }
+}
+
+function loadDotEnv() {
+  // .env.playwright.local 優先：Playwright 本機憑證獨立存放，避免與常被整檔重寫的 .env 混在一起（見 .cursor/rules/architecture.mdc §9）。
+  loadDotEnvFile(".env.playwright.local");
+  loadDotEnvFile(".env");
 }
 
 loadDotEnv();

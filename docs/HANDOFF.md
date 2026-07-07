@@ -7,6 +7,7 @@
 - **技術棧**：React + Vite + TypeScript；後端 Supabase（Postgres、Auth、Storage）；部署 Vercel。
 - **CAT 工具**：Vanilla JS，**唯一原始碼**在 [`cat-tool/`](../cat-tool/)，建置前以 `npm run sync:cat` 同步至 [`public/cat/`](../public/cat/)（見根目錄 [`AGENTS.md`](../AGENTS.md)）。
 - **功能對照**：[`docs/CODEMAP.md`](CODEMAP.md)。
+- **環境變數（`.env`）**：複製 [`.env.example`](../.env.example) 為 `.env` 自行填入；`.env` 已不再進版控（2026-07-07 起，先前誤加入曾導致本機憑證被 Git 操作清空）。Playwright 本機測試帳密建議另放 `.env.playwright.local`。**禁止整檔覆寫使用者本機 `.env`**，規則見 [`AGENTS.md`](../AGENTS.md)「本機 `.env`」章節與 [`.cursor/rules/architecture.mdc`](../.cursor/rules/architecture.mdc) §9。
 
 ## 目前狀態（2026-05-05；句段順序／紀錄 2026-05-07 補充）
 

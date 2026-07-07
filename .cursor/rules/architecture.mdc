@@ -54,3 +54,19 @@ alwaysApply: true
 - **禁止**在任何 `.ts`／`.tsx` 檔案**新增**檔案級 `eslint-disable`（放在檔案第一行、對整檔生效的形式）。`cat-cloud-rpc.ts` 現存的一處為**唯一既存特例**（清理排程見主計畫 §15，建議與階段四 W1 store 工廠協同），**不得再增加第二個**。
 - 需要放寬單一規則時，一律用**行內** `// eslint-disable-line <rule>` 或 `// eslint-disable-next-line <rule>`，且註明理由；行內 disable 仍受 [`testing.mdc`](testing.mdc) 與批次驗收流程的「新增 diff 四項禁用手法 grep」把關，能在 code review／lint 報表中逐行看見，不會像檔案級一樣整批隱形。
 - 更好的做法（優先於行內 disable）：改用 `unknown` + 縮小型別、防禦性 mapper 函式（`xxxFromJson`）、或補齊 `types.ts` 型別，參考 lint 批次 5（主計畫 §14）的實際修法案例。
+
+## 9. 本機 `.env` 保護（強制，2026-07-06 裁決）
+
+背景：專案擁有者手動填入的 `PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`（Playwright 端對端測試用的登入帳密）在本機 `.env` 中反覆被清空、需重填多次。根因盤點發現 `.env` 曾被誤加入 Git 版控（已於本次修正移除追蹤，`git rm --cached .env`），任何 `git checkout`／`reset`／流程還原都會把本機新增的行連帶清掉；此外也存在代理直接用「整檔寫入」工具改 `.env` 的風險。
+
+- **禁止整檔覆寫使用者本機 `.env`（或 `.env.playwright.local` 等本機專用 env 檔）**。只能用外科式編輯（讀取後對特定行做增刪，例如 `StrReplace`／等效的局部編輯工具）**追加缺少的鍵**，**絕不刪除或覆寫既有鍵**——尤其 `PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD` 等憑證。
+- 需要新增環境變數時，**先讀取現有 `.env`**，只 append 缺的行；已存在的鍵不得改值，除非使用者明確要求變更該鍵。
+- **任何「重新產生 `.env`」的腳本或動作一律禁止**（例如用範本整檔覆寫、`.env.example` 直接複製蓋過既有 `.env`）。
+- **`.env` 不得再加入 Git 版控**（`git add -f .env` 或等效強制加入一律禁止）；`.gitignore` 已排除 `.env`／`.env.*`，僅 `.env.example` 例外。若發現 `.env` 又被追蹤，立即 `git rm --cached .env` 並確認 `git check-ignore .env` 命中。
+- **Playwright 本機測試憑證優先放 `.env.playwright.local`**（與一般設定用的 `.env` 分開，降低被誤蓋機率；`playwright.config.ts` 的 `loadDotEnv` 會自動一併讀取，`.env.playwright.local` 優先）。
+
+### `.env.example` 守則
+
+- `.env.example` 進版控、對外公開，**只能放欄位名與假佔位值**（如 `your@email`、`sk-...`、`your_password`），**絕不填真實帳密／金鑰**。
+- 真值只進本機 `.env`／`.env.playwright.local`（皆已 `.gitignore` 排除）或 GitHub Secrets／Vercel Project Settings。
+- 驗收方式：`git check-ignore .env` 與 `git check-ignore .env.playwright.local` 應命中（輸出對應規則），`git check-ignore .env.example` 不應命中（無輸出、exit code 1）。

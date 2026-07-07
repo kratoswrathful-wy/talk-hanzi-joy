@@ -33,6 +33,11 @@ jobs:
 
       - name: Test
         run: npm run test
+        env:
+          # 2026-07-07：.env 已移除版控追蹤（見 architecture.mdc §9），CI 改用 Secrets
+          # 提供 src/integrations/supabase/client.ts 建立 client 所需的公開安全值（anon key）。
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Lint
         run: npm run lint
