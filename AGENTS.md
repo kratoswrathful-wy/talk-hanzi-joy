@@ -8,6 +8,7 @@
 - **[`.cursor/rules/`](.cursor/rules/)** — 依你正在編輯的檔案路徑自動套用（例如 [`cat-tool-source.mdc`](.cursor/rules/cat-tool-source.mdc)、[`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc)）；預設非全域常駐，觸及對應 glob 時才注入。
 - **[`.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)** — **全域常駐**：對話與文件僅台灣正體中文，禁止混用其他語言書寫說明正文。
 - **[`.cursor/rules/claude-ai-acceptance-slack.mdc`](.cursor/rules/claude-ai-acceptance-slack.mdc)** — **全域常駐**：使用者指定「Claude／AI 驗收」時，自動撰寫 AI 可執行驗收要求並發送到 Slack `#development`。
+- **[`.cursor/rules/architecture.mdc`](.cursor/rules/architecture.mdc) §9** — **全域常駐**：禁止整檔覆寫使用者本機 `.env`（含 `.env.playwright.local`），只能外科式追加缺少的鍵；`.env.example` 只放假佔位值；`.env` 禁止再加入 Git 版控。
 - **[`docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](docs/TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md)** — **AI 整合操作指南（Claude 首讀）**：建單、案件頁、CAT 導覽／匯入／AI 批次；預設線上測試模式。
 - **[`docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](docs/LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)** — **LMS 技能書（Claude 速查）**：`window.__lmsAgent`／`__tmsAgent`；Phase 2 見 [`docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md`](docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAN.md)、Playwright 驗收見 [`docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md`](docs/TMS_AI_AGENT_BRIDGE_PHASE2_PLAYWRIGHT_PLAN.md)、CAT 見 [`docs/CAT_AI_AGENT_BRIDGE_2026-07.md`](docs/CAT_AI_AGENT_BRIDGE_2026-07.md)。
 
@@ -167,6 +168,13 @@
 - 變更若伴隨 **migration**（資料庫結構版本變更）、種子資料或專案慣例中的 Supabase／Postgres 步驟，**預設由代理在權限與環境允許時直接執行完畢**（例如新增或修改 `supabase/migrations/*.sql` 後執行 **`supabase db push`**；實際指令與部署順序以 [`docs/HANDOFF.md`](docs/HANDOFF.md)、[`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) 為準）。
 - **不要**預設把整串流程留給使用者執行；結尾不應以「請執行以下 bash」當成預設交付。
 - 若執行失敗（未 link、缺憑證、無法連線、僅 Dashboard 可完成等），應簡述**錯誤與阻擋原因**，並只請使用者補**無法代辦的那一步**。
+
+### 本機 `.env`（強制，禁止整檔覆寫）
+
+- **禁止整檔覆寫使用者本機 `.env`／`.env.playwright.local`**，只能外科式追加缺少的鍵；既有鍵（尤其 `PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`）**絕不刪除或覆寫**，除非使用者明確要求變更該鍵。
+- 需要新增環境變數時，先讀取現有 `.env`，只 append 缺的行；**禁止**任何「重新產生 `.env`」的腳本或動作。
+- `.env` **禁止**再加入 Git 版控；`.env.example` 只放假佔位值，絕不填真實帳密。
+- 完整規則與根因見 [`.cursor/rules/architecture.mdc`](.cursor/rules/architecture.mdc) §9。
 
 ## CAT 內嵌編譯器（`/cat`）
 

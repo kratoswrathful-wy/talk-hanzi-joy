@@ -34,6 +34,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# .env.playwright.local 已被上面的 .env.* 涵蓋，此行僅為明示（見 architecture.mdc §9）
+.env.playwright.local
 
 # Supabase CLI 本機暫存（勿進 Git）
 supabase/.temp/
