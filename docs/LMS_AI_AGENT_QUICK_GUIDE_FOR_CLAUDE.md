@@ -69,7 +69,7 @@ window.__lmsAgent.options.listKeys();
 | `fee.update(id, patch)` | 修改費用（含 `finalized` 定案，Phase 2） |
 | `case.generateFees(caseId)` | 依案件譯者產生費用單 |
 | `invoice.list` / `get` / `create` / `update` / `delete` / `addFees` / `removeFee` | 譯者請款 |
-| `clientInvoice.create` / `addFees` / `adjustAmount` / `setChannel` / `setExpectedDate` | **客戶請款（優先）**；`addFees` 回 `added`+`skipped`；詳 §11.13 Operations Guide |
+| `clientInvoice.create` / `addFees` / `adjustAmount` / `setChannel` / `setExpectedDate` | **客戶請款（優先，已驗收，2026-07-07 起可用）**；`addFees` 回 `added`+`skipped`；詳 §11.13 Operations Guide（`addFees` 已知限制見該節） |
 | `clientInvoice.list` / `get` / `update` / `delete` / `removeFee` | 客戶請款其餘 CRUD |
 | `upload.fromBytes` | 上傳至 Storage，回傳 `{ name, url, size }` |
 | `navigate.urlFor({ type, id })` | 產生案件／費用／請款路徑 |
