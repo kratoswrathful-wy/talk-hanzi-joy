@@ -1,11 +1,26 @@
-狀態：已落地待驗收
+狀態：已驗收，細節以程式為準
 
 # BCD 波次 Playwright 驗收規格（sync 後 UI）
 
 > **建立日期**：2026-07-06  
-> **前置**：`main` ≥ `6f6c4d68`（含 PR #23 Playwright spec、`sync:cat` @ `0312648c`）；程式碼審查與 `test:cat` 39/39 已由驗收方獨立 clone 確認。  
-> **本文件補足**：Claude 程式驗收未涵蓋的**瀏覽器實機 UI**回歸。  
+> **結案日期**：2026-07-07  
+> **最終狀態**：`ENG-P1 + BCD-B/C/D implementation merged + sync completed + Cursor smoke pass + Claude browser acceptance pass`  
+> **前置**：`sync:cat` @ `0312648c`；Playwright spec PR #23（`6f6c4d68`）、穩定化 PR #25（merge `be04fd03`）；程式碼審查與 `test:cat` 39/39 已由驗收方獨立 clone 確認。  
 > **碰撞背景**：[`CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md`](CAT_BCD_PARALLEL_MERGE_PLAN_2026-07.md)
+
+---
+
+## 0. 驗收結案紀錄（2026-07-07）
+
+| 項目 | 結果 |
+|------|------|
+| `sync:cat` | **已完成**，sync commit `0312648c` |
+| PR #23 | **已 merge**（`6f6c4d68`）— 補入 BCD Playwright acceptance specs |
+| PR #25 | **已 merge**（`be04fd03`，2026-07-06T12:41:57Z）— 穩定 BCD acceptance specs |
+| Cursor smoke | BCD-B/C/D **3/3 pass** |
+| Claude browser acceptance | BCD-B/C/D **3/3 pass**（加權 UI 不可見；小檔清除篩選 `rowCenterDeltaPx=0`；noop 確認狀態不變且跳下一句） |
+| **BCD-B/C/D** | **可標記為驗收完成** |
+| **後續** | **等待下一波工單**；不再追加本波 CAT 程式碼變更 |
 
 ---
 
@@ -94,7 +109,7 @@ npx playwright test -g "BCD 波次" --project=chromium
 |------|----------------|
 | BCD-B | `expectWeightedWordCountUiHidden` |
 | BCD-C | 篩選 `16-22` 類範圍 → `#btnSfClearNav` → `expectCenteredOnSeg` |
-| BCD-D | `prepareReviewConfirmedSegmentForTranslator` → noop `Ctrl+Enter` → 狀態不變且跳下一句 |
+| BCD-D | `resolveReviewConfirmedSegmentForTranslator` → noop `Ctrl+Enter` → 狀態不變且跳下一句 |
 
 ---
 
