@@ -6,40 +6,21 @@
 ;(function () {
     'use strict';
 
-    // ---- 錯誤訊息對照 ----
-    const ERROR_MESSAGES = {
-        invalid_api_key:      'API Key 無效或已過期，請至「AI 設定」重新輸入。',
-        insufficient_quota:   '帳號額度已用盡，請至 OpenAI 後台儲值後再試。',
-        rate_limit_exceeded:  '請求速率超過上限，請稍後再試。',
-        context_length_exceeded: '提示內容過長，請縮短準則或減少批次大小後再試。',
-        model_not_found:      '指定的模型不存在，請至「AI 設定」確認模型名稱。',
-        server_error:         'OpenAI 伺服器發生錯誤，請稍後再試。',
-        network_error:        '網路連線失敗，請確認網路狀態後再試。',
-        parse_error:          'AI 回傳格式不正確，正在重試……',
-        unknown:              '發生未知錯誤，請稍後再試。'
-    };
-
+    // ---- 錯誤訊息對照（見 js/ai-openai-errors.core.mjs）----
     function classifyError(err, status, body) {
+        const fn = window.CatAiOpenaiErrors && window.CatAiOpenaiErrors.classifyError;
+        if (typeof fn === 'function') return fn(err, status, body);
         if (!status) return 'network_error';
         if (status === 401) return 'invalid_api_key';
-        if (status === 429) {
-            const code = body?.error?.code || '';
-            if (code === 'insufficient_quota') return 'insufficient_quota';
-            return 'rate_limit_exceeded';
-        }
-        if (status === 400) {
-            const code = body?.error?.code || '';
-            if (code === 'context_length_exceeded') return 'context_length_exceeded';
-            if (code === 'model_not_found') return 'model_not_found';
-            return 'unknown';
-        }
-        if (status >= 500) return 'server_error';
+        if (status === 429) return 'rate_limit_exceeded';
         return 'unknown';
     }
-
     function friendlyError(err, status, body) {
+        const fn = window.CatAiOpenaiErrors && window.CatAiOpenaiErrors.friendlyError;
+        if (typeof fn === 'function') return fn(err, status, body);
         const key = classifyError(err, status, body);
-        return ERROR_MESSAGES[key] || ERROR_MESSAGES.unknown;
+        const msgs = (window.CatAiOpenaiErrors && window.CatAiOpenaiErrors.ERROR_MESSAGES) || {};
+        return msgs[key] || msgs.unknown || '發生未知錯誤，請稍後再試。';
     }
 
     // ---- XLIFF tag 處理 ----
@@ -265,8 +246,7 @@
     function _isRetryableError(status, body) {
         if (!status) return true;
         if (status === 429) {
-            const code = body?.error?.code || '';
-            return code !== 'insufficient_quota';
+            return classifyError(null, status, body) !== 'insufficient_quota';
         }
         return status >= 500;
     }

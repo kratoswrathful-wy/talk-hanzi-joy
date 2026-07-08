@@ -31432,15 +31432,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                         body: JSON.stringify(testBody)
                     });
+                    let body = null;
+                    try { body = await r.json(); } catch (_) { body = null; }
+                    const _friendly = (window.CatAiOpenaiErrors && typeof window.CatAiOpenaiErrors.friendlyError === 'function')
+                        ? window.CatAiOpenaiErrors.friendlyError
+                        : (window.CatAiTranslate && typeof window.CatAiTranslate.friendlyError === 'function')
+                            ? window.CatAiTranslate.friendlyError
+                            : null;
                     if (r.ok || r.status === 400) {
                         // 400 可能是參數問題但連線 OK；200 是正常回應
                         await DBService.saveAiSettings({ apiKey, model, apiBaseUrl: baseUrl });
                         testResult.textContent = `連線成功，已自動儲存 ✓（${model}）`;
                         testResult.style.color = '#16a34a';
+                    } else if (_friendly) {
+                        testResult.textContent = _friendly(null, r.status, body);
+                        testResult.style.color = '#ef4444';
                     } else if (r.status === 401) {
                         testResult.textContent = 'API Key 無效（HTTP 401）';
                         testResult.style.color = '#ef4444';
-                        return;
                     } else if (r.status === 404) {
                         testResult.textContent = `模型不存在：${model}（HTTP 404）`;
                         testResult.style.color = '#ef4444';
