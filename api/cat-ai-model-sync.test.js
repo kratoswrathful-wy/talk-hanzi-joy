@@ -233,7 +233,21 @@ describe("POST /api/cat-ai-model-sync — OpenAI failure mapping", () => {
     const res = makeRes();
     await handler(makeReq({ headers: { authorization: "Bearer exec-jwt" } }), res);
     expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({ error: "openai_invalid_key" });
+    expect(res.body.error).toBe("openai_invalid_key");
+    expect(res.body.message).toContain("API Key");
+  });
+
+  it("returns 429 openai_insufficient_quota when OpenAI responds quota error", async () => {
+    mockFetchOnce(async () => ({
+      status: 429,
+      ok: false,
+      json: async () => ({ error: { code: "insufficient_quota", message: "You exceeded your current quota" } }),
+    }));
+    const res = makeRes();
+    await handler(makeReq({ headers: { authorization: "Bearer exec-jwt" } }), res);
+    expect(res.statusCode).toBe(429);
+    expect(res.body.error).toBe("openai_insufficient_quota");
+    expect(res.body.message).toContain("加值");
   });
 
   it("returns 504 openai_timeout when OpenAI request aborts", async () => {
@@ -245,7 +259,7 @@ describe("POST /api/cat-ai-model-sync — OpenAI failure mapping", () => {
     const res = makeRes();
     await handler(makeReq({ headers: { authorization: "Bearer exec-jwt" } }), res);
     expect(res.statusCode).toBe(504);
-    expect(res.body).toEqual({ error: "openai_timeout" });
+    expect(res.body.error).toBe("openai_timeout");
   });
 
   it("returns 502 openai_invalid_response when response.data is not an array", async () => {
@@ -253,7 +267,7 @@ describe("POST /api/cat-ai-model-sync — OpenAI failure mapping", () => {
     const res = makeRes();
     await handler(makeReq({ headers: { authorization: "Bearer exec-jwt" } }), res);
     expect(res.statusCode).toBe(502);
-    expect(res.body).toEqual({ error: "openai_invalid_response" });
+    expect(res.body.error).toBe("openai_invalid_response");
   });
 
   it("returns 502 openai_fetch_failed on network error", async () => {
@@ -263,15 +277,15 @@ describe("POST /api/cat-ai-model-sync — OpenAI failure mapping", () => {
     const res = makeRes();
     await handler(makeReq({ headers: { authorization: "Bearer exec-jwt" } }), res);
     expect(res.statusCode).toBe(502);
-    expect(res.body).toEqual({ error: "openai_fetch_failed" });
+    expect(res.body.error).toBe("openai_fetch_failed");
   });
 
   it("returns 502 openai_fetch_failed on OpenAI 5xx", async () => {
-    mockFetchOnce(async () => ({ status: 500, ok: false, json: async () => ({}) }));
+    mockFetchOnce(async () => ({ status: 500, ok: false, json: async () => ({ error: { message: "internal" } }) }));
     const res = makeRes();
     await handler(makeReq({ headers: { authorization: "Bearer exec-jwt" } }), res);
     expect(res.statusCode).toBe(502);
-    expect(res.body).toEqual({ error: "openai_fetch_failed" });
+    expect(res.body.error).toBe("openai_fetch_failed");
   });
 });
 
