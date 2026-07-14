@@ -1,11 +1,13 @@
-狀態：已落地待驗收
+狀態：已完成
 
 # E2E flaky 穩定化：lms-tool-set-field／dev-switch-user-persona
 
 日期：2026-07-14  
 優先：**現在修**（生產 `__lmsAgent` 寫後讀競態；非僅測訊）  
-分支：`fix/bridge-readback-race`  
+分支：`fix/bridge-readback-race`（已合併 `main` `e5aec181`／PR #43）  
 來源：E2E run #20（commit `7f4c1e13`／PR #42）於 `lms-tool-set-field` seed「更新後讀取案件失敗」；審核方比對同 PR #18／#19 該測綠、main #12 掛的是另一測試（`dev-switch-user-persona`），判定與 CAT meta／額外資訊變更無關的間歇失敗。升級理由：日常 AI 建單／開費用亦走 `case.update`，假失敗會誤導重寫。
+
+> **已驗收並結案（2026-07-15）**：PR #43 程式審查通過並合併；連續 6× `workflow_dispatch` E2E 全綠。細節以程式為準。
 
 ## 目標
 
@@ -64,3 +66,7 @@
   - ✅ [#29336186343](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29336186343)
   - ❌ [#29337133515](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29337133515)（`w10-fees-visible-translator`：換人後假人列未就緒）
 - 後續：`switchToTestPersona` reload 後再等 `expectTestModePersonaUiReady` + create pending 保護 → tip `896fc95e` 達標（見上）
+
+### 審核觀察（非阻擋，2026-07-15）
+
+`case.update`／`fee.update`／`invoice.update` 使用 presence 版 `readbackAfterWrite`：update 時實體本來就存在，輪詢常立即回傳，理論上可能帶到**更新前舊值**。與修改前（直接 `getById`）行為一致，不算回歸。若未來呼叫端要依賴 update **回傳值**做斷言，應改用 `awaitStoreReadbackMatch`（比照 `tool.setField`／`setChannel`／`setExpectedDate`）。本項僅記錄，未改程式。
