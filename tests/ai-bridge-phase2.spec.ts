@@ -223,13 +223,13 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
         const agent = (window as unknown as {
           __lmsAgent: {
             fee: {
-              create: (i: Record<string, unknown>) => { ok: boolean; error?: string; data?: { id: string } };
+              create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
               update: (id: string, p: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
               get: (id: string) => { ok: boolean; data?: { status?: string } };
             };
           };
         }).__lmsAgent;
-        const created = agent.fee.create({ title: feeTitle, status: "draft" });
+        const created = await agent.fee.create({ title: feeTitle, status: "draft" });
         if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
         const updated = await agent.fee.update(created.data.id, { status: "finalized" });
         const got = agent.fee.get(created.data.id);

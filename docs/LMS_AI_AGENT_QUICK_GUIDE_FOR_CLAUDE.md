@@ -106,7 +106,7 @@ window.__lmsAgent.options.listKeys();
 ### 建立並填寫草稿費用單
 
 ```javascript
-const r = window.__lmsAgent.fee.create({
+const r = await window.__lmsAgent.fee.create({
   title: "翻譯：樣本文件",
   assignee: "譯者甲",  // 須為 options.get("assignee") 中的 label
   taskItems: [

@@ -123,7 +123,7 @@ await window.__lmsAgent.describe();
 await window.__lmsAgent.options.get("taskType");
 
 // 2. 建立草稿費用並填欄位
-const created = window.__lmsAgent.fee.create({
+const created = await window.__lmsAgent.fee.create({
   title: "翻譯：樣本文件",
   assignee: "譯者甲",
   taskItems: [

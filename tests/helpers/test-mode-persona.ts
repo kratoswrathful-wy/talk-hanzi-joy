@@ -11,10 +11,11 @@ export async function expectOnlineTestMode(page: Page): Promise<void> {
 /** 測試模式指示就緒，且假人切換鈕已渲染（換人前的確定訊號）。 */
 export async function expectTestModePersonaUiReady(page: Page): Promise<void> {
   await expectOnlineTestMode(page);
+  // 多個假人鈕同時存在；用 count≥1，避免 strict mode（多元素）誤失敗
   await expect(
     page.getByRole("button", { name: /^(執行長|PM|譯者)/ }),
     "測試模式假人切換列尚未就緒",
-  ).toBeVisible({ timeout: 60_000 });
+  ).not.toHaveCount(0, { timeout: 60_000 });
 }
 
 /**
