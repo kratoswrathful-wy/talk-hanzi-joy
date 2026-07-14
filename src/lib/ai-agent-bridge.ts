@@ -1456,18 +1456,28 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const updated = await awaitStoreReadbackMatch(
           () => caseStore.getById(caseId),
           (rec) => {
-            const actual = readToolFieldFromRecord(rec, built.data.meta);
+            const tools = getEffectiveToolEntries(rec, built.data.meta.toolFieldKey);
+            const entry =
+              tools.find((t) => t.id === built.data.meta.toolEntryId) ??
+              tools[built.data.meta.toolIndex];
+            const actual = entry?.fieldValues?.[built.data.meta.fieldId] ?? "";
             return finalizeToolSetFieldResult(built.data.meta, input.value, actual).verified;
           },
         );
         if (!updated) return failReadbackTimedOut("案件", caseId);
 
-        const actual = readToolFieldFromRecord(updated, built.data.meta);
-        const result = finalizeToolSetFieldResult(built.data.meta, input.value, actual);
-        if (!result.verified) {
-          return fail(`寫入後回讀不一致（fieldId=${result.fieldId}）`);
+        {
+          const tools = getEffectiveToolEntries(updated, built.data.meta.toolFieldKey);
+          const entry =
+            tools.find((t) => t.id === built.data.meta.toolEntryId) ??
+            tools[built.data.meta.toolIndex];
+          const actual = entry?.fieldValues?.[built.data.meta.fieldId] ?? "";
+          const result = finalizeToolSetFieldResult(built.data.meta, input.value, actual);
+          if (!result.verified) {
+            return fail(`寫入後回讀不一致（fieldId=${result.fieldId}）`);
+          }
+          return ok(result);
         }
-        return ok(result);
       },
     },
   };

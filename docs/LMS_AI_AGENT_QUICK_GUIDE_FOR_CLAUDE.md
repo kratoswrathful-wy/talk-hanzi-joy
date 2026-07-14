@@ -54,7 +54,7 @@ window.__lmsAgent.options.listKeys();
 
 ### 寫入後錯誤語意（2026-07，`ai-agent-readback`）
 
-`case`／`fee`／`invoice`／`clientInvoice` 的寫入路徑（`update`／部分 `create`／`addFees` 等）在 DB 寫入後會對**本地 store 短輪詢回讀**（預設約 3 秒）。錯誤字串請區分：
+`case`／`fee`／`invoice`／`clientInvoice` 的寫入路徑（`update`／部分 `create`／`addFees` 等）在 DB 寫入後會對**本地 store 短輪詢回讀**（預設約 5 秒）。錯誤字串請區分：
 
 | `error` 前綴 | 意義 | AI／呼叫端應做 |
 |--------------|------|----------------|

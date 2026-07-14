@@ -15,8 +15,10 @@
 
 | Spec／層 | 症狀（CI） | 做法 |
 |----------|------------|------|
-| 橋接層 | `更新後讀取…失敗` 假失敗 | 共用 [`ai-agent-readback.ts`](../src/lib/ai-agent-readback.ts) 短輪詢；區分「寫入失敗」／「寫入成功但回讀逾時」 |
-| [`tests/lms-tool-set-field.spec.ts`](../tests/lms-tool-set-field.spec.ts) | seed 寫後讀失敗 | seed 輪詢 `case.update`＋`case.get` 確認 tools |
+| 橋接層 | `更新後讀取…失敗` 假失敗 | 共用 [`ai-agent-readback.ts`](../src/lib/ai-agent-readback.ts) 短輪詢（約 5s）；區分「寫入失敗」／「寫入成功但回讀逾時」 |
+| case-store | 回讀期間 realtime／poll 沖掉 tools fieldValues | `PENDING_CLEANUP` 對齊 5s；`mergeToolEntriesPreferRicher` |
+| clientInvoice-store | SELECT 短暫缺欄沖掉樂觀寫入 | update 後 `dbToApp` 再疊本次 `updates` |
+| [`tests/lms-tool-set-field.spec.ts`](../tests/lms-tool-set-field.spec.ts) | seed 寫後讀失敗 | seed 輪詢至 tools 含 memoQ；setField 用 `toolEntryId`；回讀逾時再 `get` 確認 |
 | [`tests/dev-switch-user-persona.spec.ts`](../tests/dev-switch-user-persona.spec.ts) | 測試模式未就緒就換人 | `expectTestModePersonaUiReady`（橫幅＋切換列）後再 `switchToTestPersona` |
 
 ## 約束
@@ -39,6 +41,7 @@
 - Run：[Actions #29322613828](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29322613828)（`workflow_dispatch`／`main`＠`dc9e28db`）
 - 結論：**failure**；再現 `lms-tool-set-field` seed「更新後讀取案件失敗」
 
-### 修復後 5× workflow_dispatch（待填）
+### 修復後 5× workflow_dispatch（進行中）
 
-- （代理執行後填寫）
+- tip `fd9a21fe` 序列約 1/5（仍有 setField／clientInvoice 偶發）
+- 後續：pending 加長＋tools 合併＋clientInvoice SELECT 疊寫＋seed 嚴格含 memoQ（再跑 5×）

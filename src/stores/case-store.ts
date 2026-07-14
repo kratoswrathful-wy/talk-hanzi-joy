@@ -226,7 +226,7 @@ const pendingUpdates = new Map<string, Partial<CaseRecord>>();
 const inFlightCount = new Map<string, number>();
 // Keep pending patches for a short grace window after successful write (handles replica lag)
 const pendingCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const PENDING_CLEANUP_DELAY_MS = 2000;
+const PENDING_CLEANUP_DELAY_MS = 5000;
 
 function notify() {
   listeners.forEach((l) => l());
@@ -236,6 +236,32 @@ function parseTimestamp(value: string | null | undefined): number {
   if (!value) return 0;
   const ts = Date.parse(value);
   return Number.isNaN(ts) ? 0 : ts;
+}
+
+function mergeToolEntriesPreferRicher(
+  current: ToolEntry[] | undefined,
+  incoming: ToolEntry[] | undefined,
+): ToolEntry[] | undefined {
+  if (!incoming?.length) return current?.length ? current : incoming;
+  if (!current?.length) return incoming;
+  return incoming.map((inc) => {
+    const cur = current.find((c) => c.id === inc.id) ?? current.find((c) => c.tool && c.tool === inc.tool);
+    if (!cur) return inc;
+    const fieldValues = { ...(cur.fieldValues || {}), ...(inc.fieldValues || {}) };
+    // 本地有值而 incoming 清空／缺該鍵時保留本地（realtime／replica 短板快照）
+    for (const [k, v] of Object.entries(cur.fieldValues || {})) {
+      if (v && (inc.fieldValues?.[k] == null || inc.fieldValues[k] === "")) {
+        fieldValues[k] = v;
+      }
+    }
+    return {
+      ...inc,
+      tool: inc.tool || cur.tool,
+      fieldValues,
+      ...(inc.fields?.length ? { fields: inc.fields } : cur.fields?.length ? { fields: cur.fields } : {}),
+      fileValues: { ...(cur.fileValues || {}), ...(inc.fileValues || {}) },
+    };
+  });
 }
 
 function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord): CaseRecord {
@@ -257,12 +283,21 @@ function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord
   const keepTools = curToolsLen > 0 && incToolsLen === 0;
   const keepQuestionTools = curQtLen > 0 && incQtLen === 0;
 
-  if (!keepTools && !keepQuestionTools) return incoming;
+  const base: CaseRecord = keepTools || keepQuestionTools
+    ? {
+        ...incoming,
+        ...(keepTools ? { tools: current.tools ?? [] } : {}),
+        ...(keepQuestionTools ? { questionTools: current.questionTools ?? [] } : {}),
+      }
+    : incoming;
 
+  // 即時／poll 可能帶回同時間戳但 fieldValues 較空的 tools；與本地較完整者合併
+  const tools = mergeToolEntriesPreferRicher(current.tools, base.tools);
+  const questionTools = mergeToolEntriesPreferRicher(current.questionTools, base.questionTools);
   return {
-    ...incoming,
-    ...(keepTools ? { tools: current.tools ?? [] } : {}),
-    ...(keepQuestionTools ? { questionTools: current.questionTools ?? [] } : {}),
+    ...base,
+    ...(tools ? { tools } : {}),
+    ...(questionTools ? { questionTools } : {}),
   };
 }
 

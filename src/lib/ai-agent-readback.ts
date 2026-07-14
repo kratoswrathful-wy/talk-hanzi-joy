@@ -4,7 +4,7 @@
  */
 import { type AgentResult, agentFail, agentOk } from "@/lib/ai-agent-types";
 
-export const STORE_READBACK_TIMEOUT_MS = 3000;
+export const STORE_READBACK_TIMEOUT_MS = 5000;
 export const STORE_READBACK_INTERVAL_MS = 50;
 
 function sleep(ms: number): Promise<void> {
