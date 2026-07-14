@@ -45,6 +45,8 @@ import {
   agentFailFrom as failFrom,
 } from "@/lib/ai-agent-types";
 import {
+  STORE_READBACK_INTERVAL_MS,
+  STORE_READBACK_TIMEOUT_MS,
   awaitStoreReadback,
   failWriteFailed,
   readbackAfterWrite,
@@ -1210,10 +1212,26 @@ export function buildLmsAgentApi(): LmsAgentApi {
         let verified = finalInvoice.client === clientVal;
 
         if (trimmedTitle) {
-          const { error: titleErr } = await clientInvoiceStore.updateInvoice(created.id, { title: trimmedTitle });
-          const latest = await awaitStoreReadback(() => clientInvoiceStore.getInvoiceById(created.id));
-          if (latest) finalInvoice = latest;
-          verified = verified && !titleErr && finalInvoice.title === trimmedTitle;
+          // create 後立刻 update title 可能撞上 INSERT／UPDATE 競態（0 列、無 error 以外的
+          // 「更新未套用」）；短輪詢重試直到 title 落地或逾時（仍不改 ok:true 防重寫政策）。
+          const titleDeadline = Date.now() + STORE_READBACK_TIMEOUT_MS;
+          let titleOk = false;
+          while (Date.now() < titleDeadline) {
+            const { error: titleErr } = await clientInvoiceStore.updateInvoice(created.id, {
+              title: trimmedTitle,
+            });
+            const latest = await awaitStoreReadback(
+              () => clientInvoiceStore.getInvoiceById(created.id),
+              { timeoutMs: 400, intervalMs: STORE_READBACK_INTERVAL_MS },
+            );
+            if (latest) finalInvoice = latest;
+            if (!titleErr && finalInvoice.title === trimmedTitle) {
+              titleOk = true;
+              break;
+            }
+            await new Promise((r) => setTimeout(r, STORE_READBACK_INTERVAL_MS));
+          }
+          verified = verified && titleOk;
         }
 
         return ok({ invoice: finalInvoice, created: true, verified });
