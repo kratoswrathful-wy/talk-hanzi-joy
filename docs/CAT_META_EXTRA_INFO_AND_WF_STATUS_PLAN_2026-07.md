@@ -15,6 +15,20 @@
 
 ---
 
+## 工項二進度（2026-07-14）— 階段 A：schema + collector（待審，尚未 db push）
+
+- 分支：`feat/meta-items-display-map`
+- Migration（**未套用正式庫**）：`supabase/migrations/20260714130000_cat_meta_items_display_map.sql`
+  - `cat_segments.meta_items jsonb NOT NULL DEFAULT '[]'`
+  - `cat_files.meta_display_config jsonb`（nullable）
+  - `cat_projects.meta_display_templates jsonb NOT NULL DEFAULT '[]'`
+- RPC／Dexie v29／types.ts 已對齊（types 先手工補欄，db push 後可再 MCP 重生核對）
+- Collector：`cat-tool/js/meta-items-collector.js`；顯示套用：`meta-display-apply.js`；已掛入 `xliff-build-segments.js`（各格式填 `metaItems`，**不改** `idValue`／`extraValue`／`xliffTuId`）
+- Vitest：`meta-items-display.test.mjs`（未設 config ≡ 舊行為）
+- 下一階段：對應視窗 UI + 編輯器 Key／chip 渲染 + 匯出／Playwright
+
+---
+
 ## 工項三第一階段進度（2026-07-14）
 
 - 分支：`fix/extra-info-clamp`

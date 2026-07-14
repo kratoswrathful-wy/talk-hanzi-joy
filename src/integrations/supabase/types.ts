@@ -1042,6 +1042,7 @@ export type Database = {
           google_sheet_url: string
           id: string
           last_modified: string
+          meta_display_config: Json | null
           name: string
           original_file_base64: string | null
           original_file_path: string | null
@@ -1063,6 +1064,7 @@ export type Database = {
           google_sheet_url?: string
           id?: string
           last_modified?: string
+          meta_display_config?: Json | null
           name: string
           original_file_base64?: string | null
           original_file_path?: string | null
@@ -1084,6 +1086,7 @@ export type Database = {
           google_sheet_url?: string
           id?: string
           last_modified?: string
+          meta_display_config?: Json | null
           name?: string
           original_file_base64?: string | null
           original_file_path?: string | null
@@ -1344,6 +1347,7 @@ export type Database = {
           env: string
           id: string
           last_modified: string
+          meta_display_templates: Json
           name: string
           owner_user_id: string | null
           read_tbs: string[]
@@ -1363,6 +1367,7 @@ export type Database = {
           env?: string
           id?: string
           last_modified?: string
+          meta_display_templates?: Json
           name?: string
           owner_user_id?: string | null
           read_tbs?: string[]
@@ -1382,6 +1387,7 @@ export type Database = {
           env?: string
           id?: string
           last_modified?: string
+          meta_display_templates?: Json
           name?: string
           owner_user_id?: string | null
           read_tbs?: string[]
@@ -1600,6 +1606,7 @@ export type Database = {
           is_locked_user: boolean
           last_modified: string
           match_value: number | null
+          meta_items: Json
           mq_inserted_match: Json | null
           original_role: string | null
           row_idx: number
@@ -1635,6 +1642,7 @@ export type Database = {
           is_locked_user?: boolean
           last_modified?: string
           match_value?: number | null
+          meta_items?: Json
           mq_inserted_match?: Json | null
           original_role?: string | null
           row_idx?: number
@@ -1670,6 +1678,7 @@ export type Database = {
           is_locked_user?: boolean
           last_modified?: string
           match_value?: number | null
+          meta_items?: Json
           mq_inserted_match?: Json | null
           original_role?: string | null
           row_idx?: number
@@ -3045,6 +3054,7 @@ export type Database = {
           is_locked_user: boolean
           last_modified: string
           match_value: number | null
+          meta_items: Json
           mq_inserted_match: Json | null
           original_role: string | null
           row_idx: number
