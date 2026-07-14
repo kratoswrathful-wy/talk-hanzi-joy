@@ -43,5 +43,11 @@
 
 ### 修復後 5× workflow_dispatch（進行中）
 
-- tip `fd9a21fe` 序列約 1/5（仍有 setField／clientInvoice 偶發）
-- 後續：pending 加長＋tools 合併＋clientInvoice SELECT 疊寫＋seed 嚴格含 memoQ（再跑 5×）
+- tip `fd9a21fe`／`66345afa`：目標測項已綠，套件仍偶發 CAT／W10 假人
+- tip `6695d055`：連續 **4／5** 全綠（#5 掛於 reload 後 personas 尚未渲染即斷言 active）
+  - ✅ [#29333224285](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29333224285)
+  - ✅ [#29334213218](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29334213218)
+  - ✅ [#29335093316](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29335093316)
+  - ✅ [#29336186343](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29336186343)
+  - ❌ [#29337133515](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29337133515)（`w10-fees-visible-translator`：換人後假人列未就緒）
+- 後續：`switchToTestPersona` reload 後再等 `expectTestModePersonaUiReady`，重跑 5×
