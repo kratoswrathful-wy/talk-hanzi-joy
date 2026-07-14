@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   STORE_READBACK_INTERVAL_MS,
   awaitStoreReadback,
+  awaitStoreReadbackMatch,
   failReadbackTimedOut,
   failWriteFailed,
   readbackAfterWrite,
@@ -59,5 +60,23 @@ describe("ai-agent-readback", () => {
     if (r.ok) return;
     expect(r.error).toContain("寫入成功但回讀逾時（費用 id=fee-1）");
     expect(r.error).toContain("勿重寫");
+  });
+
+  it("awaitStoreReadbackMatch：欄位對齊才回傳", async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    const p = awaitStoreReadbackMatch(
+      () => ({ channel: n >= 3 ? "V 信箱" : "" }),
+      (v) => v.channel === "V 信箱",
+      { timeoutMs: 1000, intervalMs: 50 },
+    );
+    const tick = async () => {
+      n += 1;
+      await vi.advanceTimersByTimeAsync(50);
+    };
+    await tick();
+    await tick();
+    await tick();
+    await expect(p).resolves.toEqual({ channel: "V 信箱" });
   });
 });

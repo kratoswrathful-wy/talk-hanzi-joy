@@ -48,6 +48,8 @@ import {
   STORE_READBACK_INTERVAL_MS,
   STORE_READBACK_TIMEOUT_MS,
   awaitStoreReadback,
+  awaitStoreReadbackMatch,
+  failReadbackTimedOut,
   failWriteFailed,
   readbackAfterWrite,
 } from "@/lib/ai-agent-readback";
@@ -1390,15 +1392,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { billingChannel: validated.data as string });
         if (error) return failWriteFailed("客戶請款", `設定請款管道失敗：${describeStoreError(error)}`);
 
-        const updatedResult = await readbackAfterWrite(
-          "客戶請款",
-          invoiceId,
+        const expected = validated.data as string;
+        const updated = await awaitStoreReadbackMatch(
           () => clientInvoiceStore.getInvoiceById(invoiceId),
+          (inv) => inv.billingChannel === expected,
         );
-        if (updatedResult.ok === false) return failFrom(updatedResult);
-        const updated = updatedResult.data;
-        const verified = updated.billingChannel === validated.data;
-        return ok({ invoice: updated, verified });
+        if (!updated) return failReadbackTimedOut("客戶請款", invoiceId);
+        return ok({ invoice: updated, verified: true });
       },
 
       setExpectedDate: async (invoiceId, isoDate) => {
@@ -1414,15 +1414,12 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { expectedCollectionDate: normalized });
         if (error) return failWriteFailed("客戶請款", `設定預計收款日失敗：${describeStoreError(error)}`);
 
-        const updatedResult = await readbackAfterWrite(
-          "客戶請款",
-          invoiceId,
+        const updated = await awaitStoreReadbackMatch(
           () => clientInvoiceStore.getInvoiceById(invoiceId),
+          (inv) => inv.expectedCollectionDate === normalized,
         );
-        if (updatedResult.ok === false) return failFrom(updatedResult);
-        const updated = updatedResult.data;
-        const verified = updated.expectedCollectionDate === normalized;
-        return ok({ invoice: updated, verified });
+        if (!updated) return failReadbackTimedOut("客戶請款", invoiceId);
+        return ok({ invoice: updated, verified: true });
       },
     },
 
@@ -1456,9 +1453,14 @@ export function buildLmsAgentApi(): LmsAgentApi {
 
         const writeError = await caseStore.update(caseId, validated.data);
         if (writeError) return failWriteFailed("案件", describeStoreError(writeError));
-        const updatedResult = await readbackAfterWrite("案件", caseId, () => caseStore.getById(caseId));
-        if (updatedResult.ok === false) return failFrom(updatedResult);
-        const updated = updatedResult.data;
+        const updated = await awaitStoreReadbackMatch(
+          () => caseStore.getById(caseId),
+          (rec) => {
+            const actual = readToolFieldFromRecord(rec, built.data.meta);
+            return finalizeToolSetFieldResult(built.data.meta, input.value, actual).verified;
+          },
+        );
+        if (!updated) return failReadbackTimedOut("案件", caseId);
 
         const actual = readToolFieldFromRecord(updated, built.data.meta);
         const result = finalizeToolSetFieldResult(built.data.meta, input.value, actual);

@@ -31,6 +31,21 @@ export async function awaitStoreReadback<T>(
   }
 }
 
+/**
+ * 輪詢直到讀到的值通過 `match`（用於寫入後確認特定欄位已反映在 store）。
+ */
+export async function awaitStoreReadbackMatch<T>(
+  read: () => T | null | undefined,
+  match: (value: T) => boolean,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<T | null> {
+  return awaitStoreReadback((() => {
+    const value = read();
+    if (value == null) return null;
+    return match(value) ? value : null;
+  }), options);
+}
+
 /** 真正寫入失敗（DB／RLS 等）——呼叫端可依情況重試寫入。 */
 export function failWriteFailed(entityLabel: string, detail?: string): AgentResult<never> {
   const suffix = detail && String(detail).trim() ? `：${String(detail).trim()}` : "";
