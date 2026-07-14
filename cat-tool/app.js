@@ -24590,7 +24590,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
                 <div class="seg-char-count">${_initCharCount}</div>
             </div>`;
-            rowInnerContent += `<div class="col-extra" style="padding:0.5rem; font-size:0.8rem; color:#2563eb; word-break:break-all; white-space:pre-wrap;">${seg.extraValue || ''}</div>`;
+            rowInnerContent += (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.buildColExtraCellHtml)
+                ? ExtraInfoDisplay.buildColExtraCellHtml(seg.extraValue || '', { expanded: false })
+                : `<div class="col-extra col-extra-clamp">${String(seg.extraValue || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
             
             // New Columns: Repetition and Match
             // repModeSeg defaults to global repMode
@@ -24630,6 +24632,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const targetInput = row.querySelector('.grid-textarea');
             const statusIcon = row.querySelector('.status-icon');
+
+            // 額外資訊：三行截斷／展開；長 token 點擊複製（純顯示層）
+            const extraCell = row.querySelector('.col-extra');
+            if (extraCell) {
+                extraCell.addEventListener('click', async (e) => {
+                    const token = e.target && e.target.closest ? e.target.closest('.col-extra-long-token') : null;
+                    if (token) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const full = token.getAttribute('data-full') || token.getAttribute('title') || token.textContent || '';
+                        try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                await navigator.clipboard.writeText(full);
+                                if (typeof showCatToast === 'function') showCatToast('已複製額外資訊片段', 'info');
+                            }
+                        } catch (_) {
+                            if (typeof showCatToast === 'function') showCatToast('無法複製到剪貼簿', 'error');
+                        }
+                        return;
+                    }
+                    if (typeof ExtraInfoDisplay === 'undefined' || !ExtraInfoDisplay.renderExtraInfoCell) return;
+                    const willExpand = !extraCell.classList.contains('is-expanded');
+                    ExtraInfoDisplay.renderExtraInfoCell(extraCell, seg.extraValue || '', willExpand);
+                    if (typeof CatVirtGrid !== 'undefined' && CatVirtGrid.isEnabled && CatVirtGrid.isEnabled()
+                        && typeof CatVirtGrid.remeasureSegHeight === 'function') {
+                        requestAnimationFrame(() => {
+                            CatVirtGrid.remeasureSegHeight(seg.id);
+                        });
+                    }
+                });
+            }
 
             // Initialise tag colour state for this row
             updateTagColors(row, seg.targetText);

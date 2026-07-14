@@ -15,6 +15,15 @@
 
 ---
 
+## 工項三第一階段進度（2026-07-14）
+
+- 分支：`fix/extra-info-clamp`
+- `ExtraInfoDisplay`（`cat-tool/js/extra-info-display.js`）：三行 clamp／展開、長 token 頭8…尾6、可複製
+- `CatVirtGrid.remeasureSegHeight`：展開後重測列高
+- 純顯示層：不改 `extraValue`／搜尋／匯出
+
+---
+
 ## 工項一實作進度（2026-07-14）
 
 - 分支：`fix/wf-stage-assignment-sync`
