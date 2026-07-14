@@ -1,4 +1,4 @@
-狀態：規劃中
+狀態：實作中
 
 # CAT：檔案狀態修復 + 額外資訊自訂／限高
 
@@ -12,6 +12,15 @@
 1. **工項一（Bug）**：檔案清單「完成後重整變待開始」（實為 stage／assignment 不同步，非未讀 stages）
 2. **工項三第一階段**：額外資訊限高截斷
 3. **工項二 + 工項三第二階段**：中繼資料結構化與欄位對應，並接上 chip 顯示
+
+---
+
+## 工項一實作進度（2026-07-14）
+
+- 分支：`fix/wf-stage-assignment-sync`
+- 只讀清單：[`CAT_WF_ASSIGNMENT_BACKFILL_INVENTORY_2026-07-14.md`](./CAT_WF_ASSIGNMENT_BACKFILL_INVENTORY_2026-07-14.md)（225 筆，review 199／translate 26）
+- 程式：PM 整檔完成／重開改以 `listStageAssignmentsForFile` 同步指派；migration `20260714120000_cat_wf_assignment_sync_no_downgrade.sql` 防降級＋反向路徑；Vitest `wf-assignment-sync-policy`
+- **Backfill**：已寫入 migration，**待人工確認 inventory 後才可 `supabase db push`／套用到正式庫**
 
 ---
 

@@ -6304,6 +6304,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         return updated;
     }
 
+    /** 以 DB 指派清單為準，同步指定 stage 下所有 assignment 的 workflow_status（避免僅改 stage 漏改指派）。 */
+    async function _applyWorkflowStatusToStageAssignmentsFromDb(fileId, stageId, wfStatus) {
+        let list = [];
+        try {
+            list = (await DBService.listStageAssignmentsForFile(fileId)) || [];
+        } catch (e) {
+            console.warn('[workflow] listStageAssignmentsForFile fallback to context', e);
+            list = window._currentFileStageAssignments || [];
+        }
+        const matched = list.filter(
+            (a) => String(a.fileId) === String(fileId)
+                && String(a.fileWorkflowStageId) === String(stageId),
+        );
+        for (const a of matched) {
+            if (String(a.workflowStatus || '') === String(wfStatus)) continue;
+            await _updateAssignmentWorkflowStatusLocal(a.id, wfStatus);
+        }
+        try {
+            const refreshed = (await DBService.listStageAssignmentsForFile(fileId)) || [];
+            window._currentFileStageAssignments = refreshed;
+        } catch (_) { /* keep in-memory */ }
+        return matched;
+    }
+
     async function _pmApplyWholeFileTranslateState(mode) {
         const fileId = currentFileId != null ? String(currentFileId) : null;
         if (!fileId) {
@@ -6333,11 +6357,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updatedReview };
             }
             window._currentFileWorkflowStages = stages;
-            const assigns = _wfTranslateAssignmentsInContext({ includeAll: true }).filter((a) => String(a.fileId) === fileId);
             const wfStatus = isComplete ? 'completed' : 'assigned';
-            for (const a of assigns) {
-                await _updateAssignmentWorkflowStatusLocal(a.id, wfStatus);
-            }
+            // 重開（completed→active）時也一併把指派降回 assigned，避免卡在 completed
+            const assigns = await _applyWorkflowStatusToStageAssignmentsFromDb(
+                fileId, translateStage.id, wfStatus,
+            );
             await _syncLmsForAssignments(assigns, isComplete);
             if (isComplete) {
                 await enqueueStageSnapshot(fileId, translateStage.id, 'post_translate');
@@ -6373,12 +6397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const updatedTranslate = await DBService.updateFileWorkflowStageStatus(translateStage.id, 'completed');
                 const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
                 if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updatedTranslate };
-                const translateAssigns = _wfTranslateAssignmentsInContext({ includeAll: true }).filter((a) => String(a.fileId) === fileId);
-                for (const a of translateAssigns) {
-                    if (a.workflowStatus !== 'completed') {
-                        await _updateAssignmentWorkflowStatusLocal(a.id, 'completed');
-                    }
-                }
+                await _applyWorkflowStatusToStageAssignmentsFromDb(fileId, translateStage.id, 'completed');
             }
             const updatedReview = await DBService.updateFileWorkflowStageStatus(
                 reviewStage.id,
@@ -6387,11 +6406,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const rIdx = stages.findIndex((s) => String(s.id) === String(reviewStage.id));
             if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updatedReview };
             window._currentFileWorkflowStages = stages;
-            const assigns = _wfReviewAssignmentsInContext({ includeAll: true }).filter((a) => String(a.fileId) === fileId);
             const wfStatus = isComplete ? 'completed' : 'assigned';
-            for (const a of assigns) {
-                await _updateAssignmentWorkflowStatusLocal(a.id, wfStatus);
-            }
+            await _applyWorkflowStatusToStageAssignmentsFromDb(fileId, reviewStage.id, wfStatus);
             if (isComplete) {
                 await enqueueStageSnapshot(fileId, reviewStage.id, 'post_review');
             }
