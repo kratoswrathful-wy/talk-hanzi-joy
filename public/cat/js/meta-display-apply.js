@@ -84,33 +84,50 @@ function buildMetaExtraChipsCellHtml(chips, opts = {}) {
   const classes = ["col-extra", "col-extra-chips", expanded ? "is-expanded" : "col-extra-clamp"].join(
     " ",
   );
+  const needsFn =
+    global.ExtraInfoDisplay && typeof global.ExtraInfoDisplay.needsExpandToggleForChips === "function"
+      ? global.ExtraInfoDisplay.needsExpandToggleForChips
+      : (c) => Array.isArray(c) && c.length > 0;
+  const needs = needsFn(list);
+  const expandBtn =
+    global.ExtraInfoDisplay && typeof global.ExtraInfoDisplay.buildExpandToggleHtml === "function"
+      ? global.ExtraInfoDisplay.buildExpandToggleHtml(expanded)
+      : "";
   if (!list.length) {
-    return `<div class="${classes}"></div>`;
+    return (
+      `<div class="${classes}" data-needs-expand="0">` +
+      `<div class="col-extra-body"></div>${expandBtn}</div>`
+    );
   }
   const shorten =
-    typeof globalThis !== "undefined" &&
-    globalThis.ExtraInfoDisplay &&
-    typeof globalThis.ExtraInfoDisplay.shortenLongToken === "function"
-      ? globalThis.ExtraInfoDisplay.shortenLongToken
+    global.ExtraInfoDisplay && typeof global.ExtraInfoDisplay.shortenLongToken === "function"
+      ? global.ExtraInfoDisplay.shortenLongToken
       : (t) => String(t ?? "");
+  const esc =
+    global.ExtraInfoDisplay && typeof global.ExtraInfoDisplay.escapeHtml === "function"
+      ? global.ExtraInfoDisplay.escapeHtml
+      : escapeHtml;
   const inner = list
     .map((c) => {
       const name = String(c.name || "");
       const value = String(c.value || "");
       const shown = expanded ? value : shorten(value);
-      const tip = escapeHtml(name ? `${name}: ${value}` : value);
+      const tip = esc(name ? `${name}: ${value}` : value);
       return (
-        `<span class="meta-extra-chip" data-meta-key="${escapeHtml(c.key || "")}" ` +
-        `title="${tip}" data-full="${escapeHtml(value)}">` +
-        (name
-          ? `<span class="meta-extra-chip-name">${escapeHtml(name)}</span>`
-          : "") +
-        `<span class="meta-extra-chip-value">${escapeHtml(shown)}</span>` +
+        `<span class="meta-extra-chip" data-meta-key="${esc(c.key || "")}" ` +
+        `title="${tip}" data-full="${esc(value)}">` +
+        (name ? `<span class="meta-extra-chip-name">${esc(name)}</span>` : "") +
+        `<span class="meta-extra-chip-value">${esc(shown)}</span>` +
         `</span>`
       );
     })
     .join("");
-  return `<div class="${classes}">${inner}</div>`;
+  return (
+    `<div class="${classes}" data-needs-expand="${needs ? "1" : "0"}">` +
+    `<div class="col-extra-body">${inner}</div>` +
+    expandBtn +
+    `</div>`
+  );
 }
 
 function applyMetaDisplay(seg, config) {

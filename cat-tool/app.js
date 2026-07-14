@@ -659,6 +659,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     const editorFileName = document.getElementById('editorFileName');
     const gridBody = document.getElementById('gridBody');
 
+    // 左上角檔名：點兩下複製完整檔名（title 有全名；顯示可能被截斷）
+    if (editorFileName && !editorFileName.dataset.copyDblBound) {
+        editorFileName.dataset.copyDblBound = '1';
+        editorFileName.addEventListener('mousedown', (e) => {
+            if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.preventDoubleClickSelection) {
+                ExtraInfoDisplay.preventDoubleClickSelection(e);
+            } else if (e.detail > 1) {
+                e.preventDefault();
+            }
+        });
+        editorFileName.addEventListener('dblclick', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const full = (editorFileName.title || editorFileName.textContent || '').trim();
+            if (!full) return;
+            if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.copyTextWithHint) {
+                await ExtraInfoDisplay.copyTextWithHint(full, editorFileName);
+            } else {
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(full);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+        });
+    }
+
     function isGridDataRowFilterVisible(row) {
         return !!(row && row.style && row.style.display !== 'none');
     }
@@ -24583,7 +24610,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for(let k=0; k<maxKeys; k++) {
                 const keyText = displayKeys[k] ? displayKeys[k] : '';
                 // Rename Key 1 logic: CSS class stays the same but UI name in colSettings is handled in the header loop
-                rowInnerContent += `<div class="col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}</div>`;
+                rowInnerContent += `<div class="col-key-${k} col-key-copyable" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${String(keyText).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
             }
             // 句段集模式才渲染所屬檔案格（位置：keys 後、原文前）
             if (_currentViewId && colSettings.some(c => c.id === 'col-source-file')) {
@@ -24665,27 +24692,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             const targetInput = row.querySelector('.grid-textarea');
             const statusIcon = row.querySelector('.status-icon');
 
-            // 額外資訊：三行截斷／展開；長 token／chip 點擊複製（純顯示層）
+            // 額外資訊：專屬三角鈕展開；任意文字點兩下複製完整段落／chip（純顯示層）
             const extraCell = row.querySelector('.col-extra');
             if (extraCell) {
-                extraCell.addEventListener('click', async (e) => {
-                    const token = e.target && e.target.closest
-                        ? (e.target.closest('.col-extra-long-token') || e.target.closest('.meta-extra-chip'))
-                        : null;
-                    if (token) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const full = token.getAttribute('data-full') || token.getAttribute('title') || token.textContent || '';
-                        try {
-                            if (navigator.clipboard && navigator.clipboard.writeText) {
-                                await navigator.clipboard.writeText(full);
-                                if (typeof showCatToast === 'function') showCatToast('已複製額外資訊片段', 'info');
-                            }
-                        } catch (_) {
-                            if (typeof showCatToast === 'function') showCatToast('無法複製到剪貼簿', 'error');
-                        }
-                        return;
+                const remeasureExtra = () => {
+                    if (typeof CatVirtGrid !== 'undefined' && CatVirtGrid.isEnabled && CatVirtGrid.isEnabled()
+                        && typeof CatVirtGrid.remeasureSegHeight === 'function') {
+                        requestAnimationFrame(() => {
+                            CatVirtGrid.remeasureSegHeight(seg.id);
+                        });
                     }
+                };
+                const syncExtraBtn = () => {
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.syncExpandBtnVisibility) {
+                        ExtraInfoDisplay.syncExpandBtnVisibility(extraCell);
+                    }
+                };
+                requestAnimationFrame(syncExtraBtn);
+
+                extraCell.addEventListener('mousedown', (e) => {
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.preventDoubleClickSelection) {
+                        ExtraInfoDisplay.preventDoubleClickSelection(e);
+                    } else if (e.detail > 1) {
+                        e.preventDefault();
+                    }
+                });
+
+                extraCell.addEventListener('click', (e) => {
+                    const btn = e.target && e.target.closest ? e.target.closest('.col-extra-expand-btn') : null;
+                    if (!btn || !extraCell.contains(btn)) return;
+                    e.preventDefault();
+                    e.stopPropagation();
                     const willExpand = !extraCell.classList.contains('is-expanded');
                     const applied = (typeof MetaDisplayApply !== 'undefined' && MetaDisplayApply.applyMetaDisplay)
                         ? MetaDisplayApply.applyMetaDisplay(seg, _currentFileMetaDisplayConfig)
@@ -24697,6 +24734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const next = wrap.firstElementChild;
                         if (next) {
                             extraCell.className = next.className;
+                            extraCell.dataset.needsExpand = next.dataset.needsExpand || '0';
                             extraCell.innerHTML = next.innerHTML;
                         }
                     } else if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.renderExtraInfoCell) {
@@ -24705,14 +24743,60 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else {
                         return;
                     }
-                    if (typeof CatVirtGrid !== 'undefined' && CatVirtGrid.isEnabled && CatVirtGrid.isEnabled()
-                        && typeof CatVirtGrid.remeasureSegHeight === 'function') {
-                        requestAnimationFrame(() => {
-                            CatVirtGrid.remeasureSegHeight(seg.id);
-                        });
+                    requestAnimationFrame(() => {
+                        syncExtraBtn();
+                        remeasureExtra();
+                    });
+                });
+
+                extraCell.addEventListener('dblclick', async (e) => {
+                    if (e.target && e.target.closest && e.target.closest('.col-extra-expand-btn')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const copyText = (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.getCopyTextFromEventTarget)
+                        ? ExtraInfoDisplay.getCopyTextFromEventTarget(e.target)
+                        : '';
+                    if (!copyText) return;
+                    const near = (e.target && e.target.closest)
+                        ? (e.target.closest('.meta-extra-chip') || e.target.closest('.col-extra-para') || extraCell)
+                        : extraCell;
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.copyTextWithHint) {
+                        await ExtraInfoDisplay.copyTextWithHint(copyText, near);
+                    } else {
+                        try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                await navigator.clipboard.writeText(copyText);
+                            }
+                        } catch (_) { /* ignore */ }
                     }
                 });
             }
+
+            // Key 欄：點兩下複製該句段完整 Key（多欄以換行分隔）
+            const keysCopyText = (displayKeys || []).map((k) => String(k ?? '')).join('\n');
+            row.querySelectorAll('[class^="col-key-"]').forEach((keyCell) => {
+                keyCell.addEventListener('mousedown', (e) => {
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.preventDoubleClickSelection) {
+                        ExtraInfoDisplay.preventDoubleClickSelection(e);
+                    } else if (e.detail > 1) {
+                        e.preventDefault();
+                    }
+                });
+                keyCell.addEventListener('dblclick', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!keysCopyText.trim()) return;
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.copyTextWithHint) {
+                        await ExtraInfoDisplay.copyTextWithHint(keysCopyText, keyCell);
+                    } else {
+                        try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                await navigator.clipboard.writeText(keysCopyText);
+                            }
+                        } catch (_) { /* ignore */ }
+                    }
+                });
+            });
 
             // Initialise tag colour state for this row
             updateTagColors(row, seg.targetText);
