@@ -1,4 +1,4 @@
-狀態：實作中
+狀態：已落地待驗收
 
 # E2E flaky 穩定化：lms-tool-set-field／dev-switch-user-persona
 
@@ -41,7 +41,20 @@
 - Run：[Actions #29322613828](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29322613828)（`workflow_dispatch`／`main`＠`dc9e28db`）
 - 結論：**failure**；再現 `lms-tool-set-field` seed「更新後讀取案件失敗」
 
-### 修復後 5× workflow_dispatch（進行中）
+### 修復後 5× workflow_dispatch（tip `896fc95e`，2026-07-14／15）
+
+連續 **6／6** 全綠（皆 `workflow_dispatch`，同一個 tip）：
+
+1. ✅ [#29343700225](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29343700225)
+2. ✅ [#29344642588](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29344642588)
+3. ✅ [#29344665631](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29344665631)
+4. ✅ [#29344669634](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29344669634)
+5. ✅ [#29344673846](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29344673846)
+6. ✅ [#29344678057](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29344678057)（加跑確認）
+
+另：PR 觸發 [#29341794300](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29341794300) 亦綠（同 tip）。
+
+### 較早輪次（未達標）
 
 - tip `fd9a21fe`／`66345afa`：目標測項已綠，套件仍偶發 CAT／W10 假人
 - tip `6695d055`：連續 **4／5** 全綠（#5 掛於 reload 後 personas 尚未渲染即斷言 active）
@@ -50,4 +63,4 @@
   - ✅ [#29335093316](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29335093316)
   - ✅ [#29336186343](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29336186343)
   - ❌ [#29337133515](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29337133515)（`w10-fees-visible-translator`：換人後假人列未就緒）
-- 後續：`switchToTestPersona` reload 後再等 `expectTestModePersonaUiReady`，重跑 5×
+- 後續：`switchToTestPersona` reload 後再等 `expectTestModePersonaUiReady` + create pending 保護 → tip `896fc95e` 達標（見上）
