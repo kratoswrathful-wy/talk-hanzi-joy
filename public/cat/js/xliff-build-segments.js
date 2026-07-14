@@ -32,6 +32,16 @@
         return null;
     }
 
+    function collectMetaItemsForTu(tu, isMqxliff) {
+        const C = global.MetaItemsCollector;
+        if (!C || typeof C.collectFromTransUnit !== 'function') return [];
+        try {
+            return C.collectFromTransUnit(tu, { isMqxliff: !!isMqxliff }) || [];
+        } catch (_) {
+            return [];
+        }
+    }
+
     /** XLIFF 2.0：&lt;unit&gt;／&lt;segment&gt; */
     function buildXliff2SegmentRows(xml, fileName) {
         const Xliff = global.CatToolXliffTags;
@@ -92,6 +102,9 @@
                 ? (fe.getAttribute('target-language') || fe.getAttribute('trgLang') || '').trim()
                 : '';
             const uid = (unit.getAttribute('id') || '').trim() || ('u' + segCounter);
+            const metaItems = (global.MetaItemsCollector && typeof global.MetaItemsCollector.collectFromXliff2Unit === 'function')
+                ? (global.MetaItemsCollector.collectFromXliff2Unit(unit) || [])
+                : [];
             segments.push({
                 sheetName: 'XLIFF',
                 rowIdx: segCounter++,
@@ -100,6 +113,7 @@
                 idValue: uid,
                 xliffTuId: uid,
                 extraValue: '',
+                metaItems,
                 sourceText,
                 targetText,
                 isLocked: false,
@@ -493,6 +507,7 @@
                                     idValue: `${fallbackId}#${mid}`,
                                     xliffTuId: `${fallbackId}#${mid}`,
                                     extraValue: '',
+                                    metaItems: collectMetaItemsForTu(tu, false),
                                     sourceText: srcTxt,
                                     targetText: tgtTxt,
                                     isLocked: isLockedSystem,
@@ -565,6 +580,7 @@
                                 idValue: fallbackId,
                                 xliffTuId: fallbackId,
                                 extraValue: '',
+                                metaItems: collectMetaItemsForTu(tu, false),
                                 sourceText: srcTxt,
                                 targetText: tgtTxt,
                                 isLocked: isLockedSystem,
@@ -893,6 +909,7 @@
                         idValue: keyFromContext || fallbackId,
                         xliffTuId: fallbackId,
                         extraValue,
+                        metaItems: collectMetaItemsForTu(tu, isMqxliffFile),
                         sourceText,
                         targetText,
                         isLocked: isLockedSystem,

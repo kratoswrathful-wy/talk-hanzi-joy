@@ -164,7 +164,7 @@
 
         if (wizardOverlay) wizardOverlay.classList.add('hidden');
         await loadFilesList();
-        return { originalSourceLang, originalTargetLang };
+        return { originalSourceLang, originalTargetLang, fileId };
     }
 
     global.CatToolXliffImport = {

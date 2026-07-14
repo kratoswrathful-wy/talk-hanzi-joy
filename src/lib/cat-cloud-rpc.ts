@@ -88,7 +88,7 @@ const CAT_ORIGINAL_FILES_BUCKET = "cat-original-files";
 
 /** 列表／recent：不 SELECT original_file_base64，僅路徑 + metadata */
 const CAT_FILE_LIST_COLUMNS =
-  "id, project_id, name, source_lang, target_lang, original_source_lang, original_target_lang, workspace_note_draft, applicable_special_instruction_ids, related_lms_case_id, related_lms_case_title, google_sheet_url, file_format, default_mq_role, created_at, last_modified, original_file_path";
+  "id, project_id, name, source_lang, target_lang, original_source_lang, original_target_lang, workspace_note_draft, applicable_special_instruction_ids, related_lms_case_id, related_lms_case_title, google_sheet_url, file_format, default_mq_role, meta_display_config, created_at, last_modified, original_file_path";
 
 function guessMimeFromCatFileName(name: string): string {
   const lower = String(name || "").toLowerCase();
@@ -161,6 +161,7 @@ const mapProjectRow = (r: any) => ({
       : {},
   assignmentId: r.assignment_id ?? null,
   env: r.env ?? "production",
+  metaDisplayTemplates: Array.isArray(r.meta_display_templates) ? r.meta_display_templates : [],
   createdAt: r.created_at,
   lastModified: r.last_modified,
 });
@@ -188,6 +189,10 @@ function mapFileRow(r: any, opts?: { listMode?: boolean }) {
     googleSheetUrl: r.google_sheet_url ?? "",
     fileFormat: r.file_format ?? "",
     defaultMqRole: r.default_mq_role ?? "",
+    metaDisplayConfig:
+      r.meta_display_config != null && typeof r.meta_display_config === "object"
+        ? r.meta_display_config
+        : null,
     createdAt: r.created_at,
     lastModified: r.last_modified,
   };
@@ -295,6 +300,11 @@ const mapSegmentRow = (r: any) => {
       prevSegment?: string | null;
       nextSegment?: string | null;
     } | null>(r.mq_inserted_match, null),
+    /** 結構化中繼資料（顯示對應用；不影響 xliffTuId／匯出） */
+    metaItems: tryParseJson<Array<{ sourceType: string; name: string; value: string }>>(
+      r.meta_items,
+      [],
+    ),
   };
 };
 
@@ -734,6 +744,13 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.clientQuestionFormColumns !== undefined
           ? { client_question_form_columns: payload.updates.clientQuestionFormColumns ?? {} }
           : {}),
+        ...(payload.updates?.metaDisplayTemplates !== undefined
+          ? {
+              meta_display_templates: Array.isArray(payload.updates.metaDisplayTemplates)
+                ? payload.updates.metaDisplayTemplates
+                : [],
+            }
+          : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.projectId);
 
@@ -962,6 +979,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(u.googleSheetUrl != null ? { google_sheet_url: String(u.googleSheetUrl) } : {}),
         ...(u.fileFormat != null ? { file_format: String(u.fileFormat) } : {}),
         ...(u.defaultMqRole !== undefined ? { default_mq_role: String(u.defaultMqRole ?? "") } : {}),
+        ...(u.metaDisplayConfig !== undefined
+          ? { meta_display_config: u.metaDisplayConfig ?? null }
+          : {}),
         last_modified: nowIso(),
       };
       if (u.originalFileBase64 != null) {
@@ -1057,6 +1077,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           if (patch.idValue        !== undefined) dbPatch.id_value         = patch.idValue;
           if (patch.xliffTuId      !== undefined) dbPatch.xliff_tu_id      = patch.xliffTuId;
           if (patch.extraValue     !== undefined) dbPatch.extra_value      = patch.extraValue;
+          if (patch.metaItems      !== undefined) {
+            dbPatch.meta_items = Array.isArray(patch.metaItems) ? patch.metaItems : [];
+          }
           if (patch.status         !== undefined) dbPatch.status           = patch.status;
           if (patch.wfTransConfirmedAt !== undefined) dbPatch.wf_trans_confirmed_at = patch.wfTransConfirmedAt;
           if (patch.wfTransConfirmedBy !== undefined) dbPatch.wf_trans_confirmed_by = patch.wfTransConfirmedBy;
@@ -1123,6 +1146,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
             segment_revision:   0,
             global_id:
               s.globalId != null && Number.isFinite(Number(s.globalId)) ? Number(s.globalId) : null,
+            meta_items: Array.isArray(s.metaItems) ? s.metaItems : [],
           };
         });
         for (let i = 0; i < rows.length; i += BATCH) {
@@ -1193,6 +1217,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
             s.mqInsertedMatch != null && typeof s.mqInsertedMatch === "object"
               ? s.mqInsertedMatch
               : null,
+          meta_items: Array.isArray(s.metaItems) ? s.metaItems : [],
         };
       });
       let totalCount = 0;

@@ -402,6 +402,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const navItems = document.querySelectorAll('.nav-item');
     const viewSections = document.querySelectorAll('.view-section');
     let currentFileId = null;
+    /** @type {object|null} 目前檔案的 meta_display_config（顯示層；null＝舊行為） */
+    let _currentFileMetaDisplayConfig = null;
     let _wfTaskCompleteUiBound = false;
     /** B-4 A：開檔工作步驟 session（換檔／換句段集重問）；須在 applyTmsIdentityToUI 前初始化 */
     let currentWfSessionKind = null;
@@ -656,6 +658,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnExitEditor = document.getElementById('btnExitEditor');
     const editorFileName = document.getElementById('editorFileName');
     const gridBody = document.getElementById('gridBody');
+
+    // 左上角檔名：點兩下複製完整檔名（title 有全名；顯示可能被截斷）
+    if (editorFileName && !editorFileName.dataset.copyDblBound) {
+        editorFileName.dataset.copyDblBound = '1';
+        editorFileName.addEventListener('mousedown', (e) => {
+            if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.preventDoubleClickSelection) {
+                ExtraInfoDisplay.preventDoubleClickSelection(e);
+            } else if (e.detail > 1) {
+                e.preventDefault();
+            }
+        });
+        editorFileName.addEventListener('dblclick', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const full = (editorFileName.title || editorFileName.textContent || '').trim();
+            if (!full) return;
+            if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.copyTextWithHint) {
+                await ExtraInfoDisplay.copyTextWithHint(full, editorFileName);
+            } else {
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(full);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+        });
+    }
 
     function isGridDataRowFilterVisible(row) {
         return !!(row && row.style && row.style.display !== 'none');
@@ -14273,6 +14302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const PoImport = window.CatToolPoImport;
         const errors = [];
         const okNames = [];
+        const okXliffFileIds = [];
         const langMismatchRows = [];
         const n = files.length;
         for (let i = 0; i < n; i++) {
@@ -14296,6 +14326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     const result = await XliffImport.handleXliffLikeImport(xliffImportCtx({ suppressWizardHide: true, caseInfo }), file, role);
                     _collectXliffLangMismatchIfAny(result, langChoice, name, langMismatchRows);
+                    if (result && result.fileId != null) okXliffFileIds.push(result.fileId);
                 } else if (kind === 'po') {
                     if (!PoImport || typeof PoImport.handlePoImport !== 'function') {
                         throw new Error('PO 匯入模組未載入（js/po-import.js）');
@@ -14320,6 +14351,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             showWizardStep('wizardStep1');
             if (batchProgressMessage) batchProgressMessage.textContent = '';
             if (btnBatchProgressClose) btnBatchProgressClose.classList.add('hidden');
+            if (okXliffFileIds.length && window.MetaDisplayMapUi && typeof window.MetaDisplayMapUi.openAfterImport === 'function') {
+                try {
+                    await window.MetaDisplayMapUi.openAfterImport({ fileIds: okXliffFileIds });
+                } catch (e) {
+                    console.warn('[meta-display-map] openAfterImport', e);
+                }
+            }
             return;
         }
 
@@ -17585,11 +17623,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!file) {
             alert('檔案不存在');
             currentFileId = null;
+            _currentFileMetaDisplayConfig = null;
             resetEditorTransientUi();
             switchView('viewDashboard');
             await loadDashboardData();
             return;
         }
+        _currentFileMetaDisplayConfig =
+            file.metaDisplayConfig != null ? file.metaDisplayConfig : null;
 
         const resolvedProjectId = file.projectId || currentProjectId;
         if (resolvedProjectId) currentProjectId = resolvedProjectId;
@@ -17763,7 +17804,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else if (!seg.keys) {
                 seg.keys = [];
             }
-            if(seg.keys && seg.keys.length > maxKeys) maxKeys = seg.keys.length;
+            let keyCount = seg.keys && seg.keys.length ? seg.keys.length : 0;
+            if (typeof MetaDisplayApply !== 'undefined' && MetaDisplayApply.applyMetaDisplay) {
+                const applied = MetaDisplayApply.applyMetaDisplay(seg, _currentFileMetaDisplayConfig);
+                if (applied && applied.displayKeys && applied.displayKeys.length > keyCount) {
+                    keyCount = applied.displayKeys.length;
+                }
+            }
+            if (keyCount > maxKeys) maxKeys = keyCount;
         });
 
         const defaultCols = [];
@@ -24551,10 +24599,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             const displayId = _segDisplayId(seg, i);
             rowInnerContent += `<div class="col-id" title="${_colIdCellTitle(seg, displayId).replace(/"/g, '&quot;')}" data-idx="${i}" data-id="${seg.id}">${displayId}</div>`;
             const maxKeys = colSettings.filter(c => c.id.startsWith('col-key-')).length;
+            let displayKeys = (seg.keys && seg.keys.length) ? seg.keys : [];
+            let extraApplied = null;
+            if (typeof MetaDisplayApply !== 'undefined' && MetaDisplayApply.applyMetaDisplay) {
+                extraApplied = MetaDisplayApply.applyMetaDisplay(seg, _currentFileMetaDisplayConfig);
+                if (extraApplied && Array.isArray(extraApplied.displayKeys)) {
+                    displayKeys = extraApplied.displayKeys;
+                }
+            }
             for(let k=0; k<maxKeys; k++) {
-                const keyText = seg.keys && seg.keys[k] ? seg.keys[k] : '';
+                const keyText = displayKeys[k] ? displayKeys[k] : '';
                 // Rename Key 1 logic: CSS class stays the same but UI name in colSettings is handled in the header loop
-                rowInnerContent += `<div class="col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}</div>`;
+                rowInnerContent += `<div class="col-key-${k} col-key-copyable" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${String(keyText).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
             }
             // 句段集模式才渲染所屬檔案格（位置：keys 後、原文前）
             if (_currentViewId && colSettings.some(c => c.id === 'col-source-file')) {
@@ -24590,9 +24646,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
                 <div class="seg-char-count">${_initCharCount}</div>
             </div>`;
-            rowInnerContent += (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.buildColExtraCellHtml)
-                ? ExtraInfoDisplay.buildColExtraCellHtml(seg.extraValue || '', { expanded: false })
-                : `<div class="col-extra col-extra-clamp">${String(seg.extraValue || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+            rowInnerContent += (extraApplied && extraApplied.usesConfig && extraApplied.displayExtraChips &&
+                typeof MetaDisplayApply !== 'undefined' && MetaDisplayApply.buildMetaExtraChipsCellHtml)
+                ? MetaDisplayApply.buildMetaExtraChipsCellHtml(extraApplied.displayExtraChips, { expanded: false })
+                : ((typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.buildColExtraCellHtml)
+                ? ExtraInfoDisplay.buildColExtraCellHtml((extraApplied && extraApplied.displayExtraText != null) ? extraApplied.displayExtraText : (seg.extraValue || ''), { expanded: false })
+                : `<div class="col-extra col-extra-clamp">${String((extraApplied && extraApplied.displayExtraText != null) ? extraApplied.displayExtraText : (seg.extraValue || '')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`);
             
             // New Columns: Repetition and Match
             // repModeSeg defaults to global repMode
@@ -24633,36 +24692,111 @@ document.addEventListener('DOMContentLoaded', async () => {
             const targetInput = row.querySelector('.grid-textarea');
             const statusIcon = row.querySelector('.status-icon');
 
-            // 額外資訊：三行截斷／展開；長 token 點擊複製（純顯示層）
+            // 額外資訊：專屬三角鈕展開；任意文字點兩下複製完整段落／chip（純顯示層）
             const extraCell = row.querySelector('.col-extra');
             if (extraCell) {
-                extraCell.addEventListener('click', async (e) => {
-                    const token = e.target && e.target.closest ? e.target.closest('.col-extra-long-token') : null;
-                    if (token) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const full = token.getAttribute('data-full') || token.getAttribute('title') || token.textContent || '';
-                        try {
-                            if (navigator.clipboard && navigator.clipboard.writeText) {
-                                await navigator.clipboard.writeText(full);
-                                if (typeof showCatToast === 'function') showCatToast('已複製額外資訊片段', 'info');
-                            }
-                        } catch (_) {
-                            if (typeof showCatToast === 'function') showCatToast('無法複製到剪貼簿', 'error');
-                        }
-                        return;
-                    }
-                    if (typeof ExtraInfoDisplay === 'undefined' || !ExtraInfoDisplay.renderExtraInfoCell) return;
-                    const willExpand = !extraCell.classList.contains('is-expanded');
-                    ExtraInfoDisplay.renderExtraInfoCell(extraCell, seg.extraValue || '', willExpand);
+                const remeasureExtra = () => {
                     if (typeof CatVirtGrid !== 'undefined' && CatVirtGrid.isEnabled && CatVirtGrid.isEnabled()
                         && typeof CatVirtGrid.remeasureSegHeight === 'function') {
                         requestAnimationFrame(() => {
                             CatVirtGrid.remeasureSegHeight(seg.id);
                         });
                     }
+                };
+                const syncExtraBtn = () => {
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.syncExpandBtnVisibility) {
+                        ExtraInfoDisplay.syncExpandBtnVisibility(extraCell);
+                    }
+                };
+                requestAnimationFrame(syncExtraBtn);
+
+                extraCell.addEventListener('mousedown', (e) => {
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.preventDoubleClickSelection) {
+                        ExtraInfoDisplay.preventDoubleClickSelection(e);
+                    } else if (e.detail > 1) {
+                        e.preventDefault();
+                    }
+                });
+
+                extraCell.addEventListener('click', (e) => {
+                    const btn = e.target && e.target.closest ? e.target.closest('.col-extra-expand-btn') : null;
+                    if (!btn || !extraCell.contains(btn)) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const willExpand = !extraCell.classList.contains('is-expanded');
+                    const applied = (typeof MetaDisplayApply !== 'undefined' && MetaDisplayApply.applyMetaDisplay)
+                        ? MetaDisplayApply.applyMetaDisplay(seg, _currentFileMetaDisplayConfig)
+                        : null;
+                    if (applied && applied.usesConfig && applied.displayExtraChips
+                        && typeof MetaDisplayApply !== 'undefined' && MetaDisplayApply.buildMetaExtraChipsCellHtml) {
+                        const wrap = document.createElement('div');
+                        wrap.innerHTML = MetaDisplayApply.buildMetaExtraChipsCellHtml(applied.displayExtraChips, { expanded: willExpand });
+                        const next = wrap.firstElementChild;
+                        if (next) {
+                            extraCell.className = next.className;
+                            extraCell.dataset.needsExpand = next.dataset.needsExpand || '0';
+                            extraCell.innerHTML = next.innerHTML;
+                        }
+                    } else if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.renderExtraInfoCell) {
+                        const text = (applied && applied.displayExtraText != null) ? applied.displayExtraText : (seg.extraValue || '');
+                        ExtraInfoDisplay.renderExtraInfoCell(extraCell, text, willExpand);
+                    } else {
+                        return;
+                    }
+                    requestAnimationFrame(() => {
+                        syncExtraBtn();
+                        remeasureExtra();
+                    });
+                });
+
+                extraCell.addEventListener('dblclick', async (e) => {
+                    if (e.target && e.target.closest && e.target.closest('.col-extra-expand-btn')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const copyText = (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.getCopyTextFromEventTarget)
+                        ? ExtraInfoDisplay.getCopyTextFromEventTarget(e.target)
+                        : '';
+                    if (!copyText) return;
+                    const near = (e.target && e.target.closest)
+                        ? (e.target.closest('.meta-extra-chip') || e.target.closest('.col-extra-para') || extraCell)
+                        : extraCell;
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.copyTextWithHint) {
+                        await ExtraInfoDisplay.copyTextWithHint(copyText, near);
+                    } else {
+                        try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                await navigator.clipboard.writeText(copyText);
+                            }
+                        } catch (_) { /* ignore */ }
+                    }
                 });
             }
+
+            // Key 欄：點兩下複製該句段完整 Key（多欄以換行分隔）
+            const keysCopyText = (displayKeys || []).map((k) => String(k ?? '')).join('\n');
+            row.querySelectorAll('[class^="col-key-"]').forEach((keyCell) => {
+                keyCell.addEventListener('mousedown', (e) => {
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.preventDoubleClickSelection) {
+                        ExtraInfoDisplay.preventDoubleClickSelection(e);
+                    } else if (e.detail > 1) {
+                        e.preventDefault();
+                    }
+                });
+                keyCell.addEventListener('dblclick', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!keysCopyText.trim()) return;
+                    if (typeof ExtraInfoDisplay !== 'undefined' && ExtraInfoDisplay.copyTextWithHint) {
+                        await ExtraInfoDisplay.copyTextWithHint(keysCopyText, keyCell);
+                    } else {
+                        try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                await navigator.clipboard.writeText(keysCopyText);
+                            }
+                        } catch (_) { /* ignore */ }
+                    }
+                });
+            });
 
             // Initialise tag colour state for this row
             updateTagColors(row, seg.targetText);
@@ -29301,6 +29435,85 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncEmptySegSettingsUI();
         viewSettingsModal.classList.remove('hidden');
     });
+
+    const btnMetaDisplayMap = document.getElementById('btnMetaDisplayMap');
+    if (btnMetaDisplayMap) {
+        btnMetaDisplayMap.addEventListener('click', async () => {
+            if (currentFileId == null) {
+                if (typeof showCatToast === 'function') showCatToast('請先開啟檔案', 'info');
+                return;
+            }
+            if (!window.MetaDisplayMapUi || typeof window.MetaDisplayMapUi.open !== 'function') {
+                alert('欄位對應模組未載入');
+                return;
+            }
+            await window.MetaDisplayMapUi.open({
+                fileId: currentFileId,
+                projectId: currentProjectId,
+                segments: currentSegmentsList,
+                config: _currentFileMetaDisplayConfig,
+            });
+        });
+    }
+
+    window.onMetaDisplayConfigSaved = async (fileId, config) => {
+        if (String(fileId) !== String(currentFileId)) return;
+        _currentFileMetaDisplayConfig = config;
+        let maxKeys = 0;
+        (currentSegmentsList || []).forEach((seg) => {
+            let keyCount = (seg.keys && seg.keys.length) || 0;
+            if (typeof MetaDisplayApply !== 'undefined' && MetaDisplayApply.applyMetaDisplay) {
+                const applied = MetaDisplayApply.applyMetaDisplay(seg, config);
+                if (applied && applied.displayKeys && applied.displayKeys.length > keyCount) {
+                    keyCount = applied.displayKeys.length;
+                }
+            }
+            if (keyCount > maxKeys) maxKeys = keyCount;
+        });
+        const existingById = new Map((colSettings || []).map((c) => [c.id, c]));
+        const defaultCols = [];
+        defaultCols.push(existingById.get('col-id') || { id: 'col-id', name: 'ID', visible: true, width: '50px' });
+        for (let i = 0; i < maxKeys; i++) {
+            defaultCols.push(
+                existingById.get(`col-key-${i}`) || { id: `col-key-${i}`, name: 'Key', visible: true, width: '100px' },
+            );
+        }
+        ['col-source', 'col-target', 'col-extra', 'col-repetition', 'col-match', 'col-status'].forEach((id) => {
+            if (existingById.has(id)) defaultCols.push(existingById.get(id));
+            else {
+                const fallback = {
+                    'col-source': { id, name: '原文 (Source)', visible: true, width: '1fr' },
+                    'col-target': { id, name: '譯文 (Target)', visible: true, width: '1fr' },
+                    'col-extra': { id, name: '額外資訊', visible: true, width: '100px' },
+                    'col-repetition': { id, name: '重複', visible: true, width: '35px' },
+                    'col-match': { id, name: '相符度', visible: true, width: '35px' },
+                    'col-status': { id, name: '狀態', visible: true, width: '56px' },
+                }[id];
+                if (fallback) defaultCols.push(fallback);
+            }
+        });
+        colSettings = defaultCols;
+        ensureStatusColumnLast();
+        ensureSourceFileColAfterKeys();
+        const gridHeaderRow = document.getElementById('gridHeaderRow');
+        if (gridHeaderRow) {
+            gridHeaderRow.innerHTML = '';
+            colSettings.forEach((c, index) => {
+                const cell = document.createElement('div');
+                cell.className = 'grid-header-cell';
+                cell.setAttribute('data-col-id', c.id);
+                populateGridHeaderTitleCell(cell, c);
+                attachColResizer(cell, c, gridHeaderRow);
+                cell.style.order = index;
+                cell.style.display = c.visible ? '' : 'none';
+                gridHeaderRow.appendChild(cell);
+            });
+            if (typeof readEditorGridHeaderPx === 'function') readEditorGridHeaderPx();
+        }
+        applyColSettings();
+        if (typeof renderEditorSegments === 'function') renderEditorSegments();
+        else if (typeof rerenderCurrentSegments === 'function') rerenderCurrentSegments();
+    };
 
     btnCloseViewSettings.addEventListener('click', () => viewSettingsModal.classList.add('hidden'));
     

@@ -768,6 +768,49 @@ db.version(28).stores({
     userSegmentMarkers: '[fileId+segmentId], fileId, segmentId',
 });
 
+// v29：meta_items／meta_display_config／meta_display_templates（顯示層；非索引）
+db.version(29).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang, [tmId+sourceText]',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiUserBatchPrefs: '[userId+projectId], userId, projectId, updatedAt',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt',
+    workflowTemplates: '++id, projectId, isDefault',
+    workflowTemplateStages: '++id, templateId, stageOrder',
+    fileWorkflowStages: '++id, fileId, stageOrder',
+    stageAssignments: '++id, fileId, fileWorkflowStageId, assigneeUserId',
+    stageSnapshots: '++id, segmentId, fileId, [segmentId+snapshotReason]',
+    segmentAnnotations: '++id, segmentId, fileId, parentAnnotationId',
+    annotationOptions: '++id, optionType, sortOrder',
+    userSegmentMarkers: '[fileId+segmentId], fileId, segmentId',
+}).upgrade(async (tx) => {
+    await tx.table('segments').toCollection().modify((s) => {
+        if (!Array.isArray(s.metaItems)) s.metaItems = [];
+    });
+    await tx.table('files').toCollection().modify((f) => {
+        if (f.metaDisplayConfig === undefined) f.metaDisplayConfig = null;
+    });
+    await tx.table('projects').toCollection().modify((p) => {
+        if (!Array.isArray(p.metaDisplayTemplates)) p.metaDisplayTemplates = [];
+    });
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -1433,6 +1476,8 @@ const DBService = {
             if (patch.targetTags     !== undefined) dbPatch.targetTags     = patch.targetTags;
             if (patch.idValue        !== undefined) dbPatch.idValue        = patch.idValue;
             if (patch.extraValue     !== undefined) dbPatch.extraValue     = patch.extraValue;
+            if (patch.metaItems      !== undefined) dbPatch.metaItems      = Array.isArray(patch.metaItems) ? patch.metaItems : [];
+            if (patch.xliffTuId      !== undefined) dbPatch.xliffTuId      = patch.xliffTuId;
             if (patch.status         !== undefined) dbPatch.status         = patch.status;
             if (patch.wfTransConfirmedAt !== undefined) dbPatch.wfTransConfirmedAt = patch.wfTransConfirmedAt;
             if (patch.wfTransConfirmedBy !== undefined) dbPatch.wfTransConfirmedBy = patch.wfTransConfirmedBy;

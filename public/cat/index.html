@@ -750,6 +750,7 @@
                         <button id="btnShowNonPrint" class="icon-btn" data-tip="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnShortcuts" class="icon-btn" data-tip="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" data-tip="設定">⚙️</button>
+                        <button type="button" id="btnMetaDisplayMap" class="icon-btn" data-tip="Key／額外資訊欄位對應" data-testid="btn-meta-display-map" style="font-size:0.85rem;">🧩</button>
                         <!-- 句段集模式：顯示所屬檔案欄 toggle（§12.3） -->
                         <label id="labelToggleSourceFileCol" style="display:none; align-items:center; gap:0.3rem; font-size:0.82rem; color:#475569; cursor:pointer; white-space:nowrap;">
                             <input type="checkbox" id="chkShowSourceFileCol" checked> 顯示所屬檔案
@@ -1698,6 +1699,31 @@
                 <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
                     <button class="secondary-btn" id="btnResetViewSettings">重設</button>
                     <button class="primary-btn" id="btnSaveViewSettings">套用並關閉</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key／額外資訊欄位對應（顯示層；不影響匯出） -->
+        <div class="wizard-overlay hidden" id="metaDisplayMapModal" data-testid="meta-display-map-modal" aria-modal="true" role="dialog">
+            <div class="wizard-modal" style="max-width: min(760px, 96vw);">
+                <div class="wizard-header">
+                    <h3 id="metaDisplayMapTitle" style="margin:0; font-size:1.15rem;">欄位對應（Key／額外資訊）</h3>
+                    <button type="button" class="close-btn" id="btnMetaDisplayMapClose" aria-label="關閉">×</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.85rem; padding:1rem 1.25rem;">
+                    <p style="margin:0; font-size:0.85rem; color:#64748b; line-height:1.45;">
+                        從前 20 句彙總來源欄位。只影響編輯器顯示；匯出仍用原始識別碼。未設定時行為與現況相同。
+                    </p>
+                    <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.85rem; color:#475569;">
+                        套用專案範本
+                        <select id="metaDisplayMapTemplates" class="form-input" style="max-width:100%;"></select>
+                    </label>
+                    <div id="metaDisplayMapKinds" style="display:flex; flex-direction:column; gap:0.55rem; max-height:min(52vh, 420px); overflow:auto;"></div>
+                </div>
+                <div class="panel-footer" style="padding:0.85rem 1.25rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnMetaDisplayMapCancel">跳過</button>
+                    <button type="button" class="secondary-btn" id="btnMetaDisplayMapSaveTemplate">存成專案範本</button>
+                    <button type="button" class="primary-btn" id="btnMetaDisplayMapSave" data-testid="meta-display-map-save">套用</button>
                 </div>
             </div>
         </div>
@@ -3524,6 +3550,9 @@
     <script src="js/data-provider.js"></script>
     <script src="db.js"></script>
     <script src="js/xliff-tag-pipeline.js"></script>
+    <script src="js/meta-items-collector.js"></script>
+    <script src="js/meta-display-apply.js"></script>
+    <script src="js/meta-display-map-ui.js"></script>
     <script src="js/xliff-build-segments.js"></script>
     <script src="js/ai-model-temperature.js"></script>
     <script src="js/ai-model-picker.js"></script>

@@ -4671,28 +4671,198 @@ body.rev-track-mode .editor-layout-wrapper {
     font-size: 0.85rem;
 }
 
-/* 額外資訊欄：三行截斷／展開（顯示層；不改 extraValue） */
+/* 額外資訊欄：三行截斷／專屬展開鈕／雙擊複製（顯示層；不改 extraValue） */
 .col-extra {
-    padding: 0.5rem;
+    position: relative;
+    padding: 0.5rem 1.35rem 0.5rem 0.5rem;
     font-size: 0.8rem;
     color: #2563eb;
     word-break: break-all;
-    cursor: pointer;
+    cursor: text;
+    user-select: text;
 }
-.col-extra.col-extra-clamp {
+.col-extra-body {
+    min-width: 0;
+}
+.col-extra.col-extra-clamp .col-extra-body {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
     overflow: hidden;
     white-space: normal;
 }
-.col-extra.is-expanded {
+.col-extra.is-expanded .col-extra-body {
     display: block;
     -webkit-line-clamp: unset;
     overflow: visible;
     white-space: normal;
 }
+.col-extra-para {
+    display: block;
+}
 .col-extra-long-token {
     border-bottom: 1px dotted #93c5fd;
+}
+.col-extra-expand-btn {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.15rem;
+    z-index: 2;
+    width: 1.15rem;
+    height: 1.15rem;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: 3px;
+    background: rgba(248, 250, 252, 0.92);
+    color: #64748b;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.col-extra-expand-btn:hover {
+    background: #e2e8f0;
+    color: #334155;
+}
+.col-extra-expand-btn[hidden] {
+    display: none !important;
+}
+.col-extra-expand-icon {
+    display: block;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    transition: transform 0.15s ease;
+}
+.col-extra-expand-icon--right {
+    border-width: 0.28rem 0 0.28rem 0.42rem;
+    border-color: transparent transparent transparent currentColor;
+}
+.col-extra-expand-icon--down {
+    border-width: 0.42rem 0.28rem 0 0.28rem;
+    border-color: currentColor transparent transparent transparent;
+}
+.col-copy-hint {
+    position: fixed;
+    z-index: 100060;
+    transform: translate(-50%, -100%) scale(0.96);
+    opacity: 0;
+    pointer-events: none;
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    background: #0f172a;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.col-copy-hint.is-visible {
+    opacity: 1;
+    transform: translate(-50%, -110%) scale(1);
+}
+.editor-file-title {
     cursor: copy;
 }
+.col-key-copyable {
+    cursor: copy;
+}
+
+/* meta 額外資訊 chip（有 meta_display_config 時） */
+.col-extra.col-extra-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 0.3rem;
+    padding: 0.4rem 0.45rem;
+}
+.col-extra.col-extra-chips.col-extra-clamp {
+    max-height: 4.2em;
+    overflow: hidden;
+}
+.col-extra.col-extra-chips.is-expanded {
+    max-height: none;
+    overflow: visible;
+}
+.meta-extra-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 100%;
+    padding: 0.12rem 0.45rem;
+    border-radius: 4px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    word-break: break-all;
+}
+.meta-extra-chip-name {
+    color: #64748b;
+    font-weight: 600;
+}
+.meta-extra-chip-name::after {
+    content: ":";
+    margin-left: 0.05rem;
+}
+.meta-extra-chip-value {
+    color: #0f172a;
+}
+
+/* 欄位對應視窗 */
+.meta-map-kind-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+}
+.meta-map-kind-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.82rem;
+}
+.meta-map-kind-title code {
+    font-size: 0.78rem;
+    background: #f8fafc;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+}
+.meta-map-kind-count {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+.meta-map-kind-samples {
+    font-size: 0.78rem;
+    color: #64748b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.meta-map-kind-roles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 0.85rem;
+    font-size: 0.8rem;
+    color: #475569;
+}
+.meta-map-kind-roles label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+}
+.meta-map-order {
+    display: inline-flex;
+    gap: 0.25rem;
+    margin-left: 0.25rem;
+}
+
