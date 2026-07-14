@@ -1,4 +1,4 @@
-狀態：規劃中（backfill 待人工確認後執行）
+狀態：已落地待驗收（inventory 已確認；backfill 隨 migration 套用）
 
 # CAT Workflow 指派髒資料 Backfill 只讀清單（2026-07-14）
 
@@ -13,7 +13,7 @@
 - 依 stage_kind：`{"review":199,"translate":26}`
 - 依目前 workflow_status：`{"assigned":225}`
 
-> **本檔僅供人工確認無誤傷；確認前禁止執行 backfill。**
+> **本清單已供人工確認；2026-07-14 驗收通過後執行 migration（含條件式 backfill）。**
 
 | # | 檔名 | stage_kind | stage_status | 被指派人 | assignee_user_id | workflow_status | assignment_id | collab_row_id | assignment_updated_at | stage_updated_at |
 |---:|------|------------|--------------|----------|------------------|-----------------|---------------|---------------|-----------------------|------------------|
@@ -242,3 +242,9 @@
 | 223 | Weapon card - 56x87mm.xlsx.sdlxliff | review | completed | 威儀 | `9f96ef05-18c9-4442-929d-42fd6ad47990` | assigned | `d24454d9-f492-4e01-b30b-3b6748b177a8` |  | 2026-06-29 13:57:36.343067+00 | 2026-06-14 14:41:55.340622+00 |
 | 224 | Weapon Types Player Aid - 75x110mm.xlsx.sdlxliff | review | completed | 威儀 | `9f96ef05-18c9-4442-929d-42fd6ad47990` | assigned | `c6101fb2-856a-4c1b-81bc-40dc7a2f680b` |  | 2026-06-29 13:57:36.343067+00 | 2026-06-14 14:41:55.340622+00 |
 | 225 | 多语言需求拆分0618-繁中.xlsx.sdlxliff | translate | completed | 威儀 | `9f96ef05-18c9-4442-929d-42fd6ad47990` | assigned | `72333b08-f7c7-4c4e-af66-ee2877946a22` |  | 2026-06-25 11:01:21.831696+00 | 2026-06-25 10:59:45.144+00 |
+
+---
+
+## 漂移註記（2026-07-14，驗收確認時）
+
+正式庫髒資料已自本清單快照的 **225** 筆增為 **227** 筆（review 200／translate 27）。多出的 2 筆來自 `440_[zho-TW][16644864][FRA Event Pages]`，於 **2026-07-14 02:18**（UTC）被 LMS sync 再次洗回 `assigned`，屬同一 bug 在修復套用前的持續發生。條件式 backfill（`stage = completed` 且指派非 `completed`）會一併修正，**無需改程式或重抓清單**。
