@@ -1063,7 +1063,10 @@ export function buildLmsAgentApi(): LmsAgentApi {
       },
 
       update: async (id, patch) => {
-        const existing = caseStore.getById(id);
+        let existing = caseStore.getById(id);
+        if (!existing) {
+          existing = await caseStore.loadCaseIfMissing(id);
+        }
         if (!existing) return fail(`找不到案件 id=${id}`);
         const validated = validateCasePatch(patch as Record<string, unknown>, existing);
         if (validated.ok === false) return failFrom(validated);

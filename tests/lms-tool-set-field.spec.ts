@@ -66,6 +66,22 @@ test.describe("LMS tool.setField（W9 wave 2 C1）", () => {
       if (!created.ok || !created.data) return { ok: false, step: "create", error: created.error };
 
       const caseId = created.data.id;
+
+      // create 後短暫等 get 可見（防 poll load 沖掉剛建列）
+      {
+        const visibleDeadline = Date.now() + 5000;
+        let visible = false;
+        while (Date.now() < visibleDeadline) {
+          const g = agent.case.get(caseId);
+          if (g.ok) {
+            visible = true;
+            break;
+          }
+          await sleep(50);
+        }
+        if (!visible) return { ok: false, step: "create-visible", error: `建立後本地暫不可見 id=${caseId}` };
+      }
+
       const toolsPatch = {
         tools: [
           {

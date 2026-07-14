@@ -554,6 +554,14 @@ async function load() {
           const pending = pendingUpdates.get(c.id);
           return pending ? { ...c, ...pending } : c;
         });
+        // 剛 create、尚未進本次 SELECT 的列：保留本地，避免整表覆寫「找不到案件」
+        for (const [id, pending] of pendingUpdates) {
+          if (fetched.some((c) => c.id === id)) continue;
+          const local = currentById.get(id);
+          if (local) {
+            fetched = [{ ...local, ...pending }, ...fetched];
+          }
+        }
       }
       cases = fetched;
       loaded = true;
@@ -592,6 +600,17 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
   }
   const record = fromDb(data);
   cases = [record, ...cases];
+  // 短窗保護：避免並行 poll load 整表覆寫時把剛 insert、尚未出現在 SELECT 的列沖掉
+  pendingUpdates.set(record.id, { title: record.title, status: record.status });
+  const existingTimer = pendingCleanupTimers.get(record.id);
+  if (existingTimer) clearTimeout(existingTimer);
+  pendingCleanupTimers.set(
+    record.id,
+    setTimeout(() => {
+      pendingUpdates.delete(record.id);
+      pendingCleanupTimers.delete(record.id);
+    }, PENDING_CLEANUP_DELAY_MS),
+  );
   notify();
   return record;
 }
