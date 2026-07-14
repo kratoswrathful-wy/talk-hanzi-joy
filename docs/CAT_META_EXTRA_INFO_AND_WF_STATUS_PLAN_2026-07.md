@@ -1,9 +1,11 @@
-狀態：實作中
+狀態：已完成
 
 # CAT：檔案狀態修復 + 額外資訊自訂／限高
 
 日期：2026-07-14  
 來源工單：`CAT_修改工單_額外資訊自訂與檔案狀態修復_2026-07-14.md`（Claude 交辦；本機 Cursor plan：`額外資訊與檔案狀態_3f1f9ca0`）
+
+> **已驗收並結案（2026-07-14）**：工項一～三預覽／正式驗收通過；細節以程式與 [`CODEMAP.md`](./CODEMAP.md) 摘要為準。合併：`#40`／`#41`／`#42` → `main`（meta 對應 #42 merge `153f15d1`）。
 
 ## 總覽
 
@@ -207,8 +209,8 @@ WHERE f.name ILIKE '%040%' OR f.name ILIKE '%420%' OR f.name ILIKE '%470%';
 
 ### I. 關聯文件
 
-- 實作細節定案後可另拆 `CAT_META_ITEMS_DISPLAY_MAP_PLAN_2026-07.md`；現以本檔為總計畫。
-- 驗收後摘要寫入 [`CODEMAP.md`](./CODEMAP.md)。
+- 實作細節以本檔與程式為準（未另拆 `CAT_META_ITEMS_DISPLAY_MAP_PLAN`）。
+- **驗收摘要已寫入** [`CODEMAP.md`](./CODEMAP.md)（額外資訊限高／展開鈕／雙擊複製；`meta_items` 欄位對應＋chip；WF stage／assignment 同步）。
 
 ---
 
