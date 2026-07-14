@@ -804,6 +804,21 @@
         renderWindow(passAnchor != null ? passAnchor : null, block, 'invalidateHeights');
     }
 
+    /** 量測單列 DOM 高度並更新 spacer（額外資訊展開／收合等顯示層變更用）。 */
+    function remeasureSegHeight(segId) {
+        if (!enabled || !cfg || !cfg.gridBody || segId == null) return false;
+        const sid = String(segId);
+        const esc = sid.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const row = cfg.gridBody.querySelector(`.grid-data-row[data-seg-id="${esc}"]`);
+        if (!row) return false;
+        const h = Math.ceil(row.getBoundingClientRect().height);
+        if (h > 0) rowHeights.set(sid, h);
+        if (_lastStartIdx >= 0 && _lastEndIdx > _lastStartIdx) {
+            updateSpacerHeights(getRenderableList(), _lastStartIdx, _lastEndIdx);
+        }
+        return true;
+    }
+
     /** Phase 2.3g：顯式導覽完成後釋放錨點，避免使用者手動捲動被拉回。 */
     function releaseNavigationAnchor() {
         _anchorSegId = null;
@@ -867,6 +882,7 @@
             return applyCenterScrollCorrection(segId, cfg.scrollEl);
         },
         invalidateHeights,
+        remeasureSegHeight,
         releaseNavigationAnchor,
         cancelNavigationAnchor,
         getDebugState,

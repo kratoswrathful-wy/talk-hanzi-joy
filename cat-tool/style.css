@@ -4670,3 +4670,29 @@ body.rev-track-mode .editor-layout-wrapper {
     border-bottom: 1px solid #f1f5f9;
     font-size: 0.85rem;
 }
+
+/* 額外資訊欄：三行截斷／展開（顯示層；不改 extraValue） */
+.col-extra {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    color: #2563eb;
+    word-break: break-all;
+    cursor: pointer;
+}
+.col-extra.col-extra-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    white-space: normal;
+}
+.col-extra.is-expanded {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    white-space: normal;
+}
+.col-extra-long-token {
+    border-bottom: 1px dotted #93c5fd;
+    cursor: copy;
+}
