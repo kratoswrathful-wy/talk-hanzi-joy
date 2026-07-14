@@ -35,4 +35,25 @@
 
 ### 手動重跑結果（2026-07-14）
 
-- （執行後由代理填寫）
+- Run：[Actions #29322613828](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29322613828)（`workflow_dispatch`／`main`＠`dc9e28db`）
+- 結論：**failure**（約 11 分鐘）
+- **再現**：`tests/lms-tool-set-field.spec.ts` — `LMS tool.setField…寫入工具多行欄位後回讀 verified`  
+  - `Error: {"ok":false,"step":"seed-tools","error":"更新後讀取案件失敗"}`（含 retry #1 同錯）
+- **本 run 通過**：`tests/dev-switch-user-persona.spec.ts`（此輪未掛）
+
+### 深入查證（同測再掛後，2026-07-14）
+
+1. Spec 的 `seed-tools` 步驟呼叫 `__lmsAgent.case.update` 塞入 `tools`；失敗訊息來自橋接層，非 Playwright 另做的 `case.get`。
+2. [`src/lib/ai-agent-bridge.ts`](../src/lib/ai-agent-bridge.ts) `case.update`（約 L1056–1063）：
+
+```ts
+await caseStore.update(id, validated.data);
+const updated = caseStore.getById(id);
+return updated ? ok(updated) : fail("更新後讀取案件失敗");
+```
+
+即：**寫入後同步讀本地 store**；`getById` 暫時拿不到就整段 `update` 判失敗。間歇失敗符合「optimistic／realtime／rehydrate 競態」而非 CAT 功能回歸。
+3. 建議修點（實作時擇一或併用）  
+   - **測試層**：seed／`setField` 前對 `case.get` 輪詢至可見（或重試 `case.update`），上限數秒。  
+   - **橋接層（較治本）**：`case.update`（同理 fee／invoice）寫後讀改短輪詢，避免所有呼叫端各做一遍。  
+4. persona 測試此輪綠：仍保留工單，因 main 歷史 #12 曾掛；實作時在 `switchToTestPersona` 前等測試模式指示元素就緒。
