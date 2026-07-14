@@ -32,6 +32,13 @@ AI 腳本 → window.__lmsAgent → 驗證層 → caseStore / feeStore → 畫�
 
 所有方法回傳 `{ ok: true, data }` 或 `{ ok: false, error, allowed? }`。
 
+**寫入後回讀（2026-07）**：`case`／`fee`／`invoice`／`clientInvoice` 寫入路徑會對本地 store 短輪詢（[`src/lib/ai-agent-readback.ts`](../src/lib/ai-agent-readback.ts)）。錯誤須區分：
+
+- `寫入失敗（實體）…` → 真正未寫入，可重試  
+- `寫入成功但回讀逾時（實體 id=…）…勿重寫` → 用 `get(id)` 確認，**禁止**當失敗重寫  
+
+細節見 [`LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md`](./LMS_AI_AGENT_QUICK_GUIDE_FOR_CLAUDE.md)「寫入後錯誤語意」。
+
 | 方法 | 說明 |
 |------|------|
 | `__lmsAgent.describe()` | 欄位型別、下拉合法值來源、時間／核取欄位、守門規則、已知限制 |
@@ -116,7 +123,7 @@ await window.__lmsAgent.describe();
 await window.__lmsAgent.options.get("taskType");
 
 // 2. 建立草稿費用並填欄位
-const created = window.__lmsAgent.fee.create({
+const created = await window.__lmsAgent.fee.create({
   title: "翻譯：樣本文件",
   assignee: "譯者甲",
   taskItems: [

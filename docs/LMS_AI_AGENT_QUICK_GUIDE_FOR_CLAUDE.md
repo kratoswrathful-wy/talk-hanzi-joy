@@ -52,6 +52,17 @@ window.__lmsAgent.options.listKeys();
 
 所有方法回傳 `{ ok: true, data }` 或 `{ ok: false, error, allowed? }`。**失敗時先讀 `allowed`**，修正值後重送。
 
+### 寫入後錯誤語意（2026-07，`ai-agent-readback`）
+
+`case`／`fee`／`invoice`／`clientInvoice` 的寫入路徑（`update`／部分 `create`／`addFees` 等）在 DB 寫入後會對**本地 store 短輪詢回讀**（預設約 5 秒）。錯誤字串請區分：
+
+| `error` 前綴 | 意義 | AI／呼叫端應做 |
+|--------------|------|----------------|
+| `寫入失敗（…）` | DB／RLS 等真正沒寫成功 | 可修正後**重試寫入** |
+| `寫入成功但回讀逾時（… id=…）` | 寫入多半已成功，但本地 store 短暫讀不到 | **勿重寫**；用對應 `*.get(id)` 確認；錯誤含 `id` |
+
+舊文案「更新後讀取…失敗」已汰換為上表（勿當成一律重寫）。
+
 ## API 速查
 
 | 方法 | 用途 |
@@ -80,11 +91,12 @@ window.__lmsAgent.options.listKeys();
 1. **先探索再寫入**：不確定選項時先 `options.get` 或 `describe()`。
 2. **時間用 ISO 8601**：例如 `2026-06-30T14:30:00.000Z`；清空傳 `null`。
 3. **狀態與刪除**：API 支援全 workflow 狀態、費用定案、請款 CRUD；**實際任務**以驗收提示限制範圍。
-4. **錯誤自我修正**：`{ ok: false, error, allowed }` → 用 `allowed` 重試。
+4. **錯誤自我修正**：`{ ok: false, error, allowed }` → 用 `allowed` 重試。  
+   **例外**：若 `error` 含「寫入成功但回讀逾時」→ **勿重寫**，改 `get(id)`（見上文錯誤語意表）。
 5. **治理**：元件層副作用（Slack、部分 edit_logs）可能不會自動觸發。
 6. **`clientInfo` 可部分更新**（2026-06-30 起）：只傳要改的欄位即可；**未傳的 `clientTaskItems` 會保留**。若 patch 含 `clientTaskItems`，則**整包陣列取代**（須傳完整營收列），或使用 `{ mergeById: true, items: [...] }`。
 7. **陣列欄位**：可整包取代，或 `{ mergeById: true, items: [...] }` 合併單列。
-
+8. **寫入方法請 `await`**：`fee.create`／`invoice.update` 等已為 async（回讀輪詢）。
 ### 常用 options key
 
 `taskType`、`billingUnit`、`client`、`contact`、`dispatchRoute`、`caseCategory`、`executionTool`、`assignee` 等（完整清單：`options.listKeys()`）。
@@ -94,7 +106,7 @@ window.__lmsAgent.options.listKeys();
 ### 建立並填寫草稿費用單
 
 ```javascript
-const r = window.__lmsAgent.fee.create({
+const r = await window.__lmsAgent.fee.create({
   title: "翻譯：樣本文件",
   assignee: "譯者甲",  // 須為 options.get("assignee") 中的 label
   taskItems: [

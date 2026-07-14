@@ -69,6 +69,25 @@ export async function focusTargetAtDisplay(
   return segId;
 }
 
+/** 設定原生 checkbox，避免 Playwright check()「點了狀態沒變」的競態。 */
+async function setNativeCheckbox(
+  frame: FrameLocator,
+  selector: string,
+  checked: boolean,
+) {
+  const loc = frame.locator(selector);
+  await loc.waitFor({ state: "attached", timeout: 10_000 });
+  await loc.evaluate((el, want) => {
+    const input = el as HTMLInputElement;
+    if (input.checked === want) return;
+    input.checked = want;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, checked);
+  await expect
+    .poll(async () => loc.isChecked().catch(() => !checked), { timeout: 5_000 })
+    .toBe(checked);
+}
+
 /** 進階篩選：句段編號範圍，並加入篩選群組。 */
 export async function applyRowRangeFilterGroup(
   frame: FrameLocator,
@@ -82,12 +101,8 @@ export async function applyRowRangeFilterGroup(
   }
   await frame.locator("#btnToggleAdvancedSF").click();
   await frame.locator("#sfAdvancedPanel:not(.hidden)").waitFor({ state: "visible", timeout: 10_000 });
-  await frame.locator("#sfRowRangeEnabled").check({ force: true });
-  if (opts?.exclude) {
-    await frame.locator("#sfRowRangeExclude").check({ force: true });
-  } else {
-    await frame.locator("#sfRowRangeExclude").uncheck({ force: true });
-  }
+  await setNativeCheckbox(frame, "#sfRowRangeEnabled", true);
+  await setNativeCheckbox(frame, "#sfRowRangeExclude", Boolean(opts?.exclude));
   await frame.locator("#sfRowRangeExpr").fill(rangeExpr);
   await frame.locator("#btnAddFilterGroup").click();
   await expect

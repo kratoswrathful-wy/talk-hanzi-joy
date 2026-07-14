@@ -326,7 +326,19 @@ export const clientInvoiceStore = {
 
     const existing = invoices.find((inv) => inv.id === id);
     const feeIds = existing?.feeIds ?? [];
-    invoices = invoices.map((inv) => (inv.id === id ? dbToApp(data, feeIds) : inv));
+    // 以 SELECT 權威列為底，再疊這次明確寫入的 updates，避免 replica／select
+    // 短暫缺欄時把樂觀寫入沖掉（setChannel／title 等 bridge 回讀會因此假失敗）。
+    const fromDb = dbToApp(data, feeIds);
+    invoices = invoices.map((inv) =>
+      inv.id === id
+        ? {
+            ...fromDb,
+            ...Object.fromEntries(
+              Object.entries(updates).filter(([, v]) => v !== undefined),
+            ),
+          }
+        : inv,
+    );
     notify();
 
     return { error: null };

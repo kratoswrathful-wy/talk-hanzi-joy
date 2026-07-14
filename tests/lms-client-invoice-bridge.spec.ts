@@ -51,9 +51,13 @@ async function ensureReconciledFeeFixture(
   // 欄位，UPDATE 內容就此遺失。這裡改用兩段式：先建立空白草稿並等網路靜止
   // 讓 INSERT confirm 落地，再用 fee.update() 補寫欄位，避開此競態，
   // 不需碰 fee-store 本體（留待未來 W10 同型修復排入待辦）。
-  const draftId = await page.evaluate(() => {
-    const agent = (window as unknown as { __lmsAgent: { fee: { create: (i: Record<string, unknown>) => { ok: boolean; data?: { id: string } } } } }).__lmsAgent;
-    const d = agent.fee.create({});
+  const draftId = await page.evaluate(async () => {
+    const agent = (window as unknown as {
+      __lmsAgent: {
+        fee: { create: (i: Record<string, unknown>) => Promise<{ ok: boolean; data?: { id: string } }> };
+      };
+    }).__lmsAgent;
+    const d = await agent.fee.create({});
     return d.ok ? d.data?.id ?? null : null;
   });
   if (!draftId) return null;

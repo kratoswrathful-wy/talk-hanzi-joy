@@ -35,17 +35,22 @@ test.describe("LMS tool.setField（W9 wave 2 C1）", () => {
 
     const title = uniqueTitle("tool-set-field");
     const r = await page.evaluate(async (caseTitle) => {
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const agent = (window as unknown as {
         __lmsAgent: {
           case: {
             create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
             update: (id: string, p: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
-            get: (id: string) => { ok: boolean; data?: { tools?: Array<{ fieldValues?: Record<string, string> }> } };
+            get: (id: string) => {
+              ok: boolean;
+              data?: { tools?: Array<{ fieldValues?: Record<string, string> }> };
+            };
           };
           tool: {
             setField: (input: {
               caseId: string;
               toolLabel: string;
+              toolEntryId?: string;
               fieldKey: string;
               value: string;
             }) => Promise<{
@@ -61,7 +66,23 @@ test.describe("LMS tool.setField（W9 wave 2 C1）", () => {
       if (!created.ok || !created.data) return { ok: false, step: "create", error: created.error };
 
       const caseId = created.data.id;
-      const seeded = await agent.case.update(caseId, {
+
+      // create 後短暫等 get 可見（防 poll load 沖掉剛建列）
+      {
+        const visibleDeadline = Date.now() + 5000;
+        let visible = false;
+        while (Date.now() < visibleDeadline) {
+          const g = agent.case.get(caseId);
+          if (g.ok) {
+            visible = true;
+            break;
+          }
+          await sleep(50);
+        }
+        if (!visible) return { ok: false, step: "create-visible", error: `建立後本地暫不可見 id=${caseId}` };
+      }
+
+      const toolsPatch = {
         tools: [
           {
             id: "te-pw",
@@ -70,16 +91,55 @@ test.describe("LMS tool.setField（W9 wave 2 C1）", () => {
             fieldValues: {},
           },
         ],
-      });
-      if (!seeded.ok) return { ok: false, step: "seed-tools", error: seeded.error };
+      };
+
+      // seed：寫後以 get 輪詢確認 tools 已在本地 store（橋接層亦有回讀輪詢；雙層防 flaky）
+      let seedError = "";
+      const seedDeadline = Date.now() + 8000;
+      let seededOk = false;
+      while (Date.now() < seedDeadline) {
+        const seeded = await agent.case.update(caseId, toolsPatch);
+        if (!seeded.ok) {
+          seedError = seeded.error || "seed update failed";
+          // 寫入成功但回讀逾時：勿重寫判斷改以 get 確認
+          if (!/回讀逾時|更新後讀取/.test(seedError)) {
+            await sleep(100);
+            continue;
+          }
+        }
+        const g = agent.case.get(caseId);
+        const tools = g.ok && Array.isArray(g.data?.tools) ? g.data.tools : [];
+        if (tools.some((t: { tool?: string }) => t.tool === "memoQ")) {
+          seededOk = true;
+          break;
+        }
+        await sleep(100);
+      }
+      if (!seededOk) return { ok: false, step: "seed-tools", error: seedError || "seed timeout：tools 未含 memoQ" };
 
       const written = await agent.tool.setField({
         caseId,
         toolLabel: "memoQ",
+        toolEntryId: "te-pw",
         fieldKey: "伺服器",
         value: "pw-mq.example.com",
       });
       if (!written.ok || !written.data) {
+        // 回讀逾時：以 get 確認 fieldValues 是否已寫入（與 bridge「勿重寫」語意對齊）
+        if (/回讀逾時/.test(written.error || "")) {
+          const g = agent.case.get(caseId);
+          const tools = g.ok && Array.isArray(g.data?.tools) ? g.data.tools : [];
+          const entry = tools.find(
+            (t: { id?: string; tool?: string; fieldValues?: Record<string, string> }) =>
+              t.id === "te-pw" || t.tool === "memoQ",
+          );
+          const val =
+            entry?.fieldValues &&
+            Object.values(entry.fieldValues).find((v) => v === "pw-mq.example.com");
+          if (val) {
+            return { ok: true, caseId, verified: true, readbackValue: val, fieldId: "readback-via-get" };
+          }
+        }
         return { ok: false, step: "setField", error: written.error };
       }
 
