@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
-import { isInOnlineTestMode } from "./test-mode";
 
 export const TEST_MODE_BANNER = "測試模式 — 目前所有操作都在測試環境，與正式資料隔離";
 
@@ -9,14 +8,22 @@ export async function expectOnlineTestMode(page: Page): Promise<void> {
   await expect(page.getByText(TEST_MODE_BANNER)).toBeVisible({ timeout: 90_000 });
 }
 
+/** 測試模式指示就緒，且假人切換鈕已渲染（換人前的確定訊號）。 */
+export async function expectTestModePersonaUiReady(page: Page): Promise<void> {
+  await expectOnlineTestMode(page);
+  await expect(
+    page.getByRole("button", { name: /^(執行長|PM|譯者)/ }),
+    "測試模式假人切換列尚未就緒",
+  ).toBeVisible({ timeout: 60_000 });
+}
+
 /**
  * 在測試模式面板切換假人（會整頁 reload）。
  * @param personaLabel DevRoleSwitcher 按鈕前綴，例如「PM」「譯者一」（DB display_name 可能為「譯者一（測試）」）
  */
 export async function switchToTestPersona(page: Page, personaLabel: string): Promise<void> {
-  if (!(await isInOnlineTestMode(page))) {
-    throw new Error("switchToTestPersona 僅適用於已進入線上測試模式");
-  }
+  // 先等橫幅＋切換列就緒（勿只靠單次 isVisible，避免尚未渲染就點）
+  await expectTestModePersonaUiReady(page);
   const btn = page.getByRole("button", { name: new RegExp(`^${personaLabel}`) });
   await expect(btn.first()).toBeVisible({ timeout: 30_000 });
   await btn.first().click();

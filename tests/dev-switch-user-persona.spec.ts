@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { expectOnlineTestMode, switchToTestPersona } from "./helpers/test-mode-persona";
+import {
+  expectTestModePersonaUiReady,
+  switchToTestPersona,
+} from "./helpers/test-mode-persona";
 
 /**
  * 回歸測試：測試模式「換人」（dev-switch-user → verifyOtp）必須真的改變登入身分。
@@ -40,12 +43,13 @@ async function currentAuthEmail(page: import("@playwright/test").Page): Promise<
 
 test("連續換人（假執行長 → PM → 譯者一）每次都真的切換身分", async ({ page }) => {
   await page.goto("/cases");
-  await expectOnlineTestMode(page);
+  await expectTestModePersonaUiReady(page);
   expect(await currentAuthEmail(page)).toBe("test-exec@test.local");
 
-  await switchToTestPersona(page, "PM"); // 內含 active persona 斷言
+  await switchToTestPersona(page, "PM"); // 內含橫幅＋切換列就緒＋active persona 斷言
   expect(await currentAuthEmail(page)).toBe("test-pm@test.local");
 
+  await expectTestModePersonaUiReady(page);
   await switchToTestPersona(page, "譯者一");
   expect(await currentAuthEmail(page)).toBe("test-t1@test.local");
 });

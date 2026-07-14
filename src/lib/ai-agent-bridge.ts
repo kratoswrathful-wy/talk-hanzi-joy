@@ -45,6 +45,11 @@ import {
   agentFailFrom as failFrom,
 } from "@/lib/ai-agent-types";
 import {
+  awaitStoreReadback,
+  failWriteFailed,
+  readbackAfterWrite,
+} from "@/lib/ai-agent-readback";
+import {
   assertPmPlusFromRoles,
   computeAdjustmentSumInClientCurrency,
   computeClientInvoiceAdjustmentLine,
@@ -818,7 +823,7 @@ export interface LmsAgentApi {
   fee: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<TranslatorFee[]>;
     get: (id: string) => AgentResult<TranslatorFee>;
-    create: (initial?: Partial<TranslatorFee>) => AgentResult<TranslatorFee>;
+    create: (initial?: Partial<TranslatorFee>) => Promise<AgentResult<TranslatorFee>>;
     update: (id: string, patch: Partial<TranslatorFee>) => Promise<AgentResult<TranslatorFee>>;
   };
   invoice: {
@@ -829,7 +834,7 @@ export interface LmsAgentApi {
       feeIds?: string[];
       title?: string;
     }) => Promise<AgentResult<Invoice>>;
-    update: (id: string, patch: Record<string, unknown>) => AgentResult<Invoice>;
+    update: (id: string, patch: Record<string, unknown>) => Promise<AgentResult<Invoice>>;
     delete: (id: string) => AgentResult<{ id: string }>;
     addFees: (invoiceId: string, feeIds: string[]) => Promise<AgentResult<Invoice>>;
     removeFee: (invoiceId: string, feeId: string) => Promise<AgentResult<Invoice>>;
@@ -1058,9 +1063,9 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (!existing) return fail(`找不到案件 id=${id}`);
         const validated = validateCasePatch(patch as Record<string, unknown>, existing);
         if (validated.ok === false) return failFrom(validated);
-        await caseStore.update(id, validated.data);
-        const updated = caseStore.getById(id);
-        return updated ? ok(updated) : fail("更新後讀取案件失敗");
+        const writeError = await caseStore.update(id, validated.data);
+        if (writeError) return failWriteFailed("案件", describeStoreError(writeError));
+        return readbackAfterWrite("案件", id, () => caseStore.getById(id));
       },
 
       generateFees: async (caseId) => {
@@ -1095,14 +1100,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
         return ok(record);
       },
 
-      create: (initial = {}) => {
+      create: async (initial = {}) => {
         const draft = feeStore.createDraft();
         if (Object.keys(initial).length === 0) return ok(draft);
         const validated = validateFeePatch(initial as Record<string, unknown>, draft);
         if (validated.ok === false) return failFrom(validated);
         feeStore.updateFee(draft.id, validated.data);
-        const created = feeStore.getFeeById(draft.id);
-        return created ? ok(created) : fail("建立費用後讀取失敗");
+        return readbackAfterWrite("費用", draft.id, () => feeStore.getFeeById(draft.id));
       },
 
       update: async (id, patch) => {
@@ -1117,8 +1121,7 @@ export function buildLmsAgentApi(): LmsAgentApi {
           updates.finalizedAt = new Date().toISOString();
         }
         feeStore.updateFee(id, updates);
-        const updated = feeStore.getFeeById(id);
-        return updated ? ok(updated) : fail("更新後讀取費用失敗");
+        return readbackAfterWrite("費用", id, () => feeStore.getFeeById(id));
       },
     },
 
@@ -1133,20 +1136,18 @@ export function buildLmsAgentApi(): LmsAgentApi {
 
       create: async ({ translator, feeIds = [], title }) => {
         const created = await invoiceStore.createInvoice(translator, feeIds);
-        if (!created) return fail("建立譯者請款失敗");
+        if (!created) return failWriteFailed("譯者請款", "建立譯者請款失敗");
         if (title) invoiceStore.updateInvoice(created.id, { title });
-        const final = invoiceStore.getInvoiceById(created.id);
-        return final ? ok(final) : fail("建立後讀取請款失敗");
+        return readbackAfterWrite("譯者請款", created.id, () => invoiceStore.getInvoiceById(created.id));
       },
 
-      update: (id, patch) => {
+      update: async (id, patch) => {
         const existing = invoiceStore.getInvoiceById(id);
         if (!existing) return fail(`找不到譯者請款 id=${id}`);
         const validated = validateInvoicePatch(patch);
         if (validated.ok === false) return failFrom(validated);
         invoiceStore.updateInvoice(id, validated.data);
-        const updated = invoiceStore.getInvoiceById(id);
-        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+        return readbackAfterWrite("譯者請款", id, () => invoiceStore.getInvoiceById(id));
       },
 
       delete: (id) => {
@@ -1158,15 +1159,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
       addFees: async (invoiceId, feeIds) => {
         if (!invoiceStore.getInvoiceById(invoiceId)) return fail(`找不到譯者請款 id=${invoiceId}`);
         await invoiceStore.addFeesToInvoice(invoiceId, feeIds);
-        const updated = invoiceStore.getInvoiceById(invoiceId);
-        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+        return readbackAfterWrite("譯者請款", invoiceId, () => invoiceStore.getInvoiceById(invoiceId));
       },
 
       removeFee: async (invoiceId, feeId) => {
         if (!invoiceStore.getInvoiceById(invoiceId)) return fail(`找不到譯者請款 id=${invoiceId}`);
         await invoiceStore.removeFeeFromInvoice(invoiceId, feeId);
-        const updated = invoiceStore.getInvoiceById(invoiceId);
-        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+        return readbackAfterWrite("譯者請款", invoiceId, () => invoiceStore.getInvoiceById(invoiceId));
       },
     },
 
@@ -1196,7 +1195,12 @@ export function buildLmsAgentApi(): LmsAgentApi {
         }
 
         const created = await clientInvoiceStore.createInvoice(clientVal, feeIds);
-        if (!created) return fail("建立客戶請款失敗（可能無 PM 以上權限或 RLS 拒絕，資料庫確認未寫入）");
+        if (!created) {
+          return failWriteFailed(
+            "客戶請款",
+            "可能無 PM 以上權限或 RLS 拒絕，資料庫確認未寫入",
+          );
+        }
 
         // 【防重複保障】INSERT 已成功、DB 已有此筆列——此後不論後續（例如
         // 補寫 title）是否順利，一律回 ok:true + created:true，只在
@@ -1207,7 +1211,7 @@ export function buildLmsAgentApi(): LmsAgentApi {
 
         if (trimmedTitle) {
           const { error: titleErr } = await clientInvoiceStore.updateInvoice(created.id, { title: trimmedTitle });
-          const latest = clientInvoiceStore.getInvoiceById(created.id);
+          const latest = await awaitStoreReadback(() => clientInvoiceStore.getInvoiceById(created.id));
           if (latest) finalInvoice = latest;
           verified = verified && !titleErr && finalInvoice.title === trimmedTitle;
         }
@@ -1224,10 +1228,9 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (validated.ok === false) return failFrom(validated);
 
         const { error } = await clientInvoiceStore.updateInvoice(id, validated.data);
-        if (error) return fail(`更新失敗：${describeStoreError(error)}`);
+        if (error) return failWriteFailed("客戶請款", describeStoreError(error));
 
-        const updated = clientInvoiceStore.getInvoiceById(id);
-        return updated ? ok(updated) : fail("更新後讀取請款失敗");
+        return readbackAfterWrite("客戶請款", id, () => clientInvoiceStore.getInvoiceById(id));
       },
 
       delete: async (id) => {
@@ -1255,11 +1258,16 @@ export function buildLmsAgentApi(): LmsAgentApi {
 
         if (plan.toAdd.length > 0) {
           const { error } = await clientInvoiceStore.addFeesToInvoice(invoiceId, plan.toAdd);
-          if (error) return fail(`加入費用失敗：${describeStoreError(error)}`);
+          if (error) return failWriteFailed("客戶請款", `加入費用失敗：${describeStoreError(error)}`);
         }
 
-        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
-        if (!updated) return fail("加入費用後讀取請款失敗");
+        const updatedResult = await readbackAfterWrite(
+          "客戶請款",
+          invoiceId,
+          () => clientInvoiceStore.getInvoiceById(invoiceId),
+        );
+        if (updatedResult.ok === false) return failFrom(updatedResult);
+        const updated = updatedResult.data;
 
         const verified = plan.toAdd.length === 0 || verifyFeeIdsOnInvoice(updated, plan.toAdd);
 
@@ -1277,10 +1285,9 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (!clientInvoiceStore.getInvoiceById(invoiceId)) return fail(`找不到客戶請款 id=${invoiceId}`);
 
         const { error } = await clientInvoiceStore.removeFeeFromInvoice(invoiceId, feeId);
-        if (error) return fail(`移除費用失敗：${describeStoreError(error)}`);
+        if (error) return failWriteFailed("客戶請款", `移除費用失敗：${describeStoreError(error)}`);
 
-        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
-        return updated ? ok(updated) : fail("移除費用後讀取請款失敗");
+        return readbackAfterWrite("客戶請款", invoiceId, () => clientInvoiceStore.getInvoiceById(invoiceId));
       },
 
       adjustAmount: async (invoiceId, input) => {
@@ -1337,10 +1344,15 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (!computed.line) return fail("無法產生調整列");
         const nextLines = [...(invoice.adjustmentLines || []), computed.line];
         const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { adjustmentLines: nextLines });
-        if (error) return fail(`調整請款額失敗：${describeStoreError(error)}`);
+        if (error) return failWriteFailed("客戶請款", `調整請款額失敗：${describeStoreError(error)}`);
 
-        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
-        if (!updated) return fail("調整後讀取請款失敗");
+        const updatedResult = await readbackAfterWrite(
+          "客戶請款",
+          invoiceId,
+          () => clientInvoiceStore.getInvoiceById(invoiceId),
+        );
+        if (updatedResult.ok === false) return failFrom(updatedResult);
+        const updated = updatedResult.data;
         const verified = (updated.adjustmentLines || []).some((l) => l.id === computed.line!.id);
         return ok({ invoice: updated, line: computed.line, verified });
       },
@@ -1358,10 +1370,15 @@ export function buildLmsAgentApi(): LmsAgentApi {
         if (validated.ok === false) return failFrom(validated);
 
         const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { billingChannel: validated.data as string });
-        if (error) return fail(`設定請款管道失敗：${describeStoreError(error)}`);
+        if (error) return failWriteFailed("客戶請款", `設定請款管道失敗：${describeStoreError(error)}`);
 
-        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
-        if (!updated) return fail("設定請款管道後讀取請款失敗");
+        const updatedResult = await readbackAfterWrite(
+          "客戶請款",
+          invoiceId,
+          () => clientInvoiceStore.getInvoiceById(invoiceId),
+        );
+        if (updatedResult.ok === false) return failFrom(updatedResult);
+        const updated = updatedResult.data;
         const verified = updated.billingChannel === validated.data;
         return ok({ invoice: updated, verified });
       },
@@ -1377,10 +1394,15 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const normalized = normalizeExpectedCollectionDate(raw);
 
         const { error } = await clientInvoiceStore.updateInvoice(invoiceId, { expectedCollectionDate: normalized });
-        if (error) return fail(`設定預計收款日失敗：${describeStoreError(error)}`);
+        if (error) return failWriteFailed("客戶請款", `設定預計收款日失敗：${describeStoreError(error)}`);
 
-        const updated = clientInvoiceStore.getInvoiceById(invoiceId);
-        if (!updated) return fail("設定預計收款日後讀取請款失敗");
+        const updatedResult = await readbackAfterWrite(
+          "客戶請款",
+          invoiceId,
+          () => clientInvoiceStore.getInvoiceById(invoiceId),
+        );
+        if (updatedResult.ok === false) return failFrom(updatedResult);
+        const updated = updatedResult.data;
         const verified = updated.expectedCollectionDate === normalized;
         return ok({ invoice: updated, verified });
       },
@@ -1414,9 +1436,11 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const validated = validateCasePatch(built.data.patch, existing);
         if (validated.ok === false) return failFrom(validated);
 
-        await caseStore.update(caseId, validated.data);
-        const updated = caseStore.getById(caseId);
-        if (!updated) return fail("寫入後讀取案件失敗");
+        const writeError = await caseStore.update(caseId, validated.data);
+        if (writeError) return failWriteFailed("案件", describeStoreError(writeError));
+        const updatedResult = await readbackAfterWrite("案件", caseId, () => caseStore.getById(caseId));
+        if (updatedResult.ok === false) return failFrom(updatedResult);
+        const updated = updatedResult.data;
 
         const actual = readToolFieldFromRecord(updated, built.data.meta);
         const result = finalizeToolSetFieldResult(built.data.meta, input.value, actual);
