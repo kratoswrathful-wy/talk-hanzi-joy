@@ -73,9 +73,18 @@ async function confirmImportConfirmedModal(frame: FrameLocator) {
   }
 }
 
+async function dismissMetaDisplayMapModal(frame: FrameLocator) {
+  const modal = frame.locator("#metaDisplayMapModal:not(.hidden)");
+  if (await modal.isVisible().catch(() => false)) {
+    await frame.locator("#btnMetaDisplayMapCancel").click();
+    await frame.locator("#metaDisplayMapModal.hidden").waitFor({ state: "attached", timeout: 15_000 });
+  }
+}
+
 async function dismissImportConfirmedModal(frame: FrameLocator) {
   await confirmImportConfirmedModal(frame);
 }
+
 
 async function confirmMqRoleOnOpen(frame: FrameLocator, timeoutMs = 120_000) {
   const modal = frame.locator("#mqRoleModal:not(.hidden)");
@@ -103,6 +112,7 @@ async function waitForEditorSegments(frame: FrameLocator, timeoutMs: number) {
         await confirmMqRoleOnOpen(frame, 5_000);
         await dismissBlockingModals(frame);
         await dismissImportConfirmedModal(frame);
+        await dismissMetaDisplayMapModal(frame);
         const rowCount = await frame.locator(".grid-data-row").count();
         if (rowCount > 0) return true;
         const segSummary = await frame.locator("#statusBarSegSummary").textContent().catch(() => "");
@@ -158,6 +168,7 @@ async function importFixture(frame: FrameLocator, fixturePath: string, timeoutMs
       async () => {
         await dismissLangMismatchDialog(frame);
         await dismissImportConfirmedModal(frame);
+        await dismissMetaDisplayMapModal(frame);
         const wizardHidden = await frame
           .locator("#wizardOverlay")
           .evaluate((el) => el.classList.contains("hidden"));
@@ -169,6 +180,7 @@ async function importFixture(frame: FrameLocator, fixturePath: string, timeoutMs
     .toBe(true);
 
   await dismissLangMismatchDialog(frame);
+  await dismissMetaDisplayMapModal(frame);
 
   await frame.locator(".edit-file-btn").first().waitFor({ state: "visible", timeout: 30_000 });
 }
@@ -198,6 +210,7 @@ export async function openOfflineCatWithFile(
   await importFixture(frame, fixturePath, importTimeoutMs);
   await openImportedFileInEditor(frame, editorTimeoutMs);
   await dismissBlockingModals(frame);
+  await dismissMetaDisplayMapModal(frame);
 
   return frame;
 }

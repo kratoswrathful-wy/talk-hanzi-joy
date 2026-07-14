@@ -78,7 +78,15 @@
         return patch;
     }
 
-    /** 內容不變時仍同步 xliffTuId／globalId（匯出查找與列表序） */
+    function metaItemsFingerprint(items) {
+        try {
+            return JSON.stringify(Array.isArray(items) ? items : []);
+        } catch (_) {
+            return '[]';
+        }
+    }
+
+    /** 內容不變時仍同步 xliffTuId／globalId／metaItems（匯出查找、列表序、顯示層） */
     function buildIncomingMetadataPatch(existing, incoming) {
         const patch = {};
         if (incoming.xliffTuId != null && String(incoming.xliffTuId).trim()) {
@@ -92,6 +100,14 @@
                 ? Number(existing.globalId)
                 : NaN;
             if (gid !== prevGid) patch.globalId = gid;
+        }
+        // 舊句段無 meta_items（或為 []）經「更新作業檔」刷新時補齊；不改 xliffTuId／idValue
+        if (Object.prototype.hasOwnProperty.call(incoming, 'metaItems') || Array.isArray(incoming.metaItems)) {
+            const nextFp = metaItemsFingerprint(incoming.metaItems);
+            const prevFp = metaItemsFingerprint(existing.metaItems);
+            if (nextFp !== prevFp) {
+                patch.metaItems = Array.isArray(incoming.metaItems) ? incoming.metaItems : [];
+            }
         }
         return patch;
     }
@@ -218,9 +234,12 @@
                 patch.targetTags = [];
             }
 
-            // idValue / extraValue（新版為準）
+            // idValue / extraValue（新版為準；匯出鍵仍用原始值，不改為顯示 Key）
             patch.idValue    = incoming.idValue ?? existing.idValue;
             patch.extraValue = incoming.extraValue ?? existing.extraValue;
+            if (Object.prototype.hasOwnProperty.call(incoming, 'metaItems') || Array.isArray(incoming.metaItems)) {
+                patch.metaItems = Array.isArray(incoming.metaItems) ? incoming.metaItems : [];
+            }
             if (incoming.xliffTuId != null && String(incoming.xliffTuId).trim()) {
                 patch.xliffTuId = incoming.xliffTuId;
             } else if (existing.xliffTuId) {

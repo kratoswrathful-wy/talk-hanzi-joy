@@ -59,7 +59,7 @@ export default defineConfig({
     {
       name: "chromium",
       dependencies: ["setup"],
-      testMatch: /(dev-switch-user-persona|cat-navigation-2-3q|cat-bcd-wave-acceptance|ai-bridge-phase2|w5-phase2-billing-rls|w10-fees-visible-pm|w10-fees-visible-translator|cat-ai-batch-progress|cat-modal-state-bridge|lms-tool-set-field|lms-client-invoice-bridge|case-copy-title-refresh)\.spec\.ts/,
+      testMatch: /(dev-switch-user-persona|cat-navigation-2-3q|cat-bcd-wave-acceptance|ai-bridge-phase2|w5-phase2-billing-rls|w10-fees-visible-pm|w10-fees-visible-translator|cat-ai-batch-progress|cat-modal-state-bridge|cat-meta-display-map|lms-tool-set-field|lms-client-invoice-bridge|case-copy-title-refresh)\.spec\.ts/,
       use: {
         storageState: "playwright/.auth/user.json",
       },

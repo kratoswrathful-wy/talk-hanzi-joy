@@ -1077,6 +1077,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           if (patch.idValue        !== undefined) dbPatch.id_value         = patch.idValue;
           if (patch.xliffTuId      !== undefined) dbPatch.xliff_tu_id      = patch.xliffTuId;
           if (patch.extraValue     !== undefined) dbPatch.extra_value      = patch.extraValue;
+          if (patch.metaItems      !== undefined) {
+            dbPatch.meta_items = Array.isArray(patch.metaItems) ? patch.metaItems : [];
+          }
           if (patch.status         !== undefined) dbPatch.status           = patch.status;
           if (patch.wfTransConfirmedAt !== undefined) dbPatch.wf_trans_confirmed_at = patch.wfTransConfirmedAt;
           if (patch.wfTransConfirmedBy !== undefined) dbPatch.wf_trans_confirmed_by = patch.wfTransConfirmedBy;

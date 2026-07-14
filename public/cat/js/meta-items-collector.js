@@ -1,3 +1,5 @@
+(function (global) {
+'use strict';
 /**
  * XLIFF 家族中繼資料收集器。
  * 產出統一 meta_items：[{ sourceType, name, value }]
@@ -12,7 +14,7 @@
  * @param {MetaItem} item
  * @returns {string}
  */
-export function itemKey(item) {
+function itemKey(item) {
   if (!item) return "";
   return `${String(item.sourceType || "").trim()}::${String(item.name || "").trim()}`;
 }
@@ -21,7 +23,7 @@ export function itemKey(item) {
  * @param {unknown} items
  * @returns {MetaItem[]}
  */
-export function normalizeMetaItems(items) {
+function normalizeMetaItems(items) {
   if (!Array.isArray(items)) return [];
   const out = [];
   for (const raw of items) {
@@ -55,7 +57,7 @@ function pushItem(items, sourceType, name, value) {
  * @param {{ isMqxliff?: boolean }} [opts]
  * @returns {MetaItem[]}
  */
-export function collectFromTransUnit(tu, opts) {
+function collectFromTransUnit(tu, opts) {
   const items = [];
   if (!tu || tu.nodeType !== 1) return items;
   const isMq = !!(opts && opts.isMqxliff);
@@ -139,7 +141,7 @@ export function collectFromTransUnit(tu, opts) {
  * @param {Element} unit
  * @returns {MetaItem[]}
  */
-export function collectFromXliff2Unit(unit) {
+function collectFromXliff2Unit(unit) {
   const items = [];
   if (!unit || unit.nodeType !== 1) return items;
   const uid = (unit.getAttribute("id") || "").trim();
@@ -162,7 +164,7 @@ export function collectFromXliff2Unit(unit) {
  * @param {Array<{ metaItems?: MetaItem[] }>} segments
  * @param {number} [sampleSize=20]
  */
-export function summarizeMetaItemKinds(segments, sampleSize) {
+function summarizeMetaItemKinds(segments, sampleSize) {
   const n = Math.max(1, sampleSize == null ? 20 : sampleSize);
   const map = new Map();
   const list = Array.isArray(segments) ? segments.slice(0, n) : [];
@@ -190,7 +192,7 @@ export function summarizeMetaItemKinds(segments, sampleSize) {
   return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
 }
 
-export const MetaItemsCollector = {
+const MetaItemsCollector = {
   itemKey,
   normalizeMetaItems,
   collectFromTransUnit,
@@ -198,8 +200,6 @@ export const MetaItemsCollector = {
   summarizeMetaItemKinds,
 };
 
-if (typeof globalThis !== "undefined") {
-  globalThis.MetaItemsCollector = MetaItemsCollector;
-}
 
-export default MetaItemsCollector;
+global.MetaItemsCollector = MetaItemsCollector;
+})(typeof globalThis !== 'undefined' ? globalThis : this);

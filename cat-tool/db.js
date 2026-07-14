@@ -1476,6 +1476,8 @@ const DBService = {
             if (patch.targetTags     !== undefined) dbPatch.targetTags     = patch.targetTags;
             if (patch.idValue        !== undefined) dbPatch.idValue        = patch.idValue;
             if (patch.extraValue     !== undefined) dbPatch.extraValue     = patch.extraValue;
+            if (patch.metaItems      !== undefined) dbPatch.metaItems      = Array.isArray(patch.metaItems) ? patch.metaItems : [];
+            if (patch.xliffTuId      !== undefined) dbPatch.xliffTuId      = patch.xliffTuId;
             if (patch.status         !== undefined) dbPatch.status         = patch.status;
             if (patch.wfTransConfirmedAt !== undefined) dbPatch.wfTransConfirmedAt = patch.wfTransConfirmedAt;
             if (patch.wfTransConfirmedBy !== undefined) dbPatch.wfTransConfirmedBy = patch.wfTransConfirmedBy;

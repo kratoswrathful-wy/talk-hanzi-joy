@@ -5,8 +5,8 @@ import {
   itemKey,
   normalizeMetaItems,
   summarizeMetaItemKinds,
-} from "./meta-items-collector.js";
-import { applyMetaDisplay, normalizeMetaDisplayConfig } from "./meta-display-apply.js";
+} from "./meta-items-collector.mjs";
+import { applyMetaDisplay, normalizeMetaDisplayConfig, buildMetaExtraChipsCellHtml } from "./meta-display-apply.mjs";
 
 function parseXml(xml) {
   return new DOMParser().parseFromString(xml, "text/xml");
@@ -114,13 +114,33 @@ describe("meta-display-apply：未設 config ≡ 舊行為", () => {
     expect(r.displayExtraText).toBe("/p");
   });
 
-  it("hiddenItems 不進額外", () => {
+  it("有 config 但 metaItems 為空 → 混合舊句段仍走 fallback", () => {
+    const oldSeg = {
+      idValue: "legacy-key",
+      keys: ["legacy-key"],
+      extraValue: "legacy-extra",
+      metaItems: [],
+    };
+    const r = applyMetaDisplay(oldSeg, {
+      keyItem: "context::x-mmq-context",
+      extraItems: ["context::x-path"],
+      hiddenItems: [],
+    });
+    expect(r.usesConfig).toBe(false);
+    expect(r.displayKeys).toEqual(["legacy-key"]);
+    expect(r.displayExtraText).toBe("legacy-extra");
+    expect(r.displayExtraChips).toBeNull();
+  });
+
+  it("有 config 且有 metaItems → 產出 chips HTML", () => {
     const r = applyMetaDisplay(seg, {
       keyItem: "context::x-mmq-context",
       extraItems: ["context::x-path"],
-      hiddenItems: ["context::x-path"],
     });
-    expect(r.displayExtraChips).toEqual([]);
-    expect(r.displayExtraText).toBe("");
+    expect(r.usesConfig).toBe(true);
+    const html = buildMetaExtraChipsCellHtml(r.displayExtraChips, { expanded: false });
+    expect(html).toContain("meta-extra-chip");
+    expect(html).toContain("x-path");
+    expect(html).toContain("/p");
   });
 });

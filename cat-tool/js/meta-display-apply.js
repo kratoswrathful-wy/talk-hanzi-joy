@@ -1,9 +1,11 @@
+(function (global) {
+'use strict';
+const itemKey = global.MetaItemsCollector.itemKey;
+const normalizeMetaItems = global.MetaItemsCollector.normalizeMetaItems;
 /**
  * meta_display_config 顯示層套用（純函式）。
  * 未設 config → 行為與現況 idValue／extraValue／keys 完全相同。
  */
-
-import { itemKey, normalizeMetaItems } from "./meta-items-collector.js";
 
 /**
  * @typedef {{ sourceType: string, name: string, value: string }} MetaItem
@@ -18,7 +20,7 @@ import { itemKey, normalizeMetaItems } from "./meta-items-collector.js";
  * @param {unknown} config
  * @returns {MetaDisplayConfig|null}
  */
-export function normalizeMetaDisplayConfig(config) {
+function normalizeMetaDisplayConfig(config) {
   if (!config || typeof config !== "object") return null;
   const c = /** @type {any} */ (config);
   const keyItem =
@@ -59,10 +61,63 @@ function legacyKeys(seg) {
  *   displayExtraChips: Array<{ key: string, name: string, value: string }>|null,
  * }}
  */
-export function applyMetaDisplay(seg, config) {
+/**
+ * Escape for HTML attribute / text (與 ExtraInfoDisplay 對齊).
+ * @param {string} s
+ */
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * @param {Array<{ key: string, name: string, value: string }>} chips
+ * @param {{ expanded?: boolean }} [opts]
+ * @returns {string}
+ */
+function buildMetaExtraChipsCellHtml(chips, opts = {}) {
+  const expanded = !!opts.expanded;
+  const list = Array.isArray(chips) ? chips : [];
+  const classes = ["col-extra", "col-extra-chips", expanded ? "is-expanded" : "col-extra-clamp"].join(
+    " ",
+  );
+  if (!list.length) {
+    return `<div class="${classes}"></div>`;
+  }
+  const shorten =
+    typeof globalThis !== "undefined" &&
+    globalThis.ExtraInfoDisplay &&
+    typeof globalThis.ExtraInfoDisplay.shortenLongToken === "function"
+      ? globalThis.ExtraInfoDisplay.shortenLongToken
+      : (t) => String(t ?? "");
+  const inner = list
+    .map((c) => {
+      const name = String(c.name || "");
+      const value = String(c.value || "");
+      const shown = expanded ? value : shorten(value);
+      const tip = escapeHtml(name ? `${name}: ${value}` : value);
+      return (
+        `<span class="meta-extra-chip" data-meta-key="${escapeHtml(c.key || "")}" ` +
+        `title="${tip}" data-full="${escapeHtml(value)}">` +
+        (name
+          ? `<span class="meta-extra-chip-name">${escapeHtml(name)}</span>`
+          : "") +
+        `<span class="meta-extra-chip-value">${escapeHtml(shown)}</span>` +
+        `</span>`
+      );
+    })
+    .join("");
+  return `<div class="${classes}">${inner}</div>`;
+}
+
+function applyMetaDisplay(seg, config) {
   const cfg = normalizeMetaDisplayConfig(config);
   const items = normalizeMetaItems(seg && seg.metaItems);
 
+  // 未設 config，或句段尚無 meta_items（舊匯入／migration 後未刷新）→ 一律舊行為
   if (!cfg || !items.length) {
     return {
       usesConfig: false,
@@ -103,13 +158,12 @@ export function applyMetaDisplay(seg, config) {
   };
 }
 
-export const MetaDisplayApply = {
+const MetaDisplayApply = {
   normalizeMetaDisplayConfig,
   applyMetaDisplay,
+  buildMetaExtraChipsCellHtml,
 };
 
-if (typeof globalThis !== "undefined") {
-  globalThis.MetaDisplayApply = MetaDisplayApply;
-}
 
-export default MetaDisplayApply;
+global.MetaDisplayApply = MetaDisplayApply;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
