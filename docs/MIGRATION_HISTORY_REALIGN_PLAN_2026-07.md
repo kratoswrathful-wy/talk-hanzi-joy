@@ -1,4 +1,4 @@
-狀態：規劃中
+狀態：已落地待驗收
 
 # Supabase migration 歷史對齊——執行計畫（審核用）
 
@@ -7,12 +7,30 @@
 - **正式庫 project id**：`wshsmerltcakffllgyul`
 - **目標**：讓 `supabase db push` 恢復一鍵可用（不必再以 MCP `apply_migration`＋`migration repair` 繞路）
 - **性質**：**只動** `supabase_migrations.schema_migrations` 的版號紀錄，以及（若審核裁定需要）repo 內 placeholder 檔；**全程不改**實際資料表結構、函式、RLS 內容、業務資料
-- **紅線（審核通過前）**：**禁止**對 `schema_migrations` 執行任何 `migration repair`／UPDATE／DELETE；本 PR **僅文件**
-- **對齊前快照**：[`MIGRATION_HISTORY_REALIGN_SNAPSHOT_PRE_2026-07-15.md`](MIGRATION_HISTORY_REALIGN_SNAPSHOT_PRE_2026-07-15.md)（已唯讀落地）
+- **執行狀態（2026-07-15）**：§10 預設方案已執行完畢；終驗 T1–T4＋修正後 T5 通過。對齊後快照見 [`MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md`](MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md)。防再發見 [`DEV_PIPELINE.md`](DEV_PIPELINE.md)。
+- **對齊前快照**：[`MIGRATION_HISTORY_REALIGN_SNAPSHOT_PRE_2026-07-15.md`](MIGRATION_HISTORY_REALIGN_SNAPSHOT_PRE_2026-07-15.md)
 - **範圍外（交叉引用，本工單不處理）**：
   - Branching／從零重放／baseline 缺檔：[`BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md)
-  - 2026-07-04 曾將 DB 版號 `20260430205338` 改登記為 `20260502120001`：[`MIGRATION_HISTORY_REPAIR_2026-07-04.md`](MIGRATION_HISTORY_REPAIR_2026-07-04.md)（與本計畫 B-1／C-1 相關，須一併審）
+  - 2026-07-04 曾將 DB 版號 `20260430205338` 改登記為 `20260502120001`：[`MIGRATION_HISTORY_REPAIR_2026-07-04.md`](MIGRATION_HISTORY_REPAIR_2026-07-04.md)（與本計畫 B-1／C-1 相關；執行時採「revert B1＋applied C1」）
 
+---
+
+## 0. 審核決策與執行紀錄（2026-07-15）
+
+**§10 勾選（已核准）**：採納預設；B1 改案不採；D-opt 不做；凍結後連續執行；授權動手。
+
+**T5 修正**：無害試推 migration **留在 repo 與歷史表**（勿再 repair reverted）。
+
+**實際操作摘要**：
+
+1. 合併計畫 PR #44（`51ee3480`）。
+2. 凍結檢查：多 worktree 無並行 migration；遠端清單與 PRE 快照一致。
+3. 歷史對齊（單一事務）：A1–A6 `UPDATE version`（保留 statements）；A7–A10／B1–B3 `DELETE`；C1 `INSERT` placeholder。
+4. T1：`supabase migration list` Local＝Remote；腳本 `--live` 通過。
+5. T2：`db push --dry-run` → up to date。
+6. T3：catalog／fees_visible 指紋不變。
+7. T5：新增並 `db push` `20260715120000_migration_history_realign_noop.sql`（已留存）。
+8. 第二階段：`docs/DEV_PIPELINE.md`、`AGENTS.md`、CI workflow＋fixture 模擬（「只 repair 不補檔」exit 1）。
 ---
 
 ## 1. 原則（與工單一致）
@@ -207,7 +225,7 @@ supabase migration repair --status applied <version>
 | T2 | `supabase db push --dry-run`：**無**待套用、無報錯 |
 | T3 | 對齊前後 schema dump **diff 為空**（實際 schema 零變動） |
 | T4 | 對齊後 `schema_migrations` 全量再存 docs（SNAPSHOT_POST） |
-| T5 | （建議）新增一支**無害** migration（例如僅註解）走真實 `db push` 一次，成功後可再 reverted 該實驗列或另開清理——細節審核時定 |
+| T5 | 新增一支**無害** migration，走真實 `db push` 一次；**檔與歷史列保留**（勿再 reverted） |
 
 ---
 
@@ -236,19 +254,20 @@ supabase migration repair --status applied <version>
 
 ## 10. 請驗收方確認的決策勾選
 
-- [ ] **採納預設**：A 全表（時鐘 reverted＋規劃 applied）＋ B1/B2/B3 全 reverted（不補檔）＋ C1 applied＋ D 不動
-- [ ] **B1 改案**：保留 `20001` applied，並自 DB 匯出補 repo 檔（放棄「只留規劃檔名」的嚴格解讀）
-- [ ] **D-opt**：消除 `29234626`（revert DB＋刪 repo placeholder）
-- [ ] **凍結窗口時段**：（填預計 UTC+8 時段）
-- [ ] **授權動手**：核准後再開實作 PR／由代理執行 repair（本文件 PR **不含**任何歷史表變更）
+- [x] **採納預設**：A 全表（時鐘 reverted＋規劃 applied）＋ B1/B2/B3 全 reverted（不補檔）＋ C1 applied＋ D 不動
+- [ ] **B1 改案**：保留 `20001` applied，並自 DB 匯出補 repo 檔（**不採**）
+- [ ] **D-opt**：消除 `29234626`（**不做**）
+- [x] **凍結窗口時段**：執行代理確認無他方動 migration 後連續做完
+- [x] **授權動手**：已核准並執行（2026-07-15）
 
 ---
 
-## 11. 本 PR 交付物
+## 11. 交付物
 
 | 檔案 | 用途 |
 |---|---|
-| 本檔 | 執行計畫＋B 類依據＋指令草案 |
+| 本檔 | 執行計畫＋B 類依據＋執行紀錄 |
 | [`MIGRATION_HISTORY_REALIGN_SNAPSHOT_PRE_2026-07-15.md`](MIGRATION_HISTORY_REALIGN_SNAPSHOT_PRE_2026-07-15.md) | 對齊前歷史表快照 |
-
-**明確未做**：任何 `migration repair`、任何對 `schema_migrations` 的寫入、任何 schema DDL。
+| [`MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md`](MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md) | 對齊後快照＋終驗 |
+| [`DEV_PIPELINE.md`](DEV_PIPELINE.md) | 防再發規則（第二階段） |
+| `supabase/migrations/20260715120000_migration_history_realign_noop.sql` | T5 no-op（保留） |
