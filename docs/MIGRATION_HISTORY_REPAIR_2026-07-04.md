@@ -131,8 +131,8 @@ client_invoice_fees, invitations, invoice_fees, slack_oauth_states, user_roles, 
 ## 後續處理建議
 
 1. **不在本次一併處理**：修「baseline schema 缺失」需要產出一份完整的 schema 快照 migration（例如對正式資料庫做一次 `pg_dump --schema-only` 等效操作，把目前「查無來源 migration」的物件定義完整補進一支新的、獨立的 migration），工程量與風險都明顯超出本次「單筆版號修正」的範圍，需要另開獨立文件規劃、獨立分支執行，**不得**與 Phase 1 分支或 lint 清零工項混在一起。
-2. **git repo 對齊**：即使正式 DB 的 metadata 已經修好，`git` 裡的 migration 檔案（本次修正的 `20260430205338` 那筆檔案，以及先前已知的 `w5`／`w10` 系列本機檔名版號與遠端不一致問題）仍然沒有對齊。這會持續讓 `supabase db push` 出現「本機／遠端版本對不上」的提示。這部分同樣建議另開獨立分支處理，不混入 Phase 1。
-3. **在 baseline schema 快照補齊之前**：任何工項若要用 Supabase Branching 驗證「從零重建」，都可能撞到本文件列出的（或尚未發現的）同類缺口，屬於已知限制，不代表被驗證工項本身有問題。
+2. ~~**git repo 對齊**~~（**已完成 2026-07-15**）：`w5`／`w10` 時鐘版號與規劃檔名、以及相關 B／C 類漂移，已於正式庫歷史對齊工程收斂；`supabase db push` 正門恢復。見 [`MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md`](MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md)（狀態：已完成）與 [`DEV_PIPELINE.md`](DEV_PIPELINE.md)。
+3. **在 baseline schema 快照補齊之前**：任何工項若要用 Supabase Branching 驗證「從零重建」，都可能撞到本文件列出的（或尚未發現的）同類缺口，屬於已知限制，不代表被驗證工項本身有問題。（baseline 仍見 [`BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md`](BASELINE_SCHEMA_REPAIR_PLAN_2026-07.md)，與本條「版號／db push」問題分開。）
 
 ## Branching 驗證結果總結
 

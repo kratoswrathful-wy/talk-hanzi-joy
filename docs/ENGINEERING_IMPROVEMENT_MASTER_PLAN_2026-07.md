@@ -257,6 +257,7 @@ flowchart LR
 - [CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md](CAT_LARGE_FILE_VIRTUAL_SCROLL_NAV_DEVLOG_2026-07.md) — 寫入來源追蹤法範例
 - [CODEMAP.md](CODEMAP.md) — 功能與路徑對照（驗收後現況摘要寫入處）
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) — 部署與 migration 檢核
+- [DEV_PIPELINE.md](DEV_PIPELINE.md)／[MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md](MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md) — **Migration 歷史對齊已完成（2026-07-15）**：repo ↔ 正式庫版號一致、`db push` 正門恢復；CI 哨兵（fixture 擋關＋live 非擋關）。原「MCP／repair 繞路」待對齊項結案；Branching／baseline 缺檔仍見獨立計畫。
 - [TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11 — W9-A DOM 定位標記對照表（AI 代理操作用）
 - [supabase/tests/w10_translator_read_check.sql](../supabase/tests/w10_translator_read_check.sql)、[w10_fees_visible_mask_check.sql](../supabase/tests/w10_fees_visible_mask_check.sql)、[w10_fees_write_check.sql](../supabase/tests/w10_fees_write_check.sql) — W10 三批次 DB 層驗證腳本（權威回歸基準）
 - [CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md) — **獨立於本計畫**的 CAT AI 模型 registry 專案（不計入 R/W 工項編號）；Phase 3A 已 pivot，見 §16

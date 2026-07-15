@@ -1,4 +1,4 @@
-狀態：已落地待驗收
+狀態：已完成（2026-07-15）
 
 # Supabase migration 歷史對齊——執行計畫（審核用）
 
@@ -254,11 +254,13 @@ supabase migration repair --status applied <version>
 
 ## 10. 請驗收方確認的決策勾選
 
-- [x] **採納預設**：A 全表（時鐘 reverted＋規劃 applied）＋ B1/B2/B3 全 reverted（不補檔）＋ C1 applied＋ D 不動
-- [ ] **B1 改案**：保留 `20001` applied，並自 DB 匯出補 repo 檔（**不採**）
-- [ ] **D-opt**：消除 `29234626`（**不做**）
-- [x] **凍結窗口時段**：執行代理確認無他方動 migration 後連續做完
-- [x] **授權動手**：已核准並執行（2026-07-15）
+審核紀錄 2026-07-15：
+
+- [x] **採納預設** ✓：A 全表（時鐘 reverted＋規劃 applied）＋ B1/B2/B3 全 reverted（不補檔）＋ C1 applied＋ D 不動
+- [x] **B1 改案** ✗：不採（Branching statements 完整性歸 baseline）
+- [x] **D-opt** ✗：不做（維持最小風險）
+- [x] **凍結窗口時段** ✓：執行代理確認無他方動 migration 後連續做完
+- [x] **授權動手** ✓：已核准並執行
 
 ---
 
@@ -271,3 +273,13 @@ supabase migration repair --status applied <version>
 | [`MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md`](MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md) | 對齊後快照＋終驗 |
 | [`DEV_PIPELINE.md`](DEV_PIPELINE.md) | 防再發規則（第二階段） |
 | `supabase/migrations/20260715120000_migration_history_realign_noop.sql` | T5 no-op（保留） |
+
+---
+
+## 12. 執行結果（2026-07-15）
+
+- 正式庫 `schema_migrations` 對齊後 **135** 列，與 repo `supabase/migrations/*.sql` 一一對應；`db push` 正門恢復。
+- **T1–T5 全過**（T5 依審核修正：`20260715120000_migration_history_realign_noop` **留檔不清理**）。
+- 對齊後快照：[`MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md`](MIGRATION_HISTORY_REALIGN_SNAPSHOT_POST_2026-07-15.md)。
+- CI live 哨兵首跑（token 就緒後 `workflow_dispatch`）：https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/29387057114（`Finished supabase link.`＋`migration history synced`）。
+- 計畫文件 PR [#44](https://github.com/kratoswrathful-wy/talk-hanzi-joy/pull/44)；實作＋防再發 PR [#45](https://github.com/kratoswrathful-wy/talk-hanzi-joy/pull/45)。

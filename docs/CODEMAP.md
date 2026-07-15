@@ -182,6 +182,12 @@
 | 預設群組版面 | `src/lib/ui-toolbar-groups-defaults.ts` |
 | 圖示渲染 | `src/lib/ui-button-icon-render.tsx` |
 
+## 資料庫／Migration 維運
+
+| 項目 | 位置 |
+|------|------|
+| **Migration 歷史對齊（2026-07-15 已完成）**：repo ↔ 正式庫版號已對齊（PR [#44](https://github.com/kratoswrathful-wy/talk-hanzi-joy/pull/44) 計畫）；`supabase db push` 恢復正門；CI 哨兵上線（PR [#45](https://github.com/kratoswrathful-wy/talk-hanzi-joy/pull/45)，fixture 擋關＋live 每日非擋關） | 計畫 [`MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md`](./MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md)；規則 [`DEV_PIPELINE.md`](./DEV_PIPELINE.md)；腳本 `scripts/check-migration-history.mjs`；workflow `.github/workflows/migration-history.yml` |
+
 ## Vercel Serverless API（`api/`）
 
 | 項目 | 位置 |
