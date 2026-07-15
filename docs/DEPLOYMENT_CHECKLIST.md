@@ -38,6 +38,9 @@ npx supabase db push
 
 可先檢視：`npx supabase db push --dry-run`
 
+> **正式庫 migration 節奏（防歷史漂移）**：一律 `db push`；緊急 MCP 直套必須「repair＋補檔」缺一不可。見 [`DEV_PIPELINE.md`](./DEV_PIPELINE.md)。
+
+
 **驗收**：
 
 - CLI 顯示 migration 套用成功。

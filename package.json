@@ -26,7 +26,9 @@
     "backfill:cat-original-files": "node scripts/backfill-cat-original-files.mjs",
     "migrate:case-cat-links": "node scripts/migrate-case-tools-to-cat-links.mjs",
     "migrate:case-cat-links:apply": "node scripts/migrate-case-tools-to-cat-links.mjs --apply",
-    "verify:supabase-migrations": "supabase migration list"
+    "verify:supabase-migrations": "supabase migration list --linked",
+    "check:migration-history": "node scripts/check-migration-history.mjs --live",
+    "check:migration-history:fixture": "node scripts/check-migration-history.mjs --fixture tests/fixtures/migration-history-synced.json"
   },
   "dependencies": {
     "@blocknote/shadcn": "^0.47.1",

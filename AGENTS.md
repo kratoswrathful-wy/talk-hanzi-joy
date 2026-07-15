@@ -4,7 +4,8 @@
 
 ### (A) 給 AI／協作者的行為規則
 
-- **本檔** — 對話語言、推送慣例、CAT 單一來源、工作評估與文件、對話與執行（含資料庫操作）與下列章節。
+- **本檔** — 對話語言、推送慣例、CAT 單一來源、工作評估與文件、對話與執行（含資料庫操作／**正式庫 migration 節奏**）與下列章節。
+- **[`docs/DEV_PIPELINE.md`](docs/DEV_PIPELINE.md)** — 正式庫 **必須 `db push`**、緊急 MCP 直套的「repair＋補檔」雙要件、本次漂移反面案例、CI 哨兵。
 - **[`.cursor/rules/`](.cursor/rules/)** — 依你正在編輯的檔案路徑自動套用（例如 [`cat-tool-source.mdc`](.cursor/rules/cat-tool-source.mdc)、[`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc)）；預設非全域常駐，觸及對應 glob 時才注入。
 - **[`.cursor/rules/language-zh-tw.mdc`](.cursor/rules/language-zh-tw.mdc)** — **全域常駐**：對話與文件僅台灣正體中文，禁止混用其他語言書寫說明正文。
 - **[`.cursor/rules/claude-ai-acceptance-slack.mdc`](.cursor/rules/claude-ai-acceptance-slack.mdc)** — **全域常駐**：使用者指定「Claude／AI 驗收」時，自動撰寫 AI 可執行驗收要求並發送到 Slack `#development`。
@@ -167,9 +168,20 @@
 
 ### Supabase 與資料庫操作
 
-- 變更若伴隨 **migration**（資料庫結構版本變更）、種子資料或專案慣例中的 Supabase／Postgres 步驟，**預設由代理在權限與環境允許時直接執行完畢**（例如新增或修改 `supabase/migrations/*.sql` 後執行 **`supabase db push`**；實際指令與部署順序以 [`docs/HANDOFF.md`](docs/HANDOFF.md)、[`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) 為準）。
+- 變更若伴隨 **migration**（資料庫結構版本變更）、種子資料或專案慣例中的 Supabase／Postgres 步驟，**預設由代理在權限與環境允許時直接執行完畢**（例如新增或修改 `supabase/migrations/*.sql` 後執行 **`supabase db push`**；實際指令與部署順序以 [`docs/HANDOFF.md`](docs/HANDOFF.md)、[`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md)、[`docs/DEV_PIPELINE.md`](docs/DEV_PIPELINE.md) 為準）。
 - **不要**預設把整串流程留給使用者執行；結尾不應以「請執行以下 bash」當成預設交付。
 - 若執行失敗（未 link、缺憑證、無法連線、僅 Dashboard 可完成等），應簡述**錯誤與阻擋原因**，並只請使用者補**無法代辦的那一步**。
+
+#### 正式庫 migration 節奏（強制，防歷史漂移）
+
+詳細規格與反面案例：[`docs/DEV_PIPELINE.md`](docs/DEV_PIPELINE.md)。
+
+1. **正式庫變更一律走 `supabase db push`**（先有 repo 檔，再 push）。以 **repo 檔名時間戳為唯一事實來源**。
+2. **MCP `apply_migration`／Dashboard 直套僅限緊急狀況**；當場必須完成兩件事，**缺一不可**：
+   - `migration repair --status applied <version>`（版號＝下一步檔名時間戳）
+   - **在 repo 補對應** `supabase/migrations/<同一版號>_….sql`
+3. **禁止**「只 repair 不補檔」、或遠端用實際套用時鐘、repo 用另一組規劃版號（工項一／二繞路曾造成雙重記錄，導致 `db push` 長期不可用；見 [`docs/MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md`](docs/MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md)）。
+4. 推送／合併含 migration 的變更前，跑 `npx supabase migration list --linked` 或 `node scripts/check-migration-history.mjs --live`，確認 Local／Remote 一致。
 
 ### 本機 `.env`（強制，禁止整檔覆寫）
 
