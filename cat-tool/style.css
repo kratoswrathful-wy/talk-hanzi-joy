@@ -916,30 +916,62 @@ button:disabled { cursor: not-allowed; }
 /* PRO EDITOR COMPONENT */
 .editor-view { padding: 0 !important; overflow: hidden !important; background: var(--grid-bg); }
 .editor-toolbar {
-    height: 50px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 1rem; background: white;
+    height: 50px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 1rem;
+    background: white;
+    overflow: hidden;
+    min-width: 0;
 }
-.toolbar-left { display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; overflow: hidden; }
-.toolbar-right { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
+/* 左段保留返回＋檔名；窄窗檔名截斷，不可被右段覆蓋 */
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1 1 10rem;
+    min-width: 7.5rem;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 7.5rem);
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-end;
+    scrollbar-width: thin;
+}
+.toolbar-right-spacer {
+    flex: 1 1 auto;
+    min-width: 0.5rem;
+}
 .icon-btn { background: none; border: none; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; min-width: 2rem; min-height: 2rem; border-radius: 4px; color: var(--text-light); }
 .icon-btn:hover { background: var(--secondary-color); color: var(--text-main); }
 .mq-role-icon { font-size: 1.1rem; color: var(--success-color); display: flex; align-items: center; justify-content: center; cursor: default; width: 2rem; height: 2rem; min-width: 2rem; min-height: 2rem; border-radius: 4px; flex-shrink: 0; overflow: hidden; }
-/* 工項 C：目前工作／身分切換緊貼返回鈕右側，窄窗不擠掉 */
-.wf-session-cluster {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex-shrink: 0;
-}
+/* 工項 C：工作階段字樣緊鄰右側操作鈕群左側 */
 .wf-session-hint {
     font-size: 0.75rem;
     color: #64748b;
     white-space: nowrap;
     flex-shrink: 0;
 }
-.toolbar-left .sf-pm-acting-role-btn {
-    flex-shrink: 0;
+.editor-file-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
 }
-.editor-file-title { font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
 
 .editor-progress-container { display: flex; align-items: center; gap: 1rem; width: 300px; }
 .editor-progress-bar { flex: 1; height: 6px; background: var(--secondary-color); border-radius: 3px; overflow: hidden; }

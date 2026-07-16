@@ -713,14 +713,10 @@
                 <header class="editor-toolbar">
                     <div class="toolbar-left">
                         <button class="icon-btn" id="btnExitEditor" data-tip="返回檔案清單">←</button>
-                        <div class="wf-session-cluster" id="wfSessionCluster">
-                            <span id="wfSessionKindHint" class="wf-session-hint" style="display:none;"></span>
-                            <button type="button" class="icon-btn btn-sm sf-pm-acting-role-btn" id="btnPmActingRole" style="display:none;" data-tip="切換目前編輯操作視為翻譯或審稿（雙重身分或 PM 以上）" tabindex="5">T</button>
-                        </div>
                         <span class="editor-file-title" id="editorFileName">檔案名稱</span>
                         <div id="sfFilterCountBadge" style="display:none; flex-shrink:0; font-size:0.82rem; color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.75rem; white-space:nowrap;">目前篩選出 <strong id="sfFilterCountNum">0</strong> 個句段</div>
                     </div>
-                    <div class="toolbar-right" style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="toolbar-right">
                         <div class="dropdown-container">
                             <button class="icon-btn" id="btnSortMenu" data-tip="句段排序">📶</button>
                             <div class="dropdown-menu" id="sortDropdown">
@@ -759,7 +755,9 @@
                         <label id="labelToggleSourceFileCol" style="display:none; align-items:center; gap:0.3rem; font-size:0.82rem; color:#475569; cursor:pointer; white-space:nowrap;">
                             <input type="checkbox" id="chkShowSourceFileCol" checked> 顯示所屬檔案
                         </label>
-                        <div style="flex:1;"></div>
+                        <div class="toolbar-right-spacer" aria-hidden="true"></div>
+                        <!-- 工項 C：工作階段字樣緊鄰右側操作鈕群（提問／預翻／調整狀態…）左側 -->
+                        <span id="wfSessionKindHint" class="wf-session-hint" style="display:none;"></span>
                         <button type="button" id="btnEditorWordCount" class="btn-sm btn-editor-word-count" style="display:none;">字數</button>
                         <button id="btnGsSourceLink" class="secondary-btn btn-sm" style="display:none;">原檔連結</button>
                         <div class="split-btn-group" id="inNoteGroup" style="display:none;">
@@ -858,7 +856,9 @@
                                         <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" data-tip="進階篩選" tabindex="4">▼</button>
                                         <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" data-tip="作業中身分：T">✓</span>
                                     </div>
-                                    <div class="sf-cell sf-cell-invert sf-cell-row2-spacer" aria-hidden="true"></div>
+                                    <div class="sf-cell sf-cell-invert sf-cell-row2-spacer">
+                                        <button type="button" class="icon-btn btn-sm sf-pm-acting-role-btn" id="btnPmActingRole" style="display:none;" data-tip="切換目前編輯操作視為翻譯或審稿（雙重身分或 PM 以上）" tabindex="5">T</button>
+                                    </div>
                                     <span class="sf-cell sf-cell-label">取代：</span>
                                     <div class="sf-cell sf-cell-input">
                                         <div class="sf-input-wrap sf-input-wrap--replace">
