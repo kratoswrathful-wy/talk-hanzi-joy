@@ -6369,10 +6369,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         const isPm = _isCatPmOrExecutive();
+        // PM 整檔：與「調整狀態」主鈕一致，開三態 modal（不再渲染舊階梯下拉）
         if (isPm && !_hasSplitWorkflowAssignments()) {
-            _renderPmAdjustStatusDropdownItems();
-            dd.classList.add('show');
-            arrow.classList.add('open');
+            closeWfTaskCompleteDropdown();
+            _openWfAdjustStatusModal();
             return;
         }
         const pending = _isWfTaskCompleteReviewMode()
@@ -6897,17 +6897,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _onWfAdjustStatusClick() {
         if (!_isCatPmOrExecutive()) return;
+        // 契約見 js/wf-adjust-status-action.js：非 prep 一律開三態 modal（含整檔）。
+        // 舊路徑在 !_hasSplitWorkflowAssignments 時改走下拉，但 PM 工具列隱藏箭頭，
+        // 整檔正式檔會「點了沒反應」。
         if (_currentFilePrepActive()) {
             const fileId = currentFileId != null ? String(currentFileId) : null;
             const prep = (window._currentFileWorkflowStages || []).find((s) => s.stageKind === 'prep');
             if (fileId && prep) await _pmMarkPrepReady(fileId, prep.id);
             return;
         }
-        if (_hasSplitWorkflowAssignments()) {
-            _openWfAdjustStatusModal();
-            return;
-        }
-        toggleWfTaskCompleteDropdown();
+        closeWfTaskCompleteDropdown();
+        _openWfAdjustStatusModal();
     }
 
     function _bindWfTaskCompleteUiOnce() {
