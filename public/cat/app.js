@@ -6509,8 +6509,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updatedReview };
             }
             window._currentFileWorkflowStages = stages;
-            const wfStatus = isComplete ? 'completed' : 'assigned';
-            // 重開（completed→active）時也一併把指派降回 assigned，避免卡在 completed
+            // 工項 D：執行中寫入 in_progress（不再用 assigned 假裝進行中）
+            const wfStatus = isComplete ? 'completed' : 'in_progress';
             const assigns = await _applyWorkflowStatusToStageAssignmentsFromDb(
                 fileId, translateStage.id, wfStatus,
             );
@@ -6558,7 +6558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const rIdx = stages.findIndex((s) => String(s.id) === String(reviewStage.id));
             if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updatedReview };
             window._currentFileWorkflowStages = stages;
-            const wfStatus = isComplete ? 'completed' : 'assigned';
+            const wfStatus = isComplete ? 'completed' : 'in_progress';
             await _applyWorkflowStatusToStageAssignmentsFromDb(fileId, reviewStage.id, wfStatus);
             if (isComplete) {
                 await enqueueStageSnapshot(fileId, reviewStage.id, 'post_review');
@@ -6590,9 +6590,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return [...byKey.values()];
     }
 
+    function _normalizeAdjustWorkflowStatus(v) {
+        const s = String(v || '');
+        if (s === 'completed' || s === 'in_progress') return s;
+        return 'assigned';
+    }
+
     function _openWfAdjustStatusModal() {
         const modal = document.getElementById('wfAdjustStatusModal');
         const list = document.getElementById('wfAdjustStatusList');
+        const bulk = document.getElementById('wfAdjustBulkBar');
         if (!modal || !list) return;
         const translateAssigns = _dedupeTranslateAssignmentsByCollabRow(
             _wfTranslateAssignmentsInContext({ includeAll: true })
@@ -6603,17 +6610,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         const esc = (s) => String(s ?? '').replace(/</g, '&lt;');
         const rowHtml = (a, kind) => {
             const label = esc(_formatWfTaskAssignmentLabel(a));
-            const wfStatus = a.workflowStatus === 'completed' ? 'completed' : 'assigned';
-            const optAssigned = kind === 'review' ? '審稿執行中' : '翻譯執行中';
-            const optCompleted = kind === 'review' ? '審稿完成' : '翻譯完成';
+            const wfStatus = _normalizeAdjustWorkflowStatus(a.workflowStatus);
+            const lockedHint = kind === 'translate' && _isTranslateLockedByAnyReviewComplete(a.fileId)
+                ? ' <span style="color:#b45309;">（仍有審稿完成；請先改審稿再降翻譯，或同次一併改）</span>'
+                : '';
+            // 不 disabled：允許同次套用「審稿離開完成＋翻譯降級」
             return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;">`
-                + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}</span>`
-                + `<select class="form-input wf-adjust-row-status" data-assignment-id="${esc(a.id)}" data-stage-kind="${kind}" style="width:auto;min-width:120px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
-                + `<option value="assigned"${wfStatus === 'assigned' ? ' selected' : ''}>${optAssigned}</option>`
-                + `<option value="completed"${wfStatus === 'completed' ? ' selected' : ''}>${optCompleted}</option>`
+                + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}${lockedHint}</span>`
+                + `<select class="form-input wf-adjust-row-status" data-assignment-id="${esc(a.id)}" data-stage-kind="${kind}" style="width:auto;min-width:132px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
+                + `<option value="assigned"${wfStatus === 'assigned' ? ' selected' : ''}>待開始</option>`
+                + `<option value="in_progress"${wfStatus === 'in_progress' ? ' selected' : ''}>執行中</option>`
+                + `<option value="completed"${wfStatus === 'completed' ? ' selected' : ''}>完成</option>`
                 + `</select>`
                 + `</div>`;
         };
+        if (bulk) {
+            const mkBtn = (kind, status, label) =>
+                `<button type="button" class="secondary-btn btn-sm wf-adjust-bulk-btn" data-bulk-kind="${kind}" data-bulk-status="${status}">${label}</button>`;
+            bulk.innerHTML = [
+                translateAssigns.length
+                    ? `${mkBtn('translate', 'assigned', '翻譯全部待開始')}${mkBtn('translate', 'in_progress', '翻譯全部執行中')}${mkBtn('translate', 'completed', '翻譯全部完成')}`
+                    : '',
+                reviewAssigns.length
+                    ? `${mkBtn('review', 'assigned', '審稿全部待開始')}${mkBtn('review', 'in_progress', '審稿全部執行中')}${mkBtn('review', 'completed', '審稿全部完成')}`
+                    : '',
+            ].join('');
+            bulk.querySelectorAll('.wf-adjust-bulk-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const kind = btn.getAttribute('data-bulk-kind');
+                    const status = btn.getAttribute('data-bulk-status');
+                    list.querySelectorAll(`.wf-adjust-row-status[data-stage-kind="${kind}"]:not(:disabled)`).forEach((sel) => {
+                        sel.value = status;
+                    });
+                });
+            });
+        }
         const html = [
             ...translateAssigns.map((a) => rowHtml(a, 'translate')),
             ...reviewAssigns.map((a) => rowHtml(a, 'review')),
@@ -6625,6 +6656,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _closeWfAdjustStatusModal() {
         const modal = document.getElementById('wfAdjustStatusModal');
         if (modal) modal.classList.add('hidden');
+    }
+
+    /** 任一審稿分段 completed → 該檔翻譯鎖定（工項 D） */
+    function _isTranslateLockedByAnyReviewComplete(fileId) {
+        if (fileId == null) return false;
+        const fid = String(fileId);
+        const stages = window._currentFileWorkflowStages || [];
+        const reviewStage = stages.find((s) => s.stageKind === 'review');
+        if (!reviewStage) {
+            const byFile = window._currentFileWorkflowStagesByFileId || {};
+            const fileStages = byFile[fid] || [];
+            const rs = fileStages.find((s) => s.stageKind === 'review');
+            if (!rs) return false;
+            return (window._currentFileStageAssignments || []).some(
+                (a) => String(a.fileId) === fid
+                    && String(a.fileWorkflowStageId) === String(rs.id)
+                    && a.workflowStatus === 'completed',
+            );
+        }
+        return (window._currentFileStageAssignments || []).some(
+            (a) => String(a.fileId) === fid
+                && String(a.fileWorkflowStageId) === String(reviewStage.id)
+                && a.workflowStatus === 'completed',
+        );
+    }
+
+    async function _forceTranslateCompletedForFileDueToReview(fileId) {
+        const fid = String(fileId);
+        const stages = window._currentFileWorkflowStages || [];
+        const translateStage = stages.find((s) => s.stageKind === 'translate');
+        if (!translateStage) return;
+        if (translateStage.status !== 'completed') {
+            const updated = await DBService.updateFileWorkflowStageStatus(translateStage.id, 'completed');
+            const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
+            if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updated };
+            window._currentFileWorkflowStages = stages;
+        }
+        await _applyWorkflowStatusToStageAssignmentsFromDb(fid, translateStage.id, 'completed');
+    }
+
+    async function _reconcileStageStatusFromAssignments(fileId, stageId) {
+        const fid = String(fileId);
+        const assigns = (window._currentFileStageAssignments || []).filter(
+            (a) => String(a.fileId) === fid && String(a.fileWorkflowStageId) === String(stageId),
+        );
+        if (!assigns.length) return;
+        const stages = window._currentFileWorkflowStages || [];
+        const st = stages.find((s) => String(s.id) === String(stageId));
+        if (!st || st.stageKind === 'prep') return;
+        let next = null;
+        if (assigns.every((a) => a.workflowStatus === 'completed')) {
+            next = 'completed';
+        } else if (assigns.some((a) => a.workflowStatus === 'in_progress' || a.workflowStatus === 'completed')) {
+            next = 'active';
+        } else if (st.status === 'completed') {
+            // 全部分段回到待開始 → 重開 stage
+            next = 'active';
+        } else if (st.status === 'pending' && assigns.some((a) => a.workflowStatus !== 'assigned')) {
+            next = 'active';
+        }
+        if (!next || next === st.status) return;
+        const updated = await DBService.updateFileWorkflowStageStatus(stageId, next);
+        const idx = stages.findIndex((s) => String(s.id) === String(stageId));
+        if (idx >= 0) stages[idx] = { ...stages[idx], ...updated };
+        window._currentFileWorkflowStages = stages;
     }
 
     async function _pmApplySplitAdjustStatus() {
@@ -6639,7 +6735,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const sel of selects) {
                 const id = sel.getAttribute('data-assignment-id');
                 if (!id) continue;
-                const wfStatus = sel.value === 'completed' ? 'completed' : 'assigned';
+                const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
                 const hit = arr.find((a) => String(a.id) === String(id));
                 if (!hit || hit.workflowStatus === wfStatus) continue;
                 await _updateAssignmentWorkflowStatusLocal(id, wfStatus);
@@ -6650,10 +6746,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _closeWfAdjustStatusModal();
                 return;
             }
+            // 以套用後記憶體為準：仍有任一審稿 completed → 強制翻譯完成；
+            // 全審稿已離開完成則不強制（同次可降翻譯）
+            const touchedFileIds = new Set(hits.map((h) => String(h.fileId)));
+            const forcedTranslateFiles = [];
+            const blockedTranslateDowngrade = [];
+            for (const fid of touchedFileIds) {
+                if (!_isTranslateLockedByAnyReviewComplete(fid)) continue;
+                const wantedDowngrade = hits.some(
+                    (h) => String(h.fileId) === fid
+                        && _isTranslateStageAssignment(h)
+                        && h.workflowStatus !== 'completed',
+                );
+                await _forceTranslateCompletedForFileDueToReview(fid);
+                forcedTranslateFiles.push(fid);
+                if (wantedDowngrade) blockedTranslateDowngrade.push(fid);
+            }
+            if (blockedTranslateDowngrade.length) {
+                showCatToast('仍有審稿分段為「完成」，翻譯已維持鎖定；請先將全部審稿改為非完成後再降翻譯', 'info');
+            }
+            const touchedStageIds = new Set(hits.map((h) => String(h.fileWorkflowStageId)));
+            for (const h of hits) {
+                await _reconcileStageStatusFromAssignments(h.fileId, h.fileWorkflowStageId);
+            }
+            void touchedStageIds;
             const byCase = new Map();
             for (const h of hits) {
                 if (!h || !_isTranslateStageAssignment(h)) continue;
                 if (!h.collabRowId) continue;
+                const meta = await _getFileMetaForAssignment(h);
+                const caseId = meta && meta.relatedLmsCaseId ? String(meta.relatedLmsCaseId) : '';
+                if (!caseId) continue;
+                if (!byCase.has(caseId)) byCase.set(caseId, []);
+                byCase.get(caseId).push({
+                    collabRowId: String(h.collabRowId),
+                    taskCompleted: h.workflowStatus === 'completed',
+                });
+            }
+            for (const h of hits) {
+                if (!h || !_isReviewStageAssignment(h) || !h.collabRowId) continue;
                 const meta = await _getFileMetaForAssignment(h);
                 const caseId = meta && meta.relatedLmsCaseId ? String(meta.relatedLmsCaseId) : '';
                 if (!caseId) continue;
@@ -6669,6 +6800,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _closeWfAdjustStatusModal();
             showCatToast('已更新段落狀態', 'info');
             refreshWfTaskCompleteToolbar();
+            if (typeof renderEditorSegments === 'function') renderEditorSegments();
         } catch (e) {
             console.error('[workflow] PM split adjust', e);
             showCatToast('無法調整狀態，請稍後再試', 'error');
@@ -6721,6 +6853,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await _emitWfTaskCompleteToLms({ ...hit, ...updated }, fileMeta);
             }
             if (_isReviewStageAssignment(hit)) {
+                await _forceTranslateCompletedForFileDueToReview(hit.fileId);
                 await _maybeCompleteReviewStageForFile(hit.fileId);
             }
             showCatToast('已標記任務完成', 'info');
@@ -16450,8 +16583,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         return r; // 'R1' | 'R2'
     }
 
+    /** 工項 D：審稿已有完成分段時，非審稿工作階段禁止改譯 */
+    function _isTranslateEditLockedByReviewComplete(seg) {
+        if (!_isTranslateLockedByAnyReviewComplete(seg?.fileId || currentFileId)) return false;
+        return currentWfSessionKind !== 'review';
+    }
+
     // 禁止編輯工具提示：區分「身分權限不足」與「匯入時即已鎖定」
     function getForbiddenTooltip(seg) {
+        if (_isTranslateEditLockedByReviewComplete(seg)) {
+            return '禁止編輯：審稿已有完成分段，翻譯已鎖定';
+        }
         if (!_isCatPmOrExecutive()) {
             const stages = _workflowStagesForSegment(seg);
             if (_isFilePrepIncomplete(stages)) return '禁止編輯，檔案準備中';
@@ -16465,6 +16607,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 判斷句段是否「禁止編輯」（依當前 session 身分動態判斷）
     function isDynamicForbidden(seg) {
         if (_viewEditorReadOnly) return true;
+        if (_isTranslateEditLockedByReviewComplete(seg)) return true;
         if (computeSegmentEditForbidden(seg)) return true;
         if (_fileUnassignedReadOnly) return true;
         if (currentFileFormat !== 'mqxliff') return !!seg.isLockedSystem;

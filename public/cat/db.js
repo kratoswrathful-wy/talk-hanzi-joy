@@ -1050,7 +1050,8 @@ const DBService = {
             ) || null;
         }
         const now = new Date().toISOString();
-        const wfStatus = p.workflowStatus === 'completed' ? 'completed' : 'assigned';
+        const rawWf = String(p.workflowStatus || 'assigned');
+        const wfStatus = ['assigned', 'in_progress', 'completed'].includes(rawWf) ? rawWf : 'assigned';
         const patch = {
             fileId: fid,
             viewId,

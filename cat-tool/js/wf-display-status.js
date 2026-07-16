@@ -130,6 +130,10 @@
             if (!assignment && translateStage?.status === 'completed') {
                 return { label: '完成', tone: 'success' };
             }
+            // 工項 D：優先讀 workflow_status=in_progress；否則 fallback first_edited_at（舊資料）
+            if (assignment && wfStatus === 'in_progress') {
+                return { label: '進行中', tone: 'warning' };
+            }
             if (firstEditedAt) return { label: '進行中', tone: 'warning' };
             return { label: '待開始', tone: 'muted' };
         }
@@ -145,6 +149,9 @@
             }
             if (!reviewTranslateGatePassed(stages, assignment, allAssignments)) {
                 return { label: '等待翻譯完成', tone: 'muted' };
+            }
+            if (assignment && wfStatus === 'in_progress') {
+                return { label: '進行中', tone: 'warning' };
             }
             if (firstEditedAt) return { label: '進行中', tone: 'warning' };
             return { label: '待開始', tone: 'muted' };
