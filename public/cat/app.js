@@ -6008,6 +6008,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileStageAssignments = allAssigns;
         window._currentFileWorkflowStages = [];
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+        if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
     }
 
     function _getStagesForAssignment(a) {
