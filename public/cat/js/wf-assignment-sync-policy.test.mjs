@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveRequestedSyncWorkflowStatus,
   resolveEffectiveUpsertWorkflowStatus,
+  workflowStatusRank,
 } from "./wf-assignment-sync-policy.js";
 
 describe("wf-assignment-sync-policy：sync 建議狀態", () => {
@@ -32,13 +33,23 @@ describe("wf-assignment-sync-policy：sync 建議狀態", () => {
     ).toBe("assigned");
   });
 
-  it("檔案重開：stage 從 completed 改回 active 後，sync 建議 assigned", () => {
+  it("檔案重開：stage 從 completed 改回 active 後，sync 建議 assigned（無既有高階狀態）", () => {
     expect(
       resolveRequestedSyncWorkflowStatus({
         stageStatus: "active",
         taskCompleted: false,
       }),
     ).toBe("assigned");
+  });
+
+  it("既有 in_progress 時 sync 建議維持 in_progress（不得回落 assigned）", () => {
+    expect(
+      resolveRequestedSyncWorkflowStatus({
+        stageStatus: "active",
+        taskCompleted: false,
+        existingStatus: "in_progress",
+      }),
+    ).toBe("in_progress");
   });
 });
 
@@ -103,5 +114,47 @@ describe("wf-assignment-sync-policy：upsert 防降級與反向路徑", () => {
         allowDowngrade: true,
       }),
     ).toBe("assigned");
+  });
+
+  // T-D5-1
+  it("T-D5-1：existing=in_progress, requested=assigned, stage=active → in_progress", () => {
+    expect(
+      resolveEffectiveUpsertWorkflowStatus({
+        stageStatus: "active",
+        existingStatus: "in_progress",
+        requestedStatus: "assigned",
+        allowDowngrade: false,
+      }),
+    ).toBe("in_progress");
+  });
+
+  // T-D5-2
+  it("T-D5-2：existing=completed, requested=assigned, stage=completed → completed", () => {
+    expect(
+      resolveEffectiveUpsertWorkflowStatus({
+        stageStatus: "completed",
+        existingStatus: "completed",
+        requestedStatus: "assigned",
+        allowDowngrade: false,
+      }),
+    ).toBe("completed");
+  });
+
+  // T-D5-3
+  it("T-D5-3：stage 非 completed + allowDowngrade → 允許降級", () => {
+    expect(
+      resolveEffectiveUpsertWorkflowStatus({
+        stageStatus: "active",
+        existingStatus: "in_progress",
+        requestedStatus: "assigned",
+        allowDowngrade: true,
+      }),
+    ).toBe("assigned");
+  });
+
+  it("rank：assigned < in_progress < completed", () => {
+    expect(workflowStatusRank("assigned")).toBe(0);
+    expect(workflowStatusRank("in_progress")).toBe(1);
+    expect(workflowStatusRank("completed")).toBe(2);
   });
 });
