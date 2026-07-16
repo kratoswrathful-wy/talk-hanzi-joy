@@ -2632,9 +2632,25 @@
                     <button type="button" class="secondary-btn btn-sm" id="btnCatCollabSplitPrefill">拆分均分並預填…</button>
                 </div>
                 <p style="margin:0.55rem 0 0 0; color:#94a3b8; font-size:0.78rem;">
-                    列範圍留白＝整檔；可填 <code>1-3063</code>、<code>4298-</code>（到結尾）。審稿人員由案件層級設定，請於 LMS 協作表格編輯。
+                    列範圍留白＝整檔；可填 <code>1-3063</code>、<code>4298-</code>（到結尾）。
                 </p>
-                <p id="catCollabAssignReviewer" style="margin:0.3rem 0 0 0; color:#64748b; font-size:0.8rem;"></p>
+                <h4 style="margin:1.1rem 0 0.4rem 0; font-size:0.95rem;">審稿指派</h4>
+                <p style="margin:0 0 0.4rem 0; color:#94a3b8; font-size:0.78rem;">與翻譯切法獨立；儲存後寫入 LMS <code>review_rows</code> 並同步 CAT。</p>
+                <table class="data-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th style="width:32%;">審稿人員</th>
+                            <th style="width:28%;">列範圍</th>
+                            <th style="width:28%;">交期</th>
+                            <th style="width:12%;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="catCollabAssignReviewBody"></tbody>
+                </table>
+                <div style="margin-top:0.6rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button type="button" class="secondary-btn btn-sm" id="btnCatCollabAddReviewRow">＋ 新增審稿列</button>
+                    <button type="button" class="secondary-btn btn-sm" id="btnCatCollabSplitReviewPrefill">審稿拆分均分並預填…</button>
+                </div>
             </div>
             <div class="panel-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
                 <button type="button" class="secondary-btn" id="btnCancelCatCollabAssign">取消</button>

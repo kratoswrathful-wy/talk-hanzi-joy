@@ -149,7 +149,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
 
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
-  const [bulkPersonField, setBulkPersonField] = useState<"translator" | "reviewer" | null>(null);
+  const [bulkPersonField, setBulkPersonField] = useState<"translator" | null>(null);
   const [bulkPersonValue, setBulkPersonValue] = useState<string>("");
   const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
 
@@ -164,14 +164,13 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
   const showAccepted = caseStatus === "draft" || caseStatus === "inquiry";
   const showTaskCompleted = !showAccepted;
 
+  // 列內 reviewer／reviewDeadline 不驅動 CAT（工項 A）；預設隱藏，改走 review_rows
   const columns = [
     { key: "segment", label: "檔案或分段", width: "260px" },
     { key: "translator", label: "譯者", width: "140px", bulkPerson: true },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
     { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "任務完成", width: "80px" },
-    { key: "reviewer", label: "審稿人員", width: "140px", bulkPerson: true },
-    { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
     { key: "delivered", label: "交件完畢", width: "80px" },
   ];
 
@@ -192,9 +191,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
 
   const applyBulkPerson = () => {
     if (!bulkPersonField) return;
-    const userIdField = bulkPersonField === "translator" ? "translatorUserId" : "reviewerUserId";
     const resolvedUserId = resolveAssigneeUserId(bulkPersonValue);
-    const next = rows.map((r) => ({ ...r, [bulkPersonField]: bulkPersonValue, [userIdField]: resolvedUserId }));
+    const next = rows.map((r) => ({
+      ...r,
+      translator: bulkPersonValue,
+      translatorUserId: resolvedUserId,
+    }));
     onChange(next);
     setBulkPersonField(null);
     setBulkPersonValue("");
@@ -298,7 +300,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                       <button
                         className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                         onClick={() => {
-                          setBulkPersonField(col.key as "translator" | "reviewer");
+                          setBulkPersonField("translator");
                           setBulkPersonValue("");
                         }}
                       >
@@ -468,24 +470,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 )}
               </div>
 
-              <div className="px-1.5 py-1">
-                <ColorSelect
-                  fieldKey="assignee"
-                  value={row.reviewer}
-                  onValueChange={(v) => updateRow(idx, { reviewer: v, reviewerUserId: resolveAssigneeUserId(v) })}
-                  className="w-full"
-                  disabled={!isPmOrAbove}
-                />
-              </div>
-
-              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewDeadline">
-                <DateTimePicker
-                  value={row.reviewDeadline}
-                  onChange={(v) => updateRow(idx, { reviewDeadline: v })}
-                  className="w-full"
-                />
-              </div>
-
               <div className="flex items-center justify-center px-1.5 py-1">
                 <Checkbox
                   checked={row.delivered}
@@ -530,7 +514,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {bulkPersonField === "translator" ? "批次設定譯者" : "批次設定審稿人員"}
+              批次設定譯者
             </AlertDialogTitle>
           </AlertDialogHeader>
           <ColorSelect

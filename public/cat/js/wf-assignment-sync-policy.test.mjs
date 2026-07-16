@@ -82,4 +82,26 @@ describe("wf-assignment-sync-policy：upsert 防降級與反向路徑", () => {
       }),
     ).toBe("completed");
   });
+
+  it("sync 路徑（allowDowngrade 預設 false）不得在 stage completed 時降級", () => {
+    expect(
+      resolveEffectiveUpsertWorkflowStatus({
+        stageStatus: "completed",
+        existingStatus: "completed",
+        requestedStatus: "assigned",
+        allowDowngrade: false,
+      }),
+    ).toBe("completed");
+  });
+
+  it("PM 重開路徑：allowDowngrade=true 時可降級（即使 stage 仍 completed）", () => {
+    expect(
+      resolveEffectiveUpsertWorkflowStatus({
+        stageStatus: "completed",
+        existingStatus: "completed",
+        requestedStatus: "assigned",
+        allowDowngrade: true,
+      }),
+    ).toBe("assigned");
+  });
 });

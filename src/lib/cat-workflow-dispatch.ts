@@ -3,8 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type CatWorkflowSyncReport = {
   found: boolean;
   unresolvedTranslators: string[];
+  unresolvedReviewers?: string[];
   rowsWithoutFile: number;
+  reviewRowsWithoutFile?: number;
   written: number;
+  reviewWritten?: number;
 };
 
 /** 案件派出／協作列變更 → CAT cat_stage_assignments 同步（B-4）；回傳失敗報告供 PM 提示 */
@@ -24,8 +27,14 @@ export async function syncCatWorkflowAssignmentsForCase(
       unresolvedTranslators: Array.isArray(r.unresolvedTranslators)
         ? (r.unresolvedTranslators as string[])
         : [],
+      unresolvedReviewers: Array.isArray(r.unresolvedReviewers)
+        ? (r.unresolvedReviewers as string[])
+        : [],
       rowsWithoutFile: typeof r.rowsWithoutFile === "number" ? r.rowsWithoutFile : 0,
+      reviewRowsWithoutFile:
+        typeof r.reviewRowsWithoutFile === "number" ? r.reviewRowsWithoutFile : 0,
       written: typeof r.written === "number" ? r.written : 0,
+      reviewWritten: typeof r.reviewWritten === "number" ? r.reviewWritten : 0,
     };
   } catch (e) {
     console.warn("[cat-workflow-dispatch] sync skipped:", e);

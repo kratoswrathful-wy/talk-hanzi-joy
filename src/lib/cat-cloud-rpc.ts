@@ -2810,30 +2810,48 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (!caseId) return { linked: false, fileName: (file as any)?.name ?? "" };
       const { data: caseRow } = await supabase
         .from("cases")
-        .select("id, title, status, multi_collab, collab_rows, reviewer")
+        .select("id, title, status, multi_collab, collab_rows, review_rows, reviewer")
         .eq("id", caseId)
         .eq("env", env)
         .maybeSingle();
       if (!caseRow) return { linked: false, fileName: (file as any)?.name ?? "" };
+      const reviewRows = Array.isArray((caseRow as { review_rows?: unknown }).review_rows)
+        ? (caseRow as { review_rows: unknown[] }).review_rows
+        : [];
       return {
         linked: true,
-        multiCollab: !!(caseRow as any).multi_collab,
-        caseId: (caseRow as any).id,
-        caseTitle: (caseRow as any).title ?? "",
-        caseStatus: (caseRow as any).status ?? "",
-        reviewer: (caseRow as any).reviewer ?? "",
-        collabRows: Array.isArray((caseRow as any).collab_rows) ? (caseRow as any).collab_rows : [],
-        fileId: (file as any).id,
-        fileName: (file as any).name ?? "",
+        multiCollab: !!(caseRow as { multi_collab?: boolean }).multi_collab,
+        caseId: (caseRow as { id: string }).id,
+        caseTitle: (caseRow as { title?: string }).title ?? "",
+        caseStatus: (caseRow as { status?: string }).status ?? "",
+        reviewer: (caseRow as { reviewer?: string }).reviewer ?? "",
+        collabRows: Array.isArray((caseRow as { collab_rows?: unknown }).collab_rows)
+          ? (caseRow as { collab_rows: unknown[] }).collab_rows
+          : [],
+        reviewRows,
+        fileId: (file as { id: string }).id,
+        fileName: (file as { name?: string }).name ?? "",
       };
     }
     case "lms.updateCaseCollab": {
-      // CAT 端寫回完整 collab_rows，再觸發同步（回傳未解析譯者等報告）
+      // CAT 端寫回 collab_rows + review_rows，再觸發同步
       const caseId = String(payload.caseId || "");
       const collabRows = Array.isArray(payload.collabRows) ? payload.collabRows : null;
+      const reviewRows = Array.isArray(payload.reviewRows) ? payload.reviewRows : null;
       if (!caseId || !collabRows) return { ok: false, error: "missing caseId or collabRows" };
       const env = getEnvironment();
       const casePatch: Record<string, unknown> = { collab_rows: collabRows, updated_at: nowIso() };
+      if (reviewRows) {
+        casePatch.review_rows = reviewRows;
+        const names = [
+          ...new Set(
+            reviewRows
+              .map((r: { reviewer?: string }) => String(r?.reviewer || "").trim())
+              .filter(Boolean),
+          ),
+        ];
+        casePatch.reviewer = names.join("、");
+      }
       const { error: updErr } = await supabase
         .from("cases")
         .update(casePatch as Record<string, never>)
@@ -2846,6 +2864,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         report: report
           ? {
               unresolvedTranslators: report.unresolvedTranslators,
+              unresolvedReviewers: (report as { unresolvedReviewers?: string[] }).unresolvedReviewers ?? [],
               rowsWithoutFile: report.rowsWithoutFile,
               written: report.written,
             }

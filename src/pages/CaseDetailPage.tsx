@@ -76,6 +76,9 @@ import { applyEditLogFieldChange, type BurstMap } from "@/lib/edit-log-coalesce"
 import { filterEditLogsCase } from "@/lib/edit-log-permission-filter";
 
 import CollaborationTable from "@/components/CollaborationTable";
+import ReviewCollaborationTable from "@/components/ReviewCollaborationTable";
+import { deriveReviewerSummary, newReviewRowId } from "@/lib/review-rows";
+import type { ReviewCollabRow } from "@/data/case-types";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
@@ -2413,7 +2416,36 @@ export default function CaseDetailPage() {
               )}
             </Field>
             <Field label="審稿人員">
-              <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
+              <ColorSelect
+                fieldKey="assignee"
+                value={deriveReviewerSummary(caseData.reviewRows) || caseData.reviewer}
+                onValueChange={(v) => {
+                  const name = (v || "").trim();
+                  const uid = selectOptionsStore.getField("assignee").options.find((o) => o.label === name)?.id ?? null;
+                  const existing = caseData.reviewRows || [];
+                  let next: ReviewCollabRow[];
+                  if (!name) {
+                    next = [];
+                  } else if (existing.length === 0) {
+                    next = [{
+                      id: newReviewRowId(),
+                      segment: "",
+                      reviewer: name,
+                      reviewerUserId: uid ? String(uid) : null,
+                      reviewDeadline: caseData.reviewDeadline,
+                      taskCompleted: false,
+                      accepted: true,
+                    }];
+                  } else {
+                    next = existing.map((r) => ({
+                      ...r,
+                      reviewer: name,
+                      reviewerUserId: uid ? String(uid) : null,
+                    }));
+                  }
+                  save({ reviewRows: next, reviewer: name });
+                }}
+              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -2424,6 +2456,17 @@ export default function CaseDetailPage() {
               <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
             </Field>
           </div>
+          <ReviewCollaborationTable
+            rows={caseData.reviewRows || []}
+            caseId={caseData.id}
+            caseStatus={caseData.status}
+            onChange={(newRows) => {
+              save({
+                reviewRows: newRows,
+                reviewer: deriveReviewerSummary(newRows),
+              });
+            }}
+          />
         </>
       ) : (
         /* Multi-person collaboration table */
@@ -2497,6 +2540,17 @@ export default function CaseDetailPage() {
               save(updates);
             }}
             caseStatus={caseData.status}
+          />
+          <ReviewCollaborationTable
+            rows={caseData.reviewRows || []}
+            caseId={caseData.id}
+            caseStatus={caseData.status}
+            onChange={(newRows) => {
+              save({
+                reviewRows: newRows,
+                reviewer: deriveReviewerSummary(newRows),
+              });
+            }}
           />
         </div>
       )}

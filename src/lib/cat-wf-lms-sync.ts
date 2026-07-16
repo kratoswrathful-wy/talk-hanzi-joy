@@ -29,7 +29,7 @@ export async function markCollabRowTaskCompletedFromCat(
   return setCollabRowTaskCompletedFromCat(supabase, caseId, collabRowId, true, completedAt);
 }
 
-/** CAT ↔ LMS 雙向：設定協作列 taskCompleted（true 或 false） */
+/** CAT ↔ LMS 雙向：設定協作列／審稿列 taskCompleted（true 或 false） */
 export async function setCollabRowTaskCompletedFromCat(
   supabase: SupabaseClient,
   caseId: string,
@@ -40,7 +40,7 @@ export async function setCollabRowTaskCompletedFromCat(
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
     .from("cases")
-    .select("collab_rows, status, multi_collab")
+    .select("collab_rows, review_rows, status, multi_collab")
     .eq("id", caseId)
     .eq("env", env)
     .maybeSingle();
@@ -50,21 +50,30 @@ export async function setCollabRowTaskCompletedFromCat(
   const rows = Array.isArray((caseRow as { collab_rows?: unknown }).collab_rows)
     ? ((caseRow as { collab_rows: CollabRowJson[] }).collab_rows)
     : [];
-  const hasRow = rows.some((r) => String(r.id) === String(collabRowId));
-  if (!hasRow) return { ok: false, error: "collab row not found" };
+  const reviewRows = Array.isArray((caseRow as { review_rows?: unknown }).review_rows)
+    ? ((caseRow as { review_rows: CollabRowJson[] }).review_rows)
+    : [];
+  const inCollab = rows.some((r) => String(r.id) === String(collabRowId));
+  const inReview = reviewRows.some((r) => String(r.id) === String(collabRowId));
+  if (!inCollab && !inReview) return { ok: false, error: "collab/review row not found" };
 
-  const updatedRows = mapCollabRows(rows, collabRowId, taskCompleted);
-  const allTaskCompleted =
-    updatedRows.length > 0 && updatedRows.every((r) => !!r.taskCompleted);
+  const updates: Record<string, unknown> = { updated_at: updatedAt };
+  let allTaskCompleted = false;
 
-  const updates: Record<string, unknown> = {
-    collab_rows: updatedRows,
-    updated_at: updatedAt,
-  };
+  if (inCollab) {
+    const updatedRows = mapCollabRows(rows, collabRowId, taskCompleted);
+    updates.collab_rows = updatedRows;
+    allTaskCompleted =
+      updatedRows.length > 0 && updatedRows.every((r) => !!r.taskCompleted);
+  }
+  if (inReview) {
+    updates.review_rows = mapCollabRows(reviewRows, collabRowId, taskCompleted);
+  }
+
   const status = (caseRow as { status?: string }).status;
-  if (taskCompleted && canUpgradeCaseToTaskCompleted(status) && allTaskCompleted) {
+  if (inCollab && taskCompleted && canUpgradeCaseToTaskCompleted(status) && allTaskCompleted) {
     updates.status = "task_completed";
-  } else if (!taskCompleted && status === "task_completed") {
+  } else if (inCollab && !taskCompleted && status === "task_completed") {
     updates.status = "dispatched";
   }
 
@@ -87,7 +96,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
     .from("cases")
-    .select("collab_rows, status")
+    .select("collab_rows, review_rows, status")
     .eq("id", caseId)
     .eq("env", env)
     .maybeSingle();
@@ -97,8 +106,15 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   const rows = Array.isArray((caseRow as { collab_rows?: unknown }).collab_rows)
     ? ((caseRow as { collab_rows: CollabRowJson[] }).collab_rows)
     : [];
+  const reviewRows = Array.isArray((caseRow as { review_rows?: unknown }).review_rows)
+    ? ((caseRow as { review_rows: CollabRowJson[] }).review_rows)
+    : [];
   const byId = new Map(updates.map((u) => [String(u.collabRowId), u.taskCompleted]));
   const updatedRows = rows.map((r) => {
+    const hit = byId.get(String(r.id));
+    return hit === undefined ? r : { ...r, taskCompleted: hit };
+  });
+  const updatedReviewRows = reviewRows.map((r) => {
     const hit = byId.get(String(r.id));
     return hit === undefined ? r : { ...r, taskCompleted: hit };
   });
@@ -107,6 +123,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
 
   const patch: Record<string, unknown> = {
     collab_rows: updatedRows,
+    review_rows: updatedReviewRows,
     updated_at: updatedAt,
   };
   const status = (caseRow as { status?: string }).status;

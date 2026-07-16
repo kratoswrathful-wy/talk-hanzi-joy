@@ -157,6 +157,7 @@ export type Database = {
           client_receipt_files: Json | null
           collab_count: number
           collab_rows: Json
+          review_rows: Json
           comments: Json | null
           common_info: Json
           common_links: Json | null
@@ -226,6 +227,7 @@ export type Database = {
           client_receipt_files?: Json | null
           collab_count?: number
           collab_rows?: Json
+          review_rows?: Json
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -295,6 +297,7 @@ export type Database = {
           client_receipt_files?: Json | null
           collab_count?: number
           collab_rows?: Json
+          review_rows?: Json
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -3194,8 +3197,14 @@ export type Database = {
       cat_upsert_review_stage_assignment: {
         Args: {
           p_assignee_user_id: string
+          p_collab_row_id?: string | null
           p_file_id: string
+          p_line_end?: number | null
+          p_line_start?: number | null
+          p_scope_label?: string | null
+          p_view_id?: string | null
           p_workflow_status?: string
+          p_allow_downgrade?: boolean
         }
         Returns: undefined
       }
@@ -3229,33 +3238,20 @@ export type Database = {
         Args: { p_rows: Json }
         Returns: number
       }
-      cat_upsert_translate_stage_assignment:
-        | {
-            Args: {
-              p_assignee_user_id: string
-              p_collab_row_id: string
-              p_file_id: string
-              p_line_end: number
-              p_line_start: number
-              p_scope_label: string
-              p_view_id: string
-              p_workflow_status: string
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_assignee_user_id: string
-              p_collab_row_id: string
-              p_file_id: string
-              p_line_end: number
-              p_line_start: number
-              p_scope_label: string
-              p_view_id: string
-              p_workflow_status: string
-            }
-            Returns: undefined
-          }
+      cat_upsert_translate_stage_assignment: {
+        Args: {
+          p_assignee_user_id: string
+          p_collab_row_id?: string | null
+          p_file_id: string
+          p_line_end?: number | null
+          p_line_start?: number | null
+          p_scope_label?: string | null
+          p_view_id?: string | null
+          p_workflow_status?: string
+          p_allow_downgrade?: boolean
+        }
+        Returns: undefined
+      }
       cat_workflow_is_exception_file: {
         Args: { p_name: string }
         Returns: boolean
