@@ -1,12 +1,12 @@
-狀態：規劃中
+狀態：已落地待驗收
 
 # CAT 審稿分段指派與工作狀態改版——執行計畫（工項 A–D）
 
 - **日期**：2026-07-16
 - **工單**：`工單_審稿分段指派_2026-07-16.md`
 - **正式庫**：`wshsmerltcakffllgyul`
-- **紅線（審核通過前）**：**禁止**改 schema／跑 migration／改正式庫；本 PR **僅文件**
-- **migration 節奏**：一律 `supabase db push`（見 [`DEV_PIPELINE.md`](DEV_PIPELINE.md)）；禁止 MCP 直套
+- **審核**：2026-07-16 通過（§8 全勾）；實作中（A 先行）
+- **migration 節奏**：一律 `supabase db push`（見 [`DEV_PIPELINE.md`](DEV_PIPELINE.md)）；禁止 MCP 直套；**A 上正式庫前先回報 schema 經驗收方放行**
 - **分支策略**：A→D 先後、不同分支；B、C 可與 A 平行；**每工項獨立 PR、獨立驗收，禁止堆同一分支**
 
 ---
@@ -145,9 +145,11 @@ cat_upsert_review_stage_assignment(
 
 **一次性、idempotent migration（A 的 db push 檔內或緊鄰第二檔）**：
 
-1. **有 `cases.reviewer` 非空**：
+**防重複（2026-07-16 釘死）**：若該案件 `review_rows` **已非空**（`jsonb_typeof = 'array' AND jsonb_array_length > 0`）→ **整案跳過**插入，避免重跑重複列。可另加列級標記 `"migratedFromCaseReviewer": true` 供稽核。遷移前／後對 `cases.reviewer`／`review_rows`／相關 assignment 做唯讀快照存 `docs/`（比照 migration 歷史對齊工程慣例）。
+
+1. **有 `cases.reviewer` 非空** 且 `review_rows` 為空：
    - 找出 `cat_files.related_lms_case_id = case.id` 的每個檔；
-   - 為每個檔插入一筆 `review_rows`：`id=新 UUID`、`reviewer=原名`、`reviewerUserId=dual resolve`、`linkedCatFileId=該檔`、`lineRange/scope` 空＝整檔、`taskCompleted`＝若該檔既有 review assignment 已 completed 或 review stage 已 completed 則 true。
+   - 為每個檔插入一筆 `review_rows`：`id=新 UUID`、`reviewer=原名`、`reviewerUserId=dual resolve`、`linkedCatFileId=該檔`、`lineRange/scope` 空＝整檔、`taskCompleted`＝若該檔既有 review assignment 已 completed 或 review stage 已 completed 則 true、`migratedFromCaseReviewer: true`。
 2. **對映既有 `cat_stage_assignments`（review、整檔、`collab_row_id IS NULL`）**：
    - 若能配到同檔＋同 assignee 的新 `review_rows` → `UPDATE` 填上 `collab_row_id`（及必要時範圍仍為 null＝整檔）；
    - **保留** `workflow_status`（完成不得倒退）。
@@ -274,38 +276,34 @@ completed = 2
    （實作：sync 迴圈先 SELECT 既有 `workflow_status`，或改由 upsert 內部吞掉降級——見下；兩者擇一，預設 **upsert 內部為權威**，sync 可仍傳 assigned，但 upsert 會擋。）
 4. 否則 → `assigned`。
 
-**Upsert 實際寫入 `resolveEffectiveUpsertWorkflowStatus`（擴充）**：
+**Upsert 實際寫入 `resolveEffectiveUpsertWorkflowStatus`（擴充；D 落地）**：
 
 ```text
 requested = normalize(requested)  // 預設 assigned
 existing  = normalize(existing)
+allowDowngrade = !!p_allow_downgrade  // 預設 false；僅 PM 重開傳 true
 
 // —— 2026-07-14（保留）——
 if existing === 'completed' && requested !== 'completed' && stageStatus === 'completed':
   return 'completed'
 
-// —— 新增：禁止 in_progress → assigned（stage 未重開）——
-if existing === 'in_progress' && requested === 'assigned' && stageStatus === 'completed':
-  return 'in_progress'  // stage 仍完成時更不該降
-if existing === 'in_progress' && requested === 'assigned' && stageStatus !== 'reopened':
-  return 'in_progress'
-
-// —— 一般：只允許不降級 ——
-if rank(requested) < rank(existing) && not isStageReopened(stageStatus, existing):
+// —— 等級：不允許降級，除非 allowDowngrade ——
+if rank(requested) < rank(existing) && !allowDowngrade:
   return existing
 
 return requested
 ```
 
-**`isStageReopened`（明確定義，供審核）**：
+**「重開」判定（2026-07-16 釘死，禁止字串推斷）**：
 
-- stage 狀態 ∈ `{pending, active}`（或產品現用的非 completed 集合），**且**此次寫入來自「PM 重開／`cat_revert_workflow_stages_for_case`／整檔改回 active」路徑；或
-- 簡化可審核版：**僅當 `stageStatus !== 'completed'` 且 `requested` 由 PM 整檔重開 API 明確傳入降級**時允許；LMS sync 路徑**永遠不得**把 `in_progress`／`completed` 降成更低（除非 stage 已非 completed **且** `taskCompleted=false` 與「重開」同一事務——需在實作 PR 用測試釘死）。
+- stage **沒有** `reopened` 這個值；**不得**用 `stageStatus === 'reopened'` 或類似字串推斷。
+- upsert（translate／review）增加明確參數：`p_allow_downgrade boolean DEFAULT false`（或獨立的 PM 重開專用函式，語意等同）。
+- **只有** PM 重開路徑傳 `p_allow_downgrade := true`；**LMS sync 路徑永遠不傳 true**（預設 false）。
+- Vitest／SQL 測試釘死：sync 呼叫鏈傳不進 `allow_downgrade`。
 
-**本計畫預設（請驗收方勾選）**：
+**本計畫裁決（已核准）**：
 
-- [ ] **D5-預設**：LMS sync 路徑上，upsert **永不**將 `in_progress`→`assigned` 或 `completed`→`in_progress`/`assigned`；唯一允許降級的是 CAT／PM「重開」專用函式（stage 先改非 completed，再寫指派）。
-- [ ] **D5-替代**：sync 在 stage≠completed 時允許降回 assigned（較鬆，回歸風險高）。
+- [x] **D5-預設**：LMS sync 永不降級 `in_progress`／`completed`；僅 PM 重開路徑（`p_allow_downgrade=true`）可降。
 
 ### 6.4 改動落點（同一組既有函式，不另起爐灶）
 
@@ -345,13 +343,15 @@ return requested
 
 ## 8. 請驗收方確認的決策
 
-- [ ] **採納 `cases.review_rows`（方案甲）** 作為審稿列唯一真相
-- [ ] **案件層級 `cases.reviewer`**：遷移後改衍生顯示／不再驅動 sync
-- [ ] **協作表列內 `CollabRow.reviewer`**：不驅動 CAT（隱藏或標非 CAT）
-- [ ] **審稿完成語意**：§2.4（全部分段 completed → stage completed）
-- [ ] **D5-預設**（sync 永不降級 in_progress／completed；僅 PM 重開路徑可降）
-- [ ] **授權分 PR 動工**：A 先；B／C 可平行；D 等 A merge
-- [ ] 其他否決或修正：________________
+審核紀錄 2026-07-16：
+
+- [x] **採納 `cases.review_rows`（方案甲）** 作為審稿列唯一真相
+- [x] **案件層級 `cases.reviewer`**：遷移後改衍生顯示（`review_rows` 去重名單）、不再驅動 sync
+- [x] **協作表列內 `CollabRow.reviewer`**：不驅動 CAT（預設隱藏；若保留須明標「不影響 CAT 指派」）
+- [x] **審稿完成語意**：§2.4（全部分段 completed → stage completed；空集合不誤完成）
+- [x] **D5-預設**＋**`p_allow_downgrade` 明確參數**（sync 永不傳 true）
+- [x] **授權分 PR 動工**：A 先；B／C 可平行；D 等 A 進 main
+- [x] **遷移 idempotent**：`review_rows` 已非空則跳過；遷移前後快照存 docs
 
 ---
 
