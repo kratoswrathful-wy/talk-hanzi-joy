@@ -716,7 +716,7 @@
                         <span class="editor-file-title" id="editorFileName">檔案名稱</span>
                         <div id="sfFilterCountBadge" style="display:none; flex-shrink:0; font-size:0.82rem; color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.75rem; white-space:nowrap;">目前篩選出 <strong id="sfFilterCountNum">0</strong> 個句段</div>
                     </div>
-                    <div class="toolbar-right" style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="toolbar-right">
                         <div class="dropdown-container">
                             <button class="icon-btn" id="btnSortMenu" data-tip="句段排序">📶</button>
                             <div class="dropdown-menu" id="sortDropdown">
@@ -755,7 +755,9 @@
                         <label id="labelToggleSourceFileCol" style="display:none; align-items:center; gap:0.3rem; font-size:0.82rem; color:#475569; cursor:pointer; white-space:nowrap;">
                             <input type="checkbox" id="chkShowSourceFileCol" checked> 顯示所屬檔案
                         </label>
-                        <div style="flex:1;"></div>
+                        <div class="toolbar-right-spacer" aria-hidden="true"></div>
+                        <!-- 工項 C：工作階段字樣緊鄰右側操作鈕群（提問／預翻／調整狀態…）左側 -->
+                        <span id="wfSessionKindHint" class="wf-session-hint" style="display:none;"></span>
                         <button type="button" id="btnEditorWordCount" class="btn-sm btn-editor-word-count" style="display:none;">字數</button>
                         <button id="btnGsSourceLink" class="secondary-btn btn-sm" style="display:none;">原檔連結</button>
                         <div class="split-btn-group" id="inNoteGroup" style="display:none;">
@@ -771,7 +773,6 @@
                             <button type="button" id="btnClientQuestionFormArrow" class="success-btn btn-sm split-btn-arrow" data-tip="欄位設定">▾</button>
                         </div>
                         <button id="btnPreTranslate" class="primary-btn btn-sm" data-tip="預先翻譯">預先翻譯</button>
-                        <span id="wfSessionKindHint" class="wf-session-hint" style="display:none; font-size:0.75rem; color:#64748b; white-space:nowrap;"></span>
                         <div class="split-btn-group" id="wfTaskCompleteGroup" style="display:none;">
                             <button type="button" id="btnWfTaskCompleteMain" class="secondary-btn btn-sm split-btn-main" data-tip="標記目前段落指派為任務完成">任務完成</button>
                             <button type="button" id="btnWfAdjustStatus" data-testid="btn-wf-adjust-or-prep-complete" class="secondary-btn btn-sm split-btn-main" style="display:none;" data-tip="調整翻譯步驟與段落指派狀態">調整狀態</button>
