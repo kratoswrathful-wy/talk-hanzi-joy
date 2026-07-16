@@ -3183,16 +3183,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         _refreshPmActingRoleBtn();
     }
 
+    /** 工項 B：PM 以上，或本人在目前檔同時有 translate＋review 指派時，顯示身分切換器 */
+    function _canShowWfSessionRoleSwitch() {
+        if (activeView !== 'viewEditor' || !(currentFileId || _currentViewId)) return false;
+        if (_isCatPmOrExecutive()) return true;
+        return _needsWfSessionChoice();
+    }
+
     function _refreshPmActingRoleBtn() {
         const btn = document.getElementById('btnPmActingRole');
         if (!btn) return;
-        const show = _isCatPmOrExecutive() && activeView === 'viewEditor' && (currentFileId || _currentViewId);
+        const show = _canShowWfSessionRoleSwitch();
         btn.style.display = show ? '' : 'none';
         if (!show) return;
         const kind = currentWfSessionKind || 'review';
         btn.textContent = kind === 'review' ? 'R' : 'T';
         btn.dataset.actingRole = kind;
-        btn.title = kind === 'review' ? '目前操作視為審稿（點擊切換為翻譯）' : '目前操作視為翻譯（點擊切換為審稿）';
+        const tip = kind === 'review'
+            ? '目前操作視為審稿（點擊切換為翻譯）'
+            : '目前操作視為翻譯（點擊切換為審稿）';
+        btn.title = tip;
+        btn.setAttribute('data-tip', tip);
     }
 
     const _pmPrepFirstEditWarnedFiles = new Set();
@@ -5967,6 +5978,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowStages = stages;
         window._currentFileStageAssignments = assignments;
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+        if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
         return { stages, assignments };
     }
 
@@ -5996,6 +6008,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileStageAssignments = allAssigns;
         window._currentFileWorkflowStages = [];
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+        if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
     }
 
     function _getStagesForAssignment(a) {
