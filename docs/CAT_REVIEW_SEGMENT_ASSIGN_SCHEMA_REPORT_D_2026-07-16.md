@@ -1,11 +1,12 @@
-狀態：規劃中（待 schema 放行後 `db push`）
+狀態：已落地待驗收
 
 # 工項 D schema 報告——`workflow_status` 等級防降級
 
 - **日期**：2026-07-16
 - **分支**：`feat/review-segment-status-d`
 - **正式庫**：`wshsmerltcakffllgyul`
-- **紅線**：本報告核准前**禁止** `supabase db push`／MCP 直套
+- **審核**：2026-07-16 放行；**已 `db push`**（`20260716180000`）
+- **已知不對稱（備查）**：stage 重開時 `completed` 可被 sync 降回（2026-07-14 反向路徑）；`in_progress` 不會——偏保守、可接受
 
 ---
 

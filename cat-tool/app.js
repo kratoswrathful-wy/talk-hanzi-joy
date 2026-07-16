@@ -6611,11 +6611,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rowHtml = (a, kind) => {
             const label = esc(_formatWfTaskAssignmentLabel(a));
             const wfStatus = _normalizeAdjustWorkflowStatus(a.workflowStatus);
-            const lockedByReview = kind === 'translate' && _isTranslateLockedByAnyReviewComplete(a.fileId);
-            const dis = lockedByReview ? ' disabled' : '';
+            const lockedHint = kind === 'translate' && _isTranslateLockedByAnyReviewComplete(a.fileId)
+                ? ' <span style="color:#b45309;">（仍有審稿完成；請先改審稿再降翻譯，或同次一併改）</span>'
+                : '';
+            // 不 disabled：允許同次套用「審稿離開完成＋翻譯降級」
             return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;">`
-                + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}${lockedByReview ? ' <span style="color:#b45309;">（審稿已完成，翻譯已鎖定）</span>' : ''}</span>`
-                + `<select class="form-input wf-adjust-row-status" data-assignment-id="${esc(a.id)}" data-stage-kind="${kind}" style="width:auto;min-width:132px;height:28px;font-size:0.8rem;padding:0 0.35rem;"${dis}>`
+                + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}${lockedHint}</span>`
+                + `<select class="form-input wf-adjust-row-status" data-assignment-id="${esc(a.id)}" data-stage-kind="${kind}" style="width:auto;min-width:132px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
                 + `<option value="assigned"${wfStatus === 'assigned' ? ' selected' : ''}>待開始</option>`
                 + `<option value="in_progress"${wfStatus === 'in_progress' ? ' selected' : ''}>執行中</option>`
                 + `<option value="completed"${wfStatus === 'completed' ? ' selected' : ''}>完成</option>`
@@ -6731,17 +6733,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hits = [];
         try {
             for (const sel of selects) {
-                if (sel.disabled) continue;
                 const id = sel.getAttribute('data-assignment-id');
                 if (!id) continue;
                 const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
                 const hit = arr.find((a) => String(a.id) === String(id));
                 if (!hit || hit.workflowStatus === wfStatus) continue;
-                if (_isTranslateStageAssignment(hit) && _isTranslateLockedByAnyReviewComplete(hit.fileId)
-                    && wfStatus !== 'completed') {
-                    showCatToast('審稿已有完成分段，翻譯狀態已鎖定', 'error');
-                    continue;
-                }
                 await _updateAssignmentWorkflowStatusLocal(id, wfStatus);
                 hits.push({ ...hit, workflowStatus: wfStatus });
             }
@@ -6750,14 +6746,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _closeWfAdjustStatusModal();
                 return;
             }
-            // 任一審稿設為完成 → 強制該檔翻譯全部完成並鎖定
-            const reviewCompletedFiles = new Set();
-            for (const h of hits) {
-                if (!_isReviewStageAssignment(h)) continue;
-                if (h.workflowStatus === 'completed') reviewCompletedFiles.add(String(h.fileId));
-            }
-            for (const fid of reviewCompletedFiles) {
+            // 以套用後記憶體為準：仍有任一審稿 completed → 強制翻譯完成；
+            // 全審稿已離開完成則不強制（同次可降翻譯）
+            const touchedFileIds = new Set(hits.map((h) => String(h.fileId)));
+            const forcedTranslateFiles = [];
+            const blockedTranslateDowngrade = [];
+            for (const fid of touchedFileIds) {
+                if (!_isTranslateLockedByAnyReviewComplete(fid)) continue;
+                const wantedDowngrade = hits.some(
+                    (h) => String(h.fileId) === fid
+                        && _isTranslateStageAssignment(h)
+                        && h.workflowStatus !== 'completed',
+                );
                 await _forceTranslateCompletedForFileDueToReview(fid);
+                forcedTranslateFiles.push(fid);
+                if (wantedDowngrade) blockedTranslateDowngrade.push(fid);
+            }
+            if (blockedTranslateDowngrade.length) {
+                showCatToast('仍有審稿分段為「完成」，翻譯已維持鎖定；請先將全部審稿改為非完成後再降翻譯', 'info');
             }
             const touchedStageIds = new Set(hits.map((h) => String(h.fileWorkflowStageId)));
             for (const h of hits) {
