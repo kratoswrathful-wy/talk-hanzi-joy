@@ -1,19 +1,17 @@
-狀態：實作中
+狀態：已落地待驗收
 
-# 工項 A——正式庫 schema 變更報告（待驗收方放行後再 `db push`）
+# 工項 A——正式庫 schema 變更報告
 
 - **分支**：`feat/review-segment-assign-a`
 - **migration 檔**：`supabase/migrations/20260716120000_cat_review_segment_assign.sql`
 - **計畫**：[`CAT_REVIEW_SEGMENT_ASSIGN_PLAN_2026-07.md`](CAT_REVIEW_SEGMENT_ASSIGN_PLAN_2026-07.md)
 - **遷移前快照**：[`CAT_REVIEW_SEGMENT_ASSIGN_SNAPSHOT_PRE_2026-07-16.md`](CAT_REVIEW_SEGMENT_ASSIGN_SNAPSHOT_PRE_2026-07-16.md)
+- **遷移後快照**：[`CAT_REVIEW_SEGMENT_ASSIGN_SNAPSHOT_POST_2026-07-16.md`](CAT_REVIEW_SEGMENT_ASSIGN_SNAPSHOT_POST_2026-07-16.md)
 
-## 請放行後才執行
+## 執行紀錄
 
-```text
-npx supabase db push --linked
-```
-
-（禁止 MCP `apply_migration` 直套。）
+- **2026-07-16**：驗收方放行後已執行 `supabase db push --linked`（正式庫 `wshsmerltcakffllgyul`）。
+- `schema_migrations` 已含 `20260716120000`。
 
 ## Schema 變更摘要
 
@@ -33,5 +31,13 @@ npx supabase db push --linked
 
 ## 驗收方勾選
 
-- [ ] schema 可上正式庫
-- [ ] 放行後由代理執行 `db push` 並寫 POST 快照
+- [x] schema 可上正式庫
+- [x] 放行後由代理執行 `db push` 並寫 POST 快照
+
+## push 後三項驗證（摘要）
+
+| # | 結果 |
+|---|---|
+| 1 `collab_row_id IS NULL` | **1**（預期 ≈0）；明細見 POST §2.1——無 LMS 連結檔孤立列，非 completed |
+| 2 completed 數 | **301＝301**（未減少） |
+| 3 review_rows ≥ 連結檔 | **685/685** shortfall 0 |
