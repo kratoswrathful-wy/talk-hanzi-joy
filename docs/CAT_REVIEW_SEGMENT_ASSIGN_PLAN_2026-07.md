@@ -1,11 +1,12 @@
-狀態：已落地待驗收
+狀態：實作中
 
 # CAT 審稿分段指派與工作狀態改版——執行計畫（工項 A–D）
 
 - **日期**：2026-07-16
 - **工單**：`工單_審稿分段指派_2026-07-16.md`
 - **正式庫**：`wshsmerltcakffllgyul`
-- **審核**：2026-07-16 通過（§8 全勾）；實作中（A 先行）
+- **審核**：2026-07-16 通過（§8 全勾）；**工項 A 實作中**（schema 待放行後 `db push`）
+- **A schema 報告**：[`CAT_REVIEW_SEGMENT_ASSIGN_SCHEMA_REPORT_A_2026-07-16.md`](CAT_REVIEW_SEGMENT_ASSIGN_SCHEMA_REPORT_A_2026-07-16.md)
 - **migration 節奏**：一律 `supabase db push`（見 [`DEV_PIPELINE.md`](DEV_PIPELINE.md)）；禁止 MCP 直套；**A 上正式庫前先回報 schema 經驗收方放行**
 - **分支策略**：A→D 先後、不同分支；B、C 可與 A 平行；**每工項獨立 PR、獨立驗收，禁止堆同一分支**
 

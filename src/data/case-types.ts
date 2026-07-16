@@ -32,8 +32,9 @@ export interface CollabRow {
   unitCount: number;      // 計費單位數
   accepted: boolean;      // 確認承接
   translationDeadline: string | null; // 翻譯交期
-  reviewer: string;       // 審稿人員
-  reviewDeadline: string | null;      // 審稿交期
+  /** 列內註記用；不驅動 CAT 審稿指派（真相＝review_rows） */
+  reviewer: string;
+  reviewDeadline: string | null;      // 審稿交期（列內註記；不驅動 CAT）
   taskCompleted: boolean; // 任務完成
   delivered: boolean;     // 交件完畢
   /** Phase B B-4：與 CAT cat_stage_assignments.collab_row_id 雙向 */
@@ -44,6 +45,22 @@ export interface CollabRow {
   /** 派案重構：譯者帳號編號（UUID）雙寫；同步以此優先配對，名字僅供顯示／後備 */
   translatorUserId?: string | null;
   reviewerUserId?: string | null;
+}
+
+/** 審稿分段指派列（cases.review_rows；CAT review sync 唯一真相） */
+export interface ReviewCollabRow {
+  id: string;
+  segment: string;
+  reviewer: string;
+  reviewerUserId?: string | null;
+  reviewDeadline: string | null;
+  taskCompleted: boolean;
+  linkedCatFileId?: string | null;
+  linkedCatViewId?: string | null;
+  lineRange?: string | null;
+  scopeLabel?: string | null;
+  accepted?: boolean;
+  migratedFromCaseReviewer?: boolean;
 }
 
 export interface CaseComment {
@@ -125,6 +142,8 @@ export interface CaseRecord {
   multiCollab: boolean;
   collabCount: number;
   collabRows: CollabRow[];
+  /** 審稿分段指派（工項 A）；驅動 CAT review sync */
+  reviewRows: ReviewCollabRow[];
   declineRecords: DeclineRecord[];
   iconUrl: string;
   createdBy: string | null;

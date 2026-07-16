@@ -197,7 +197,13 @@ async function reconcileReviewerAssignment(file, caseRow, reviewStageId) {
         const { error } = await supabase.rpc("cat_upsert_review_stage_assignment", {
           p_file_id: file.id,
           p_assignee_user_id: reviewerId,
+          p_collab_row_id: null,
+          p_view_id: null,
+          p_scope_label: null,
+          p_line_start: null,
+          p_line_end: null,
           p_workflow_status: "assigned",
+          // LMS／腳本路徑永不傳 p_allow_downgrade（預設 false）
         });
         if (error) throw new Error(`補齊審稿指派失敗 (${file.id}): ${error.message}`);
       }

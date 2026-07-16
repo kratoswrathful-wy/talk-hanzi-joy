@@ -96,6 +96,7 @@ function baseCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
     multiCollab: false,
     collabCount: 0,
     collabRows: [],
+    reviewRows: [],
     declineRecords: [],
     iconUrl: "",
     createdBy: "pm-1",

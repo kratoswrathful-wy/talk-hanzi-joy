@@ -22,7 +22,8 @@ import {
 import { feeStore } from "@/stores/fee-store";
 import { invoiceStore } from "@/stores/invoice-store";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
-import type { CaseRecord, CaseStatus, ToolEntry, ToolEntryField, CaseComment, DeclineRecord, CollabRow, WorkGroup } from "@/data/case-types";
+import type { CaseRecord, CaseStatus, ToolEntry, ToolEntryField, CaseComment, DeclineRecord, CollabRow, ReviewCollabRow, WorkGroup } from "@/data/case-types";
+import { deriveReviewerSummary } from "@/lib/review-rows";
 import type { Block } from "@blocknote/core";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createPollFallback } from "@/lib/realtime-poll";
@@ -146,6 +147,27 @@ function collabRowFromJson(x: Json): CollabRow | undefined {
     ...(nullableStringFromJson(x.lineRange) !== undefined ? { lineRange: nullableStringFromJson(x.lineRange) } : {}),
     ...(nullableStringFromJson(x.scopeLabel) !== undefined ? { scopeLabel: nullableStringFromJson(x.scopeLabel) } : {}),
     ...(nullableStringFromJson(x.translatorUserId) !== undefined ? { translatorUserId: nullableStringFromJson(x.translatorUserId) } : {}),
+    ...(nullableStringFromJson(x.reviewerUserId) !== undefined ? { reviewerUserId: nullableStringFromJson(x.reviewerUserId) } : {}),
+  };
+}
+
+function reviewCollabRowFromJson(x: Json): ReviewCollabRow | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  if (typeof x.id !== "string" || typeof x.reviewer !== "string") return undefined;
+  const rawReviewDeadline = x.reviewDeadline;
+  const reviewDeadline: string | null = typeof rawReviewDeadline === "string" ? rawReviewDeadline : null;
+  return {
+    id: x.id,
+    segment: typeof x.segment === "string" ? x.segment : "",
+    reviewer: x.reviewer,
+    reviewDeadline,
+    taskCompleted: typeof x.taskCompleted === "boolean" ? x.taskCompleted : false,
+    ...(typeof x.accepted === "boolean" ? { accepted: x.accepted } : {}),
+    ...(typeof x.migratedFromCaseReviewer === "boolean" ? { migratedFromCaseReviewer: x.migratedFromCaseReviewer } : {}),
+    ...(nullableStringFromJson(x.linkedCatFileId) !== undefined ? { linkedCatFileId: nullableStringFromJson(x.linkedCatFileId) } : {}),
+    ...(nullableStringFromJson(x.linkedCatViewId) !== undefined ? { linkedCatViewId: nullableStringFromJson(x.linkedCatViewId) } : {}),
+    ...(nullableStringFromJson(x.lineRange) !== undefined ? { lineRange: nullableStringFromJson(x.lineRange) } : {}),
+    ...(nullableStringFromJson(x.scopeLabel) !== undefined ? { scopeLabel: nullableStringFromJson(x.scopeLabel) } : {}),
     ...(nullableStringFromJson(x.reviewerUserId) !== undefined ? { reviewerUserId: nullableStringFromJson(x.reviewerUserId) } : {}),
   };
 }
@@ -344,7 +366,6 @@ function fromDb(row: DbCase): CaseRecord {
     inquiryNote: row.inquiry_note ?? "",
     translator: toTypedArray(row.translator, stringFromJson),
     translationDeadline: row.translation_deadline,
-    reviewer: row.reviewer ?? "",
     reviewDeadline: row.review_deadline,
 
     executionTool: row.execution_tool ?? "",
@@ -384,6 +405,12 @@ function fromDb(row: DbCase): CaseRecord {
     multiCollab: row.multi_collab ?? false,
     collabCount: Number(row.collab_count) || 0,
     collabRows: toTypedArray(row.collab_rows, collabRowFromJson),
+    reviewRows: toTypedArray(row.review_rows, reviewCollabRowFromJson),
+    // reviewer：優先由 review_rows 衍生；遷移前／空列時 fallback DB 欄
+    reviewer: (() => {
+      const fromRows = deriveReviewerSummary(toTypedArray(row.review_rows, reviewCollabRowFromJson));
+      return fromRows || (row.reviewer ?? "");
+    })(),
     declineRecords: toTypedArray(row.decline_records, declineRecordFromJson),
     iconUrl: row.icon_url ?? "",
     createdBy: row.created_by,
@@ -462,6 +489,11 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   if (c.multiCollab !== undefined) map.multi_collab = c.multiCollab;
   if (c.collabCount !== undefined) map.collab_count = c.collabCount;
   if (c.collabRows !== undefined) map.collab_rows = toJson(c.collabRows);
+  if (c.reviewRows !== undefined) {
+    map.review_rows = toJson(c.reviewRows);
+    // 寫入 review_rows 時同步衍生 cases.reviewer（清單／舊欄相容；不再驅動 sync）
+    map.reviewer = deriveReviewerSummary(c.reviewRows);
+  }
   if (c.declineRecords !== undefined) map.decline_records = toJson(c.declineRecords);
   if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
@@ -634,6 +666,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   const shouldSyncCatWorkflowAssignments =
     !!prev &&
     (partial.collabRows !== undefined ||
+      partial.reviewRows !== undefined ||
       partial.reviewer !== undefined ||
       partial.translator !== undefined ||
       partial.multiCollab !== undefined ||
@@ -914,6 +947,8 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
     multiCollab: false,
     collabCount: 0,
     collabRows: [],
+    reviewRows: [],
+    reviewer: "",
     translator: [],
     translationDeadline: null,
     reviewDeadline: null,

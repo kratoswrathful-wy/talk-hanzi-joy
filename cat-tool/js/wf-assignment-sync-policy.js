@@ -23,6 +23,7 @@ export function resolveRequestedSyncWorkflowStatus(input) {
  *   stageStatus?: string|null,
  *   existingStatus?: string|null,
  *   requestedStatus?: string|null,
+ *   allowDowngrade?: boolean,
  * }} input
  * @returns {string}
  */
@@ -30,10 +31,13 @@ export function resolveEffectiveUpsertWorkflowStatus(input) {
   const stageStatus = String(input?.stageStatus || "");
   const existingStatus = String(input?.existingStatus || "");
   const requestedStatus = String(input?.requestedStatus || "assigned");
+  const allowDowngrade = !!input?.allowDowngrade;
+  // LMS sync 永遠不傳 allowDowngrade（預設 false）；僅 PM 重開路徑可 true
   if (
     existingStatus === "completed" &&
     requestedStatus !== "completed" &&
-    stageStatus === "completed"
+    stageStatus === "completed" &&
+    !allowDowngrade
   ) {
     return "completed";
   }
