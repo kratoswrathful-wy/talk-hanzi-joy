@@ -52,6 +52,12 @@ interface MultiColorSelectProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  /** Compact trigger styles for table inline edit (mirrors ColorSelect). */
+  triggerClassName?: string;
+  /** Open the popover on mount (single-click edit, mirrors ColorSelect). */
+  defaultOpen?: boolean;
+  /** Notify parent when open state changes (e.g. exit InlineEditCell on close). */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function MultiColorSelect({
@@ -61,13 +67,16 @@ export default function MultiColorSelect({
   disabled = false,
   placeholder = "選擇...",
   className,
+  triggerClassName,
+  defaultOpen,
+  onOpenChange,
 }: MultiColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
   const labelStyles = useLabelStyles();
   const labelTextColor = fieldKey === "taskType" ? labelStyles.taskType.textColor
     : fieldKey === "billingUnit" ? labelStyles.billingUnit.textColor
     : "#D1DAEA";
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen ?? false);
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
@@ -200,7 +209,14 @@ export default function MultiColorSelect({
 
   return (
     <>
-      <Popover open={open} onOpenChange={(v) => { if (!disabled) setOpen(v); }}>
+      <Popover
+        open={open}
+        onOpenChange={(v) => {
+          if (disabled) return;
+          setOpen(v);
+          onOpenChange?.(v);
+        }}
+      >
         <PopoverTrigger asChild>
           <div
             role="button"
@@ -208,7 +224,8 @@ export default function MultiColorSelect({
             className={cn(
               "flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md border border-input bg-secondary/50 text-sm transition-colors hover:bg-secondary/70 w-full cursor-pointer",
               disabled && "opacity-50 cursor-not-allowed",
-              className
+              className,
+              triggerClassName
             )}
           >
             {selectedOptions.length > 0 ? (

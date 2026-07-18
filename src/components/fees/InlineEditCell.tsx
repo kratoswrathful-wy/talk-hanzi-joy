@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
+import { shouldAutoOpenOnEnter } from "@/components/fees/inline-edit-auto-open";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -101,7 +102,7 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           value={String(value)}
           onValueChange={(v) => { onCommit(v); setEditing(false); }}
           triggerClassName="h-7 text-xs"
-          defaultOpen
+          defaultOpen={shouldAutoOpenOnEnter("colorSelect")}
         />
       </div>
     );
@@ -114,6 +115,11 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           fieldKey={fieldKey}
           values={Array.isArray(value) ? value : []}
           onValuesChange={(v) => { onCommit(v); }}
+          triggerClassName="h-7 min-h-0 text-xs py-0"
+          defaultOpen={shouldAutoOpenOnEnter("multiColorSelect")}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setEditing(false);
+          }}
         />
       </div>
     );
@@ -129,7 +135,7 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           }}
           onClose={() => setEditing(false)}
           className="h-7 text-xs"
-          defaultOpen
+          defaultOpen={shouldAutoOpenOnEnter("datetime")}
         />
       </div>
     );
