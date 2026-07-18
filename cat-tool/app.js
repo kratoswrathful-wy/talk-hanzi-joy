@@ -3307,6 +3307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _formatWorkflowScopeSuffix(a) {
+        // 工項 E：整檔亦標「（整檔）」；契約見 js/wf-adjust-status-action.js
         if (!a) return '';
         const label = String(a.scopeLabel || '').trim();
         if (label) return `（${label}）`;
@@ -3315,7 +3316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ls != null && le != null) return `（${ls}–${le} 列）`;
         if (ls != null) return `（${ls} 列起）`;
         if (le != null) return `（至 ${le} 列）`;
-        return '';
+        return '（整檔）';
     }
 
     function _formatWorkflowListCellHtml(stages, assignments, fileAssigneeNames) {
@@ -6596,11 +6597,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         return 'assigned';
     }
 
+    function _wfAdjustAssigneeOptionsHtml() {
+        const members = window._tmsAssignableUsers || [];
+        const esc = (s) => String(s ?? '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const opts = ['<option value="">— 選擇成員 —</option>'];
+        members.forEach((m) => {
+            const uid = m && m.id != null ? String(m.id) : '';
+            const name = ((m && (m.displayName || m.email)) || '').trim();
+            if (!uid || !name) return;
+            opts.push(`<option value="${esc(uid)}">${esc(name)}</option>`);
+        });
+        return opts.join('');
+    }
+
+    function _wfAdjustStatusSelectHtml(kind, assignmentId, wfStatus, isPlaceholder) {
+        const esc = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        const status = _normalizeAdjustWorkflowStatus(wfStatus);
+        const idAttr = assignmentId
+            ? ` data-assignment-id="${esc(assignmentId)}"`
+            : '';
+        const phAttr = isPlaceholder ? ' data-placeholder="1"' : '';
+        return `<select class="form-input wf-adjust-row-status" data-stage-kind="${esc(kind)}"${idAttr}${phAttr} style="width:auto;min-width:132px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
+            + `<option value="assigned"${status === 'assigned' ? ' selected' : ''}>待開始</option>`
+            + `<option value="in_progress"${status === 'in_progress' ? ' selected' : ''}>執行中</option>`
+            + `<option value="completed"${status === 'completed' ? ' selected' : ''}>完成</option>`
+            + `</select>`;
+    }
+
     function _openWfAdjustStatusModal() {
         const modal = document.getElementById('wfAdjustStatusModal');
         const list = document.getElementById('wfAdjustStatusList');
         const bulk = document.getElementById('wfAdjustBulkBar');
         if (!modal || !list) return;
+        const stages = window._currentFileWorkflowStages || [];
+        const hasTranslateStage = stages.some((s) => s.stageKind === 'translate');
+        const hasReviewStage = stages.some((s) => s.stageKind === 'review');
         const translateAssigns = _dedupeTranslateAssignmentsByCollabRow(
             _wfTranslateAssignmentsInContext({ includeAll: true })
         );
@@ -6610,28 +6642,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         const esc = (s) => String(s ?? '').replace(/</g, '&lt;');
         const rowHtml = (a, kind) => {
             const label = esc(_formatWfTaskAssignmentLabel(a));
-            const wfStatus = _normalizeAdjustWorkflowStatus(a.workflowStatus);
             const lockedHint = kind === 'translate' && _isTranslateLockedByAnyReviewComplete(a.fileId)
                 ? ' <span style="color:#b45309;">（仍有審稿完成；請先改審稿再降翻譯，或同次一併改）</span>'
                 : '';
             // 不 disabled：允許同次套用「審稿離開完成＋翻譯降級」
             return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;">`
                 + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}${lockedHint}</span>`
-                + `<select class="form-input wf-adjust-row-status" data-assignment-id="${esc(a.id)}" data-stage-kind="${kind}" style="width:auto;min-width:132px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
-                + `<option value="assigned"${wfStatus === 'assigned' ? ' selected' : ''}>待開始</option>`
-                + `<option value="in_progress"${wfStatus === 'in_progress' ? ' selected' : ''}>執行中</option>`
-                + `<option value="completed"${wfStatus === 'completed' ? ' selected' : ''}>完成</option>`
+                + _wfAdjustStatusSelectHtml(kind, a.id, a.workflowStatus, false)
+                + `</div>`;
+        };
+        const stageLabel = (kind) => (kind === 'review' ? '審稿' : '翻譯');
+        const placeholderHtml = (kind) => {
+            // 工項 E：0 筆指派仍顯示佔位列（整檔補指派＋三態）
+            return `<div class="wf-adjust-placeholder-row" data-stage-kind="${esc(kind)}" data-placeholder="1" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;padding:0.4rem 0.5rem;border:1px dashed #cbd5e1;border-radius:6px;background:#f8fafc;">`
+                + `<span style="font-size:0.84rem;min-width:7.5rem;">${esc(stageLabel(kind))}（尚未指派）</span>`
+                + `<select class="form-input wf-adjust-placeholder-assignee" data-stage-kind="${esc(kind)}" style="width:auto;min-width:140px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
+                + _wfAdjustAssigneeOptionsHtml()
                 + `</select>`
+                + _wfAdjustStatusSelectHtml(kind, null, 'assigned', true)
+                + `<span style="font-size:0.75rem;color:#94a3b8;">整檔</span>`
                 + `</div>`;
         };
         if (bulk) {
             const mkBtn = (kind, status, label) =>
                 `<button type="button" class="secondary-btn btn-sm wf-adjust-bulk-btn" data-bulk-kind="${kind}" data-bulk-status="${status}">${label}</button>`;
             bulk.innerHTML = [
-                translateAssigns.length
+                hasTranslateStage
                     ? `${mkBtn('translate', 'assigned', '翻譯全部待開始')}${mkBtn('translate', 'in_progress', '翻譯全部執行中')}${mkBtn('translate', 'completed', '翻譯全部完成')}`
                     : '',
-                reviewAssigns.length
+                hasReviewStage
                     ? `${mkBtn('review', 'assigned', '審稿全部待開始')}${mkBtn('review', 'in_progress', '審稿全部執行中')}${mkBtn('review', 'completed', '審稿全部完成')}`
                     : '',
             ].join('');
@@ -6645,11 +6684,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             });
         }
-        const html = [
-            ...translateAssigns.map((a) => rowHtml(a, 'translate')),
-            ...reviewAssigns.map((a) => rowHtml(a, 'review')),
-        ].join('');
-        list.innerHTML = html || '<div style="padding:0.5rem;color:#64748b;font-size:0.84rem;">目前沒有可調整的段落</div>';
+        const parts = [];
+        if (hasTranslateStage) {
+            if (translateAssigns.length) parts.push(...translateAssigns.map((a) => rowHtml(a, 'translate')));
+            else parts.push(placeholderHtml('translate'));
+        }
+        if (hasReviewStage) {
+            if (reviewAssigns.length) parts.push(...reviewAssigns.map((a) => rowHtml(a, 'review')));
+            else parts.push(placeholderHtml('review'));
+        }
+        list.innerHTML = parts.join('')
+            || '<div style="padding:0.5rem;color:#64748b;font-size:0.84rem;">目前沒有可調整的段落</div>';
         modal.classList.remove('hidden');
     }
 
@@ -6723,19 +6768,65 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowStages = stages;
     }
 
+    async function _pmUpsertWholeFileAdjustAssignment(kind, fileId, assigneeUserId, wfStatus) {
+        const payload = {
+            assigneeUserId: String(assigneeUserId),
+            collabRowId: null,
+            viewId: null,
+            scopeLabel: null,
+            lineStart: null,
+            lineEnd: null,
+            workflowStatus: _normalizeAdjustWorkflowStatus(wfStatus),
+            assignedBy: window._tmsCurrentUserId ? String(window._tmsCurrentUserId) : null,
+        };
+        if (kind === 'review') {
+            if (typeof DBService.upsertReviewStageAssignment !== 'function') {
+                throw new Error('upsertReviewStageAssignment unavailable');
+            }
+            await DBService.upsertReviewStageAssignment(fileId, payload);
+        } else {
+            await DBService.upsertTranslateStageAssignment(fileId, payload);
+        }
+        const refreshed = (await DBService.listStageAssignmentsForFile(fileId)) || [];
+        window._currentFileStageAssignments = refreshed;
+        const stages = window._currentFileWorkflowStages || [];
+        const stage = stages.find((s) => s.stageKind === kind);
+        if (!stage) return null;
+        return refreshed.find((a) =>
+            String(a.fileId) === String(fileId)
+            && String(a.fileWorkflowStageId) === String(stage.id)
+            && String(a.assigneeUserId) === String(assigneeUserId)
+            && a.lineStart == null
+            && a.lineEnd == null
+        ) || null;
+    }
+
     async function _pmApplySplitAdjustStatus() {
         const selects = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-row-status')];
         if (!selects.length) {
             showCatToast('目前沒有可調整的段落', 'info');
             return;
         }
+        const fileId = currentFileId != null ? String(currentFileId) : null;
         const arr = window._currentFileStageAssignments || [];
         const hits = [];
         try {
             for (const sel of selects) {
+                const isPlaceholder = sel.getAttribute('data-placeholder') === '1';
+                const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
+                if (isPlaceholder) {
+                    // 工項 E：未選人不寫入；已選人 → 整檔 upsert
+                    const row = sel.closest('.wf-adjust-placeholder-row');
+                    const kind = sel.getAttribute('data-stage-kind') || (row && row.getAttribute('data-stage-kind')) || '';
+                    const assigneeSel = row && row.querySelector('.wf-adjust-placeholder-assignee');
+                    const uid = assigneeSel && assigneeSel.value ? String(assigneeSel.value).trim() : '';
+                    if (!uid || !fileId || (kind !== 'translate' && kind !== 'review')) continue;
+                    const created = await _pmUpsertWholeFileAdjustAssignment(kind, fileId, uid, wfStatus);
+                    if (created) hits.push({ ...created, workflowStatus: wfStatus });
+                    continue;
+                }
                 const id = sel.getAttribute('data-assignment-id');
                 if (!id) continue;
-                const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
                 const hit = arr.find((a) => String(a.id) === String(id));
                 if (!hit || hit.workflowStatus === wfStatus) continue;
                 await _updateAssignmentWorkflowStatusLocal(id, wfStatus);
@@ -6749,7 +6840,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 以套用後記憶體為準：仍有任一審稿 completed → 強制翻譯完成；
             // 全審稿已離開完成則不強制（同次可降翻譯）
             const touchedFileIds = new Set(hits.map((h) => String(h.fileId)));
-            const forcedTranslateFiles = [];
             const blockedTranslateDowngrade = [];
             for (const fid of touchedFileIds) {
                 if (!_isTranslateLockedByAnyReviewComplete(fid)) continue;
@@ -6759,17 +6849,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                         && h.workflowStatus !== 'completed',
                 );
                 await _forceTranslateCompletedForFileDueToReview(fid);
-                forcedTranslateFiles.push(fid);
                 if (wantedDowngrade) blockedTranslateDowngrade.push(fid);
             }
             if (blockedTranslateDowngrade.length) {
                 showCatToast('仍有審稿分段為「完成」，翻譯已維持鎖定；請先將全部審稿改為非完成後再降翻譯', 'info');
             }
-            const touchedStageIds = new Set(hits.map((h) => String(h.fileWorkflowStageId)));
             for (const h of hits) {
                 await _reconcileStageStatusFromAssignments(h.fileId, h.fileWorkflowStageId);
             }
-            void touchedStageIds;
+            // 新建審稿 completed：亦觸發 stage 完成快照路徑
+            for (const h of hits) {
+                if (_isReviewStageAssignment(h) && h.workflowStatus === 'completed') {
+                    await _maybeCompleteReviewStageForFile(h.fileId);
+                }
+            }
             const byCase = new Map();
             for (const h of hits) {
                 if (!h || !_isTranslateStageAssignment(h)) continue;
@@ -6801,6 +6894,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             showCatToast('已更新段落狀態', 'info');
             refreshWfTaskCompleteToolbar();
             if (typeof renderEditorSegments === 'function') renderEditorSegments();
+            if (currentProjectId && typeof _fillFilesWorkflowCellsAsync === 'function' && window._lastFilesListForProject) {
+                void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
+            }
         } catch (e) {
             console.error('[workflow] PM split adjust', e);
             showCatToast('無法調整狀態，請稍後再試', 'error');
