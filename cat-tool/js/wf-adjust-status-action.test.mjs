@@ -1,14 +1,52 @@
 import { describe, expect, it } from "vitest";
-import { resolvePmAdjustStatusClickAction } from "./wf-adjust-status-action.js";
+import {
+  resolvePmAdjustStatusClickAction,
+  formatWorkflowScopeSuffix,
+  resolvePlaceholderApplyAction,
+  shouldShowAdjustBulkForStage,
+} from "./wf-adjust-status-action.js";
 
 describe("resolvePmAdjustStatusClickAction", () => {
   it("prep 進行中 → prep-complete", () => {
     expect(resolvePmAdjustStatusClickAction({ prepActive: true })).toBe("prep-complete");
   });
 
-  it("非 prep：整檔與拆段一律 open-modal（回歸：不得改走舊下拉）", () => {
+  it("非 prep：一律 open-modal", () => {
     expect(resolvePmAdjustStatusClickAction({ prepActive: false })).toBe("open-modal");
-    expect(resolvePmAdjustStatusClickAction({})).toBe("open-modal");
     expect(resolvePmAdjustStatusClickAction()).toBe("open-modal");
+  });
+});
+
+describe("formatWorkflowScopeSuffix（工項 E 整檔標示）", () => {
+  it("整檔（無列範圍）→ （整檔）", () => {
+    expect(formatWorkflowScopeSuffix({})).toBe("（整檔）");
+    expect(formatWorkflowScopeSuffix({ lineStart: null, lineEnd: null })).toBe("（整檔）");
+  });
+
+  it("拆段 → （N–M 列）", () => {
+    expect(formatWorkflowScopeSuffix({ lineStart: 1, lineEnd: 8 })).toBe("（1–8 列）");
+  });
+
+  it("scopeLabel 優先", () => {
+    expect(formatWorkflowScopeSuffix({ scopeLabel: "對話", lineStart: 1, lineEnd: 2 })).toBe("（對話）");
+  });
+});
+
+describe("resolvePlaceholderApplyAction", () => {
+  it("未選人 → skip", () => {
+    expect(resolvePlaceholderApplyAction({})).toBe("skip");
+    expect(resolvePlaceholderApplyAction({ assigneeUserId: "" })).toBe("skip");
+    expect(resolvePlaceholderApplyAction({ assigneeUserId: "  " })).toBe("skip");
+  });
+
+  it("已選人 → insert（狀態預設待開始亦可寫入）", () => {
+    expect(resolvePlaceholderApplyAction({ assigneeUserId: "user-1" })).toBe("insert");
+  });
+});
+
+describe("shouldShowAdjustBulkForStage", () => {
+  it("階段存在即顯示（含 0 筆指派）", () => {
+    expect(shouldShowAdjustBulkForStage({ stageExists: true })).toBe(true);
+    expect(shouldShowAdjustBulkForStage({ stageExists: false })).toBe(false);
   });
 });
