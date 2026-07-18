@@ -6666,14 +6666,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (bulk) {
             const mkBtn = (kind, status, label) =>
                 `<button type="button" class="secondary-btn btn-sm wf-adjust-bulk-btn" data-bulk-kind="${kind}" data-bulk-status="${status}">${label}</button>`;
-            bulk.innerHTML = [
-                hasTranslateStage
-                    ? `${mkBtn('translate', 'assigned', '翻譯全部待開始')}${mkBtn('translate', 'in_progress', '翻譯全部執行中')}${mkBtn('translate', 'completed', '翻譯全部完成')}`
-                    : '',
-                hasReviewStage
-                    ? `${mkBtn('review', 'assigned', '審稿全部待開始')}${mkBtn('review', 'in_progress', '審稿全部執行中')}${mkBtn('review', 'completed', '審稿全部完成')}`
-                    : '',
-            ].join('');
+            // 翻譯／審稿各固定一排，避免 flex-wrap 混成 4+2（契約見 resolveAdjustBulkRowKinds）
+            const mkRow = (kind, buttonsHtml) =>
+                `<div class="wf-adjust-bulk-row" data-bulk-kind="${kind}" style="display:flex;flex-wrap:wrap;gap:0.4rem;">${buttonsHtml}</div>`;
+            const rowKinds = [];
+            if (hasTranslateStage) rowKinds.push('translate');
+            if (hasReviewStage) rowKinds.push('review');
+            const labels = {
+                translate: [
+                    ['assigned', '翻譯全部待開始'],
+                    ['in_progress', '翻譯全部執行中'],
+                    ['completed', '翻譯全部完成'],
+                ],
+                review: [
+                    ['assigned', '審稿全部待開始'],
+                    ['in_progress', '審稿全部執行中'],
+                    ['completed', '審稿全部完成'],
+                ],
+            };
+            bulk.innerHTML = rowKinds.map((kind) =>
+                mkRow(kind, labels[kind].map(([st, lab]) => mkBtn(kind, st, lab)).join(''))
+            ).join('');
             bulk.querySelectorAll('.wf-adjust-bulk-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const kind = btn.getAttribute('data-bulk-kind');

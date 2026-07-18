@@ -4,6 +4,7 @@ import {
   formatWorkflowScopeSuffix,
   resolvePlaceholderApplyAction,
   shouldShowAdjustBulkForStage,
+  resolveAdjustBulkRowKinds,
 } from "./wf-adjust-status-action.js";
 
 describe("resolvePmAdjustStatusClickAction", () => {
@@ -48,5 +49,19 @@ describe("shouldShowAdjustBulkForStage", () => {
   it("階段存在即顯示（含 0 筆指派）", () => {
     expect(shouldShowAdjustBulkForStage({ stageExists: true })).toBe(true);
     expect(shouldShowAdjustBulkForStage({ stageExists: false })).toBe(false);
+  });
+});
+
+describe("resolveAdjustBulkRowKinds", () => {
+  it("翻譯／審稿各成一排（順序固定）", () => {
+    expect(
+      resolveAdjustBulkRowKinds({ hasTranslateStage: true, hasReviewStage: true }),
+    ).toEqual(["translate", "review"]);
+  });
+
+  it("僅有審稿時只一排", () => {
+    expect(
+      resolveAdjustBulkRowKinds({ hasTranslateStage: false, hasReviewStage: true }),
+    ).toEqual(["review"]);
   });
 });

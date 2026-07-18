@@ -53,3 +53,15 @@ export function resolvePlaceholderApplyAction(input) {
 export function shouldShowAdjustBulkForStage(input) {
   return !!(input && input.stageExists);
 }
+
+/**
+ * 快速鍵列序：翻譯一排、審稿一排（固定分組，不混排）。
+ * @param {{ hasTranslateStage?: boolean, hasReviewStage?: boolean }} [input]
+ * @returns {Array<'translate'|'review'>}
+ */
+export function resolveAdjustBulkRowKinds(input) {
+  const rows = [];
+  if (input && input.hasTranslateStage) rows.push("translate");
+  if (input && input.hasReviewStage) rows.push("review");
+  return rows;
+}
