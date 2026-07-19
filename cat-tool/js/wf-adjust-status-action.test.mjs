@@ -99,4 +99,11 @@ describe("工項 G：佔位新建確認文案", () => {
       ]),
     ).toContain("即將新建");
   });
+
+  it("清空選人後不應再視為待新建", () => {
+    expect(needsPlaceholderCreateConfirm(
+      [].filter(() => false),
+    )).toBe(false);
+    expect(resolvePlaceholderApplyAction({ assigneeUserId: "" })).toBe("skip");
+  });
 });
