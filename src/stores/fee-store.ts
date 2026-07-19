@@ -1,7 +1,7 @@
 import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditLogPhases, type FeeTaskItem, type Note, type EditLog, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
-import { createPollFallback } from "@/lib/realtime-poll";
+import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
 
@@ -345,8 +345,8 @@ supabase
   )
   .subscribe();
 
-// Polling fallback：只讀 fees.updated_at（時間戳）偵測變更，完整列仍經 loadFees→fees_visible
-const feePoll = createPollFallback("fees", () => {
+// Polling fallback：譯者對 fees 基表無 SELECT，改偵測 fees_visible.updated_at
+const feePoll = createFeesVisiblePollFallback(() => {
   if (loaded) feeStore.loadFees();
 }, 15000);
 

@@ -143,7 +143,7 @@
 | 請款單付款日期／付款後編輯（2026-06） | [`INVOICE_PAYMENT_DATE_EDIT_2026-06.md`](./INVOICE_PAYMENT_DATE_EDIT_2026-06.md) · `InvoiceDetailPage.tsx`、`ClientInvoiceDetailPage.tsx`、`DateOnlyInputPicker.tsx` |
 | 譯者選項含 **`noFee`**（無須開立稿費，`member_translator_settings.no_fee`） | `src/stores/select-options-store.ts`：`loadAssignees` |
 | 客戶幣別 → TWD 匯率（利潤換算） | `src/stores/currency-store.ts` |
-| **譯者讀取收緊＋欄位遮罩（W10，2026-07；工項 C 2026-07-19）**：譯者僅可讀本人非草稿列；讀取走 `fees_visible`（遮罩營收／客戶／`rateConfirmed`；`internal_note`＝**相關案件**對譯者可見）；Realtime 訂閱 `fee_change_signals`（非 `fees` 原表）；`fees` 寫入僅 PM／執行長；權限 module key 以單數為準（`translator_invoice`／`client_invoice`） | migrations `20260703140000_*`～`20260704020000_*`、`20260718190218_w10_fees_visible_related_case_and_change_signals.sql`；`fee-store.ts`；`permission-module-key.ts`；`fee-table-field-visibility.ts`；見 [`plans/2026-07-19_table-perm-audit-c-findings.md`](./plans/2026-07-19_table-perm-audit-c-findings.md) 與主計畫 §9 |
+| **譯者讀取收緊＋欄位遮罩（W10，2026-07；工項 C 2026-07-19）**：`fees` 基表 SELECT **僅 admin**（防 PostgREST 直讀繞過）；譯者讀 `fees_visible`（`security_invoker=false`，列過濾內嵌；遮罩營收／客戶／`rateConfirmed`；`internal_note`＝相關案件）；Realtime 訂閱 `fee_change_signals`；寫入仍走 `fees`（admin）；權限 module key 單數為準 | migrations 含 `20260718190218_*`、`20260719033336_w10_fees_base_table_select_admin_only.sql`；`fee-store.ts`；`w10_fees_base_select_deny_check.sql`；見 [`plans/2026-07-19_table-perm-audit-c-findings.md`](./plans/2026-07-19_table-perm-audit-c-findings.md) 與主計畫 §9 |
 
 > 維運：`請款完成`／`利潤`／`費率無誤` 曾發生「詳情與總表篩選不一致」；修正紀錄與驗收見 [`HANDOFF.md`](./HANDOFF.md)「費用總表：篩選器與欄位顯示對齊」。
 >

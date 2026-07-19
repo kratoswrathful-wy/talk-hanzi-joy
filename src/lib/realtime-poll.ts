@@ -18,27 +18,24 @@ type PollableTable =
  * 效能（W3）：分頁不在前景（`document.visibilityState !== 'visible'`）時跳過本輪查詢，
  * 回到前景時立即補跑一次，避免背景分頁持續空打資料庫。
  */
-export function createPollFallback(
-  table: PollableTable,
+type PollHandle = {
+  start: () => void;
+  stop: () => void;
+  reset: () => void;
+};
+
+function createUpdatedAtPoll(
+  checkLatest: () => Promise<string | null>,
   onChanged: () => void,
-  interval = 30000
-) {
+  interval: number
+): PollHandle {
   let lastMaxUpdatedAt: string | null = null;
   let timerId: ReturnType<typeof setTimeout> | null = null;
   let active = false;
 
   async function checkOnce() {
     try {
-      const env = getEnvironment();
-      const { data } = await supabase
-        .from(table)
-        .select("updated_at")
-        .eq("env", env)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const latest = data?.updated_at ?? null;
+      const latest = await checkLatest();
       if (lastMaxUpdatedAt !== null && latest !== lastMaxUpdatedAt) {
         onChanged();
       }
@@ -86,4 +83,40 @@ export function createPollFallback(
       lastMaxUpdatedAt = null;
     },
   };
+}
+
+export function createPollFallback(
+  table: PollableTable,
+  onChanged: () => void,
+  interval = 30000
+): PollHandle {
+  return createUpdatedAtPoll(async () => {
+    const env = getEnvironment();
+    const { data } = await supabase
+      .from(table)
+      .select("updated_at")
+      .eq("env", env)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.updated_at ?? null;
+  }, onChanged, interval);
+}
+
+/** 費用輪詢走遮罩 view（譯者對 fees 基表已無 SELECT） */
+export function createFeesVisiblePollFallback(
+  onChanged: () => void,
+  interval = 15000
+): PollHandle {
+  return createUpdatedAtPoll(async () => {
+    const env = getEnvironment();
+    const { data } = await supabase
+      .from("fees_visible")
+      .select("updated_at")
+      .eq("env", env)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.updated_at ?? null;
+  }, onChanged, interval);
 }
