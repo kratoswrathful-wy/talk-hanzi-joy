@@ -775,7 +775,7 @@ export default function TranslatorFeeDetail() {
       setNotionLoading(true);
       try {
         const { data: caseRow, error } = await supabase
-          .from("cases")
+          .from("cases_visible")
           .select("*")
           .eq("id", internalCaseId)
           .single();

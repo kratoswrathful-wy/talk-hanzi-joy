@@ -2703,7 +2703,8 @@ export default function CaseDetailPage() {
         const visibleCount = visibleFees.length;
 
         // If member has no visible fees, skip rendering this section entirely
-        if (isMember && visibleCount === 0 && feeCount === 0) return null;
+        // （勿用他人合計 feeCount 決定是否顯示／標籤筆數，避免洩漏）
+        if (isMember && visibleCount === 0) return null;
 
         const sorted = [...visibleFees].sort((a, b) => {
           const aP = a.clientInfo?.isFirstFee ? 0 : a.clientInfo?.notFirstFee ? 2 : 1;
@@ -2711,12 +2712,14 @@ export default function CaseDetailPage() {
           return aP - bP;
         });
 
+        const displayFeeCount = isMember ? visibleCount : feeCount;
+
         return (
           <div className="grid grid-cols-[100px_1fr] items-start gap-3 py-1">
             {/* Left: label + warning stacked, vertically centered */}
             <div className="flex flex-col justify-center pt-1 gap-0.5">
               <span className="text-sm text-muted-foreground leading-tight whitespace-nowrap">
-                本案費用<br />（{feeCount} 筆）
+                本案費用<br />（{displayFeeCount} 筆）
               </span>
               {canSeeFeeWarning && showTooMany && (
                 <span className="text-[11px] text-destructive leading-tight">費用單數目多於譯者人數，請確認無誤</span>
@@ -3219,8 +3222,8 @@ export default function CaseDetailPage() {
         />
       </div>
 
-      {/* 案件內部備註 — PM+ only */}
-      {isManager && (
+      {/* 案件內部備註 — PM+ only（§9.2／Permissions） */}
+      {checkPerm("case_management", "case_detail_internalComments", "view") && (
         <>
           <Separator />
           <div className="space-y-3">

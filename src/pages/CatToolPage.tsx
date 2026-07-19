@@ -1194,7 +1194,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           let caseTitle = fallbackCaseTitle;
           if (caseId) {
             const { data: caseRow } = await supabase
-              .from("cases")
+              .from("cases_visible")
               .select("title")
               .eq("id", caseId)
               .eq("env", env)

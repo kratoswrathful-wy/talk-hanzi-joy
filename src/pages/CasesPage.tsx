@@ -18,6 +18,7 @@ import { useCases, useCaseStoreReady, caseStore } from "@/hooks/use-case-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
+import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
@@ -546,10 +547,15 @@ export default function CasesPage() {
     return cases.find((c) => c.id === id) ?? null;
   }, [rowSelection.selectedCount, rowSelection.selectedIds, cases]);
 
-  const visibleFieldKeys = caseFieldMetas.map((f) => f.key);
+  const visibleFieldKeys = caseFieldMetas
+    .filter((f) => !CASE_TABLE_MANAGER_ONLY_KEYS.has(f.key) || isPmOrAbove)
+    .map((f) => f.key);
   const permittedFieldKeys = useMemo(() =>
-    caseFieldMetas.filter((f) => checkPerm("case_management", `table_field_${f.key}`, "view")).map((f) => f.key),
-    [checkPerm]
+    caseFieldMetas
+      .filter((f) => !CASE_TABLE_MANAGER_ONLY_KEYS.has(f.key) || isPmOrAbove)
+      .filter((f) => checkPerm("case_management", `table_field_${f.key}`, "view"))
+      .map((f) => f.key),
+    [checkPerm, isPmOrAbove]
   );
 
   const uiMarkDelivered = useToolbarButtonUiProps("cases_mark_delivered");
@@ -986,13 +992,18 @@ export default function CasesPage() {
     return items;
   }, [rowSelection.selectedIds, isPmOrAbove, handleMarkDelivered, beginDuplicate]);
 
-  // Ordered visible columns
+  // Ordered visible columns（§9.2：譯者排除 manager-only 欄）
   const hiddenSet = new Set(activeView.hiddenColumns || []);
+  const permittedColSet = new Set(permittedFieldKeys);
   const orderedCols = activeView.columnOrder
     .map((key) => allColumnDefs.find((c) => c.key === key))
-    .filter((c): c is ColumnDef => !!c && !hiddenSet.has(c.key));
+    .filter((c): c is ColumnDef => !!c && !hiddenSet.has(c.key) && permittedColSet.has(c.key));
   for (const col of allColumnDefs) {
-    if (!activeView.columnOrder.includes(col.key) && !hiddenSet.has(col.key)) {
+    if (
+      !activeView.columnOrder.includes(col.key) &&
+      !hiddenSet.has(col.key) &&
+      permittedColSet.has(col.key)
+    ) {
       orderedCols.push(col);
     }
   }
