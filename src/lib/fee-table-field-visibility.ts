@@ -4,7 +4,7 @@
  * 權威：docs/ENGINEERING_IMPROVEMENT_MASTER_PLAN_2026-07.md §9.2
  */
 
-/** §9.2 禁區：譯者／非 admin 總表不可見（含篩選／排序選單） */
+/** §9.2 禁區：譯者／非 admin 總表不可見（含篩選／排序／屬性選單） */
 export const FEE_TABLE_MANAGER_ONLY_KEYS = new Set([
   "client",
   "contact",
@@ -12,6 +12,10 @@ export const FEE_TABLE_MANAGER_ONLY_KEYS = new Set([
   "clientPoNumber",
   "dispatchRoute",
   "clientRevenue",
+  "clientTaskType",
+  "clientBillingUnit",
+  "clientUnitCount",
+  "clientUnitPrice",
   "profit",
   "reconciled",
   "rateConfirmed",
@@ -21,13 +25,17 @@ export const FEE_TABLE_MANAGER_ONLY_KEYS = new Set([
   "invoice", // 客戶請款單
 ]);
 
-/** §9.2 白名單中曾被誤標 managerOnly、應對譯者開放的總表欄 */
+/** §9.2 白名單：譯者總表／篩選／排序可開的欄（含稿費明細 orphan） */
 export const FEE_TABLE_TRANSLATOR_VISIBLE_KEYS = new Set([
   "title",
   "status",
   "assignee",
   "internalNote", // 相關案件
   "taskSummary",
+  "feeTaskType",
+  "feeBillingUnit",
+  "feeUnitCount",
+  "feeUnitPrice",
   "translatorInvoiceStatus",
   "translatorInvoice",
   "createdBy",
