@@ -2426,6 +2426,36 @@ export type Database = {
         }
         Relationships: []
       }
+      fee_change_signals: {
+        Row: {
+          assignee: string
+          assignee_visible: boolean
+          created_at: string
+          env: string
+          fee_id: string
+          id: string
+          op: string
+        }
+        Insert: {
+          assignee?: string
+          assignee_visible?: boolean
+          created_at?: string
+          env: string
+          fee_id: string
+          id?: string
+          op: string
+        }
+        Update: {
+          assignee?: string
+          assignee_visible?: boolean
+          created_at?: string
+          env?: string
+          fee_id?: string
+          id?: string
+          op?: string
+        }
+        Relationships: []
+      }
       fees: {
         Row: {
           assignee: string

@@ -215,7 +215,7 @@ function AuthenticatedRoutes() {
         <Route
           path="/client-invoices"
           element={
-            <RequireModule moduleKey="client_invoices" itemKey="cinv_list_view" label="客戶請款">
+            <RequireModule moduleKey="client_invoice" itemKey="cinv_list_view" label="客戶請款">
               <ClientInvoicesPage />
             </RequireModule>
           }
@@ -223,7 +223,7 @@ function AuthenticatedRoutes() {
         <Route
           path="/client-invoices/:id"
           element={
-            <RequireModule moduleKey="client_invoices" itemKey="cinv_list_view" label="客戶請款">
+            <RequireModule moduleKey="client_invoice" itemKey="cinv_list_view" label="客戶請款">
               <ClientInvoiceDetailPageWrapper />
             </RequireModule>
           }

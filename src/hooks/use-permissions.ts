@@ -2,6 +2,11 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { getEnvironment } from "@/lib/environment";
+import {
+  canonicalizePermissionModuleKey,
+  permissionModuleKeyLookupOrder,
+} from "@/lib/permission-module-key";
+import { FEE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/fee-table-field-visibility";
 import type { Json } from "@/integrations/supabase/types";
 
 export interface FieldPermission {
@@ -277,11 +282,21 @@ export function usePermissions() {
   const allRoles = getAllRolesOrdered(config);
 
   const checkPerm = useCallback((moduleKey: string, itemKey: string, permType: "view" | "edit"): boolean => {
-    const modulePerms = config.module_permissions?.[primaryRole]?.[moduleKey];
+    const canonicalModule = canonicalizePermissionModuleKey(moduleKey);
+    const roleModules = config.module_permissions?.[primaryRole];
+    let modulePerms: ModulePermissionEntry | undefined;
+    if (roleModules) {
+      for (const key of permissionModuleKeyLookupOrder(moduleKey)) {
+        if (roleModules[key]) {
+          modulePerms = roleModules[key];
+          break;
+        }
+      }
+    }
     if (!modulePerms) {
       // Default restrictions for new modules when no explicit config exists
       // 客戶請款 & 團隊成員: PM+ only (member cannot view)
-      if ((moduleKey === "client_invoices" || moduleKey === "team_members") && primaryRole === "member") return false;
+      if ((canonicalModule === "client_invoice" || moduleKey === "team_members") && primaryRole === "member") return false;
       // 工具管理 & 內部資料: PM+ only
       if ((moduleKey === "tool_management" || moduleKey === "field_reference") && primaryRole === "member") return false;
       // 內部註記: executive only by default
@@ -293,9 +308,13 @@ export function usePermissions() {
         const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_detail_keyword", "case_draft_publish_prompt"];
         if (memberRestrictedItems.includes(itemKey)) return false;
       }
-      // 費用管理 - 列表欄位：member 預設限制
-      if (moduleKey === "fee_management" && primaryRole === "member") {
-        if (itemKey === "table_field_clientInvoiceStatus" || itemKey === "fee_list_batchFinalize") return false;
+      // 費用管理：§9.2 禁區 table_field + 批次開立
+      if (canonicalModule === "fee_management" && primaryRole === "member") {
+        if (itemKey === "fee_list_batchFinalize") return false;
+        if (itemKey.startsWith("table_field_")) {
+          const fieldKey = itemKey.slice("table_field_".length);
+          if (FEE_TABLE_MANAGER_ONLY_KEYS.has(fieldKey)) return false;
+        }
       }
       return true;
     }
@@ -307,7 +326,14 @@ export function usePermissions() {
         const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_detail_keyword", "case_draft_publish_prompt"];
         if (memberRestrictedItems.includes(itemKey)) return false;
       }
-      if (moduleKey === "fee_management" && primaryRole === "member" && itemKey === "fee_list_batchFinalize") return false;
+      if (canonicalModule === "fee_management" && primaryRole === "member") {
+        if (itemKey === "fee_list_batchFinalize") return false;
+        if (itemKey.startsWith("table_field_")) {
+          const fieldKey = itemKey.slice("table_field_".length);
+          if (FEE_TABLE_MANAGER_ONLY_KEYS.has(fieldKey)) return false;
+        }
+      }
+      if (canonicalModule === "client_invoice" && primaryRole === "member") return false;
       return true;
     }
     return itemPerm[permType] ?? true;
