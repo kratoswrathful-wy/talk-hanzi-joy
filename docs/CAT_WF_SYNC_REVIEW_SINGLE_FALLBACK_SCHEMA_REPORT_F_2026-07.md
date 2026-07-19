@@ -1,11 +1,13 @@
-狀態：規劃中
+狀態：已落地待驗收
 
 # 工項 F schema 報告——LMS sync 單人案審稿 fallback＋清理掃描對齊
 
 - **日期**：2026-07-19
 - **分支**：`feat/wf-sync-review-single-fallback`
 - **正式庫**：`wshsmerltcakffllgyul`
-- **審核**：待放行後才 `db push`
+- **審核**：2026-07-19 放行；多人案刪 `collab_row_id IS NULL` 可接受
+- **已 `db push`**：2026-07-19（`20260719150000`）；live 哨兵綠
+- **已知邊角（備查，不改碼）**：多人→單人切換時，舊 `review_rows` 帶 `collab_row_id` 列不會被清（單人不掃），可能與 fallback 整檔列並存——與 translate 對稱現況
 
 ---
 
@@ -56,12 +58,12 @@
 
 ## 4. 放行後步驟（核准後才做）
 
-1. `supabase db push`（已 link 之目錄）  
-2. `node scripts/check-migration-history.mjs --live`  
-3. 驗收：Metalstorm 260718 sync → 審稿·威儀；單人手動列 sync 後仍在
+1. [x] `supabase db push`（已 link 之目錄）  
+2. [x] `node scripts/check-migration-history.mjs --live`  
+3. [ ] 驗收：Metalstorm 260718 sync → 審稿·威儀；單人手動列 sync 後仍在；多人案 review_rows 迴歸
 
 ## 5. 請驗收方勾選
 
-- [ ] 核准本 migration 上正式庫  
-- [ ] 確認多人案仍刪 `collab_row_id IS NULL`（與 translate 一致）可接受  
-- [ ] 確認無需額外欄位／RLS 變更  
+- [x] 核准本 migration 上正式庫  
+- [x] 確認多人案仍刪 `collab_row_id IS NULL`（與 translate 一致）可接受  
+- [x] 確認無需額外欄位／RLS 變更  
