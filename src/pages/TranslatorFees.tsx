@@ -177,6 +177,48 @@ const allColumnDefs: ColumnDef[] = [
     },
   },
   {
+    key: "feeTaskType",
+    label: "稿費工作類型",
+    minWidth: 90,
+    render: (f) => (
+      <span className="truncate text-sm text-muted-foreground">
+        {f.taskItems.map((i) => i.taskType).filter(Boolean).join(", ") || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "feeBillingUnit",
+    label: "稿費計費單位",
+    minWidth: 80,
+    render: (f) => (
+      <span className="truncate text-sm text-muted-foreground">
+        {f.taskItems.map((i) => i.billingUnit).filter(Boolean).join(", ") || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "feeUnitCount",
+    label: "稿費單位數",
+    minWidth: 70,
+    render: (f) => {
+      const n = f.taskItems.reduce((s, i) => s + i.unitCount, 0);
+      return <span className="text-sm tabular-nums text-muted-foreground">{n || "—"}</span>;
+    },
+  },
+  {
+    key: "feeUnitPrice",
+    label: "稿費單價",
+    minWidth: 70,
+    render: (f) => {
+      const price = f.taskItems.length > 0 ? f.taskItems[0].unitPrice : null;
+      return (
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {price == null ? "—" : formatCurrency(price, "TWD")}
+        </span>
+      );
+    },
+  },
+  {
     key: "client",
     label: "客戶",
     minWidth: 70,
@@ -252,6 +294,55 @@ const allColumnDefs: ColumnDef[] = [
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
           <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev, revCurrency)}</span>
         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+      );
+    },
+  },
+  {
+    key: "clientTaskType",
+    label: "營收工作類型",
+    minWidth: 90,
+    managerOnly: true,
+    render: (f) => (
+      <span className="truncate text-sm text-muted-foreground">
+        {f.clientInfo?.clientTaskItems?.map((i) => i.taskType).filter(Boolean).join(", ") || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "clientBillingUnit",
+    label: "營收計費單位",
+    minWidth: 80,
+    managerOnly: true,
+    render: (f) => (
+      <span className="truncate text-sm text-muted-foreground">
+        {f.clientInfo?.clientTaskItems?.map((i) => i.billingUnit).filter(Boolean).join(", ") || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "clientUnitCount",
+    label: "營收單位數",
+    minWidth: 70,
+    managerOnly: true,
+    render: (f) => {
+      const n = f.clientInfo?.clientTaskItems?.reduce((s, i) => s + Number(i.unitCount), 0) ?? 0;
+      return <span className="text-sm tabular-nums text-muted-foreground">{n || "—"}</span>;
+    },
+  },
+  {
+    key: "clientUnitPrice",
+    label: "營收單價",
+    minWidth: 70,
+    managerOnly: true,
+    render: (f) => {
+      const items = f.clientInfo?.clientTaskItems;
+      const price = items?.length ? Number(items[0].clientPrice) : null;
+      const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === f.clientInfo?.client);
+      const currency = clientOpt?.currency || "TWD";
+      return (
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {price == null || Number.isNaN(price) ? "—" : formatCurrency(price, currency)}
+        </span>
       );
     },
   },

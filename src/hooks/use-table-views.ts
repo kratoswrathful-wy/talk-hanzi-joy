@@ -142,8 +142,8 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
     }
     case "invoice": {
       if (!ctx) return "";
-      const linked = ctx.invoices.filter((inv) => inv.feeIds.includes(fee.id));
-      return linked.map((inv) => inv.title || inv.translator).join(", ");
+      const linked = ctx.clientInvoices.filter((inv) => inv.feeIds.includes(fee.id));
+      return linked.map((inv) => inv.title || inv.client || inv.invoiceNumber).join(", ");
     }
     case "createdBy": return fee.createdBy;
     case "createdAt": return fee.createdAt;
