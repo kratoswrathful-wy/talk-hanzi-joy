@@ -33,6 +33,8 @@ interface ColorSelectProps {
   className?: string;
   triggerClassName?: string;
   defaultOpen?: boolean;
+  /** Notify parent when open state changes (e.g. exit InlineEditCell on Escape/outside). */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function ColorSelect({
@@ -44,6 +46,7 @@ export default function ColorSelect({
   className,
   triggerClassName,
   defaultOpen,
+  onOpenChange,
 }: ColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
   const labelStyles = useLabelStyles();
@@ -147,7 +150,14 @@ export default function ColorSelect({
 
   return (
     <>
-      <Popover open={open} onOpenChange={(v) => { if (!disabled) setOpen(v); }}>
+      <Popover
+        open={open}
+        onOpenChange={(v) => {
+          if (disabled) return;
+          setOpen(v);
+          onOpenChange?.(v);
+        }}
+      >
         <PopoverTrigger asChild>
           <div
             role="button"

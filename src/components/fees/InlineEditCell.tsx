@@ -5,6 +5,8 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
+import { shouldAutoOpenOnEnter } from "@/components/fees/inline-edit-auto-open";
+import { shouldResyncMultiCommitOnClose } from "@/components/fees/inline-edit-close-sync";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -25,6 +27,8 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ""));
   const inputRef = useRef<HTMLInputElement>(null);
+  /** Last multi-select commit in this edit session（Escape 關閉時強制再同步一次，避免顯示停在舊 children） */
+  const lastMultiCommitRef = useRef<string[] | null>(null);
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -32,6 +36,20 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
       inputRef.current.select();
     }
   }, [editing]);
+
+  useEffect(() => {
+    if (editing && type === "multiColorSelect") {
+      lastMultiCommitRef.current = Array.isArray(value) ? [...value] : [];
+    }
+    if (!editing) {
+      lastMultiCommitRef.current = null;
+    }
+  }, [editing, type, value]);
+
+  const exitEditing = useCallback(() => {
+    // Escape 會先還原 focus 到 trigger；延後卸下編輯 UI，避免與 Radix focus 還原打架導致顯示不同步
+    queueMicrotask(() => setEditing(false));
+  }, []);
 
   const commit = useCallback(() => {
     setEditing(false);
@@ -101,7 +119,10 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           value={String(value)}
           onValueChange={(v) => { onCommit(v); setEditing(false); }}
           triggerClassName="h-7 text-xs"
-          defaultOpen
+          defaultOpen={shouldAutoOpenOnEnter("colorSelect")}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) exitEditing();
+          }}
         />
       </div>
     );
@@ -113,7 +134,20 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
         <MultiColorSelect
           fieldKey={fieldKey}
           values={Array.isArray(value) ? value : []}
-          onValuesChange={(v) => { onCommit(v); }}
+          onValuesChange={(v) => {
+            lastMultiCommitRef.current = v;
+            onCommit(v);
+          }}
+          triggerClassName="h-7 min-h-0 text-xs py-0"
+          defaultOpen={shouldAutoOpenOnEnter("multiColorSelect")}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              // Escape／點外關閉：再送一次最後值，確保父層 props／children 與 DB 一致後再退出編輯
+              const latest = lastMultiCommitRef.current;
+              if (shouldResyncMultiCommitOnClose(latest) && latest) onCommit(latest);
+              exitEditing();
+            }
+          }}
         />
       </div>
     );
@@ -129,7 +163,7 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           }}
           onClose={() => setEditing(false)}
           className="h-7 text-xs"
-          defaultOpen
+          defaultOpen={shouldAutoOpenOnEnter("datetime")}
         />
       </div>
     );
