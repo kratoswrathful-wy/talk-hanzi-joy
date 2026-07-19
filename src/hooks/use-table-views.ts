@@ -19,7 +19,7 @@ export const fieldMetas: FieldMeta[] = [
   { key: "title", label: "標題", type: "text" },
   { key: "status", label: "狀態", type: "select" },
   { key: "assignee", label: "譯者", type: "select" },
-  { key: "internalNote", label: "關聯案件", type: "text" },
+  { key: "internalNote", label: "相關案件", type: "text" },
   { key: "taskSummary", label: "稿費總額", type: "computed" },
   { key: "feeTaskType", label: "稿費工作類型", type: "select" },
   { key: "feeBillingUnit", label: "稿費計費單位", type: "select" },
@@ -43,7 +43,7 @@ export const fieldMetas: FieldMeta[] = [
   { key: "translatorInvoiceStatus", label: "稿費請款狀態", type: "select" },
   { key: "clientInvoiceStatus", label: "客戶請款狀態", type: "select" },
   { key: "translatorInvoice", label: "稿費請款單", type: "text" },
-  { key: "invoice", label: "請款單", type: "text" },
+  { key: "invoice", label: "客戶請款單", type: "text" },
   { key: "createdBy", label: "建立者", type: "select" },
   { key: "createdAt", label: "建立時間", type: "date" },
 ];

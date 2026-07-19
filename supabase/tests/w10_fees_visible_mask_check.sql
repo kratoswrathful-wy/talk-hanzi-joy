@@ -3,7 +3,8 @@
 -- 目的：建立 env=test fixture（assignee=譯者一 的非草稿／草稿費用單＋本人請款單），
 --       以譯者一與 PM 身分查 public.fees_visible，驗證：
 --         - 譯者讀自己非草稿 fees ≥ 1（非 trivial）；讀自己草稿 = 0
---         - 遮罩：client_info 客戶/報價清空（批次3 起 rateConfirmed 亦清為 false）、internal_note 空、
+--         - 遮罩：client_info 客戶/報價清空（批次3 起 rateConfirmed 亦清為 false）；
+--                 internal_note＝相關案件（工項 C-01 起對譯者可見，不再清空）；
 --                 edit_logs 只留白名單欄位（無營收/客戶條目、無機密字串）、task_items 原值完整
 --         - PM 查同列：client_info/internal_note/edit_logs 全欄位完整（CASE 另一分支）
 --         - 欄位漂移：fees 有而 fees_visible 沒有的欄位 → WARN 清單（維護防漂移）
@@ -34,7 +35,7 @@ begin
     task_items, client_info, notes, edit_logs, edit_log_phases, env, created_by, created_at, updated_at)
   values (
     fx_nondraft, '[W10-FX] 非草稿本人', v_t1_name, 'finalized',
-    '機密內部備註', 'https://internal.example/secret',
+    '[W10-FX] 相關案件標題', 'https://cases.example/related',
     '[{"id":"t1","taskType":"翻譯","billingUnit":"字","unitCount":100,"unitPrice":2}]'::jsonb,
     jsonb_build_object(
       'clientTaskItems', '[{"id":"c1","taskType":"翻譯","billingUnit":"字","unitCount":100,"clientPrice":9.99}]'::jsonb,
@@ -84,12 +85,12 @@ begin
     ('t1_ci_client_empty',       coalesce(s_ci->>'client',''), '', case when coalesce(s_ci->>'client','')='' then 'PASS' else 'FAIL' end),
     ('t1_ci_clientTaskItems_empty', coalesce((s_ci->'clientTaskItems')::text,'[]'), '[]', case when coalesce((s_ci->'clientTaskItems')::text,'[]')='[]' then 'PASS' else 'FAIL' end),
     ('t1_ci_rateConfirmed_masked', coalesce(s_ci->>'rateConfirmed',''), 'false', case when coalesce(s_ci->>'rateConfirmed','')='false' then 'PASS' else 'FAIL' end),
-    ('t1_internal_note_masked',  coalesce(s_internal,''), '', case when coalesce(s_internal,'')='' then 'PASS' else 'FAIL' end),
+    ('t1_internal_note_related_case', coalesce(s_internal,''), '[W10-FX] 相關案件標題', case when coalesce(s_internal,'')='[W10-FX] 相關案件標題' then 'PASS' else 'FAIL' end),
     ('t1_editlogs_count_1',      jsonb_array_length(coalesce(s_editlogs,'[]'::jsonb))::text, '1', case when jsonb_array_length(coalesce(s_editlogs,'[]'::jsonb))=1 then 'PASS' else 'FAIL' end),
     ('t1_editlogs_no_secret',    case when coalesce(s_editlogs::text,'') ~ '(營收|客戶|999|機密)' then 'LEAK' else 'clean' end, 'clean', case when coalesce(s_editlogs::text,'') ~ '(營收|客戶|999|機密)' then 'FAIL' else 'PASS' end),
     ('t1_task_items_intact',     jsonb_array_length(coalesce(s_task,'[]'::jsonb))::text, '1', case when jsonb_array_length(coalesce(s_task,'[]'::jsonb))=1 then 'PASS' else 'FAIL' end),
     ('pm_ci_client_full',        coalesce(pm_ci->>'client',''), '機密客戶', case when coalesce(pm_ci->>'client','')='機密客戶' then 'PASS' else 'FAIL' end),
-    ('pm_internal_note_full',    coalesce(pm_internal,''), '機密內部備註', case when coalesce(pm_internal,'')='機密內部備註' then 'PASS' else 'FAIL' end),
+    ('pm_internal_note_full',    coalesce(pm_internal,''), '[W10-FX] 相關案件標題', case when coalesce(pm_internal,'')='[W10-FX] 相關案件標題' then 'PASS' else 'FAIL' end),
     ('pm_editlogs_count_3',      jsonb_array_length(coalesce(pm_editlogs,'[]'::jsonb))::text, '3', case when jsonb_array_length(coalesce(pm_editlogs,'[]'::jsonb))=3 then 'PASS' else 'FAIL' end);
 
   -- ── 欄位漂移檢查 ──

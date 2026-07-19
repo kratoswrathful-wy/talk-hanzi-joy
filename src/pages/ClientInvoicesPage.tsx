@@ -170,7 +170,7 @@ export default function ClientInvoicesPage() {
   const { activeView } = tableViews;
   const visibleFieldKeys = clientInvoiceFieldMetas.map((f) => f.key);
   const permittedFieldKeys = useMemo(() =>
-    clientInvoiceFieldMetas.filter((f) => checkPerm("client_invoices", `table_field_${f.key}`, "view")).map((f) => f.key),
+    clientInvoiceFieldMetas.filter((f) => checkPerm("client_invoice", `table_field_${f.key}`, "view")).map((f) => f.key),
     [checkPerm]
   );
   const uiClientInvoicesAdd = useToolbarButtonUiProps("client_invoices_add");

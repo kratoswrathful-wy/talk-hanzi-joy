@@ -24,7 +24,7 @@ export function AppSidebar() {
 
   const isExecutive = roles.some((r) => r.role === "executive");
   const canViewMembers = checkPerm("team_members", "members_view", "view");
-  const canViewClientInvoices = checkPerm("client_invoices", "cinv_list_view", "view");
+  const canViewClientInvoices = checkPerm("client_invoice", "cinv_list_view", "view");
   const canViewCases = checkPerm("case_management", "case_list_view", "view");
   const canViewTools = checkPerm("tool_management", "tool_list_view", "view");
   const canViewFieldRef = checkPerm("field_reference", "field_ref_view", "view");

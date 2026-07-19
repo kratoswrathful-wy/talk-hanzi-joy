@@ -140,7 +140,20 @@ const PERMISSION_MODULES: PermissionModule[] = [
       { key: "fee_list_delete", label: "刪除費用", type: "both", attribute: "按鈕" },
       { key: "fee_list_viewDraft", label: "檢視草稿", type: "view" },
       { key: "fee_list_batchFinalize", label: "開立稿費條（批次）", type: "both", attribute: "按鈕" },
-      { key: "table_field_clientInvoiceStatus", label: "客戶請款狀態", type: "both", attribute: "欄位" },
+      // 總表欄位（§9.2：譯者禁區預設關閉；白名單欄不列此處以免誤關）
+      { key: "table_field_client", label: "客戶", type: "view", attribute: "欄位" },
+      { key: "table_field_contact", label: "聯絡人", type: "view", attribute: "欄位" },
+      { key: "table_field_clientCaseId", label: "關鍵字", type: "view", attribute: "欄位" },
+      { key: "table_field_clientPoNumber", label: "客戶 PO#", type: "view", attribute: "欄位" },
+      { key: "table_field_dispatchRoute", label: "派案途徑", type: "view", attribute: "欄位" },
+      { key: "table_field_clientRevenue", label: "營收總額", type: "view", attribute: "欄位" },
+      { key: "table_field_profit", label: "利潤", type: "view", attribute: "欄位" },
+      { key: "table_field_reconciled", label: "對帳完成", type: "view", attribute: "欄位" },
+      { key: "table_field_rateConfirmed", label: "費率無誤", type: "view", attribute: "欄位" },
+      { key: "table_field_invoiced", label: "請款完成", type: "view", attribute: "欄位" },
+      { key: "table_field_sameCase", label: "費用群組", type: "view", attribute: "欄位" },
+      { key: "table_field_clientInvoiceStatus", label: "客戶請款狀態", type: "view", attribute: "欄位" },
+      { key: "table_field_invoice", label: "客戶請款單", type: "view", attribute: "欄位" },
     ],
     detailSections: [
       {
@@ -190,7 +203,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "fee_detail_reconciled", label: "對帳完成", type: "both", attribute: "核取方塊" },
           { key: "fee_detail_invoiced", label: "請款完成", type: "both", attribute: "核取方塊" },
           { key: "fee_detail_sameCase", label: "費用群組", type: "both", attribute: "核取方塊" },
-          { key: "fee_detail_invoice", label: "請款單", type: "view", attribute: "自動填入（無法編輯）" },
+          { key: "fee_detail_invoice", label: "客戶請款單", type: "view", attribute: "自動填入（無法編輯）" },
         ],
       },
       {
@@ -243,6 +256,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
     key: "client_invoice",
     label: "客戶請款",
     listItems: [
+      { key: "cinv_list_view", label: "檢視列表", type: "view" },
       { key: "cinv_list_create", label: "新增客戶請款單", type: "both", attribute: "按鈕" },
       { key: "cinv_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
     ],

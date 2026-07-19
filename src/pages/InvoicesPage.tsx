@@ -153,7 +153,7 @@ export default function InvoicesPage() {
   const { activeView } = tableViews;
   const visibleFieldKeys = invoiceFieldMetas.map((f) => f.key);
   const permittedFieldKeys = useMemo(() =>
-    invoiceFieldMetas.filter((f) => checkPerm("translator_invoices", `table_field_${f.key}`, "view")).map((f) => f.key),
+    invoiceFieldMetas.filter((f) => checkPerm("translator_invoice", `table_field_${f.key}`, "view")).map((f) => f.key),
     [checkPerm]
   );
   const uiTranslatorInvoicesAdd = useToolbarButtonUiProps("translator_invoices_add");

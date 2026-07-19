@@ -49,6 +49,7 @@ import {
   getFinalizeEligibility,
   resolveAssigneeEmail,
 } from "@/lib/fee-finalize-eligibility";
+import { FEE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/fee-table-field-visibility";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -62,11 +63,8 @@ const roleLabels: Record<UserRole, string> = {
   executive: "執行官",
 };
 
-const managerOnlyFields = new Set([
-  "client", "contact", "clientCaseId", "clientPoNumber", "hdPath",
-  "reconciled", "rateConfirmed", "invoiced", "sameCase", "dispatchRoute",
-  "clientRevenue", "profit", "internalNote",
-]);
+/** §9.2 禁區欄（與 fee-table-field-visibility 同源） */
+const managerOnlyFields = FEE_TABLE_MANAGER_ONLY_KEYS;
 
 
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
@@ -157,9 +155,8 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "internalNote",
-    label: "關聯案件",
+    label: "相關案件",
     minWidth: 100,
-    managerOnly: true,
     render: (f, { editable, lockedTooltip, onCommit }) => (
       <InlineEditCell value={f.internalNote} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("internalNote", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.internalNote || "—"}</span>
@@ -345,7 +342,6 @@ const allColumnDefs: ColumnDef[] = [
     key: "translatorInvoiceStatus",
     label: "稿費請款狀態",
     minWidth: 90,
-    managerOnly: true,
     render: (f) => <TranslatorInvoiceStatus feeId={f.id} />,
   },
   {
@@ -359,15 +355,14 @@ const allColumnDefs: ColumnDef[] = [
     key: "translatorInvoice",
     label: "稿費請款單",
     minWidth: 100,
-    managerOnly: true,
     render: (f) => <TranslatorInvoiceLink feeId={f.id} />,
   },
   {
     key: "invoice",
-    label: "請款單",
+    label: "客戶請款單",
     minWidth: 80,
     managerOnly: true,
-    render: (f) => <InvoiceLink feeId={f.id} />,
+    render: (f) => <ClientInvoiceLink feeId={f.id} />,
   },
   {
     key: "createdBy",
@@ -543,9 +538,10 @@ function TranslatorInvoiceLink({ feeId }: { feeId: string }) {
   );
 }
 
-function InvoiceLink({ feeId }: { feeId: string }) {
+/** 客戶請款單連結（§9.2 禁區；僅 managerOnly 欄渲染） */
+function ClientInvoiceLink({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
-  const invoices = useInvoices();
+  const invoices = useClientInvoices();
   const linked = invoices.filter((inv) => inv.feeIds.includes(feeId));
   if (linked.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
   return (
@@ -553,12 +549,12 @@ function InvoiceLink({ feeId }: { feeId: string }) {
       {linked.map((inv) => (
         <button
           key={inv.id}
-          onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${inv.id}`); }}
+          onClick={(e) => { e.stopPropagation(); navigate(`/client-invoices/${inv.id}`); }}
           onMouseDown={(e) => e.stopPropagation()}
           className="text-xs text-primary hover:underline truncate text-left"
           title={inv.title}
         >
-          {inv.title || inv.translator}
+          {inv.title || inv.client || inv.invoiceNumber || "—"}
         </button>
       ))}
     </div>
@@ -593,16 +589,18 @@ export default function TranslatorFees() {
   const permittedFieldKeys = useMemo(
     () =>
       allColumnDefs
-        .filter((c) => !c.managerOnly || isManager)
+        .filter((c) => !managerOnlyFields.has(c.key) || isManager)
         .filter((c) => checkPerm("fee_management", `table_field_${c.key}`, "view"))
         .map((c) => c.key),
     [checkPerm, isManager]
   );
 
-  const visibleFieldKeys = allColumnDefs.filter((c) => !c.managerOnly || isManager).map((c) => c.key);
+  const visibleFieldKeys = allColumnDefs
+    .filter((c) => !managerOnlyFields.has(c.key) || isManager)
+    .map((c) => c.key);
 
   const columnDefs = allColumnDefs
-    .filter((c) => !c.managerOnly || isManager)
+    .filter((c) => !managerOnlyFields.has(c.key) || isManager)
     .filter((c) => checkPerm("fee_management", `table_field_${c.key}`, "view"));
 
   const canViewBatchFinalize = checkPerm("fee_management", "fee_list_batchFinalize", "view");
@@ -1492,10 +1490,13 @@ function NotesPanel({ fee }: { fee: TranslatorFee }) {
 
 
 function EditLogPanel({ fee }: { fee: TranslatorFee }) {
+  const { isAdmin, roles } = useAuth();
   const { checkPerm } = usePermissions();
+  const isManagerAuth = isAdmin || roles.some((r) => r.role === "executive");
+  // W10 F1／C-05：資料層 fees_visible.edit_logs 已遮罩；非 admin 直接渲染，避免 checkPerm 濾光
   const filteredLogs = useMemo(
-    () => filterFeeListEditLogs(fee.editLogs, checkPerm),
-    [fee.editLogs, checkPerm]
+    () => (isManagerAuth ? filterFeeListEditLogs(fee.editLogs, checkPerm) : fee.editLogs),
+    [fee.editLogs, checkPerm, isManagerAuth]
   );
 
   return (

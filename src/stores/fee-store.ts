@@ -1,7 +1,7 @@
 import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditLogPhases, type FeeTaskItem, type Note, type EditLog, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
-import { createPollFallback } from "@/lib/realtime-poll";
+import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
 
@@ -289,9 +289,8 @@ async function getUserId() {
 // Listen for auth changes — avoid wiping UI on TOKEN_REFRESHED (same user, new access token)
 
 // Realtime subscription – sync changes from other users.
-// W10：postgres_changes 的 payload.new 是「原表全欄位」（含營收/客戶/內部備註），
-// 遮罩 view 管不到 realtime。故非 DELETE 事件一律「重查遮罩 view」，禁止直接套 payload.new；
-// 若重查不到（列級 RLS 過濾掉或已非本人可見），從本地移除。
+// W10 C-06：禁止訂閱 fees 原表（WS payload 含未遮罩營收）。改訂閱 fee_change_signals
+//（僅 fee_id／env／op），再重查 fees_visible；DELETE 信號則從本地移除。
 async function requeryFeeFromView(id: string) {
   const { data, error } = await supabase
     .from("fees_visible")
@@ -319,30 +318,35 @@ async function requeryFeeFromView(id: string) {
   notify();
 }
 
+type FeeChangeSignalRow = {
+  fee_id: string;
+  env?: string;
+  op?: string;
+};
+
 supabase
-  .channel("fees-realtime")
+  .channel("fee-change-signals")
   .on(
     "postgres_changes",
-    { event: "*", schema: "public", table: "fees" },
+    { event: "INSERT", schema: "public", table: "fee_change_signals" },
     (payload) => {
       const env = getEnvironment();
-      if (payload.eventType === "DELETE" && payload.old) {
-        const oldId = (payload.old as Partial<DbFee>).id;
-        if (fees.some((f) => f.id === oldId)) {
-          fees = fees.filter((f) => f.id !== oldId);
+      const row = payload.new as FeeChangeSignalRow;
+      if (!row?.fee_id || row.env !== env) return;
+      if (row.op === "DELETE") {
+        if (fees.some((f) => f.id === row.fee_id)) {
+          fees = fees.filter((f) => f.id !== row.fee_id);
           notify();
         }
         return;
       }
-      const row = payload.new as Partial<DbFee> & { env?: string };
-      if (!row.id || row.env !== env) return;
-      void requeryFeeFromView(row.id);
+      void requeryFeeFromView(row.fee_id);
     }
   )
   .subscribe();
 
-// Polling fallback for fees
-const feePoll = createPollFallback("fees", () => {
+// Polling fallback：譯者對 fees 基表無 SELECT，改偵測 fees_visible.updated_at
+const feePoll = createFeesVisiblePollFallback(() => {
   if (loaded) feeStore.loadFees();
 }, 15000);
 
