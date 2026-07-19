@@ -299,8 +299,7 @@ export function usePermissions() {
       if ((canonicalModule === "client_invoice" || moduleKey === "team_members") && primaryRole === "member") return false;
       // 工具管理 & 內部資料: PM+ only
       if ((moduleKey === "tool_management" || moduleKey === "field_reference") && primaryRole === "member") return false;
-      // 內部註記: executive only by default
-      if (moduleKey === "internal_notes" && primaryRole !== "executive") return false;
+      // 內部註記：§9.2 定稿全員可見可編（無設定時不限制；工項 E）
       // 權限管理: executive only
       if (moduleKey === "permissions" && primaryRole !== "executive") return false;
       // 案件管理 - 本案費用區塊: member 預設限制

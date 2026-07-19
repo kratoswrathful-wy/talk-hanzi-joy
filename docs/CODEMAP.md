@@ -167,7 +167,7 @@
 | Slack（連結／說明／承接預設文案） | `src/components/profile/ProfileSlackCard.tsx`（個人檔案）；承接／無法承接／任務完成通知 `src/lib/slack-case-reply-notify.ts`（`kind`: `accept` \| `decline` \| `task_complete`，`segmentTitle` 可選）、`src/lib/slack-case-reply-defaults.ts`（`DEFAULT_ACCEPT_SUFFIX` 等） |
 | Slack 詢案對話框 | `src/components/InquirySlackDialog.tsx`；詢案訊息複製 `src/lib/copy-case-inquiry-message.ts`；mrkdwn 組字 `src/lib/inquiry-slack-message.ts` |
 | Slack 擴充紀錄（決策／待落地項目） | [`docs/SLACK_NOTIFY_EXPANSION_2026-05.md`](SLACK_NOTIFY_EXPANSION_2026-05.md) |
-| 內部註記頁／store | `src/pages/InternalNotesPage.tsx`、`src/stores/internal-notes-store.ts`、`src/hooks/use-internal-notes-table-views.ts`（**規劃**：`consultation_slack_records` ↔ DB `consultation_slack_records`；**規劃**元件：`NoteReminderSlackDialog` 或同等命名） |
+| 內部註記頁／store | `src/pages/InternalNotesPage.tsx`、`src/stores/internal-notes-store.ts`、`src/hooks/use-internal-notes-table-views.ts`（**全員可見可編**，§9.2／工項 E；路由／側欄依 `checkPerm(internal_notes, inotes_list_view)`；**規劃**：`consultation_slack_records` ↔ DB；**規劃**元件：`NoteReminderSlackDialog`） |
 | 重大故障／維運紀錄（DB `ops_incidents`，管理員） | `src/components/settings/OpsIncidentsSection.tsx` |
 | ColorPicker 使用顏色聚合 | `src/lib/settings-color-usage.ts` |
 | `case-files` 上傳路徑／檔名 | `src/lib/storage-case-files.ts`（`buildCaseFileObjectPath`） |
