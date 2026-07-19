@@ -65,3 +65,80 @@ export function resolveAdjustBulkRowKinds(input) {
   if (input && input.hasReviewStage) rows.push("review");
   return rows;
 }
+
+/**
+ * @param {string|null|undefined} status
+ * @returns {string}
+ */
+export function formatAdjustWorkflowStatusLabel(status) {
+  const s = String(status || "");
+  if (s === "completed") return "完成";
+  if (s === "in_progress") return "執行中";
+  return "待開始";
+}
+
+/**
+ * @param {string|null|undefined} stageKind
+ * @returns {string}
+ */
+export function formatAdjustStageKindLabel(stageKind) {
+  return stageKind === "review" ? "審稿" : "翻譯";
+}
+
+/**
+ * 佔位列即將新建的確認訊息一行。
+ * @param {{
+ *   stageKind?: string,
+ *   assigneeName?: string,
+ *   scopeText?: string,
+ *   wfStatus?: string,
+ * }} [row]
+ */
+export function formatPlaceholderCreateConfirmLine(row) {
+  const stage = formatAdjustStageKindLabel(row?.stageKind);
+  const who = String(row?.assigneeName || "").trim() || "（未命名）";
+  const scope = String(row?.scopeText || "整檔").trim() || "整檔";
+  const status = formatAdjustWorkflowStatusLabel(row?.wfStatus);
+  return `• ${stage} · ${who} · ${scope} · ${status}`;
+}
+
+/**
+ * @param {Array<{
+ *   stageKind?: string,
+ *   assigneeName?: string,
+ *   scopeText?: string,
+ *   wfStatus?: string,
+ * }>} [creates]
+ * @returns {string}
+ */
+export function buildPlaceholderCreateConfirmMessage(creates) {
+  const lines = (creates || []).map((c) => formatPlaceholderCreateConfirmLine(c));
+  return ["即將新建以下指派，請確認後才會寫入：", "", ...lines].join("\n");
+}
+
+/**
+ * 是否需要佔位新建確認（有任一即將 insert 的佔位列）。
+ * @param {unknown[]} [creates]
+ */
+export function needsPlaceholderCreateConfirm(creates) {
+  return Array.isArray(creates) && creates.length > 0;
+}
+
+const WfAdjustStatusAction = {
+  resolvePmAdjustStatusClickAction,
+  formatWorkflowScopeSuffix,
+  resolvePlaceholderApplyAction,
+  shouldShowAdjustBulkForStage,
+  resolveAdjustBulkRowKinds,
+  formatAdjustWorkflowStatusLabel,
+  formatAdjustStageKindLabel,
+  formatPlaceholderCreateConfirmLine,
+  buildPlaceholderCreateConfirmMessage,
+  needsPlaceholderCreateConfirm,
+};
+
+if (typeof globalThis !== "undefined") {
+  globalThis.WfAdjustStatusAction = WfAdjustStatusAction;
+}
+
+export default WfAdjustStatusAction;

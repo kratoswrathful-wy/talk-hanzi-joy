@@ -6781,6 +6781,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowStages = stages;
     }
 
+    async function _pmLogWfAdjustUpsert(kind, fileId, assigneeUserId, wfStatus) {
+        if (typeof DBService.addModuleLog !== 'function') return;
+        try {
+            await DBService.addModuleLog('wf-adjust', {
+                file_id: String(fileId),
+                stage: kind === 'review' ? 'review' : 'translate',
+                assignee: String(assigneeUserId || ''),
+                workflow_status: _normalizeAdjustWorkflowStatus(wfStatus),
+                operator_user_id: window._tmsCurrentUserId ? String(window._tmsCurrentUserId) : null,
+                source: 'modal',
+            });
+        } catch (e) {
+            console.warn('[workflow] wf-adjust module log failed', e);
+        }
+    }
+
+    function _collectPlaceholderCreatesFromAdjustModal(selects, fileId) {
+        const creates = [];
+        for (const sel of selects) {
+            if (sel.getAttribute('data-placeholder') !== '1') continue;
+            const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
+            const row = sel.closest('.wf-adjust-placeholder-row');
+            const kind = sel.getAttribute('data-stage-kind') || (row && row.getAttribute('data-stage-kind')) || '';
+            const assigneeSel = row && row.querySelector('.wf-adjust-placeholder-assignee');
+            const uid = assigneeSel && assigneeSel.value ? String(assigneeSel.value).trim() : '';
+            if (!uid || !fileId || (kind !== 'translate' && kind !== 'review')) continue;
+            const opt = assigneeSel.selectedOptions && assigneeSel.selectedOptions[0];
+            const fromOpt = opt ? String(opt.textContent || '').trim() : '';
+            creates.push({
+                stageKind: kind,
+                assigneeUserId: uid,
+                assigneeName: fromOpt || _resolveAssigneeDisplayName(uid),
+                scopeText: '整檔',
+                wfStatus,
+            });
+        }
+        return creates;
+    }
+
+    function _buildPlaceholderCreateConfirmMessage(creates) {
+        const api = window.WfAdjustStatusAction;
+        if (api && typeof api.buildPlaceholderCreateConfirmMessage === 'function') {
+            return api.buildPlaceholderCreateConfirmMessage(creates);
+        }
+        const lines = (creates || []).map((c) => {
+            const stage = c.stageKind === 'review' ? '審稿' : '翻譯';
+            const who = String(c.assigneeName || '').trim() || '（未命名）';
+            const scope = String(c.scopeText || '整檔').trim() || '整檔';
+            const st = c.wfStatus === 'completed' ? '完成'
+                : c.wfStatus === 'in_progress' ? '執行中' : '待開始';
+            return `• ${stage} · ${who} · ${scope} · ${st}`;
+        });
+        return ['即將新建以下指派，請確認後才會寫入：', '', ...lines].join('\n');
+    }
+
     async function _pmUpsertWholeFileAdjustAssignment(kind, fileId, assigneeUserId, wfStatus) {
         const payload = {
             assigneeUserId: String(assigneeUserId),
@@ -6800,6 +6855,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             await DBService.upsertTranslateStageAssignment(fileId, payload);
         }
+        // 工項 G：modal 經 upsert 的寫入軌跡（cat_module_logs）
+        await _pmLogWfAdjustUpsert(kind, fileId, assigneeUserId, payload.workflowStatus);
         const refreshed = (await DBService.listStageAssignmentsForFile(fileId)) || [];
         window._currentFileStageAssignments = refreshed;
         const stages = window._currentFileWorkflowStages || [];
@@ -6824,6 +6881,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const arr = window._currentFileStageAssignments || [];
         const hits = [];
         try {
+            // 工項 G：佔位列已選人 → 先確認，取消則不寫入
+            const pendingCreates = _collectPlaceholderCreatesFromAdjustModal(selects, fileId);
+            if (pendingCreates.length) {
+                const ok = await openCatConfirmModal(
+                    _buildPlaceholderCreateConfirmMessage(pendingCreates),
+                    { title: '確認新建指派' },
+                );
+                if (!ok) return;
+            }
             for (const sel of selects) {
                 const isPlaceholder = sel.getAttribute('data-placeholder') === '1';
                 const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
