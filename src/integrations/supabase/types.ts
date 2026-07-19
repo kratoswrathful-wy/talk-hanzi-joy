@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -11,6 +11,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -140,6 +165,30 @@ export type Database = {
         }
         Relationships: []
       }
+      case_change_signals: {
+        Row: {
+          case_id: string
+          created_at: string
+          env: string
+          id: string
+          op: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          env: string
+          id?: string
+          op: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          env?: string
+          id?: string
+          op?: string
+        }
+        Relationships: []
+      }
       cases: {
         Row: {
           billing_unit: string
@@ -157,7 +206,6 @@ export type Database = {
           client_receipt_files: Json | null
           collab_count: number
           collab_rows: Json
-          review_rows: Json
           comments: Json | null
           common_info: Json
           common_links: Json | null
@@ -193,6 +241,7 @@ export type Database = {
           question_tools: Json | null
           reference_materials: Json
           review_deadline: string | null
+          review_rows: Json
           reviewer: string
           series_reference_materials: Json | null
           source_files: Json
@@ -227,7 +276,6 @@ export type Database = {
           client_receipt_files?: Json | null
           collab_count?: number
           collab_rows?: Json
-          review_rows?: Json
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -263,6 +311,7 @@ export type Database = {
           question_tools?: Json | null
           reference_materials?: Json
           review_deadline?: string | null
+          review_rows?: Json
           reviewer?: string
           series_reference_materials?: Json | null
           source_files?: Json
@@ -297,7 +346,6 @@ export type Database = {
           client_receipt_files?: Json | null
           collab_count?: number
           collab_rows?: Json
-          review_rows?: Json
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -333,6 +381,7 @@ export type Database = {
           question_tools?: Json | null
           reference_materials?: Json
           review_deadline?: string | null
+          review_rows?: Json
           reviewer?: string
           series_reference_materials?: Json | null
           source_files?: Json
@@ -818,6 +867,13 @@ export type Database = {
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_assignments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases_visible"
             referencedColumns: ["id"]
           },
           {
@@ -3002,6 +3058,219 @@ export type Database = {
       }
     }
     Views: {
+      cases_visible: {
+        Row: {
+          billing_unit: string | null
+          body_content: Json | null
+          case_reference_materials: Json | null
+          cat_tool_enabled: boolean | null
+          category: string | null
+          change_log_enabled_at: string | null
+          client: string | null
+          client_case_link: Json | null
+          client_guidelines: Json | null
+          client_po_number: string | null
+          client_question_form: boolean | null
+          client_receipt: string | null
+          client_receipt_files: Json | null
+          collab_count: number | null
+          collab_rows: Json | null
+          comments: Json | null
+          common_info: Json | null
+          common_links: Json | null
+          contact: string | null
+          created_at: string | null
+          created_by: string | null
+          custom_guidelines_url: Json | null
+          decline_records: Json | null
+          delivery_method: string | null
+          delivery_method_files: Json | null
+          dispatch_route: string | null
+          edit_logs: Json | null
+          env: string | null
+          execution_tool: string | null
+          fee_entry: string | null
+          icon_url: string | null
+          id: string | null
+          inquiry_note: string | null
+          inquiry_slack_records: Json | null
+          internal_comments: Json | null
+          internal_note_form: boolean | null
+          internal_records: Json | null
+          internal_review_final: Json | null
+          keyword: string | null
+          login_account: string | null
+          login_password: string | null
+          multi_collab: boolean | null
+          online_tool_filename: string | null
+          online_tool_project: string | null
+          other_login_info: string | null
+          process_note: string | null
+          question_form: string | null
+          question_tools: Json | null
+          reference_materials: Json | null
+          review_deadline: string | null
+          review_rows: Json | null
+          reviewer: string | null
+          series_reference_materials: Json | null
+          source_files: Json | null
+          status: string | null
+          task_status: string | null
+          title: string | null
+          tool_field_values: Json | null
+          tools: Json | null
+          track_changes: Json | null
+          translation_deadline: string | null
+          translator: Json | null
+          translator_final: Json | null
+          unit_count: number | null
+          updated_at: string | null
+          work_groups: Json | null
+          work_type: Json | null
+          working_files: Json | null
+        }
+        Insert: {
+          billing_unit?: string | null
+          body_content?: Json | null
+          case_reference_materials?: Json | null
+          cat_tool_enabled?: boolean | null
+          category?: string | null
+          change_log_enabled_at?: string | null
+          client?: never
+          client_case_link?: never
+          client_guidelines?: Json | null
+          client_po_number?: never
+          client_question_form?: boolean | null
+          client_receipt?: string | null
+          client_receipt_files?: Json | null
+          collab_count?: number | null
+          collab_rows?: Json | null
+          comments?: Json | null
+          common_info?: Json | null
+          common_links?: Json | null
+          contact?: never
+          created_at?: string | null
+          created_by?: string | null
+          custom_guidelines_url?: Json | null
+          decline_records?: Json | null
+          delivery_method?: string | null
+          delivery_method_files?: Json | null
+          dispatch_route?: never
+          edit_logs?: never
+          env?: string | null
+          execution_tool?: string | null
+          fee_entry?: string | null
+          icon_url?: string | null
+          id?: string | null
+          inquiry_note?: string | null
+          inquiry_slack_records?: Json | null
+          internal_comments?: never
+          internal_note_form?: boolean | null
+          internal_records?: Json | null
+          internal_review_final?: Json | null
+          keyword?: never
+          login_account?: string | null
+          login_password?: string | null
+          multi_collab?: boolean | null
+          online_tool_filename?: string | null
+          online_tool_project?: string | null
+          other_login_info?: string | null
+          process_note?: string | null
+          question_form?: string | null
+          question_tools?: Json | null
+          reference_materials?: Json | null
+          review_deadline?: string | null
+          review_rows?: Json | null
+          reviewer?: string | null
+          series_reference_materials?: Json | null
+          source_files?: Json | null
+          status?: string | null
+          task_status?: string | null
+          title?: string | null
+          tool_field_values?: Json | null
+          tools?: Json | null
+          track_changes?: Json | null
+          translation_deadline?: string | null
+          translator?: Json | null
+          translator_final?: Json | null
+          unit_count?: number | null
+          updated_at?: string | null
+          work_groups?: Json | null
+          work_type?: Json | null
+          working_files?: Json | null
+        }
+        Update: {
+          billing_unit?: string | null
+          body_content?: Json | null
+          case_reference_materials?: Json | null
+          cat_tool_enabled?: boolean | null
+          category?: string | null
+          change_log_enabled_at?: string | null
+          client?: never
+          client_case_link?: never
+          client_guidelines?: Json | null
+          client_po_number?: never
+          client_question_form?: boolean | null
+          client_receipt?: string | null
+          client_receipt_files?: Json | null
+          collab_count?: number | null
+          collab_rows?: Json | null
+          comments?: Json | null
+          common_info?: Json | null
+          common_links?: Json | null
+          contact?: never
+          created_at?: string | null
+          created_by?: string | null
+          custom_guidelines_url?: Json | null
+          decline_records?: Json | null
+          delivery_method?: string | null
+          delivery_method_files?: Json | null
+          dispatch_route?: never
+          edit_logs?: never
+          env?: string | null
+          execution_tool?: string | null
+          fee_entry?: string | null
+          icon_url?: string | null
+          id?: string | null
+          inquiry_note?: string | null
+          inquiry_slack_records?: Json | null
+          internal_comments?: never
+          internal_note_form?: boolean | null
+          internal_records?: Json | null
+          internal_review_final?: Json | null
+          keyword?: never
+          login_account?: string | null
+          login_password?: string | null
+          multi_collab?: boolean | null
+          online_tool_filename?: string | null
+          online_tool_project?: string | null
+          other_login_info?: string | null
+          process_note?: string | null
+          question_form?: string | null
+          question_tools?: Json | null
+          reference_materials?: Json | null
+          review_deadline?: string | null
+          review_rows?: Json | null
+          reviewer?: string | null
+          series_reference_materials?: Json | null
+          source_files?: Json | null
+          status?: string | null
+          task_status?: string | null
+          title?: string | null
+          tool_field_values?: Json | null
+          tools?: Json | null
+          track_changes?: Json | null
+          translation_deadline?: string | null
+          translator?: Json | null
+          translator_final?: Json | null
+          unit_count?: number | null
+          updated_at?: string | null
+          work_groups?: Json | null
+          work_type?: Json | null
+          working_files?: Json | null
+        }
+        Relationships: []
+      }
       fees_visible: {
         Row: {
           assignee: string | null
@@ -3033,8 +3302,8 @@ export type Database = {
           finalized_at?: string | null
           finalized_by?: string | null
           id?: string | null
-          internal_note?: never
-          internal_note_url?: never
+          internal_note?: string | null
+          internal_note_url?: string | null
           notes?: Json | null
           status?: string | null
           task_items?: Json | null
@@ -3052,8 +3321,8 @@ export type Database = {
           finalized_at?: string | null
           finalized_by?: string | null
           id?: string | null
-          internal_note?: never
-          internal_note_url?: never
+          internal_note?: string | null
+          internal_note_url?: string | null
           notes?: Json | null
           status?: string | null
           task_items?: Json | null
@@ -3162,6 +3431,15 @@ export type Database = {
         Args: { p_range: string }
         Returns: Record<string, unknown>
       }
+      cat_resolve_effective_upsert_workflow_status: {
+        Args: {
+          p_allow_downgrade?: boolean
+          p_existing_status: string
+          p_requested_status: string
+          p_stage_status: string
+        }
+        Returns: string
+      }
       cat_resolve_profile_id: { Args: { p_name: string }; Returns: string }
       cat_resolve_profile_id_dual: {
         Args: { p_name: string; p_user_id: string }
@@ -3226,15 +3504,15 @@ export type Database = {
       }
       cat_upsert_review_stage_assignment: {
         Args: {
-          p_assignee_user_id: string
-          p_collab_row_id?: string | null
-          p_file_id: string
-          p_line_end?: number | null
-          p_line_start?: number | null
-          p_scope_label?: string | null
-          p_view_id?: string | null
-          p_workflow_status?: string
           p_allow_downgrade?: boolean
+          p_assignee_user_id: string
+          p_collab_row_id: string
+          p_file_id: string
+          p_line_end: number
+          p_line_start: number
+          p_scope_label: string
+          p_view_id: string
+          p_workflow_status: string
         }
         Returns: undefined
       }
@@ -3270,18 +3548,19 @@ export type Database = {
       }
       cat_upsert_translate_stage_assignment: {
         Args: {
-          p_assignee_user_id: string
-          p_collab_row_id?: string | null
-          p_file_id: string
-          p_line_end?: number | null
-          p_line_start?: number | null
-          p_scope_label?: string | null
-          p_view_id?: string | null
-          p_workflow_status?: string
           p_allow_downgrade?: boolean
+          p_assignee_user_id: string
+          p_collab_row_id: string
+          p_file_id: string
+          p_line_end: number
+          p_line_start: number
+          p_scope_label: string
+          p_view_id: string
+          p_workflow_status: string
         }
         Returns: undefined
       }
+      cat_wf_status_rank: { Args: { p_status: string }; Returns: number }
       cat_workflow_is_exception_file: {
         Args: { p_name: string }
         Returns: boolean
@@ -3454,6 +3733,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["member", "pm", "executive"],

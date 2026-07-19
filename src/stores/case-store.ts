@@ -26,13 +26,19 @@ import type { CaseRecord, CaseStatus, ToolEntry, ToolEntryField, CaseComment, De
 import { deriveReviewerSummary } from "@/lib/review-rows";
 import type { Block } from "@blocknote/core";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
-import { createPollFallback } from "@/lib/realtime-poll";
+import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type DbCase = Database["public"]["Tables"]["cases"]["Row"];
 type DbCaseInsert = Database["public"]["Tables"]["cases"]["Insert"];
 type DbCaseUpdate = Database["public"]["Tables"]["cases"]["Update"];
+type DbCaseVisible = Database["public"]["Views"]["cases_visible"]["Row"];
+
+function asDbCase(row: DbCaseVisible): DbCase {
+  // cases_visible 欄位集合與 cases 對齊；view Row 在 generated types 中可為 nullable。
+  return row as DbCase;
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -518,7 +524,7 @@ async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
 
   const env = getEnvironment();
   const { data, error } = await supabase
-    .from("cases")
+    .from("cases_visible")
     .select("*")
     .eq("id", id)
     .eq("env", env)
@@ -530,7 +536,7 @@ async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
   }
   if (!data) return undefined;
 
-  const incoming = fromDb(data);
+  const incoming = fromDb(asDbCase(data));
   const current = getById(id);
   const merged = mergeIncomingCase(current, incoming);
   const idx = cases.findIndex((c) => c.id === id);
@@ -560,8 +566,9 @@ async function load() {
       }
 
       const env = getEnvironment();
+      // 工項 D：讀取一律走遮罩 view；寫入仍走 cases 原表。
       const { data, error } = await supabase
-        .from("cases")
+        .from("cases_visible")
         .select("*")
         .eq("env", env)
         .order("created_at", { ascending: false });
@@ -578,7 +585,7 @@ async function load() {
 
       const currentById = new Map(cases.map((c) => [c.id, c] as const));
       let fetched = (data || [])
-        .map(fromDb)
+        .map((row) => fromDb(asDbCase(row)))
         .map((incoming) => mergeIncomingCase(currentById.get(incoming.id), incoming));
 
       if (pendingUpdates.size > 0) {
@@ -802,37 +809,63 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// Realtime subscription – sync changes from other users
+// Realtime subscription – sync changes from other users.
+// 工項 D：禁止訂閱 cases 原表（WS payload 含未遮罩敏感欄）。改訂閱 case_change_signals
+//（僅 case_id／env／op），再重查 cases_visible；DELETE 信號則從本地移除。
+async function requeryCaseFromView(id: string) {
+  const env = getEnvironment();
+  const { data, error } = await supabase
+    .from("cases_visible")
+    .select("*")
+    .eq("id", id)
+    .eq("env", env)
+    .maybeSingle();
+  if (error) {
+    console.error("[case-store] Failed to re-query case from cases_visible:", errorMessage(error));
+    return;
+  }
+  if (!data) {
+    if (cases.some((c) => c.id === id)) {
+      cases = cases.filter((c) => c.id !== id);
+      notify();
+    }
+    return;
+  }
+  if (pendingUpdates.has(id)) return;
+  const incoming = fromDb(asDbCase(data));
+  const current = getById(id);
+  const merged = mergeIncomingCase(current, incoming);
+  if (cases.some((c) => c.id === id)) {
+    cases = cases.map((c) => (c.id === id ? merged : c));
+  } else {
+    cases = [merged, ...cases];
+  }
+  notify();
+}
+
+type CaseChangeSignalRow = {
+  case_id: string;
+  env?: string;
+  op?: string;
+};
+
 supabase
-  .channel("cases-realtime")
+  .channel("case-change-signals")
   .on(
     "postgres_changes",
-    { event: "*", schema: "public", table: "cases" },
+    { event: "INSERT", schema: "public", table: "case_change_signals" },
     (payload) => {
       const env = getEnvironment();
-      if (payload.eventType === "UPDATE" && payload.new) {
-        const row = payload.new as DbCase;
-        if (row.env !== env) return;
-        // Skip realtime updates for cases with pending optimistic writes
-        if (pendingUpdates.has(row.id)) return;
-        const updated = fromDb(row);
-        cases = cases.map((c) => (c.id === updated.id ? mergeIncomingCase(c, updated) : c));
-        notify();
-      } else if (payload.eventType === "INSERT" && payload.new) {
-        const row = payload.new as DbCase;
-        if (row.env !== env) return;
-        const exists = cases.some((c) => c.id === row.id);
-        if (!exists) {
-          cases = [fromDb(row), ...cases];
+      const row = payload.new as CaseChangeSignalRow;
+      if (!row?.case_id || row.env !== env) return;
+      if (row.op === "DELETE") {
+        if (cases.some((c) => c.id === row.case_id)) {
+          cases = cases.filter((c) => c.id !== row.case_id);
           notify();
         }
-      } else if (payload.eventType === "DELETE" && payload.old) {
-        const oldId = (payload.old as Partial<DbCase>).id;
-        if (cases.some((c) => c.id === oldId)) {
-          cases = cases.filter((c) => c.id !== oldId);
-          notify();
-        }
+        return;
       }
+      void requeryCaseFromView(row.case_id);
     }
   )
   .subscribe();
@@ -973,7 +1006,8 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
 }
 
 // Polling fallback – ensures sync within 3s even if Realtime misses events
-const casePoll = createPollFallback("cases", () => {
+// 工項 D：譯者對 cases 基表無 SELECT，改偵測 cases_visible.updated_at
+const casePoll = createCasesVisiblePollFallback(() => {
   if (loaded) {
     loadPromise = null;
     load();

@@ -127,7 +127,7 @@
 | CAT 頁 LMS 側欄開合 ↔ iframe `TMS_SIDEBAR_MODE`（`lms`／`editor`／`module`） | `src/pages/CatToolPage.tsx`、`cat-tool/app.js` |
 | CAT 專案清單名稱篩選（變更紀錄下方、表格上方） | `cat-tool/index.html`（`#projectSearchInput`）、`cat-tool/app.js`（`applyProjectListFilter`） |
 | 重複標題邏輯 | `src/lib/case-title-duplicate.ts`、測試 `*.test.ts` |
-| 案件資料 store | `src/hooks/use-case-store.ts`、`src/stores/case-store.ts`（依實際 import） |
+| 案件資料 store | `src/hooks/use-case-store.ts`、`src/stores/case-store.ts`（讀取走 `cases_visible`；寫入仍走 `cases`；Realtime 訂閱 `case_change_signals`） |
 | **AI 可操作性標記（W9-A，2026-07）**：工具欄位 `data-testid="tool-server/username/password/project/files"`、範本選項 `data-testid="template-option-<名稱>"`、移除鈕 `aria-label="移除工具 <名稱>"`（僅 2 種以上工具時渲染）、協作表格每列與日期欄 `data-collab-id`／`data-collab-field` | `src/pages/CaseDetailPage.tsx`、`src/components/CollaborationTable.tsx`；對照表見 [`TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md`](./TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11 |
 
 ## 費用管理（稿費總表／請款）
@@ -143,7 +143,7 @@
 | 請款單付款日期／付款後編輯（2026-06） | [`INVOICE_PAYMENT_DATE_EDIT_2026-06.md`](./INVOICE_PAYMENT_DATE_EDIT_2026-06.md) · `InvoiceDetailPage.tsx`、`ClientInvoiceDetailPage.tsx`、`DateOnlyInputPicker.tsx` |
 | 譯者選項含 **`noFee`**（無須開立稿費，`member_translator_settings.no_fee`） | `src/stores/select-options-store.ts`：`loadAssignees` |
 | 客戶幣別 → TWD 匯率（利潤換算） | `src/stores/currency-store.ts` |
-| **譯者讀取收緊＋欄位遮罩（W10，2026-07；工項 C 2026-07-19）**：`fees` 基表 SELECT **僅 admin**（防 PostgREST 直讀繞過）；譯者讀 `fees_visible`（`security_invoker=false`，列過濾內嵌；遮罩營收／客戶／`rateConfirmed`；`internal_note`＝相關案件）；Realtime 訂閱 `fee_change_signals`；寫入仍走 `fees`（admin）；權限 module key 單數為準 | migrations 含 `20260718190218_*`、`20260719033336_w10_fees_base_table_select_admin_only.sql`；`fee-store.ts`；`w10_fees_base_select_deny_check.sql`；見 [`plans/2026-07-19_table-perm-audit-c-findings.md`](./plans/2026-07-19_table-perm-audit-c-findings.md) 與主計畫 §9 |
+| **譯者讀取收緊＋欄位遮罩（W10，2026-07；工項 C 2026-07-19；工項 D 案件）**：`fees`／`cases` 基表 SELECT **僅 admin**；譯者讀 `fees_visible`／`cases_visible`；Realtime 訂閱 `fee_change_signals`／`case_change_signals`；案件七敏感欄＋`edit_logs` 遮罩；寫入仍走基表 | migrations 含 `20260719033336_*`、`20260719120000_w10_cases_visible_mask_and_change_signals.sql`；見主計畫 §9.2 |
 
 > 維運：`請款完成`／`利潤`／`費率無誤` 曾發生「詳情與總表篩選不一致」；修正紀錄與驗收見 [`HANDOFF.md`](./HANDOFF.md)「費用總表：篩選器與欄位顯示對齊」。
 >

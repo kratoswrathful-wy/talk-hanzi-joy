@@ -62,6 +62,14 @@ const PERMISSION_MODULES: PermissionModule[] = [
       { key: "case_list_create", label: "新增案件", type: "both", attribute: "按鈕" },
       { key: "case_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
       { key: "case_list_viewDraft", label: "檢視草稿", type: "view" },
+      // 總表欄位（§9.2 案件：譯者禁區預設關閉）
+      { key: "table_field_client", label: "客戶", type: "view", attribute: "欄位" },
+      { key: "table_field_contact", label: "聯絡人", type: "view", attribute: "欄位" },
+      { key: "table_field_keyword", label: "關鍵字", type: "view", attribute: "欄位" },
+      { key: "table_field_clientPoNumber", label: "客戶 PO#", type: "view", attribute: "欄位" },
+      { key: "table_field_dispatchRoute", label: "派案途徑", type: "view", attribute: "欄位" },
+      { key: "table_field_clientCaseLink", label: "客戶案件單連結", type: "view", attribute: "欄位" },
+      { key: "table_field_internalComments", label: "案件內部備註", type: "view", attribute: "欄位" },
     ],
     detailSections: [
       {
@@ -102,6 +110,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "case_detail_client", label: "客戶", type: "both", attribute: "單選" },
           { key: "case_detail_contact", label: "聯絡人", type: "both", attribute: "單選" },
           { key: "case_detail_keyword", label: "關鍵字 / 客戶 PO# / 客戶案件單連結 / 派案來源", type: "both", attribute: "文字 / 連結 / 單選" },
+          { key: "case_detail_internalComments", label: "案件內部備註", type: "both", attribute: "文字" },
         ],
       },
     ],

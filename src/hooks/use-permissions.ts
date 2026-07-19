@@ -7,6 +7,7 @@ import {
   permissionModuleKeyLookupOrder,
 } from "@/lib/permission-module-key";
 import { FEE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/fee-table-field-visibility";
+import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
 import type { Json } from "@/integrations/supabase/types";
 
 export interface FieldPermission {
@@ -302,10 +303,23 @@ export function usePermissions() {
       // 內部註記：§9.2 定稿全員可見可編（無設定時不限制；工項 E）
       // 權限管理: executive only
       if (moduleKey === "permissions" && primaryRole !== "executive") return false;
-      // 案件管理 - 本案費用區塊: member 預設限制
+      // 案件管理 - 本案費用區塊 + §9.2 禁區 table_field／案件內部備註
       if (moduleKey === "case_management" && primaryRole === "member") {
-        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_detail_keyword", "case_draft_publish_prompt"];
+        const memberRestrictedItems = [
+          "case_fee_generate_button",
+          "case_fee_warning",
+          "case_fee_badges",
+          "case_detail_client",
+          "case_detail_contact",
+          "case_detail_keyword",
+          "case_detail_internalComments",
+          "case_draft_publish_prompt",
+        ];
         if (memberRestrictedItems.includes(itemKey)) return false;
+        if (itemKey.startsWith("table_field_")) {
+          const fieldKey = itemKey.slice("table_field_".length);
+          if (CASE_TABLE_MANAGER_ONLY_KEYS.has(fieldKey)) return false;
+        }
       }
       // 費用管理：§9.2 禁區 table_field + 批次開立
       if (canonicalModule === "fee_management" && primaryRole === "member") {
@@ -322,8 +336,21 @@ export function usePermissions() {
     if (!itemPerm) {
       // Same member defaults even when module has partial config
       if (moduleKey === "case_management" && primaryRole === "member") {
-        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_detail_keyword", "case_draft_publish_prompt"];
+        const memberRestrictedItems = [
+          "case_fee_generate_button",
+          "case_fee_warning",
+          "case_fee_badges",
+          "case_detail_client",
+          "case_detail_contact",
+          "case_detail_keyword",
+          "case_detail_internalComments",
+          "case_draft_publish_prompt",
+        ];
         if (memberRestrictedItems.includes(itemKey)) return false;
+        if (itemKey.startsWith("table_field_")) {
+          const fieldKey = itemKey.slice("table_field_".length);
+          if (CASE_TABLE_MANAGER_ONLY_KEYS.has(fieldKey)) return false;
+        }
       }
       if (canonicalModule === "fee_management" && primaryRole === "member") {
         if (itemKey === "fee_list_batchFinalize") return false;

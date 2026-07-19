@@ -126,7 +126,7 @@ export function InquirySlackDialog({
       const [{ data: roleRows, error: roleErr }, casesRes] = await Promise.all([
         supabase.from("user_roles").select("user_id"),
         supabase
-          .from("cases")
+          .from("cases_visible")
           .select("translator, reviewer, updated_at")
           .eq("env", env)
           .gte("updated_at", cutoffIso),

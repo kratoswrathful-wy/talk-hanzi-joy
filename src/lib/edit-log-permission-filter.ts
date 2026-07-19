@@ -100,6 +100,7 @@ const CASE_FIELD_TO_ITEM: Record<string, string> = {
   clientPoNumber: "case_detail_keyword",
   clientCaseLink: "case_detail_keyword",
   dispatchRoute: "case_detail_keyword",
+  internalComments: "case_detail_internalComments",
   category: "case_detail_category",
   workType: "case_detail_workType",
   workGroups: "case_detail_workType",

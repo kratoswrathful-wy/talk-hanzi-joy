@@ -39,7 +39,7 @@ export async function setCollabRowTaskCompletedFromCat(
 ): Promise<{ ok: boolean; allTaskCompleted?: boolean; error?: string }> {
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
-    .from("cases")
+    .from("cases_visible")
     .select("collab_rows, review_rows, status, multi_collab")
     .eq("id", caseId)
     .eq("env", env)
@@ -95,7 +95,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
 ): Promise<{ ok: boolean; allTaskCompleted?: boolean; error?: string }> {
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
-    .from("cases")
+    .from("cases_visible")
     .select("collab_rows, review_rows, status")
     .eq("id", caseId)
     .eq("env", env)
@@ -150,7 +150,7 @@ export async function maybeUpgradeCaseTaskCompletedFromCatFiles(
 ): Promise<{ ok: boolean; upgraded: boolean; error?: string }> {
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
-    .from("cases")
+    .from("cases_visible")
     .select("status, multi_collab")
     .eq("id", caseId)
     .eq("env", env)

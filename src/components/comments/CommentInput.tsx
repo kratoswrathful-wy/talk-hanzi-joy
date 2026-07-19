@@ -63,7 +63,7 @@ export function CommentInput({
     };
 
     Promise.all([
-      supabase.from("cases").select("id, title")
+      supabase.from("cases_visible").select("id, title")
         .eq("env", env).order("created_at", { ascending: false })
         .then(({ data }) => pushPages(data, "case", "/cases")),
       supabase.from("fees_visible").select("id, title")
