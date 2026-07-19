@@ -6,9 +6,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+/** 現行 sync 真相：工項 F 之後以此檔為準（A 檔保留歷史，不再代表 live 函式） */
 const MIGRATION = resolve(
   process.cwd(),
-  "supabase/migrations/20260716120000_cat_review_segment_assign.sql",
+  "supabase/migrations/20260719150000_cat_wf_sync_review_single_fallback.sql",
 );
 
 describe("sync → upsert：不得傳 p_allow_downgrade", () => {
@@ -24,7 +25,7 @@ describe("sync → upsert：不得傳 p_allow_downgrade", () => {
     expect(syncBody).not.toMatch(/p_allow_downgrade\s*:=\s*true/i);
     expect(syncBody).not.toMatch(/cat_upsert_\w+_stage_assignment\([^;]*p_allow_downgrade/i);
 
-    // 兩處 PERFORM upsert 應為 8 引數形式（檔註解亦聲明故意不傳）
+    // PERFORM upsert 應為 8 引數形式（檔註解亦聲明故意不傳）
     expect(syncBody).toMatch(/故意不傳 p_allow_downgrade/);
     const performTranslate = syncBody.match(
       /PERFORM public\.cat_upsert_translate_stage_assignment\(\s*[^)]+\)/g,
