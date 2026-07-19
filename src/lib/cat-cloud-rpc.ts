@@ -944,7 +944,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (!keyword) return [];
       // 一律以目前環境（身分優先）搜尋 LMS 案件，不再依專案 env 或硬編 production。
       const { data } = await supabase
-        .from("cases")
+        .from("cases_visible")
         .select("id,title,keyword,status,updated_at")
         .eq("env", env)
         .or(`title.ilike.%${keyword}%,keyword.ilike.%${keyword}%`)
@@ -2870,7 +2870,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const caseId = (file as any)?.related_lms_case_id;
       if (!caseId) return { linked: false, fileName: (file as any)?.name ?? "" };
       const { data: caseRow } = await supabase
-        .from("cases")
+        .from("cases_visible")
         .select("id, title, status, multi_collab, collab_rows, review_rows, reviewer")
         .eq("id", caseId)
         .eq("env", env)

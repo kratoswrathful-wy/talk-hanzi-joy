@@ -120,3 +120,21 @@ export function createFeesVisiblePollFallback(
     return data?.updated_at ?? null;
   }, onChanged, interval);
 }
+
+/** 案件輪詢走遮罩 view（譯者對 cases 基表已無 SELECT） */
+export function createCasesVisiblePollFallback(
+  onChanged: () => void,
+  interval = 15000
+): PollHandle {
+  return createUpdatedAtPoll(async () => {
+    const env = getEnvironment();
+    const { data } = await supabase
+      .from("cases_visible")
+      .select("updated_at")
+      .eq("env", env)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.updated_at ?? null;
+  }, onChanged, interval);
+}

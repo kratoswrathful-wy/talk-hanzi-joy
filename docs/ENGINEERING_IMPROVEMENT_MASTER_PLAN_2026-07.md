@@ -315,6 +315,19 @@ flowchart LR
 
 **技術指引**：RLS 只管「列」；欄位級須用**遮罩層**（view 或 RPC）實作，禁止只靠前端隱藏。Realtime 非管理員 client 收到 `fees/invoices` 事件一律**重查遮罩來源**，禁止直接套 `payload.new`（比照 `invoice-store`）。變更紀錄過濾在遮罩／查詢層做，不在渲染層。
 
+**案件管理（cases）可見性規格**（2026-07-19 定稿；工項 D）：
+
+- **列級**：譯者可見**全部案件**（不限本人被指派）；PM／執行長同。
+- **欄位級禁區**（僅 PM 以上）：客戶、聯絡人、關鍵字、客戶 PO#、派案來源（`dispatch_route`）、客戶案件單連結、案件內部備註（`internal_comments`）。其餘欄位（含譯者／審稿／標題／狀態／交期等）譯者可見。
+- **本案費用區塊**：譯者僅見指派給自己的費用（與 `fees_visible` 本人列一致）；標籤筆數不得洩漏他人合計。
+- **技術**：`cases` 基表 SELECT 僅 admin；讀取走 `cases_visible`（`security_invoker=false`，七欄＋`edit_logs` 遮罩）；Realtime 訂閱 `case_change_signals` 後重查 view；非 admin 不可 UPDATE 七敏感欄。
+
+**內部註記（internal_notes）可見性規格**（2026-07-19 定稿；工項 E）：
+
+- **全員可見、可編輯**（含留言與討論）；模組＝案件執行中的討論。
+- 關聯案件僅顯示標題與連結；點入案件後的欄位可見性依上方案件規格。
+- DB RLS 維持已登入本 env 可讀寫；Permissions 預設與產品定稿對齊（不再預設僅 executive）。
+
 ### 9.3 實作拆批
 
 - **批次 1（快，已完成 §9.4）**：三張表列級 SELECT 收緊 ＋ fees 草稿條款 ＋ 路由守衛（工具管理／設定／內部資料／客戶請款／團隊成員／權限管理）。
