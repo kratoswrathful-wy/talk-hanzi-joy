@@ -6781,6 +6781,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowStages = stages;
     }
 
+    async function _pmLogWfAdjustWrite(kind, fileId, assigneeUserId, wfStatus, action) {
+        if (typeof DBService.addModuleLog !== 'function') return;
+        try {
+            await DBService.addModuleLog('wf-adjust', {
+                file_id: String(fileId),
+                stage: kind === 'review' ? 'review' : 'translate',
+                assignee: String(assigneeUserId || ''),
+                workflow_status: _normalizeAdjustWorkflowStatus(wfStatus),
+                operator_user_id: window._tmsCurrentUserId ? String(window._tmsCurrentUserId) : null,
+                source: 'modal',
+                action: action || 'upsert',
+            });
+        } catch (e) {
+            console.warn('[workflow] wf-adjust module log failed', e);
+        }
+    }
+
+    function _collectPlaceholderCreatesFromAdjustModal(selects, fileId) {
+        const creates = [];
+        for (const sel of selects) {
+            if (sel.getAttribute('data-placeholder') !== '1') continue;
+            const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
+            const row = sel.closest('.wf-adjust-placeholder-row');
+            const kind = sel.getAttribute('data-stage-kind') || (row && row.getAttribute('data-stage-kind')) || '';
+            const assigneeSel = row && row.querySelector('.wf-adjust-placeholder-assignee');
+            const uid = assigneeSel && assigneeSel.value ? String(assigneeSel.value).trim() : '';
+            if (!uid || !fileId || (kind !== 'translate' && kind !== 'review')) continue;
+            const opt = assigneeSel.selectedOptions && assigneeSel.selectedOptions[0];
+            const fromOpt = opt ? String(opt.textContent || '').trim() : '';
+            creates.push({
+                stageKind: kind,
+                assigneeUserId: uid,
+                assigneeName: fromOpt || _resolveAssigneeDisplayName(uid),
+                scopeText: '整檔',
+                wfStatus,
+            });
+        }
+        return creates;
+    }
+
+    function _buildPlaceholderCreateConfirmMessage(creates) {
+        const api = window.WfAdjustStatusAction;
+        if (api && typeof api.buildPlaceholderCreateConfirmMessage === 'function') {
+            return api.buildPlaceholderCreateConfirmMessage(creates);
+        }
+        const lines = (creates || []).map((c) => {
+            const stage = c.stageKind === 'review' ? '審稿' : '翻譯';
+            const who = String(c.assigneeName || '').trim() || '（未命名）';
+            const scope = String(c.scopeText || '整檔').trim() || '整檔';
+            const st = c.wfStatus === 'completed' ? '完成'
+                : c.wfStatus === 'in_progress' ? '執行中' : '待開始';
+            return `• ${stage} · ${who} · ${scope} · ${st}`;
+        });
+        return ['即將新建以下指派，請確認後才會寫入：', '', ...lines].join('\n');
+    }
+
     async function _pmUpsertWholeFileAdjustAssignment(kind, fileId, assigneeUserId, wfStatus) {
         const payload = {
             assigneeUserId: String(assigneeUserId),
@@ -6800,6 +6856,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             await DBService.upsertTranslateStageAssignment(fileId, payload);
         }
+        // 工項 G：modal 經 upsert 的寫入軌跡（cat_module_logs）
+        await _pmLogWfAdjustWrite(kind, fileId, assigneeUserId, payload.workflowStatus, 'upsert');
         const refreshed = (await DBService.listStageAssignmentsForFile(fileId)) || [];
         window._currentFileStageAssignments = refreshed;
         const stages = window._currentFileWorkflowStages || [];
@@ -6814,7 +6872,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ) || null;
     }
 
+    let _pmAdjustApplyInFlight = false;
+
     async function _pmApplySplitAdjustStatus() {
+        if (_pmAdjustApplyInFlight) return;
         const selects = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-row-status')];
         if (!selects.length) {
             showCatToast('目前沒有可調整的段落', 'info');
@@ -6823,17 +6884,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fileId = currentFileId != null ? String(currentFileId) : null;
         const arr = window._currentFileStageAssignments || [];
         const hits = [];
+        _pmAdjustApplyInFlight = true;
         try {
-            for (const sel of selects) {
+            // 工項 G：佔位列已選人 → 先確認；取消只關確認框，保留調整狀態 modal
+            let pendingCreates = _collectPlaceholderCreatesFromAdjustModal(selects, fileId);
+            if (pendingCreates.length) {
+                const ok = await openCatConfirmModal(
+                    _buildPlaceholderCreateConfirmMessage(pendingCreates),
+                    { title: '確認新建指派' },
+                );
+                if (!ok) return;
+                // 確認後再讀一次 DOM，避免確認期間改選造成 stale 寫入
+                const freshSelects = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-row-status')];
+                pendingCreates = _collectPlaceholderCreatesFromAdjustModal(freshSelects, fileId);
+            }
+            const createKey = new Set(
+                pendingCreates.map((c) => `${c.stageKind}:${c.assigneeUserId}`),
+            );
+            const liveSelects = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-row-status')];
+            for (const sel of liveSelects) {
                 const isPlaceholder = sel.getAttribute('data-placeholder') === '1';
                 const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
                 if (isPlaceholder) {
-                    // 工項 E：未選人不寫入；已選人 → 整檔 upsert
+                    // 工項 E：未選人不寫入；已選人 → 整檔 upsert（須仍在確認清單內）
                     const row = sel.closest('.wf-adjust-placeholder-row');
                     const kind = sel.getAttribute('data-stage-kind') || (row && row.getAttribute('data-stage-kind')) || '';
                     const assigneeSel = row && row.querySelector('.wf-adjust-placeholder-assignee');
                     const uid = assigneeSel && assigneeSel.value ? String(assigneeSel.value).trim() : '';
                     if (!uid || !fileId || (kind !== 'translate' && kind !== 'review')) continue;
+                    if (!createKey.has(`${kind}:${uid}`)) continue;
                     const created = await _pmUpsertWholeFileAdjustAssignment(kind, fileId, uid, wfStatus);
                     if (created) hits.push({ ...created, workflowStatus: wfStatus });
                     continue;
@@ -6843,6 +6922,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const hit = arr.find((a) => String(a.id) === String(id));
                 if (!hit || hit.workflowStatus === wfStatus) continue;
                 await _updateAssignmentWorkflowStatusLocal(id, wfStatus);
+                const stageKind = sel.getAttribute('data-stage-kind')
+                    || (_isReviewStageAssignment(hit) ? 'review' : 'translate');
+                await _pmLogWfAdjustWrite(
+                    stageKind,
+                    hit.fileId != null ? hit.fileId : fileId,
+                    hit.assigneeUserId,
+                    wfStatus,
+                    'status-update',
+                );
                 hits.push({ ...hit, workflowStatus: wfStatus });
             }
             if (!hits.length) {
@@ -6913,6 +7001,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {
             console.error('[workflow] PM split adjust', e);
             showCatToast('無法調整狀態，請稍後再試', 'error');
+        } finally {
+            _pmAdjustApplyInFlight = false;
         }
     }
 
@@ -22074,9 +22164,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     })();
 
+    /**
+     * 確認後切回右欄「CAT」分頁。
+     * 不可對 tab 按鈕 .click()：那會搶走剛 focus 的譯文格，造成藍底／灰底高速閃爍。
+     */
     function maybeSwitchRightPanelToCatAfterConfirm() {
         if (!isConfirmReturnCatTabEnabled()) return;
-        document.querySelector('.tab-btn[data-tab="tabCAT"]')?.click();
+        const btn = document.querySelector('.tab-btn[data-tab="tabCAT"]');
+        const panel = document.getElementById('tabCAT');
+        if (!btn || !panel) return;
+        const already = btn.classList.contains('active') && panel.classList.contains('active');
+        if (!already) {
+            document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+            document.querySelectorAll('.panel-content').forEach((p) => p.classList.remove('active'));
+            btn.classList.add('active');
+            panel.classList.add('active');
+            try { emitCollabFocus('control', 'tabCAT'); } catch (_) { /* ignore */ }
+        }
+        const ar = document.querySelector('.grid-data-row.active-row');
+        if (ar) {
+            const sid = ar.getAttribute('data-seg-id');
+            const seg = getSegmentById(sid);
+            if (seg) {
+                try { void renderLiveTmMatches(seg); } catch (_) { /* ignore */ }
+            }
+        }
     }
 
     function rowIndexHasEditableTarget(segIdx) {
@@ -22684,7 +22796,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 completed: true,
             });
         }
-        if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
+        if (pending.afterConfirmPanel) {
+            maybeSwitchRightPanelToCatAfterConfirm();
+            const ae = document.activeElement;
+            const stillOnTarget = !!(ae && ae.classList && ae.classList.contains('grid-textarea')
+                && ae.closest('.grid-data-row')?.dataset?.segId === String(pending.segId));
+            if (!stillOnTarget) {
+                withProgrammaticEditorFocus(() => {
+                    applyEditorFocusAtSegId(pending.segId, { ...pending, skipVirtScroll: true });
+                });
+            }
+        }
         if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
@@ -22728,8 +22850,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const pending = _pendingEditorFocus;
         _pendingEditorFocus = null;
-        const ok = applyEditorFocusAtSegId(pending.segId, pending);
-        if (pending.afterConfirmPanel) maybeSwitchRightPanelToCatAfterConfirm();
+        let ok = false;
+        withProgrammaticEditorFocus(() => {
+            ok = applyEditorFocusAtSegId(pending.segId, pending);
+        });
+        if (pending.afterConfirmPanel) {
+            maybeSwitchRightPanelToCatAfterConfirm();
+            // 若仍被他處搶焦，再補一次（不捲動）
+            const ae = document.activeElement;
+            const stillOnTarget = !!(ae && ae.classList && ae.classList.contains('grid-textarea')
+                && ae.closest('.grid-data-row')?.dataset?.segId === String(pending.segId));
+            if (ok && !stillOnTarget) {
+                withProgrammaticEditorFocus(() => {
+                    applyEditorFocusAtSegId(pending.segId, { ...pending, skipVirtScroll: true });
+                });
+            }
+        }
         return ok;
     }
 
@@ -25464,11 +25600,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         emitCollabEdit('end', seg, null);
                         requestAnimationFrame(() => {
                             refreshNonPrintMarkers(targetInput);
-                            if (!_skipFakeCaretOnBlurOnce) {
-                                showCatFakeCaretFromSaved();
-                            } else {
+                            const ae = document.activeElement;
+                            const focusOnPeerEditor = !!(ae && ae !== targetInput
+                                && ae.classList && ae.classList.contains('grid-textarea'));
+                            // 確認跳行：略過假游標；若焦點已在另一譯文格亦勿對舊列 show
+                            if (_skipFakeCaretOnBlurOnce) {
                                 _skipFakeCaretOnBlurOnce = false;
+                                return;
                             }
+                            if (focusOnPeerEditor) return;
+                            showCatFakeCaretFromSaved();
                         });
                         return;
                     }

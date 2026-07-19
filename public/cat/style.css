@@ -122,11 +122,11 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     background: rgba(15, 23, 42, 0.55);
     backdrop-filter: blur(3px);
 }
-/* 通用確認／提示框永遠浮在其他 modal 之上（避免被後出現的 modal 疊蓋） */
+/* 通用確認／提示框永遠浮在其他 modal 之上（含 wfAdjust z-index:100060 等 wizard） */
 #catGenericConfirmModal,
 #catGenericPromptModal,
 #agLeaveMutexConfirmModal {
-    z-index: 10100;
+    z-index: 100100;
 }
 .modal-overlay.hidden {
     display: none !important;
@@ -1573,7 +1573,7 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     word-break: break-all; white-space: pre-wrap;
 }
 .grid-textarea:focus { outline: none; background: transparent; }
-.active-row { background: #f8fafc; }
+/* 列啟用底色以 .grid-data-row.active-row（#eff6ff）為準；勿再設裸 .active-row 灰底以免與焦點態打架 */
 .selected-row { position: relative; z-index: 10; }
 .selected-row::after {
     content: '';

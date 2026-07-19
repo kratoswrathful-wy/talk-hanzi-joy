@@ -5,6 +5,10 @@ import {
   resolvePlaceholderApplyAction,
   shouldShowAdjustBulkForStage,
   resolveAdjustBulkRowKinds,
+  formatAdjustWorkflowStatusLabel,
+  formatPlaceholderCreateConfirmLine,
+  buildPlaceholderCreateConfirmMessage,
+  needsPlaceholderCreateConfirm,
 } from "./wf-adjust-status-action.js";
 
 describe("resolvePmAdjustStatusClickAction", () => {
@@ -63,5 +67,43 @@ describe("resolveAdjustBulkRowKinds", () => {
     expect(
       resolveAdjustBulkRowKinds({ hasTranslateStage: false, hasReviewStage: true }),
     ).toEqual(["review"]);
+  });
+});
+
+describe("工項 G：佔位新建確認文案", () => {
+  it("status 標籤", () => {
+    expect(formatAdjustWorkflowStatusLabel("assigned")).toBe("待開始");
+    expect(formatAdjustWorkflowStatusLabel("in_progress")).toBe("執行中");
+    expect(formatAdjustWorkflowStatusLabel("completed")).toBe("完成");
+  });
+
+  it("確認行含階段／人員／範圍／狀態", () => {
+    expect(
+      formatPlaceholderCreateConfirmLine({
+        stageKind: "review",
+        assigneeName: "威儀",
+        scopeText: "整檔",
+        wfStatus: "in_progress",
+      }),
+    ).toBe("• 審稿 · 威儀 · 整檔 · 執行中");
+  });
+
+  it("有新建列才需確認", () => {
+    expect(needsPlaceholderCreateConfirm([])).toBe(false);
+    expect(
+      needsPlaceholderCreateConfirm([{ stageKind: "review", assigneeName: "A" }]),
+    ).toBe(true);
+    expect(
+      buildPlaceholderCreateConfirmMessage([
+        { stageKind: "review", assigneeName: "A", scopeText: "整檔", wfStatus: "assigned" },
+      ]),
+    ).toContain("即將新建");
+  });
+
+  it("清空選人後不應再視為待新建", () => {
+    expect(needsPlaceholderCreateConfirm(
+      [].filter(() => false),
+    )).toBe(false);
+    expect(resolvePlaceholderApplyAction({ assigneeUserId: "" })).toBe("skip");
   });
 });
