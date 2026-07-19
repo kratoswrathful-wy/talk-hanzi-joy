@@ -115,7 +115,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       },
     ],
   },
-  // 2. 內部註記
+  // 2. 內部註記（§9.2／工項 E：產品預設全員可見可編；Permissions 仍可調）
   {
     key: "internal_notes",
     label: "內部註記",

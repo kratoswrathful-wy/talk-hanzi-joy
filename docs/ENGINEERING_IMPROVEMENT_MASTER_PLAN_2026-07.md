@@ -324,9 +324,9 @@ flowchart LR
 
 **內部註記（internal_notes）可見性規格**（2026-07-19 定稿；工項 E）：
 
-- **全員可見、可編輯**（含留言與討論）；模組＝案件執行中的討論。
+- **全員可見、可編輯**（含留言與討論）；模組＝案件執行中的討論，**不是**僅 executive。
 - 關聯案件僅顯示標題與連結；點入案件後的欄位可見性依上方案件規格。
-- DB RLS 維持已登入本 env 可讀寫；Permissions 預設與產品定稿對齊（不再預設僅 executive）。
+- DB RLS 維持已登入本 env 可讀寫；Permissions 預設與 `permission_settings.member.internal_notes` 對齊全員開。
 
 ### 9.3 實作拆批
 
@@ -336,7 +336,7 @@ flowchart LR
 ### 9.4 批次 1 執行結果（已落地，2026-07-03）
 
 - **migration**：`supabase/migrations/20260703140000_w10_translator_row_read_tighten.sql`（以 MCP `apply_migration` 套用；名稱 `w10_translator_row_read_tighten`）。三表各單一 SELECT policy：`env = current_env() AND ( is_admin((select auth.uid())) OR <本人條件> )`，`fees` 另加 `status <> 'draft'`。維持 W5 準則（`(select auth.uid())` 包裹、單一 permissive）。
-- **路由守衛**：[`src/App.tsx`](../src/App.tsx) 新增 `RequireModule`／`RequireExecutive`，以與 `AppSidebar` 相同的 `checkPerm` 條件擋 `/tools`、`/tools/page-template/:id`、`/field-reference`、`/internal-notes`、`/client-invoices`、`/members`（`/permissions` 為 executive）；補齊 URL 直達漏洞（側欄先前已隱藏，路由未擋）。`/settings` 沿用既有 `isAdmin`。
+- **路由守衛**：[`src/App.tsx`](../src/App.tsx) 新增 `RequireModule`／`RequireExecutive`，以與 `AppSidebar` 相同的 `checkPerm` 條件擋 `/tools`、`/tools/page-template/:id`、`/field-reference`、`/client-invoices`、`/members`（`/permissions` 為 executive）；`/internal-notes` 依 `internal_notes`／`inotes_list_view`（**工項 E 起預設全員開**）。`/settings` 沿用既有 `isAdmin`。
 - **DB 層驗證**（`supabase/tests/w10_translator_read_check.sql`，11 項全 PASS）：譯者讀他人 `invoices/invoice_fees/fees` ＝ **0**；讀自己「草稿」fees ＝ **0**；讀自己非草稿 fees ＝ 基準值；PM 讀全部 ＝ `invoices` 12／`fees` 2（總數不變）；寫入斷言（建自己 ALLOW／建他人 DENY）不回歸。
 - **advisors**：重跑 security／performance 無新增警告；billing 三表無 `multiple_permissive_policies`、無 `auth_rls_initplan`。
 - **誠實註記**：`test-t1` 於 test env 目前擁有 0 筆 invoices/fees，故「讀自己非草稿」正向為 0＝0 的 trivial pass；待有本人非草稿 fixture 後可再強化正向驗證。
