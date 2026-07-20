@@ -19,6 +19,7 @@ import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
 import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
+import { resolveActorDisplayName } from "@/lib/actor-display-name";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
@@ -726,7 +727,18 @@ export default function CasesPage() {
 
   const handleFlowAcceptCase = useCallback(() => {
     if (!selectedSingleCase) return;
-    const displayName = profile?.display_name || "";
+    const displayName = resolveActorDisplayName({
+      displayName: profile?.display_name,
+      email: profile?.email,
+      userMetadataDisplayName:
+        typeof user?.user_metadata?.display_name === "string"
+          ? user.user_metadata.display_name
+          : null,
+    });
+    if (!displayName) {
+      toast({ title: "無法承接", description: "找不到目前登入者的顯示名稱，請重新整理後再試。", variant: "destructive" });
+      return;
+    }
     const currentTranslators = selectedSingleCase.translator || [];
     const updatedTranslators = currentTranslators.includes(displayName)
       ? currentTranslators

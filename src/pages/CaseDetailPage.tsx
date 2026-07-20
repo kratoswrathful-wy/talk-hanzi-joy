@@ -88,6 +88,7 @@ import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
 import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
+import { resolveActorDisplayName } from "@/lib/actor-display-name";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -1805,7 +1806,18 @@ export default function CaseDetailPage() {
   };
 
   const handleAcceptCase = () => {
-    const displayName = profile?.display_name || "";
+    const displayName = resolveActorDisplayName({
+      displayName: profile?.display_name,
+      email: profile?.email,
+      userMetadataDisplayName:
+        typeof user?.user_metadata?.display_name === "string"
+          ? user.user_metadata.display_name
+          : null,
+    });
+    if (!displayName) {
+      toast({ title: "無法承接", description: "找不到目前登入者的顯示名稱，請重新整理後再試。", variant: "destructive" });
+      return;
+    }
     const currentTranslators = caseData.translator || [];
     const updatedTranslators = currentTranslators.includes(displayName)
       ? currentTranslators

@@ -1,4 +1,4 @@
-狀態：已落地待驗收
+狀態：已落地待驗收（DB 已通過；UI 冒煙進行中，見 §6）
 
 # 工項 2：譯者「改狀態」類流程回歸（D 基表收權副作用）
 
@@ -72,3 +72,22 @@ D 將 `cases_select` 收成僅 `is_admin` 後，譯者對基表：
 
 工作類型錯鍵、計費單位、承接／完成——多屬 A／D 上線後**缺譯者冒煙**。  
 本修復後，凡案件狀態寫入應經 RPC；新權限變更 checklist 應含：**譯者允許寫入欄的 UPDATE 冒煙**（不只 SELECT 遮罩）。
+
+## 6. 合併後 UI 冒煙進度（2026-07-20）
+
+- PR #63 已合併：`a9c41868`；正式站部署 READY。
+- Playwright 正式站（測試模式假譯者一）：
+  - **通過**：單檔承接 Network 見 `rpc/apply_case_update` 且 `ok:true`；狀態持久為「已派出」。
+  - **發現（非 RPC 根因）**：承接時若 `profile.display_name` 為空，會寫入 `translator: [""]`。已補 `resolveActorDisplayName` fallback（metadata／email）並擋空字串。
+- 回歸 spec：`tests/smoke-cases-translator-update-rpc.spec.ts`（chromium project）。
+
+### Cowork／AI 測試登入（session 失效時）
+
+假人 `test-t1@test.local` **沒有一般密碼登入**；請走下列之一：
+
+1. **推薦（真人執行長）**：開 `https://talk-hanzi-joy.vercel.app` → 用威儀／執行長帳登入 → 頂欄「進入測試模式」→ 切「譯者一」。
+2. **Playwright session 檔**（勿 commit）：本機執行  
+   `PLAYWRIGHT_BASE_URL=https://talk-hanzi-joy.vercel.app npx playwright test tests/auth.setup.ts --project=setup`  
+   （帳密來自本機 `.env.playwright.local` 的 `PLAYWRIGHT_TEST_EMAIL`／`PLAYWRIGHT_TEST_PASSWORD`，預設 `playwright-e2e@1up.local`）  
+   成功後產生 `playwright/.auth/user.json`（正式站 origin、測試模式假執行長）。Cowork 可複製此檔到其工作目錄再跑 spec。
+3. **DB／API 層**：不需 UI session；用既有 SQL 模擬 JWT（你已驗過 apply_case_update）。
