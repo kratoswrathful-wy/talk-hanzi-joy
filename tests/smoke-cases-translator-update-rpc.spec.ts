@@ -174,7 +174,6 @@ test("譯者協作分段承接走 apply_case_update", async ({ page }) => {
       collabCount: 2,
       collabRows: [
         {
-          id: "row-a",
           translator: "譯者一（測試）",
           segment: "段A",
           unitCount: 0,
@@ -186,7 +185,6 @@ test("譯者協作分段承接走 apply_case_update", async ({ page }) => {
           delivered: false,
         },
         {
-          id: "row-b",
           translator: "譯者二（測試）",
           segment: "段B",
           unitCount: 0,
@@ -228,7 +226,7 @@ test("譯者協作分段承接走 apply_case_update", async ({ page }) => {
       } }).__lmsAgent;
       const g = agent.case.get(id);
       if (!g || !("ok" in g) || !g.ok || !g.data) return null;
-      const row = (g.data.collabRows || []).find((r) => r.id === "row-a");
+      const row = (g.data.collabRows || []).find((r) => (r.translator || "").includes("譯者一"));
       return row?.accepted ?? null;
     }, created.id!);
   }, { timeout: 20_000 }).toBe(true);

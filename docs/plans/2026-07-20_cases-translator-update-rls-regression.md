@@ -1,4 +1,4 @@
-狀態：已落地待驗收（DB 已通過；UI 冒煙進行中，見 §6）
+狀態：已驗收
 
 # 工項 2：譯者「改狀態」類流程回歸（D 基表收權副作用）
 
@@ -73,13 +73,15 @@ D 將 `cases_select` 收成僅 `is_admin` 後，譯者對基表：
 工作類型錯鍵、計費單位、承接／完成——多屬 A／D 上線後**缺譯者冒煙**。  
 本修復後，凡案件狀態寫入應經 RPC；新權限變更 checklist 應含：**譯者允許寫入欄的 UPDATE 冒煙**（不只 SELECT 遮罩）。
 
-## 6. 合併後 UI 冒煙進度（2026-07-20）
+## 6. 合併後 UI 冒煙結果（2026-07-20）
 
-- PR #63 已合併：`a9c41868`；正式站部署 READY。
-- Playwright 正式站（測試模式假譯者一）：
-  - **通過**：單檔承接 Network 見 `rpc/apply_case_update` 且 `ok:true`；狀態持久為「已派出」。
-  - **發現（非 RPC 根因）**：承接時若 `profile.display_name` 為空，會寫入 `translator: [""]`。已補 `resolveActorDisplayName` fallback（metadata／email）並擋空字串。
-- 回歸 spec：`tests/smoke-cases-translator-update-rpc.spec.ts`（chromium project）。
+- PR #63 已合併：`a9c41868`；後續顯示名稱 fallback：`bbe671ef`；正式站 READY。
+- Playwright 正式站（測試模式假譯者一）`smoke-cases-translator-update-rpc` **3/3 通過**：
+  1. 單檔承接＋任務完成：Network `rpc/apply_case_update` ok；狀態→已派出→任務完成；譯者含「譯者一」
+  2. 協作分段確認承接：RPC ok；該段 `accepted` 持久
+  3. 無法承接：RPC ok
+- 冒煙中發現並已修：`profile.display_name` 空時寫入 `translator: [""]` → `resolveActorDisplayName`
+- 未自動化（需有連結 CAT 檔／Slack 收件人）：CAT 檔案指派生效、Slack 實際送達——DB／RPC 路徑已恢復，建議真人抽查一筆有連結檔的詢案。
 
 ### Cowork／AI 測試登入（session 失效時）
 
