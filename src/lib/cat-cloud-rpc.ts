@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import { getEnvironment } from "@/lib/environment";
+import { applyCaseUpdate } from "@/lib/apply-case-update";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
 import { fetchEnabledCatAiModelOptions } from "@/lib/cat-ai-model-registry/list-registry-options";
 import { mapEnabledModelOptionsToRpc } from "@/lib/cat-ai-model-registry/rpc-enabled-models";
@@ -2900,7 +2901,6 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const collabRows = Array.isArray(payload.collabRows) ? payload.collabRows : null;
       const reviewRows = Array.isArray(payload.reviewRows) ? payload.reviewRows : null;
       if (!caseId || !collabRows) return { ok: false, error: "missing caseId or collabRows" };
-      const env = getEnvironment();
       const casePatch: Record<string, unknown> = { collab_rows: collabRows, updated_at: nowIso() };
       if (reviewRows) {
         casePatch.review_rows = reviewRows;
@@ -2913,11 +2913,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ];
         casePatch.reviewer = names.join("、");
       }
-      const { error: updErr } = await supabase
-        .from("cases")
-        .update(casePatch as Record<string, never>)
-        .eq("id", caseId)
-        .eq("env", env);
+      const { error: updErr } = await applyCaseUpdate(supabase, caseId, casePatch);
       if (updErr) return { ok: false, error: updErr.message };
       const report = await syncCatWorkflowAssignmentsForCase(supabase, caseId);
       return {
