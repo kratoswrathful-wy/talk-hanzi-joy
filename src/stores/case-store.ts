@@ -28,6 +28,7 @@ import type { Block } from "@blocknote/core";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { applyCaseUpdate } from "@/lib/apply-case-update";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type DbCase = Database["public"]["Tables"]["cases"]["Row"];
@@ -708,7 +709,8 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   notify();
 
-  const { error } = await supabase.from("cases").update(mapped).eq("id", id);
+  // 工項 2：勿直寫 cases 基表 UPDATE（譯者無 SELECT → 靜默 0 列）；改 RPC
+  const { error } = await applyCaseUpdate(supabase, id, mapped as Record<string, unknown>);
 
   const remaining = (inFlightCount.get(id) || 1) - 1;
   if (remaining <= 0) {

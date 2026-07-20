@@ -3586,6 +3586,10 @@ export type Database = {
         Args: { p_segment_id: string; p_session_id: string }
         Returns: boolean
       }
+      apply_case_update: {
+        Args: { p_case_id: string; p_patch: Json }
+        Returns: Json
+      }
       sync_cat_file_assignments_for_case: {
         Args: { p_case_id: string }
         Returns: undefined

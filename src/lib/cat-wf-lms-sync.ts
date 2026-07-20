@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { applyCaseUpdate } from "@/lib/apply-case-update";
 import { getEnvironment } from "@/lib/environment";
 
 type CollabRowJson = {
@@ -77,11 +78,7 @@ export async function setCollabRowTaskCompletedFromCat(
     updates.status = "dispatched";
   }
 
-  const { error: updErr } = await supabase
-    .from("cases")
-    .update(updates as Record<string, never>)
-    .eq("id", caseId)
-    .eq("env", env);
+  const { error: updErr } = await applyCaseUpdate(supabase, caseId, updates);
   if (updErr) return { ok: false, error: updErr.message };
   return { ok: true, allTaskCompleted };
 }
@@ -133,11 +130,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
     patch.status = "dispatched";
   }
 
-  const { error: updErr } = await supabase
-    .from("cases")
-    .update(patch as Record<string, never>)
-    .eq("id", caseId)
-    .eq("env", env);
+  const { error: updErr } = await applyCaseUpdate(supabase, caseId, patch);
   if (updErr) return { ok: false, error: updErr.message };
   return { ok: true, allTaskCompleted };
 }
@@ -200,11 +193,10 @@ export async function maybeUpgradeCaseTaskCompletedFromCatFiles(
   const coversAllFiles = fileIds.every((fid) => filesWithAssign.has(String(fid)));
   if (!allDone || !coversAllFiles) return { ok: true, upgraded: false };
 
-  const { error: updErr } = await supabase
-    .from("cases")
-    .update({ status: "task_completed", updated_at: updatedAt } as Record<string, unknown> as Record<string, never>)
-    .eq("id", caseId)
-    .eq("env", env);
+  const { error: updErr } = await applyCaseUpdate(supabase, caseId, {
+    status: "task_completed",
+    updated_at: updatedAt,
+  });
   if (updErr) return { ok: false, upgraded: false, error: updErr.message };
   return { ok: true, upgraded: true };
 }
