@@ -260,6 +260,7 @@ flowchart LR
 - [DEV_PIPELINE.md](DEV_PIPELINE.md)／[MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md](MIGRATION_HISTORY_REALIGN_PLAN_2026-07.md) — **Migration 歷史對齊已完成（2026-07-15）**：repo ↔ 正式庫版號一致、`db push` 正門恢復；CI 哨兵（fixture 擋關＋live 非擋關）。原「MCP／repair 繞路」待對齊項結案；Branching／baseline 缺檔仍見獨立計畫。
 - [TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md](TMS_CAT_AI_AGENT_OPERATIONS_GUIDE_2026-07.md) §11 — W9-A DOM 定位標記對照表（AI 代理操作用）
 - [supabase/tests/w10_translator_read_check.sql](../supabase/tests/w10_translator_read_check.sql)、[w10_fees_visible_mask_check.sql](../supabase/tests/w10_fees_visible_mask_check.sql)、[w10_fees_write_check.sql](../supabase/tests/w10_fees_write_check.sql) — W10 三批次 DB 層驗證腳本（權威回歸基準）
+- [sop/table-permission-change-smoke.md](sop/table-permission-change-smoke.md) — **常駐 SOP**：基表／RLS／遮罩 view／realtime／DEFINER 寫入 RPC 變更後的角色 CRUD 冒煙（§9.10；2026-07-20 自工項 D→#63 回歸固化）
 - [CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md](CAT_AI_MODEL_REGISTRY_PLAN_2026-07.md) — **獨立於本計畫**的 CAT AI 模型 registry 專案（不計入 R/W 工項編號）；Phase 3A 已 pivot，見 §16
 
 ---
@@ -403,6 +404,10 @@ Fable 5 以測試模式「譯者一（測試）」對分支預覽做最終抽查
 
 - **F1（補回）— 譯者視角變更紀錄區塊消失**：根因為前端 `filterEditLogsFeeDetail` 以 `checkPerm("fee_management", …)` 再過濾一次，譯者無該模組檢視權限 → 白名單條目全數被濾光 → 區塊 `length === 0` 不渲染。裁決：資料層 `fees_visible.edit_logs` 已是白名單過濾結果，譯者視角**直接渲染**即可。修法：[`TranslatorFeeDetail.tsx`](../src/pages/TranslatorFeeDetail.tsx) 非管理員略過 `checkPerm` 過濾、區塊恆顯示（空清單顯示「尚無可顯示的變更紀錄」，加 `data-testid="fee-edit-log-section"`）；PM 行為零變更。譯者遮罩 spec（W10-T-1，fixme 中）補斷言：區塊存在且條目不含營收／客戶欄位。
 - **F2（結案，不收緊）— `/members` 譯者可見**：**譯者可見團隊成員清單符合設計行為，2026-07-04 擁有者確認**，不收緊。測試教訓入檔 [`testing.mdc`](../.cursor/rules/testing.mdc) §6：測試模式假人身分**不影響路由守衛判定**（守衛看真實帳號角色），路由守衛驗證不得用假人切換，須用真實測試帳號（如 `playwright-e2e`）或 DB 層驗證。
+
+### 9.10 基表權限變更後的角色冒煙 SOP（2026-07-20，常駐）
+
+工項 D（#58）收 `cases` 基表 SELECT 後，譯者 UPDATE 靜默 0 列（#63 修復）。教訓固化為常駐規範，細節見 **[`sop/table-permission-change-smoke.md`](sop/table-permission-change-smoke.md)**（觸發時機、受影響角色 CRUD 冒煙、UPDATE-需-SELECT 與測試環境資料缺口兩陷阱、驗收門檻）。涉及 RLS／GRANT／`*_visible`／realtime／DEFINER 寫入 RPC 的 PR，須依該 SOP 跑角色冒煙後才可標記通過。
 
 ## 10. W9 AI 可操作性（擁有者 2026-07-04 裁定：W10 之後的下一優先）
 
