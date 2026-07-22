@@ -186,6 +186,8 @@ async function importFixture(frame: FrameLocator, fixturePath: string, timeoutMs
 }
 
 async function openImportedFileInEditor(frame: FrameLocator, editorTimeoutMs: number) {
+  await dismissMetaDisplayMapModal(frame);
+  await dismissBlockingModals(frame);
   await frame.locator(".edit-file-btn").first().click();
   await waitForEditorSegments(frame, editorTimeoutMs);
 }

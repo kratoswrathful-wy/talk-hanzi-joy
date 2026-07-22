@@ -713,12 +713,17 @@
         return cfg.gridBody.querySelector(`.grid-data-row[data-seg-id="${sid}"]`);
     }
 
-    function scrollToSegId(segId, block) {
-        if (!enabled || !cfg || segId == null) return null;
-        const list = getRenderableList();
-        const idx = list.findIndex((s) => String(s.id) === String(segId));
-        if (idx < 0) return null;
-        const scrollBlock = block === 'center' ? 'center' : 'start';
+    /** 與 virt-scroll-nav-policy.js 同語意（classic script 無法 import ESM）。 */
+    function shouldForceVirtWindowRebuild(opts) {
+        const o = opts || {};
+        if (!o.rowMounted) return true;
+        if (o.windowStart == null || o.windowStart < 0) return true;
+        if (o.windowEnd == null || o.windowEnd <= o.windowStart) return true;
+        if (o.nextStart == null || o.nextEnd == null) return true;
+        return o.nextStart !== o.windowStart || o.nextEnd !== o.windowEnd;
+    }
+
+    function scrollToSegIdForce(segId, scrollBlock, trigger) {
         const navKey = `${String(segId)}:${scrollBlock}`;
         const now = Date.now();
         if (_lastNavScrollKey === navKey && (now - _lastNavScrollAt) < NAV_SCROLL_COALESCE_MS) {
@@ -726,14 +731,48 @@
         }
         _lastNavScrollKey = navKey;
         _lastNavScrollAt = now;
-        armNavAnchorLock(block);
+        armNavAnchorLock(scrollBlock);
         _anchorSegId = String(segId);
         _anchorOffsetPx = 0;
         _restoreFromAnchor = false;
         _lastStartIdx = -1;
         _lastEndIdx = -1;
-        renderWindow(segId, block, `scrollToSegId:${scrollBlock}`);
+        renderWindow(segId, scrollBlock, trigger || `scrollToSegId:${scrollBlock}`);
         return queryRow(segId);
+    }
+
+    function scrollToSegId(segId, block) {
+        if (!enabled || !cfg || segId == null) return null;
+        const list = getRenderableList();
+        const idx = list.findIndex((s) => String(s.id) === String(segId));
+        if (idx < 0) return null;
+        const scrollBlock = block === 'center' ? 'center' : 'start';
+        const mounted = queryRow(segId);
+        // 工項 H：已掛載且置中後視窗不變 → 只改 scrollTop，禁止 replaceChildren 狂閃
+        if (scrollBlock === 'center' && mounted && cfg.scrollEl && _lastStartIdx >= 0) {
+            const { targetTop } = computeCenterScrollTop(list, segId, cfg.scrollEl, mounted);
+            const nextStart = scrollTopToStartIdx(list, targetTop);
+            const nextEnd = Math.min(list.length, nextStart + WINDOW + BUFFER * 2);
+            if (!shouldForceVirtWindowRebuild({
+                rowMounted: true,
+                windowStart: _lastStartIdx,
+                windowEnd: _lastEndIdx,
+                nextStart,
+                nextEnd,
+            })) {
+                const navKey = `${String(segId)}:${scrollBlock}`;
+                const now = Date.now();
+                if (_lastNavScrollKey === navKey && (now - _lastNavScrollAt) < NAV_SCROLL_COALESCE_MS) {
+                    return mounted;
+                }
+                _lastNavScrollKey = navKey;
+                _lastNavScrollAt = now;
+                armNavAnchorLock(scrollBlock);
+                centerOnSegId(segId);
+                return queryRow(segId) || mounted;
+            }
+        }
+        return scrollToSegIdForce(segId, scrollBlock, `scrollToSegId:${scrollBlock}`);
     }
 
     function ensureRowMounted(segId) {
@@ -764,8 +803,14 @@
         const { targetTop, anchorOffsetPx } = computeCenterScrollTop(list, segId, scrollEl);
         const nextStart = scrollTopToStartIdx(list, targetTop);
         const nextEnd = Math.min(list.length, nextStart + WINDOW + BUFFER * 2);
-        if (nextStart !== _lastStartIdx || nextEnd !== _lastEndIdx) {
-            return scrollToSegId(segId, 'center') != null;
+        if (shouldForceVirtWindowRebuild({
+            rowMounted: !!queryRow(segId),
+            windowStart: _lastStartIdx,
+            windowEnd: _lastEndIdx,
+            nextStart,
+            nextEnd,
+        })) {
+            return scrollToSegIdForce(segId, 'center', 'centerOnSegId:rebuild') != null;
         }
         _anchorSegId = String(segId);
         _anchorOffsetPx = anchorOffsetPx;
