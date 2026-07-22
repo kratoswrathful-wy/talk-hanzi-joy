@@ -229,17 +229,12 @@
                 });
                 return parts.join('');
             }
+            // 僅翻譯可回退 fileAssigneeNames（LMS cat_file_assignments／翻譯人）；
+            // 審稿禁止跨階段回退，避免清單誤顯示翻譯人名。
             if (fileAssigneeNames.length && stageKind === 'translate' && translateStage) {
                 fileAssigneeNames.forEach((name) => {
                     const who = esc(`${name}（整檔）`);
                     parts.push(renderAssigneeEntry(who, stages, null, translateStage, 'translate', assignments));
-                });
-                return parts.join('');
-            }
-            if (fileAssigneeNames.length && stageKind === 'review' && reviewStage) {
-                fileAssigneeNames.forEach((name) => {
-                    const who = esc(name);
-                    parts.push(renderAssigneeEntry(who, stages, null, reviewStage, 'review', assignments));
                 });
                 return parts.join('');
             }
