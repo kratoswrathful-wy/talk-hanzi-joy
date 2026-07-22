@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveRequestedSyncWorkflowStatus,
   resolveEffectiveUpsertWorkflowStatus,
+  shouldWriteTranslateStatusOnReviewUnlock,
   workflowStatusRank,
 } from "./wf-assignment-sync-policy.js";
 
@@ -150,6 +151,32 @@ describe("wf-assignment-sync-policy：upsert 防降級與反向路徑", () => {
         allowDowngrade: true,
       }),
     ).toBe("assigned");
+  });
+
+  it("工項4：completed→in_progress 即使 stage 已非 completed 也擋", () => {
+    expect(
+      resolveEffectiveUpsertWorkflowStatus({
+        stageStatus: "active",
+        existingStatus: "completed",
+        requestedStatus: "in_progress",
+        allowDowngrade: false,
+      }),
+    ).toBe("completed");
+  });
+
+  it("工項4：allowDowngrade=true 時 completed→in_progress 可降（PM 重開）", () => {
+    expect(
+      resolveEffectiveUpsertWorkflowStatus({
+        stageStatus: "active",
+        existingStatus: "completed",
+        requestedStatus: "in_progress",
+        allowDowngrade: true,
+      }),
+    ).toBe("in_progress");
+  });
+
+  it("工項4：解鎖不得寫翻譯狀態", () => {
+    expect(shouldWriteTranslateStatusOnReviewUnlock()).toBe(false);
   });
 
   it("rank：assigned < in_progress < completed", () => {

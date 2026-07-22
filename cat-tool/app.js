@@ -6449,16 +6449,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function _updateAssignmentWorkflowStatusLocal(assignmentId, workflowStatus) {
+    async function _updateAssignmentWorkflowStatusLocal(assignmentId, workflowStatus, opts) {
+        const allowDowngrade = !!(opts && opts.allowDowngrade);
         const arr = window._currentFileStageAssignments || [];
-        const updated = await DBService.updateStageAssignmentWorkflowStatus(assignmentId, workflowStatus);
+        const existing = arr.find((a) => String(a.id) === String(assignmentId));
+        let next = _normalizeAdjustWorkflowStatus(workflowStatus);
+        const policy = window.WfAssignmentSyncPolicy;
+        if (policy && typeof policy.resolveEffectiveUpsertWorkflowStatus === 'function' && existing) {
+            const stages = window._currentFileWorkflowStages || [];
+            const st = stages.find((s) => String(s.id) === String(existing.fileWorkflowStageId));
+            next = policy.resolveEffectiveUpsertWorkflowStatus({
+                stageStatus: st && st.status,
+                existingStatus: existing.workflowStatus,
+                requestedStatus: next,
+                allowDowngrade,
+            });
+        } else if (
+            !allowDowngrade
+            && existing
+            && existing.workflowStatus === 'completed'
+            && next === 'in_progress'
+        ) {
+            // 工項 4 後備：policy 未載入時仍擋 completed→in_progress
+            next = 'completed';
+        }
+        if (existing && String(existing.workflowStatus || '') === String(next)) {
+            return existing;
+        }
+        const updated = await DBService.updateStageAssignmentWorkflowStatus(assignmentId, next);
         const idx = arr.findIndex((a) => String(a.id) === String(assignmentId));
         if (idx >= 0) arr[idx] = { ...arr[idx], ...updated };
         return updated;
     }
 
     /** 以 DB 指派清單為準，同步指定 stage 下所有 assignment 的 workflow_status（避免僅改 stage 漏改指派）。 */
-    async function _applyWorkflowStatusToStageAssignmentsFromDb(fileId, stageId, wfStatus) {
+    async function _applyWorkflowStatusToStageAssignmentsFromDb(fileId, stageId, wfStatus, opts) {
         let list = [];
         try {
             list = (await DBService.listStageAssignmentsForFile(fileId)) || [];
@@ -6472,7 +6497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
         for (const a of matched) {
             if (String(a.workflowStatus || '') === String(wfStatus)) continue;
-            await _updateAssignmentWorkflowStatusLocal(a.id, wfStatus);
+            await _updateAssignmentWorkflowStatusLocal(a.id, wfStatus, opts);
         }
         try {
             const refreshed = (await DBService.listStageAssignmentsForFile(fileId)) || [];
@@ -6511,9 +6536,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             window._currentFileWorkflowStages = stages;
             // 工項 D：執行中寫入 in_progress（不再用 assigned 假裝進行中）
+            // 工項 4：PM 重開需 allowDowngrade，否則 completed→in_progress 會被擋
             const wfStatus = isComplete ? 'completed' : 'in_progress';
             const assigns = await _applyWorkflowStatusToStageAssignmentsFromDb(
-                fileId, translateStage.id, wfStatus,
+                fileId, translateStage.id, wfStatus, { allowDowngrade: !isComplete },
             );
             await _syncLmsForAssignments(assigns, isComplete);
             if (isComplete) {
@@ -6560,7 +6586,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updatedReview };
             window._currentFileWorkflowStages = stages;
             const wfStatus = isComplete ? 'completed' : 'in_progress';
-            await _applyWorkflowStatusToStageAssignmentsFromDb(fileId, reviewStage.id, wfStatus);
+            await _applyWorkflowStatusToStageAssignmentsFromDb(
+                fileId, reviewStage.id, wfStatus, { allowDowngrade: !isComplete },
+            );
             if (isComplete) {
                 await enqueueStageSnapshot(fileId, reviewStage.id, 'post_review');
             }
@@ -6754,7 +6782,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         await _applyWorkflowStatusToStageAssignmentsFromDb(fid, translateStage.id, 'completed');
     }
 
-    async function _reconcileStageStatusFromAssignments(fileId, stageId) {
+    async function _reconcileStageStatusFromAssignments(fileId, stageId, opts) {
+        const allowDowngrade = !!(opts && opts.allowDowngrade);
         const fid = String(fileId);
         const assigns = (window._currentFileStageAssignments || []).filter(
             (a) => String(a.fileId) === fid && String(a.fileWorkflowStageId) === String(stageId),
@@ -6775,6 +6804,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             next = 'active';
         }
         if (!next || next === st.status) return;
+        // 工項 4：翻譯 stage 已 completed 時，解鎖不得自動降為 active（PM 明確降級才 allowDowngrade）
+        if (
+            st.stageKind === 'translate'
+            && st.status === 'completed'
+            && next !== 'completed'
+            && !allowDowngrade
+        ) {
+            return;
+        }
         const updated = await DBService.updateFileWorkflowStageStatus(stageId, next);
         const idx = stages.findIndex((s) => String(s.id) === String(stageId));
         if (idx >= 0) stages[idx] = { ...stages[idx], ...updated };
@@ -6921,7 +6959,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!id) continue;
                 const hit = arr.find((a) => String(a.id) === String(id));
                 if (!hit || hit.workflowStatus === wfStatus) continue;
-                await _updateAssignmentWorkflowStatusLocal(id, wfStatus);
+                // 工項 4：調整狀態 modal 為 PM 明確操作，允許降級（含 completed→in_progress）
+                await _updateAssignmentWorkflowStatusLocal(id, wfStatus, { allowDowngrade: true });
                 const stageKind = sel.getAttribute('data-stage-kind')
                     || (_isReviewStageAssignment(hit) ? 'review' : 'translate');
                 await _pmLogWfAdjustWrite(
@@ -6938,8 +6977,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _closeWfAdjustStatusModal();
                 return;
             }
-            // 以套用後記憶體為準：仍有任一審稿 completed → 強制翻譯完成；
-            // 全審稿已離開完成則不強制（同次可降翻譯）
+            // 以套用後記憶體為準：仍有任一審稿 completed → 強制翻譯完成（鎖定）。
+            // 全審稿已離開完成 → 僅解 UI 鎖；禁止因此自動改寫翻譯 workflow_status／stage（工項 4）。
             const touchedFileIds = new Set(hits.map((h) => String(h.fileId)));
             const blockedTranslateDowngrade = [];
             for (const fid of touchedFileIds) {
@@ -6956,7 +6995,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showCatToast('仍有審稿分段為「完成」，翻譯已維持鎖定；請先將全部審稿改為非完成後再降翻譯', 'info');
             }
             for (const h of hits) {
-                await _reconcileStageStatusFromAssignments(h.fileId, h.fileWorkflowStageId);
+                const allowStageDowngrade = _isTranslateStageAssignment(h)
+                    && h.workflowStatus !== 'completed';
+                await _reconcileStageStatusFromAssignments(
+                    h.fileId,
+                    h.fileWorkflowStageId,
+                    { allowDowngrade: allowStageDowngrade },
+                );
             }
             // 新建審稿 completed：亦觸發 stage 完成快照路徑
             for (const h of hits) {

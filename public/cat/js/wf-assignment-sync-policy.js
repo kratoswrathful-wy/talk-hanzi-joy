@@ -1,7 +1,8 @@
 /**
  * LMS sync / assignment upsert 的 workflow_status 決策（純函式，供 Vitest）。
  * 對應 migration：防降級（completed／in_progress 不得被 sync 洗回 assigned），
- * 以及反向路徑（stage 已改回 active／pending 時允許自 completed 降回）。
+ * 以及反向路徑（stage 已改回 active／pending 時允許自 completed 降回 assigned）。
+ * 工項 4：completed→in_progress 一律擋（除非 allowDowngrade）；解鎖不得寫翻譯狀態。
  */
 
 /** @param {string|null|undefined} status */
@@ -61,8 +62,18 @@ export function resolveEffectiveUpsertWorkflowStatus(input) {
     return "completed";
   }
 
+  // —— 工項 4：completed→in_progress 一律擋（即使 stage 已非 completed）——
+  if (
+    existingStatus === "completed" &&
+    requestedStatus === "in_progress" &&
+    !allowDowngrade
+  ) {
+    return "completed";
+  }
+
   // —— 等級：不允許降級，除非 allowDowngrade ——
-  // 反向路徑例外：stage 已非 completed 時，允許自 completed 降回（否則檔案重開卡死）
+  // 反向路徑例外：stage 已非 completed 時，允許自 completed 降回 assigned（否則檔案重開卡死）
+  // （in_progress 已於上方擋下）
   if (
     workflowStatusRank(requestedStatus) < workflowStatusRank(existingStatus) &&
     !allowDowngrade
@@ -75,3 +86,24 @@ export function resolveEffectiveUpsertWorkflowStatus(input) {
 
   return requestedStatus;
 }
+
+/**
+ * D-4 解鎖：審稿皆離開 completed → 僅解 UI 鎖，禁止因此寫入翻譯 workflow_status／stage。
+ * @returns {false}
+ */
+export function shouldWriteTranslateStatusOnReviewUnlock() {
+  return false;
+}
+
+const WfAssignmentSyncPolicy = {
+  workflowStatusRank,
+  resolveRequestedSyncWorkflowStatus,
+  resolveEffectiveUpsertWorkflowStatus,
+  shouldWriteTranslateStatusOnReviewUnlock,
+};
+
+if (typeof globalThis !== "undefined") {
+  globalThis.WfAssignmentSyncPolicy = WfAssignmentSyncPolicy;
+}
+
+export default WfAssignmentSyncPolicy;
