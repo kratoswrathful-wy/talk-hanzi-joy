@@ -61,6 +61,8 @@ interface FieldOptions {
 
 let store: Record<string, FieldOptions> = {};
 const listeners = new Set<Listener>();
+let assigneesLoadPromise: Promise<void> | null = null;
+let assigneesReloadRequested = false;
 
 const SETTINGS_KEY = "select_options";
 
@@ -416,71 +418,91 @@ export const selectOptionsStore = {
 
   getSnapshot: () => store,
 
-  /** Load assignee options from profiles + invitations in DB, respecting sort_order and frozen */
+  /**
+   * Load assignee options from profiles + invitations in DB, respecting sort_order and frozen.
+   * Single-flight: concurrent callers share one in-flight Promise; if another call arrives
+   * while loading, at most one trailing refresh runs after the current load finishes.
+   */
   loadAssignees: async () => {
-    const user = await getAuthenticatedUser();
-    if (!user) return;
+    if (assigneesLoadPromise) {
+      assigneesReloadRequested = true;
+      return assigneesLoadPromise;
+    }
 
-    const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
-      supabase.from("profiles").select("id, email, display_name, avatar_url, timezone, status_message"),
-      supabase.from("invitations").select("email, role").is("accepted_at", null),
-      supabase.from("member_translator_settings").select("email, note, no_fee, sort_order, frozen"),
-    ]);
+    assigneesLoadPromise = (async () => {
+      try {
+        do {
+          assigneesReloadRequested = false;
+          const user = await getAuthenticatedUser();
+          if (!user) return;
 
-    const settingsMap = new Map<string, { note: string; no_fee: boolean; sort_order: number; frozen: boolean }>();
-    (settings || []).forEach((s) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0, frozen: s.frozen || false }));
+          const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
+            supabase.from("profiles").select("id, email, display_name, avatar_url, timezone, status_message"),
+            supabase.from("invitations").select("email, role").is("accepted_at", null),
+            supabase.from("member_translator_settings").select("email, note, no_fee, sort_order, frozen"),
+          ]);
 
-    const options: SelectOption[] = [];
-    const registeredEmails = new Set<string>();
+          const settingsMap = new Map<string, { note: string; no_fee: boolean; sort_order: number; frozen: boolean }>();
+          (settings || []).forEach((s) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0, frozen: s.frozen || false }));
 
-    // Registered members (exclude frozen)
-    (profiles || []).forEach((p, i) => {
-      registeredEmails.add(p.email);
-      const s = settingsMap.get(p.email);
-      if (s?.frozen) return;
-      options.push({
-        // Use profiles.id as stable identity for person-based filters/sorts (createdBy).
-        id: String(p.id),
-        label: p.display_name || p.email,
-        email: p.email,
-        color: PRESET_COLORS[i % PRESET_COLORS.length],
-        note: s?.note || "",
-        avatarUrl: p.avatar_url || null,
-        timezone: p.timezone || null,
-        statusMessage: p.status_message || null,
-        noFee: s?.no_fee || false,
-      });
-    });
+          const options: SelectOption[] = [];
+          const registeredEmails = new Set<string>();
 
-    // Invited but not registered (exclude frozen)
-    (invitations || []).forEach((inv, i) => {
-      if (!registeredEmails.has(inv.email)) {
-        const s = settingsMap.get(inv.email);
-        if (s?.frozen) return; // Skip frozen members
-        options.push({
-          id: `assignee-${inv.email}`,
-          label: inv.email,
-          email: inv.email,
-          color: PRESET_COLORS[(profiles?.length || 0 + i) % PRESET_COLORS.length],
-          note: s?.note || "",
-          noFee: s?.no_fee || false,
-        });
+          // Registered members (exclude frozen)
+          (profiles || []).forEach((p, i) => {
+            registeredEmails.add(p.email);
+            const s = settingsMap.get(p.email);
+            if (s?.frozen) return;
+            options.push({
+              // Use profiles.id as stable identity for person-based filters/sorts (createdBy).
+              id: String(p.id),
+              label: p.display_name || p.email,
+              email: p.email,
+              color: PRESET_COLORS[i % PRESET_COLORS.length],
+              note: s?.note || "",
+              avatarUrl: p.avatar_url || null,
+              timezone: p.timezone || null,
+              statusMessage: p.status_message || null,
+              noFee: s?.no_fee || false,
+            });
+          });
+
+          // Invited but not registered (exclude frozen)
+          (invitations || []).forEach((inv, i) => {
+            if (!registeredEmails.has(inv.email)) {
+              const s = settingsMap.get(inv.email);
+              if (s?.frozen) return; // Skip frozen members
+              options.push({
+                id: `assignee-${inv.email}`,
+                label: inv.email,
+                email: inv.email,
+                color: PRESET_COLORS[(profiles?.length || 0 + i) % PRESET_COLORS.length],
+                note: s?.note || "",
+                noFee: s?.no_fee || false,
+              });
+            }
+          });
+
+          // Sort by sort_order from settings (0 = unsorted, keep original order among those)
+          options.sort((a, b) => {
+            const orderA = settingsMap.get(a.email || "")?.sort_order ?? 0;
+            const orderB = settingsMap.get(b.email || "")?.sort_order ?? 0;
+            return orderA - orderB;
+          });
+
+          store = {
+            ...store,
+            assignee: { ...store.assignee, options, manualOrder: true },
+          };
+          // Don't persist assignee to settings – just notify
+          listeners.forEach((l) => l());
+        } while (assigneesReloadRequested);
+      } finally {
+        assigneesLoadPromise = null;
       }
-    });
+    })();
 
-    // Sort by sort_order from settings (0 = unsorted, keep original order among those)
-    options.sort((a, b) => {
-      const orderA = settingsMap.get(a.email || "")?.sort_order ?? 0;
-      const orderB = settingsMap.get(b.email || "")?.sort_order ?? 0;
-      return orderA - orderB;
-    });
-
-    store = {
-      ...store,
-      assignee: { ...store.assignee, options, manualOrder: true },
-    };
-    // Don't persist assignee to settings – just notify
-    listeners.forEach((l) => l());
+    return assigneesLoadPromise;
   },
 
   /** Load persisted settings from DB (non-assignee fields) */

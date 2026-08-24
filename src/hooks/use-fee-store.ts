@@ -1,23 +1,10 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { feeStore } from "@/stores/fee-store";
-import { supabase } from "@/integrations/supabase/client";
 
-// Load fees from DB; reset on auth changes so RLS filters apply per-user
-let loadPromise: Promise<unknown> | null = null;
+/** Hook only ensures load; auth / poll / realtime ownership lives in fee-store. */
 function ensureLoaded() {
-  if (!loadPromise) {
-    loadPromise = feeStore.loadFees();
-  }
+  void feeStore.loadFees();
 }
-
-// fee-store handles TOKEN_REFRESHED with background reload only (avoids loaded=false storms)
-supabase.auth.onAuthStateChange((event) => {
-  if (event === "TOKEN_REFRESHED") return;
-  loadPromise = null;
-  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-    loadPromise = new Promise((resolve) => setTimeout(resolve, 100)).then(() => feeStore.loadFees());
-  }
-});
 
 export function useFees() {
   useEffect(() => { ensureLoaded(); }, []);

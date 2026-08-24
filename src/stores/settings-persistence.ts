@@ -19,6 +19,10 @@ export function markDirty(key: string) {
   dirtyKeys.add(key);
 }
 
+/**
+ * Session teardown (sign-out / user switch): clear load flags and cancel pending saves.
+ * Do NOT call this for ordinary reloads — that would drop in-flight setting writes.
+ */
 export function resetLoadedKeys() {
   loadedKeys.clear();
   dirtyKeys.clear();
@@ -26,6 +30,14 @@ export function resetLoadedKeys() {
     clearTimeout(saveTimers[key]);
     delete saveTimers[key];
   }
+}
+
+/**
+ * Soft reload: clear only load flags so stores re-fetch, without cancelling save timers.
+ * Pending dirty saves continue; after reload completes, loadSetting will re-mark loaded/dirty.
+ */
+export function clearLoadedFlagsOnly() {
+  loadedKeys.clear();
 }
 
 export async function loadSetting<T>(key: string): Promise<T | null> {
