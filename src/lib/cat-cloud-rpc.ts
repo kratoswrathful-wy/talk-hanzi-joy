@@ -6,6 +6,8 @@ import { applyCaseUpdate } from "@/lib/apply-case-update";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
 import { fetchEnabledCatAiModelOptions } from "@/lib/cat-ai-model-registry/list-registry-options";
 import { mapEnabledModelOptionsToRpc } from "@/lib/cat-ai-model-registry/rpc-enabled-models";
+import { sortMappedCatSegmentsByImportOrder } from "@/lib/cat-segment-import-order";
+import { CAT_PAGE_SIZE, nextKeysetCursor } from "@/lib/cat-keyset-pagination";
 
 type RpcPayload = Record<string, any>;
 
@@ -374,47 +376,25 @@ const mapAnnotationOptionRow = (r: any) => ({
 });
 
 /** 與 cat-tool/db.js 句段排序語意一致：有 globalId 者先依序，否則依列與欄位穩定排序 */
-function sortMappedCatSegmentsByImportOrder<
-  T extends { globalId?: number | null; rowIdx?: number; sheetName?: string; colSrc?: string | null; id?: string },
->(segments: T[]): T[] {
-  return segments.slice().sort((a, b) => {
-    const ga =
-      a.globalId != null && Number.isFinite(Number(a.globalId)) ? Number(a.globalId) : Number.NaN;
-    const gb =
-      b.globalId != null && Number.isFinite(Number(b.globalId)) ? Number(b.globalId) : Number.NaN;
-    const aHas = !Number.isNaN(ga);
-    const bHas = !Number.isNaN(gb);
-    if (aHas && bHas && ga !== gb) return ga - gb;
-    if (aHas && !bHas) return -1;
-    if (!aHas && bHas) return 1;
-    const ra = (a.rowIdx ?? 0) - (b.rowIdx ?? 0);
-    if (ra !== 0) return ra;
-    const sa = String(a.sheetName || "");
-    const sb = String(b.sheetName || "");
-    if (sa !== sb) return sa.localeCompare(sb);
-    const ca = String(a.colSrc ?? "");
-    const cb = String(b.colSrc ?? "");
-    if (ca !== cb) return ca.localeCompare(cb);
-    return String(a.id ?? "").localeCompare(String(b.id ?? ""));
-  });
-}
 
 async function fetchCatSegmentsByFileIdOrdered(supabase: any, fileId: string) {
-  const PAGE = 1000;
+  const PAGE = CAT_PAGE_SIZE;
   let allData: any[] = [];
-  let from = 0;
+  let lastId: string | null = null;
   while (true) {
-    const { data, error } = await supabase
+    let q = supabase
       .from("cat_segments")
       .select("*")
       .eq("file_id", fileId)
       .order("id", { ascending: true })
-      .range(from, from + PAGE - 1);
+      .limit(PAGE);
+    if (lastId) q = q.gt("id", lastId);
+    const { data, error } = await q;
     if (error) throw error;
     if (!data || data.length === 0) break;
     allData = allData.concat(data);
-    if (data.length < PAGE) break;
-    from += PAGE;
+    lastId = nextKeysetCursor(data, PAGE);
+    if (!lastId) break;
   }
   return sortMappedCatSegmentsByImportOrder(allData.map(mapSegmentRow));
 }
@@ -1669,22 +1649,24 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return null;
     }
     case "db.getTMSegments": {
-      // PostgREST 預設 max_rows（常為 1000）；未分頁時只回第一頁，導致 TM 比對／頁面遺漏句段
-      const pageSize = 1000;
+      // PostgREST 預設 max_rows（常為 1000）；用 keyset 分頁拉完整 TM
+      const pageSize = CAT_PAGE_SIZE;
       const rows: any[] = [];
-      let offset = 0;
+      let lastId: string | null = null;
       for (;;) {
-        const { data, error } = await supabase
+        let q = supabase
           .from("cat_tm_segments")
           .select("*")
           .eq("tm_id", payload.tmId)
           .order("id", { ascending: true })
-          .range(offset, offset + pageSize - 1);
+          .limit(pageSize);
+        if (lastId) q = q.gt("id", lastId);
+        const { data, error } = await q;
         if (error) throw error;
         const batch = data ?? [];
         rows.push(...batch);
-        if (batch.length < pageSize) break;
-        offset += pageSize;
+        lastId = nextKeysetCursor(batch, pageSize);
+        if (!lastId) break;
       }
       return rows.map(mapTmSegmentRow);
     }
@@ -1698,9 +1680,36 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.getTMSegmentsPage": {
       const tmId = payload.tmId;
+      const limitRaw = Number(payload.limit || CAT_PAGE_SIZE) || CAT_PAGE_SIZE;
+      const limit = Math.min(CAT_PAGE_SIZE, Math.max(1, limitRaw));
+      const afterId =
+        typeof payload.afterId === "string" && payload.afterId
+          ? payload.afterId
+          : typeof payload.cursor === "string" && payload.cursor
+            ? payload.cursor
+            : null;
       const offset = Math.max(0, Number(payload.offset || 0) || 0);
-      const limitRaw = Number(payload.limit || 1000) || 1000;
-      const limit = Math.min(1000, Math.max(1, limitRaw));
+
+      // Prefer keyset when afterId is set, or for first page (offset===0).
+      // Legacy offset>0 without afterId keeps OFFSET compatibility for old callers.
+      if (afterId || offset === 0) {
+        let q = supabase
+          .from("cat_tm_segments")
+          .select("*")
+          .eq("tm_id", tmId)
+          .order("id", { ascending: true })
+          .limit(limit);
+        if (afterId) q = q.gt("id", afterId);
+        const { data, error } = await q;
+        if (error) throw error;
+        const batch = (data ?? []).map(mapTmSegmentRow);
+        const nextCursor = nextKeysetCursor(batch, limit);
+        // Compat: nextOffset null when done; otherwise keep numeric offset only for legacy first-page loops
+        // that still expect nextOffset — prefer nextCursor for new callers.
+        const nextOffset = nextCursor == null ? null : offset + batch.length;
+        return { segments: batch, nextCursor, nextOffset };
+      }
+
       const { data, error } = await supabase
         .from("cat_tm_segments")
         .select("*")
@@ -1709,8 +1718,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .range(offset, offset + limit - 1);
       if (error) throw error;
       const batch = (data ?? []).map(mapTmSegmentRow);
+      const nextCursor = nextKeysetCursor(batch, limit);
       const nextOffset = batch.length < limit ? null : offset + batch.length;
-      return { segments: batch, nextOffset };
+      return { segments: batch, nextCursor, nextOffset };
     }
     case "db.getTMSegmentById": {
       const { data } = await supabase.from("cat_tm_segments").select("*").eq("id", payload.id).maybeSingle();

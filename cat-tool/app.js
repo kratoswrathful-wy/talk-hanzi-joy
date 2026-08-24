@@ -8350,7 +8350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     const currentTotal = totalsByTmId[tmKey];
                     let currentLoaded = 0;
-                    let offset = 0;
+                    let afterId = null;
                     const limit = 1000;
 
                     setState({
@@ -8368,7 +8368,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     for (;;) {
                         if (stopRequested) return;
                         try {
-                            const page = await DBService.getTMSegmentsPage(tmId, offset, limit);
+                            const page = await DBService.getTMSegmentsPage(tmId, { afterId, limit });
                             const rawSegs = (page && page.segments) ? page.segments : [];
                             const segs = fileLangs ? rawSegs.filter((s) => _tmSegLangOk(s, fileLangs)) : rawSegs;
                             segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
@@ -8376,7 +8376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             currentLoaded += segs.length;
                             overallLoaded += segs.length;
-                            offset = page && page.nextOffset != null ? page.nextOffset : null;
+                            afterId = page && page.nextCursor != null ? page.nextCursor : null;
 
                             setState({
                                 phase: 'loading',
@@ -8384,7 +8384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 overallLoaded,
                             });
 
-                            if (offset == null) break;
+                            if (afterId == null) break;
                         } catch (e) {
                             const retry = () => {
                                 // 只要重試目前 TM（保留已載入的 cache）
@@ -9237,13 +9237,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const limit = 1000;
         for (let i = 0; i < tmIds.length; i++) {
             const tmId = tmIds[i];
-            let offset = 0;
+            let afterId = null;
             let loaded = 0;
             let total = null;
             try { total = await DBService.countTMSegments(tmId); } catch (_) { total = null; }
             if (onProgress) onProgress({ phase: 'tm', index: i + 1, totalTms: tmIds.length, tmId, loaded, total });
             for (;;) {
-                const page = await DBService.getTMSegmentsPage(tmId, offset, limit);
+                const page = await DBService.getTMSegmentsPage(tmId, { afterId, limit });
                 const segs = (page && page.segments) ? page.segments : [];
                 segs.forEach((s) => {
                     const n = WCE.normKey(s.sourceText);
@@ -9251,8 +9251,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 loaded += segs.length;
                 if (onProgress) onProgress({ phase: 'page', index: i + 1, totalTms: tmIds.length, tmId, loaded, total });
-                if (!page || page.nextOffset == null) break;
-                offset = page.nextOffset;
+                if (!page || page.nextCursor == null) break;
+                afterId = page.nextCursor;
             }
         }
         return normList;
@@ -13645,18 +13645,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         tmSegmentsListBody.innerHTML = '<tr><td colspan="6" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
         const all = [];
         const limit = 1000;
-        let offset = 0;
+        let afterId = null;
         let total = null;
         try { total = await DBService.countTMSegments(currentTmId); } catch (_) { total = null; }
         for (;;) {
-            const page = await DBService.getTMSegmentsPage(currentTmId, offset, limit);
+            const page = await DBService.getTMSegmentsPage(currentTmId, { afterId, limit });
             const segs = (page && page.segments) ? page.segments : [];
             all.push(...segs);
             const done = all.length;
             const tail = total != null ? `${done}/${total}` : `${done}/…`;
             tmSegmentsListBody.innerHTML = `<tr><td colspan="6" style="padding:0.75rem; color:#64748b;">載入中…（${tail}）</td></tr>`;
-            if (!page || page.nextOffset == null) break;
-            offset = page.nextOffset;
+            if (!page || page.nextCursor == null) break;
+            afterId = page.nextCursor;
         }
         tmSegmentsFullCache = all;
         const display = tmDupFilterActive ? _tmSegFilterDuplicatesOnly(all) : all;
@@ -13829,17 +13829,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showCatLoadingOverlay('正在準備匯出 TM…');
                 const segs = [];
                 const limit = 1000;
-                let offset = 0;
+                let afterId = null;
                 let total = null;
                 try { total = await DBService.countTMSegments(currentTmId); } catch (_) { total = null; }
                 for (;;) {
-                    const page = await DBService.getTMSegmentsPage(currentTmId, offset, limit);
+                    const page = await DBService.getTMSegmentsPage(currentTmId, { afterId, limit });
                     const batch = (page && page.segments) ? page.segments : [];
                     segs.push(...batch);
                     const tail = total != null ? `${segs.length}/${total}` : `${segs.length}/…`;
                     showCatLoadingOverlay(`正在準備匯出 TM…（${tail}）`);
-                    if (!page || page.nextOffset == null) break;
-                    offset = page.nextOffset;
+                    if (!page || page.nextCursor == null) break;
+                    afterId = page.nextCursor;
                 }
                 const srcLang = (tm.sourceLangs || [])[0] || 'zh-TW';
                 const tgtLang = (tm.targetLangs || [])[0] || 'en-US';
@@ -26528,9 +26528,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // DB 分頁掃描：找到第一筆相符即可，不做全量拉回
             const limit = 1000;
-            let offset = 0;
+            let afterId = null;
             for (;;) {
-                const page = await DBService.getTMSegmentsPage(tmId, offset, limit);
+                const page = await DBService.getTMSegmentsPage(tmId, { afterId, limit });
                 const segs = (page && page.segments) ? page.segments : [];
                 const hit = segs.find((tms) => {
                     if (tms.sourceText !== sourceText) return false;
@@ -26541,8 +26541,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return segSrc === srcLang && segTgt === tgtLang;
                 });
                 if (hit) return hit;
-                if (!page || page.nextOffset == null) break;
-                offset = page.nextOffset;
+                if (!page || page.nextCursor == null) break;
+                afterId = page.nextCursor;
             }
             return null;
         }
