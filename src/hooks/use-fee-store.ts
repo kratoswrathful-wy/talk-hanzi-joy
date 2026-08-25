@@ -3,7 +3,7 @@ import { feeStore } from "@/stores/fee-store";
 
 /** Hook only ensures load; auth / poll / realtime ownership lives in fee-store. */
 function ensureLoaded() {
-  void feeStore.loadFees();
+  void feeStore.ensureLoaded();
 }
 
 export function useFees() {

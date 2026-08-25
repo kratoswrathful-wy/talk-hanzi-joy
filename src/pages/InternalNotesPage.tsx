@@ -590,7 +590,7 @@ export default function InternalNotesPage() {
   const [newNoteOpen, setNewNoteOpen] = useState(false);
 
   // Load notes from DB on mount
-  useEffect(() => { internalNotesStore.load(); }, []);
+  useEffect(() => { internalNotesStore.ensureLoaded(); }, []);
 
   // Legacy ?noteId= → /internal-notes/:noteId
   useEffect(() => {

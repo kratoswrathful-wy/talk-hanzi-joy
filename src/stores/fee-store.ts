@@ -365,6 +365,13 @@ export const feeStore = {
     };
   },
 
+  /** Initial consumers share the current request without scheduling a trailing refresh. */
+  ensureLoaded: async () => {
+    if (loaded) return { error: null };
+    if (loadPromise) return loadPromise;
+    return feeStore.loadFees();
+  },
+
   /** Load all fees from DB filtered by current environment. Single-flight with trailing refresh. */
   loadFees: async () => {
     if (loadPromise) {
@@ -523,6 +530,6 @@ supabase.auth.onAuthStateChange((event, session) => {
     loaded = false;
     _feeAuthUserId = nextUserId;
     notify();
-    void feeStore.loadFees();
+    void feeStore.ensureLoaded();
   }
 });

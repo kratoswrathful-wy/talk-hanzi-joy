@@ -15,6 +15,9 @@ type Listener = () => void;
 let notes: InternalNote[] = [];
 let loaded = false;
 let loadSeq = 0;
+let loadPromise: Promise<void> | null = null;
+let reloadRequested = false;
+let authUserId: string | null = null;
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -166,28 +169,51 @@ export const internalNotesStore = {
   getAll: (): InternalNote[] => notes,
   isLoaded: () => loaded,
 
+  /** Initial consumers share the current request without scheduling a trailing refresh. */
+  ensureLoaded: async () => {
+    if (loaded) return;
+    if (loadPromise) return loadPromise;
+    return internalNotesStore.load();
+  },
+
   load: async () => {
-    const seq = ++loadSeq;
-    const user = await getAuthenticatedUser();
-    if (seq !== loadSeq) return;
-    if (!user) {
-      notes = [];
-      loaded = false;
-      notify();
-      return;
+    if (loadPromise) {
+      reloadRequested = true;
+      return loadPromise;
     }
 
-    const { data, error } = await supabase
-      .from("internal_notes")
-      .select("*")
-      .eq("env", getEnvironment())
-      .order("created_at", { ascending: false });
-    if (seq !== loadSeq) return;
-    if (!error && data) {
-      notes = data.map(dbToApp);
-      loaded = true;
-      notify();
-    }
+    loadPromise = (async () => {
+      try {
+        do {
+          reloadRequested = false;
+          const seq = ++loadSeq;
+          const user = await getAuthenticatedUser();
+          if (seq !== loadSeq) continue;
+          if (!user) {
+            notes = [];
+            loaded = false;
+            notify();
+            continue;
+          }
+
+          const { data, error } = await supabase
+            .from("internal_notes")
+            .select("*")
+            .eq("env", getEnvironment())
+            .order("created_at", { ascending: false });
+          if (seq !== loadSeq) continue;
+          if (!error && data) {
+            notes = data.map(dbToApp);
+            loaded = true;
+            notify();
+          }
+        } while (reloadRequested);
+      } finally {
+        loadPromise = null;
+      }
+    })();
+
+    return loadPromise;
   },
 
   add: async (note: InternalNote) => {
@@ -275,13 +301,31 @@ export const internalNotesStore = {
 
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === "TOKEN_REFRESHED") {
-    void internalNotesStore.load();
     return;
   }
-  loaded = false;
-  notify();
+
   if (event === "SIGNED_OUT" || !session) {
+    loadSeq += 1;
+    reloadRequested = false;
+    authUserId = null;
     notes = [];
+    loaded = false;
+    notify();
+    return;
+  }
+
+  const nextUserId = session.user.id;
+  if (
+    (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+    authUserId === nextUserId
+  ) {
+    return;
+  }
+
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+    loadSeq += 1;
+    if (loadPromise) reloadRequested = true;
+    authUserId = nextUserId;
     loaded = false;
     notify();
   }
