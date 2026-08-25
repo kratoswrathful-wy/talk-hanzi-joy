@@ -2577,8 +2577,18 @@ const DBService = {
     DBService.bulkAddTMSegments = async (tmSegmentsArray) => rpc('db.bulkAddTMSegments', { tmSegmentsArray });
     DBService.getTMSegments = async (tmId) => rpc('db.getTMSegments', { tmId });
     DBService.countTMSegments = async (tmId) => rpc('db.countTMSegments', { tmId });
-    DBService.getTMSegmentsPage = async (tmId, offset = 0, limit = 1000) =>
-        rpc('db.getTMSegmentsPage', { tmId, offset, limit });
+    DBService.getTMSegmentsPage = async (tmId, offsetOrOpts = 0, limit = 1000) => {
+        if (offsetOrOpts && typeof offsetOrOpts === 'object') {
+            const opts = offsetOrOpts;
+            return rpc('db.getTMSegmentsPage', {
+                tmId,
+                limit: opts.limit ?? limit,
+                afterId: opts.afterId ?? opts.cursor ?? null,
+                offset: opts.offset ?? 0,
+            });
+        }
+        return rpc('db.getTMSegmentsPage', { tmId, offset: offsetOrOpts, limit });
+    };
     DBService.getTMSegmentById = async (id) => rpc('db.getTMSegmentById', { id });
     DBService.updateTMSegment = async (id, targetText, metaUpdate = {}) =>
         rpc('db.updateTMSegment', { id, targetText, metaUpdate });
