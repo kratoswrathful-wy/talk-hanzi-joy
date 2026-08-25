@@ -1225,18 +1225,21 @@ export type Database = {
       cat_module_logs: {
         Row: {
           at: string
+          env: string
           id: number
           module: string
           payload: Json | null
         }
         Insert: {
           at?: string
+          env?: string
           id?: number
           module: string
           payload?: Json | null
         }
         Update: {
           at?: string
+          env?: string
           id?: number
           module?: string
           payload?: Json | null
@@ -3333,6 +3336,10 @@ export type Database = {
       }
     }
     Functions: {
+      apply_case_update: {
+        Args: { p_case_id: string; p_patch: Json }
+        Returns: Json
+      }
       apply_cat_segment_target_update: {
         Args: {
           p_expected_segment_revision: number
@@ -3585,10 +3592,6 @@ export type Database = {
       release_cat_segment_edit_lease: {
         Args: { p_segment_id: string; p_session_id: string }
         Returns: boolean
-      }
-      apply_case_update: {
-        Args: { p_case_id: string; p_patch: Json }
-        Returns: Json
       }
       sync_cat_file_assignments_for_case: {
         Args: { p_case_id: string }

@@ -669,7 +669,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.addModuleLog": {
       const { module, payload: p } = payload;
       if (!module) return null;
-      await supabase.from("cat_module_logs").insert({ module, payload: p ?? null, at: nowIso() } as any);
+      await supabase.from("cat_module_logs").insert({
+        module,
+        payload: p ?? null,
+        at: nowIso(),
+        env,
+      });
       return null;
     }
     case "db.getModuleLogs": {
@@ -677,6 +682,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const q = supabase
         .from("cat_module_logs")
         .select("*")
+        .eq("env", env)
         .order("at", { ascending: false })
         .limit(Number(limit) || 20);
       const { data } = module ? await q.eq("module", module) : await q;

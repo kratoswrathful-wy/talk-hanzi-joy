@@ -3,6 +3,11 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { resetEnvironmentCache } from "@/lib/environment";
+import {
+  clearTestModeReturnTicket,
+  replaceTestModeReturnTicket,
+  restoreTestModeReturnSession,
+} from "@/lib/test-mode-return-session";
 import { Loader2, FlaskConical, LogOut } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -19,8 +24,6 @@ import { toast } from "@/hooks/use-toast";
  */
 
 const EXEC_TEST_EMAIL = "test-exec@test.local";
-const RETURN_TOKEN_KEY = "tms_test_mode_return_token";
-const RETURN_EMAIL_KEY = "tms_test_mode_return_email";
 
 interface Persona {
   email: string;
@@ -45,9 +48,12 @@ async function requestSwitchToken(email: string): Promise<string | null> {
   return data.token as string;
 }
 
-async function consumeTokenAndReload(token: string) {
+async function verifySwitchToken(token: string): Promise<{
+  email: string | null;
+  error: string | null;
+}> {
   // 不在此處呼叫 signOut：verifyOtp 會直接以新 session 覆寫本機 session，
-  // 隨後 window.location.reload() 亦會清掉記憶體與 realtime 訂閱。
+  // 隨後由呼叫端整頁重整，清掉記憶體與 realtime 訂閱。
   //
   // 過去這裡先呼叫 signOut() 反而是換人「靜默失效」的根因：GoTrue 的
   // POST /logout?scope=local 會在「伺服器端」撤銷目前這張 session（local=僅目前這張，
@@ -56,15 +62,54 @@ async function consumeTokenAndReload(token: string) {
   // dev-switch-user 內的 getUser 回 401 → 換人失敗卻仍以原身分執行（誤判通過）。
   // 實測（tests/_diag3-verifyotp-revoke）確認 verifyOtp 消費 magic link 不會撤銷簽發者
   // session，故移除 signOut 即可讓共用 session 存活、換人穩定成功。
-  const { error } = await supabase.auth.verifyOtp({ token_hash: token, type: "magiclink" });
-  if (error) {
-    console.error("[test-mode] verifyOtp failed:", error.message);
-    toast({ title: "切換失敗", description: error.message, variant: "destructive" });
-    return;
+  const { data, error } = await supabase.auth.verifyOtp({
+    token_hash: token,
+    type: "magiclink",
+  });
+  return {
+    email: data.user?.email ?? data.session?.user.email ?? null,
+    error: error?.message ?? null,
+  };
+}
+
+async function consumeTokenForEmail(
+  token: string,
+  expectedEmail: string,
+): Promise<boolean> {
+  const result = await verifySwitchToken(token);
+  const matchesExpectedIdentity =
+    result.email?.toLowerCase() === expectedEmail.toLowerCase();
+
+  if (!result.error && matchesExpectedIdentity) {
+    return true;
   }
+
+  const description = result.error
+    ?? `實際切換為 ${result.email || "未知帳號"}，與預期身分不符。`;
+  console.error("[test-mode] verifyOtp failed:", description);
+  toast({ title: "切換失敗", description, variant: "destructive" });
+
+  // verifyOtp 若成功卻回到錯誤身分，不得讓該 session 繼續停留在畫面上。
+  if (!result.error && !matchesExpectedIdentity) {
+    await supabase.auth.signOut({ scope: "local" });
+    resetEnvironmentCache();
+    window.location.href = "/";
+  }
+
+  return false;
+}
+
+function reloadAfterIdentitySwitch(): void {
   resetEnvironmentCache();
   // 整頁重整：一次清掉所有 store 記憶體與 realtime 訂閱，避免跨環境殘留。
   window.location.reload();
+}
+
+async function signOutLocalSession(): Promise<void> {
+  const { error } = await supabase.auth.signOut({ scope: "local" });
+  if (error) {
+    throw error;
+  }
 }
 
 export function DevRoleSwitcher() {
@@ -102,21 +147,41 @@ export function DevRoleSwitcher() {
     setBusy(EXEC_TEST_EMAIL);
     try {
       // 1. 先為自己預先取得免密碼返回票（趁仍是真人執行長），供日後切回本人。
+      // 先清除可能殘留的舊票；拿不到新票就不進入測試模式，確保同分頁可安全切回。
+      clearTestModeReturnTicket(sessionStorage);
       const returnToken = await requestSwitchToken(currentEmail);
-      if (returnToken) {
-        sessionStorage.setItem(RETURN_TOKEN_KEY, returnToken);
-        sessionStorage.setItem(RETURN_EMAIL_KEY, currentEmail);
+      if (!returnToken) {
+        toast({
+          title: "無法進入測試模式",
+          description: "無法建立切回本人所需的返回票，請稍後再試。",
+          variant: "destructive",
+        });
+        setBusy(null);
+        return;
       }
+      replaceTestModeReturnTicket(sessionStorage, {
+        token: returnToken,
+        email: currentEmail,
+      });
+
       // 2. 切換為假執行長。
       const token = await requestSwitchToken(EXEC_TEST_EMAIL);
       if (!token) {
+        clearTestModeReturnTicket(sessionStorage);
         toast({ title: "無法進入測試模式", description: "請確認測試帳號已建立。", variant: "destructive" });
         setBusy(null);
         return;
       }
-      await consumeTokenAndReload(token);
+      const switched = await consumeTokenForEmail(token, EXEC_TEST_EMAIL);
+      if (!switched) {
+        clearTestModeReturnTicket(sessionStorage);
+        setBusy(null);
+        return;
+      }
+      reloadAfterIdentitySwitch();
     } catch (e) {
       console.error("[test-mode] enter error:", e);
+      clearTestModeReturnTicket(sessionStorage);
       setBusy(null);
     }
   }, [busy, currentEmail]);
@@ -131,7 +196,12 @@ export function DevRoleSwitcher() {
           setBusy(null);
           return;
         }
-        await consumeTokenAndReload(token);
+        const switched = await consumeTokenForEmail(token, email);
+        if (!switched) {
+          setBusy(null);
+          return;
+        }
+        reloadAfterIdentitySwitch();
       } catch (e) {
         console.error("[test-mode] switch error:", e);
         setBusy(null);
@@ -144,17 +214,26 @@ export function DevRoleSwitcher() {
     if (busy) return;
     setBusy("__leave__");
     try {
-      const token = sessionStorage.getItem(RETURN_TOKEN_KEY);
-      sessionStorage.removeItem(RETURN_TOKEN_KEY);
-      sessionStorage.removeItem(RETURN_EMAIL_KEY);
-      if (token) {
-        await consumeTokenAndReload(token);
+      const result = await restoreTestModeReturnSession({
+        storage: sessionStorage,
+        verifyToken: verifySwitchToken,
+        signOut: signOutLocalSession,
+      });
+      resetEnvironmentCache();
+
+      if (result.status === "restored") {
+        window.location.reload();
         return;
       }
-      // 無返回票（票已用過／逾時）：登出回登入頁，請執行長以本人帳號重新登入。
-      // 同樣用 scope: "local"，避免撤銷共用測試假人的其他 session。
-      await supabase.auth.signOut({ scope: "local" });
-      resetEnvironmentCache();
+
+      if (result.reason !== "missing-ticket") {
+        const description = result.reason === "identity-mismatch"
+          ? "返回票切回的身分與本人帳號不符，已安全登出。"
+          : `返回票已失效，已安全登出。${result.message ? `（${result.message}）` : ""}`;
+        toast({ title: "無法自動切回本人", description, variant: "destructive" });
+      }
+
+      // 無票或票失效時回登入頁；scope: local 不撤銷其他分頁共用的測試 session。
       window.location.href = "/";
     } catch (e) {
       console.error("[test-mode] leave error:", e);
