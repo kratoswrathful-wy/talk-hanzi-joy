@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useInvoices, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
-import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
+import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
 import { type Invoice } from "@/data/invoice-types";
@@ -135,10 +135,6 @@ export default function InvoicesPage() {
       { value: "paid", label: optById.get("sl-invoice-paid")?.label ?? invoiceStatusLabels.paid },
     ];
   }, [statusLabelOptions]);
-
-  useEffect(() => {
-    selectOptionsStore.loadAssignees();
-  }, []);
 
   const getInvoiceTotal = useCallback((feeIds: string[]) => {
     return feeIds.reduce((sum, fid) => {

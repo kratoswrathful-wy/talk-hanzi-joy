@@ -10,6 +10,9 @@ type Listener = () => void;
 
 let invoices: Invoice[] = [];
 let loaded = false;
+let loadPromise: Promise<{ error: unknown }> | null = null;
+let reloadRequested = false;
+let _invoiceAuthUserId: string | null = null;
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -148,44 +151,66 @@ export const invoiceStore = {
   },
 
   loadInvoices: async () => {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      invoices = [];
-      loaded = false;
-      notify();
-      return { error: null };
+    if (loadPromise) {
+      reloadRequested = true;
+      return loadPromise;
     }
 
-    const env = getEnvironment();
+    loadPromise = (async () => {
+      let lastResult: { error: unknown } = { error: null };
+      try {
+        do {
+          reloadRequested = false;
+          const user = await getAuthenticatedUser();
+          if (!user) {
+            invoices = [];
+            loaded = false;
+            notify();
+            lastResult = { error: null };
+            continue;
+          }
 
-    const { data: invData, error } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("env", env)
-      .order("created_at", { ascending: false });
+          const env = getEnvironment();
 
-    if (error || !invData) return { error };
+          const { data: invData, error } = await supabase
+            .from("invoices")
+            .select("*")
+            .eq("env", env)
+            .order("created_at", { ascending: false });
 
-    const { data: linkData } = await supabase
-      .from("invoice_fees")
-      .select("invoice_id, fee_id")
-      .eq("env", env);
+          if (error || !invData) {
+            lastResult = { error };
+            continue;
+          }
 
-    const feeMap = new Map<string, string[]>();
-    if (linkData) {
-      for (const link of linkData) {
-        const arr = feeMap.get(link.invoice_id) || [];
-        arr.push(link.fee_id);
-        feeMap.set(link.invoice_id, arr);
+          const { data: linkData } = await supabase
+            .from("invoice_fees")
+            .select("invoice_id, fee_id")
+            .eq("env", env);
+
+          const feeMap = new Map<string, string[]>();
+          if (linkData) {
+            for (const link of linkData) {
+              const arr = feeMap.get(link.invoice_id) || [];
+              arr.push(link.fee_id);
+              feeMap.set(link.invoice_id, arr);
+            }
+          }
+
+          invoices = (invData as DbInvoice[]).map((row) =>
+            dbToApp(row, feeMap.get(row.id) || [])
+          );
+          loaded = true;
+          notify();
+          lastResult = { error: null };
+        } while (reloadRequested);
+      } finally {
+        loadPromise = null;
       }
-    }
+      return lastResult;
+    })();
 
-    invoices = (invData as DbInvoice[]).map((row) =>
-      dbToApp(row, feeMap.get(row.id) || [])
-    );
-    loaded = true;
-    notify();
-    return { error: null };
+    return loadPromise;
   },
 
   createInvoice: async (
@@ -329,15 +354,36 @@ export const invoiceStore = {
 
 supabase.auth.onAuthStateChange((event, session) => {
   _cachedUserId = session?.user?.id ?? null;
+  const nextUserId = session?.user?.id ?? null;
+
   if (event === "TOKEN_REFRESHED") {
-    void invoiceStore.loadInvoices();
     return;
   }
-  loaded = false;
-  notify();
-  if (event === "SIGNED_OUT" || !session) {
+
+  if (!session || event === "SIGNED_OUT") {
     invoices = [];
     loaded = false;
+    loadPromise = null;
+    reloadRequested = false;
+    _invoiceAuthUserId = null;
     notify();
+    return;
+  }
+
+  if (
+    (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+    loaded &&
+    _invoiceAuthUserId &&
+    nextUserId &&
+    _invoiceAuthUserId === nextUserId
+  ) {
+    return;
+  }
+
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+    loaded = false;
+    _invoiceAuthUserId = nextUserId;
+    notify();
+    void invoiceStore.loadInvoices();
   }
 });

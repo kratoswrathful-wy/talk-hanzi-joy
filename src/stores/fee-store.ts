@@ -179,6 +179,8 @@ type Listener = () => void;
 let fees: TranslatorFee[] = [];
 let loaded = false;
 let loadSeq = 0; // sequence counter to prevent stale results
+let loadPromise: Promise<{ error: unknown }> | null = null;
+let reloadRequested = false;
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -363,33 +365,58 @@ export const feeStore = {
     };
   },
 
-  /** Load all fees from DB filtered by current environment. */
+  /** Load all fees from DB filtered by current environment. Single-flight with trailing refresh. */
   loadFees: async () => {
-    const seq = ++loadSeq;
-    const user = await getAuthenticatedUser();
-
-    if (seq !== loadSeq) return { error: null };
-    if (!user) {
-      fees = [];
-      loaded = false;
-      notify();
-      return { error: null };
+    if (loadPromise) {
+      reloadRequested = true;
+      return loadPromise;
     }
 
-    // W10：讀取一律走遮罩 view（欄位級遮罩＋列級 RLS）；寫入仍走 fees 原表。
-    const { data, error } = await supabase
-      .from("fees_visible")
-      .select("*")
-      .eq("env", getEnvironment())
-      .order("created_at", { ascending: false });
+    loadPromise = (async () => {
+      let lastResult: { error: unknown } = { error: null };
+      try {
+        do {
+          reloadRequested = false;
+          const seq = ++loadSeq;
+          const user = await getAuthenticatedUser();
 
-    if (seq !== loadSeq) return { error: null };
-    if (!error && data) {
-      fees = (data as DbFee[]).map(dbToApp);
-      loaded = true;
-      notify();
-    }
-    return { error };
+          if (seq !== loadSeq) {
+            lastResult = { error: null };
+            continue;
+          }
+          if (!user) {
+            fees = [];
+            loaded = false;
+            notify();
+            lastResult = { error: null };
+            continue;
+          }
+
+          // W10：讀取一律走遮罩 view（欄位級遮罩＋列級 RLS）；寫入仍走 fees 原表。
+          const { data, error } = await supabase
+            .from("fees_visible")
+            .select("*")
+            .eq("env", getEnvironment())
+            .order("created_at", { ascending: false });
+
+          if (seq !== loadSeq) {
+            lastResult = { error: null };
+            continue;
+          }
+          if (!error && data) {
+            fees = (data as DbFee[]).map(dbToApp);
+            loaded = true;
+            notify();
+          }
+          lastResult = { error };
+        } while (reloadRequested);
+      } finally {
+        loadPromise = null;
+      }
+      return lastResult;
+    })();
+
+    return loadPromise;
   },
 
   addFee: (fee: TranslatorFee) => {
@@ -461,17 +488,41 @@ export const feeStore = {
   },
 };
 
+let _feeAuthUserId: string | null = null;
+
 supabase.auth.onAuthStateChange((event, session) => {
   _cachedUserId = session?.user?.id ?? null;
+  const nextUserId = session?.user?.id ?? null;
+
+  // Token refresh must not full-reload (avoids focus storms). Align with case-store.
   if (event === "TOKEN_REFRESHED") {
-    void feeStore.loadFees();
     return;
   }
-  loaded = false;
-  notify();
-  if (event === "SIGNED_OUT" || !session) {
+
+  if (!session || event === "SIGNED_OUT") {
     fees = [];
     loaded = false;
+    loadPromise = null;
+    reloadRequested = false;
+    _feeAuthUserId = null;
     notify();
+    return;
+  }
+
+  if (
+    (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+    loaded &&
+    _feeAuthUserId &&
+    nextUserId &&
+    _feeAuthUserId === nextUserId
+  ) {
+    return;
+  }
+
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+    loaded = false;
+    _feeAuthUserId = nextUserId;
+    notify();
+    void feeStore.loadFees();
   }
 });

@@ -1,21 +1,10 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
-import { supabase } from "@/integrations/supabase/client";
 
-let loadPromise: ReturnType<typeof clientInvoiceStore.loadInvoices> | null = null;
+/** Hook only ensures load; auth / poll / realtime ownership lives in client-invoice-store. */
 function ensureLoaded() {
-  if (!loadPromise) {
-    loadPromise = clientInvoiceStore.loadInvoices();
-  }
+  void clientInvoiceStore.loadInvoices();
 }
-
-supabase.auth.onAuthStateChange((event) => {
-  if (event === "TOKEN_REFRESHED") return;
-  loadPromise = null;
-  if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "SIGNED_OUT") {
-    loadPromise = clientInvoiceStore.loadInvoices();
-  }
-});
 
 export function useClientInvoices() {
   useEffect(() => { ensureLoaded(); }, []);
