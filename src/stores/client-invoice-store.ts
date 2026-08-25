@@ -154,6 +154,13 @@ export const clientInvoiceStore = {
     };
   },
 
+  /** Initial consumers share the current request without scheduling a trailing refresh. */
+  ensureLoaded: async () => {
+    if (loaded) return { error: null };
+    if (loadPromise) return loadPromise;
+    return clientInvoiceStore.loadInvoices();
+  },
+
   loadInvoices: async () => {
     if (loadPromise) {
       reloadRequested = true;
@@ -479,6 +486,6 @@ supabase.auth.onAuthStateChange((event, session) => {
     loaded = false;
     _clientInvoiceAuthUserId = nextUserId;
     notify();
-    void clientInvoiceStore.loadInvoices();
+    void clientInvoiceStore.ensureLoaded();
   }
 });

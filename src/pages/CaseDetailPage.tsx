@@ -1144,7 +1144,7 @@ export default function CaseDetailPage() {
    }, [shouldBlockNav]);
 
   // Load internal notes from DB
-  useEffect(() => { internalNotesStore.load(); }, []);
+  useEffect(() => { internalNotesStore.ensureLoaded(); }, []);
 
   // Before paint on every id change: drop stale case from previous route and sync from store
   // (fixes duplicate→new URL still showing source title). Merge duplicateExpectedTitle when present.

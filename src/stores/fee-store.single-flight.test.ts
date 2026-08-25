@@ -49,6 +49,15 @@ describe("feeStore.loadFees single-flight", () => {
     }));
   });
 
+  it("concurrent initial consumers share one fees_visible query", async () => {
+    await Promise.all([
+      feeStore.ensureLoaded(),
+      feeStore.ensureLoaded(),
+      feeStore.ensureLoaded(),
+    ]);
+    expect(fromMock).toHaveBeenCalledTimes(1);
+  });
+
   it("concurrent loadFees do not unbounded-parallel query fees_visible", async () => {
     await Promise.all([feeStore.loadFees(), feeStore.loadFees(), feeStore.loadFees()]);
     expect(fromMock.mock.calls.length).toBeGreaterThanOrEqual(1);

@@ -3,7 +3,7 @@ import { invoiceStore } from "@/stores/invoice-store";
 
 /** Hook only ensures load; auth / poll / realtime ownership lives in invoice-store. */
 function ensureLoaded() {
-  void invoiceStore.loadInvoices();
+  void invoiceStore.ensureLoaded();
 }
 
 export function useInvoices() {
