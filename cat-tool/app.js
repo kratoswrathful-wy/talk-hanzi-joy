@@ -747,10 +747,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return row;
     }
 
-    function getGridRowAtListIndex(segIdx) {
+    function getGridRowAtListIndex(segIdx, ensureMounted = true) {
         const seg = currentSegmentsList[segIdx];
         if (!seg) return null;
-        return getGridRowBySegId(seg.id);
+        return getGridRowBySegId(seg.id, ensureMounted);
     }
 
     function setActiveGridRow(row) {
@@ -1888,6 +1888,12 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function setEditorHtml(el, html) {
         if (!el) return;
+        // 工項 H：覆寫 innerHTML 會拆掉 contenteditable 焦點，造成底色 focus／非 focus 狂閃
+        const wasActive = document.activeElement === el;
+        let caretOff = null;
+        if (wasActive) {
+            try { caretOff = getNpCaretOffset(el); } catch (_) { /* ignore */ }
+        }
         el.innerHTML = html;
         el.removeAttribute('data-np-applied');
         if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
@@ -1897,6 +1903,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncTagPillDisplayInEditor(el);
         }
         refreshSegCharCount(el);
+        if (wasActive) {
+            try {
+                el.focus({ preventScroll: true });
+                if (caretOff != null) setNpCaretOffset(el, caretOff);
+            } catch (_) {
+                try { el.focus(); } catch (__) { /* ignore */ }
+            }
+        }
     }
 
     /**
@@ -20783,6 +20797,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** Phase 2.3k：virt 換窗後為已掛載列補搜尋上色與 TB 狀態。 */
     function refreshVirtWindowDecorAfterRender() {
         if (!window.CatVirtGrid || !window.CatVirtGrid.isEnabled() || !gridBody) return;
+        // 工項 H：導覽 flush 進行中勿再跑 runSearchAndFilter，避免焦點列被重寫／重建
+        if (_pendingEditorFocus) {
+            try { decorateTbInlineHintsForActiveRow(); } catch (_) { /* ignore */ }
+            return;
+        }
         const start = window.CatVirtGrid.getWindowStartIdx();
         const end = start >= 0
             ? Math.min(currentSegmentsList.length, start + 80)
@@ -21839,9 +21858,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function setSegmentFieldText(seg, segIdx, fieldKey, newText) {
-        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
-        const row = getGridRowAtListIndex(segIdx);
+    /**
+     * @param {{ ensureMounted?: boolean }} [opts]
+     * ensureMounted 預設 true；F4／批次取代應傳 false，避免對未掛載句段 force-mount 反覆 rebuild #gridBody。
+     */
+    function setSegmentFieldText(seg, segIdx, fieldKey, newText, opts) {
+        const ensureMounted = !opts || opts.ensureMounted !== false;
+        const row = getGridRowAtListIndex(segIdx, ensureMounted);
         if (fieldKey === 'target' && isTargetWriteProtected(seg)) return;
         if (fieldKey === 'target') {
             seg.targetText = newText;
@@ -22089,8 +22112,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function unconfirmSegmentVisualAfterReplace(seg, segIdx) {
         applyWorkflowRevokeOnTargetEdit(seg);
-        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-        const row = getGridRowAtListIndex(segIdx);
+        // 工項 H：勿 ensureMounted，避免 F4 對離屏句段逐一 scrollToSegId 重建視窗
+        const row = getGridRowAtListIndex(segIdx, false);
         if (row) {
             syncRowConfirmedStateClass(row, seg);
             refreshStatusIconForRow(row, seg);
@@ -22720,7 +22743,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         let row = getGridRowBySegId(pending.segId, false);
         if (wantCenter && !pending.skipVirtScroll) {
             const needsCenterRetryScroll = _pendingEditorCenterRetry > 0 && !isCenterOk(pending.segId);
-            const needsInitialForceScroll = pending.forceVirtScroll && !_pendingVirtScrollIssued;
+            // 工項 H：列已掛載時勿 force scrollToSegId（會 replaceChildren）；改由 center 快路徑／後續 measure
+            const needsInitialForceScroll = pending.forceVirtScroll && !_pendingVirtScrollIssued && !row;
             const needsScroll = !row || needsCenterRetryScroll || needsInitialForceScroll;
             if (needsScroll) {
                 readEditorGridHeaderPx();
@@ -22733,6 +22757,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // center 修正改在 renderWindow rAF 內；此處須等 onAfterRender／下一幀再 focus+measure
                 scheduleNavRetryRaf(gen);
                 return;
+            }
+            // 已掛載且未強制重建：若偏離置中，走 centerOnSegId 快路徑（不 replaceChildren）
+            if (row && pending.forceVirtScroll && !_pendingVirtScrollIssued) {
+                _pendingVirtScrollIssued = true;
+                if (!isCenterOk(pending.segId) && typeof window.CatVirtGrid.centerOnSegId === 'function') {
+                    window.CatVirtGrid.centerOnSegId(pending.segId);
+                }
             }
         } else if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
             // 非 center 路徑（nearest / preserve）
@@ -23078,7 +23109,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 oldStatus,
                 newStatus
             });
-            setSegmentFieldText(p.seg, p.segIdx, 'target', p.newText);
+            // 工項 H：批次只更新已掛載列 DOM；離屏句段只改模型，最後一次 runSearchAndFilter 補高亮
+            setSegmentFieldText(p.seg, p.segIdx, 'target', p.newText, { ensureMounted: false });
             if (oldStatus === 'confirmed') {
                 unconfirmSegmentVisualAfterReplace(p.seg, p.segIdx);
             }
@@ -23772,7 +23804,8 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function refreshRepetitionSiblingRow(other, tgt) {
         if (!other) return;
-        const row = getGridRowBySegId(other.id);
+        // 工項 H：重複句離屏時勿 ensureMounted 強制換窗
+        const row = getGridRowBySegId(other.id, false);
         if (!row) return;
         const ta = row.querySelector('.grid-textarea');
         if (ta) {
@@ -26215,13 +26248,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (nextFocus != null) {
                                     const nextSeg = currentSegmentsList[nextFocus];
                                     if (nextSeg) {
+                                        // 工項 H：下一句已在視窗內時勿 forceVirtScroll（避免無謂 replaceChildren）
+                                        const nextMounted = !!getGridRowBySegId(nextSeg.id, false);
                                         scheduleEditorFocus({
                                             segId: nextSeg.id,
                                             scrollBehavior: 'auto',
                                             scrollBlock: getAfterConfirmScrollBlock(),
                                             afterConfirmPanel: true,
                                             explicitNav: true,
-                                            forceVirtScroll: true,
+                                            forceVirtScroll: !nextMounted,
                                         });
                                     }
                                 } else {
