@@ -5946,14 +5946,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         return pickTip;
     }
 
-    async function _buildFullListLineNoCacheForFile(fileId) {
-        if (!fileId) return;
-        const segs = await DBService.getSegmentsByFile(fileId);
+    function _buildFullListLineNoCache(segs) {
         if (!Array.isArray(segs)) return;
         const sorted = segs.slice().sort((a, b) => _cmpSegmentImportOrderWithinFile(a, b));
         sorted.forEach((s, i) => {
             if (s && s.id != null) _fullListLineNoBySegId[String(s.id)] = i + 1;
         });
+    }
+
+    async function _buildFullListLineNoCacheForFile(fileId) {
+        if (!fileId) return;
+        const segs = await DBService.getSegmentsByFile(fileId);
+        _buildFullListLineNoCache(segs);
     }
 
     /** B-7d：句段集內 1..N 列號快取（依 view.segmentIds 順序） */
@@ -5964,15 +5968,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    async function _loadFileWorkflowContext(fileId) {
+    async function _loadFileWorkflowContext(fileId, opts) {
         _fullListLineNoBySegId = {};
         window._currentFileWorkflowStagesByFileId = {};
         let stages = [];
         let assignments = [];
+        const loadLineNoCache = !opts || opts.loadLineNoCache !== false;
         try {
             stages = await DBService.ensureFileWorkflowStages(fileId);
             assignments = await DBService.listStageAssignmentsForFile(fileId);
-            await _buildFullListLineNoCacheForFile(fileId);
+            if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fileId);
         } catch (wfErr) {
             console.warn('[workflow] loadFileWorkflowContext', wfErr);
         }
@@ -18148,7 +18153,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         _fileUnassignedReadOnly = await resolveFileUnassignedReadOnly(fileId);
 
-        await _loadFileWorkflowContext(fileId);
+        // 開檔主流程稍後會載入完整句段；此處只取 Workflow metadata，避免大檔讀取兩輪。
+        await _loadFileWorkflowContext(fileId, { loadLineNoCache: false });
 
         if (!_fileUnassignedReadOnly && !_openEditorRevTrack) {
             const wfOk = await _maybePromptWfSessionKind();
@@ -18217,6 +18223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         showCatLoadingOverlay('正在載入檔案…');
         currentSegmentsList = await DBService.getSegmentsByFile(fileId);
+        _buildFullListLineNoCache(currentSegmentsList);
         reconcileSegmentWfConsistencyOnLoad(currentSegmentsList);
 
         // 設定／顯示 mqxliff 作業中身分圖示（篩選圖示正下方，與周遭圖示同大）
