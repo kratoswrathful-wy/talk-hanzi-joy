@@ -32,10 +32,14 @@ function createUpdatedAtPoll(
   let lastMaxUpdatedAt: string | null = null;
   let timerId: ReturnType<typeof setTimeout> | null = null;
   let active = false;
+  let checkPromise: Promise<void> | null = null;
+  let trailingRequested = false;
+  let generation = 0;
 
-  async function checkOnce() {
+  async function runSingleCheck(checkGeneration: number) {
     try {
       const latest = await checkLatest();
+      if (!active || checkGeneration !== generation) return;
       if (lastMaxUpdatedAt !== null && latest !== lastMaxUpdatedAt) {
         onChanged();
       }
@@ -43,6 +47,26 @@ function createUpdatedAtPoll(
     } catch {
       // ignore polling errors
     }
+  }
+
+  function checkOnce(): Promise<void> {
+    if (checkPromise) {
+      trailingRequested = true;
+      return checkPromise;
+    }
+
+    const activePromise = (async () => {
+      try {
+        do {
+          trailingRequested = false;
+          await runSingleCheck(generation);
+        } while (active && trailingRequested);
+      } finally {
+        if (checkPromise === activePromise) checkPromise = null;
+      }
+    })();
+    checkPromise = activePromise;
+    return activePromise;
   }
 
   async function poll() {
@@ -65,6 +89,8 @@ function createUpdatedAtPoll(
     start() {
       if (active) return;
       active = true;
+      generation += 1;
+      trailingRequested = false;
       lastMaxUpdatedAt = null;
       if (isBrowser) {
         document.addEventListener("visibilitychange", onVisibilityChange);
@@ -73,6 +99,8 @@ function createUpdatedAtPoll(
     },
     stop() {
       active = false;
+      generation += 1;
+      trailingRequested = false;
       if (timerId) clearTimeout(timerId);
       timerId = null;
       if (isBrowser) {
