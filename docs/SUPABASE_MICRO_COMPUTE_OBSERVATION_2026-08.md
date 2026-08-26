@@ -2,15 +2,24 @@
 
 # Supabase Micro Compute 觀察清單（讀取效能修正後）
 
-**開始日：** 合併三波 PR 並部署後起算  
-**觀察期：** 3～5 個**正常工作日**（避開 Supabase 官方事故時段）  
-**前提：** 已合併 LMS single-flight、CAT indexes、CAT keyset；**尚未**升級 Compute
+**觀察起點版本：** `19d49207`（PR #78 合併進 `main`；正式站已部署）  
+**開始日：** `19d49207` 上線後第一個**正常工作日**為 Day 1（避開 Supabase 官方事故時段）<br>
+**觀察期：** 3～5 個正常工作日  
+**前提：** PR #71～#78 已合併並通過 2026-08-26 重新驗收；**尚未**升級 Compute；**未滿觀察期前不宣稱 Micro 足夠或必須升 Small**
+
+完整工程脈絡：[`LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md`](LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md)
 
 ## 每日記錄（建議）
 
 | 日期 | 官方事故？ | LMS p50/p95 | CAT 開檔／TM 載入 | DB timeout 次數 | RAM／swap | 連線數尖峰 | 備註 |
 |---|---|---|---|---|---|---|---|
 |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+
+（欄位刻意留空；取得真實數據後再填，禁止臆測。）
 
 ## 升級 Small 的觸發條件（任一成立且官方無事故）
 
@@ -24,6 +33,7 @@
 
 ## 證據來源
 
+- 敘事 DEVLOG：[`docs/LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md`](LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md)
 - 基準：[`docs/LMS_CAT_SUPABASE_READ_PERF_BASELINE_2026-08.md`](LMS_CAT_SUPABASE_READ_PERF_BASELINE_2026-08.md)
-- Index EXPLAIN：[`docs/CAT_READ_PATH_INDEXES_EXPLAIN_2026-08.md`](CAT_READ_PATH_INDEXES_EXPLAIN_2026-08.md)（indexes 分支）
+- Index EXPLAIN：[`docs/CAT_READ_PATH_INDEXES_EXPLAIN_2026-08.md`](CAT_READ_PATH_INDEXES_EXPLAIN_2026-08.md)
 - Supabase Status：https://status.supabase.com/

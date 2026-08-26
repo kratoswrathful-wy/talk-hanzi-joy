@@ -92,6 +92,7 @@
 - [`docs/bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md`](docs/bug-report_lms-agent-fee-clientInfo-overwrite_2026-06.md) — `fee.update` 部分 `clientInfo` 誤清空營收列（**已修**；`mergeClientInfoPatch`）
 - **1UP CAT／LMS 整合 UX 大計畫**（Cursor plan `1up_ux_與遷移`）— **唯一完整主紀錄**（第二波 UX、B+D2、UX 微調、加號）；Git 摘要 [`docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md`](docs/CAT_LMS_1UP_UX_AND_MIGRATION_DEVLOG_2026-06.md)
 - [`docs/W6_LINT_CLEANUP_VITEST_W9C_SESSION_DEVLOG_2026-07.md`](docs/W6_LINT_CLEANUP_VITEST_W9C_SESSION_DEVLOG_2026-07.md) — **W6 lint 清零批次 1–3**（含 `as unknown as` 殘留退回重修、`PermissionsPage.tsx`／`case-store.ts` 編碼損壞事故與 `check-encoding.mjs` CI 防線）＋**階段三 Vitest 第一批純函式測試**（5 個 `src/lib` 高風險函式、90 項測試，含 `strict:false` 判別聯集窄化陷阱）＋**W9-C C3 CAT 匯入檔案 input 對自動化可及**（頂層代理上傳＋`import.forwardToInput`）敘事型開發紀錄
+- [`docs/LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md`](docs/LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md) — **LMS／CAT Supabase 讀取效能修正**敘事 DEVLOG（PR #71～#78、`19d49207`；兩輪驗收；Micro Compute 觀察期進行中）；基準 [`LMS_CAT_SUPABASE_READ_PERF_BASELINE_2026-08.md`](docs/LMS_CAT_SUPABASE_READ_PERF_BASELINE_2026-08.md)、觀察 [`SUPABASE_MICRO_COMPUTE_OBSERVATION_2026-08.md`](docs/SUPABASE_MICRO_COMPUTE_OBSERVATION_2026-08.md)（**Compute 決策完成前不寫入 CODEMAP 已驗收現況**）
 
 ## 回覆與推送慣例
 

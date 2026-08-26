@@ -1,4 +1,4 @@
-狀態：已落地待驗收
+狀態：索引已驗收；整體驗收見 `LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md`
 
 # CAT read-path indexes — EXPLAIN after（2026-08-25）
 
