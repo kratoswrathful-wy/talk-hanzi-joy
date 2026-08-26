@@ -1,10 +1,10 @@
-狀態：已落地待驗收
+狀態：工程已驗收；Micro Compute 觀察中；文件待上游審核
 
 # LMS／CAT Supabase 讀取效能修正 — 開發紀錄（2026-08）
 
 **正式站：** https://talk-hanzi-joy.vercel.app  
 **目前 `main`：** `19d49207`（2026-08-25／26 已部署；使用者端為新版）  
-**Compute：** 仍為 Micro；觀察期自 `19d49207` 起算 3～5 個正常工作日  
+**Compute：** 仍為 Micro；`19d49207` 上線後第一個正常工作日為 Day 1，觀察 3～5 個正常工作日<br>
 **未升 Compute、未改產品語意／排序／Workflow／虛擬捲動規則**
 
 > 本檔供上游審核與日後追溯。Cursor 個人計畫檔不在 repo；本 DEVLOG 為可審核的正式紀錄。  
@@ -158,4 +158,4 @@
 
 ## 7. 上游審核用一句結語
 
-八個獨立 PR 已合併並部署；第二輪效能／權限／測試模式復原驗收達標；repo 與正式庫 migration 一致；**唯一未結案為 Micro 觀察期**，尚未宣稱必須或不必升級 Compute。
+八個獨立 PR 已合併並部署；第二輪效能／權限／測試模式復原驗收達標；repo 與正式庫 migration 一致；**本次 Supabase 讀取效能主工項唯一未結案的決策項目為 Micro Compute 觀察期**，尚未宣稱必須或不必升級 Compute。
