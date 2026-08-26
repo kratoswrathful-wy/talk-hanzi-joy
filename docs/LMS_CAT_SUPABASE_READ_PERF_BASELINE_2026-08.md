@@ -92,19 +92,29 @@ Limit
 
 ---
 
-## 3. 已知程式 duplicate（靜態證實，待修）
+## 3. 已知程式 duplicate（基準時靜態證實；後續已修）
 
-1. `settings-init`：`ensureLoaded()` 與 auth `loadAllSettings()` 雙軌
-2. `loadAssignees` 無 single-flight；`InvoicesPage` 等額外呼叫
-3. fee／invoice／client-invoice：hook auth + store `TOKEN_REFRESHED` full reload
-4. CAT：`getTMSegmentsPage` 仍用 OFFSET；UI 五處 caller
+> **本節保留 2026-08-25 基準當下的問題清單，不覆寫歷史證據。**  
+> 後續修正、PR／commit、兩輪驗收與可量測前後差異見：  
+> [`LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md`](LMS_CAT_SUPABASE_READ_PERF_DEVLOG_2026-08.md)（目前 `main` `19d49207`）。
+
+| # | 基準時問題 | 後續狀態（摘要） |
+|---|---|---|
+| 1 | `settings-init`：`ensureLoaded()` 與 auth `loadAllSettings()` 雙軌 | **已修** PR #71 |
+| 2 | `loadAssignees` 無 single-flight；`InvoicesPage` 等額外呼叫 | **已修** PR #71 |
+| 3 | fee／invoice／client-invoice：hook auth + store `TOKEN_REFRESHED` full reload | **已修** PR #71／#76（`ensureLoaded`；`fees_visible` 3→1） |
+| 4 | CAT：`getTMSegmentsPage` 仍用 OFFSET；UI 五處 caller | **已修** PR #72 索引 + #73 keyset |
+
+基準後另發現並已修（詳見 DEVLOG）：開檔句段雙輪（#75）、poll／visibility burst（#77）、anon 葉子表 timeout（#74）、測試模式 changelog／返回票（#78）。
 
 ---
 
-## 4. 交付分支
+## 4. 交付分支（基準規劃；實作後擴充）
 
-1. `perf/lms-read-single-flight`
-2. `perf/cat-read-indexes`
-3. `perf/cat-keyset-pagination`
+基準時規劃三支：
 
-細節以實作與 PR 說明為準；本檔只存基準與分類規則。
+1. `perf/lms-read-single-flight` → PR #71
+2. `perf/cat-read-indexes` → PR #72
+3. `perf/cat-keyset-pagination` → PR #73
+
+驗收後追加：#74～#78（見 DEVLOG 交付總表）。本檔只存基準與分類規則；工程敘事以 DEVLOG 為準。
