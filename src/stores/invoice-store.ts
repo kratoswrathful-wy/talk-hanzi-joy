@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
-import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 type Listener = () => void;
 
@@ -293,7 +293,7 @@ export const invoiceStore = {
     if (Object.keys(dbUpdates).length > 0) {
       supabase
         .from("invoices")
-        .update(dbUpdates)
+        .update(dbUpdates as TablesUpdate<"invoices">)
         .eq("id", id)
         .then(({ error }) => {
           if (error) console.error("Failed to update invoice:", error);

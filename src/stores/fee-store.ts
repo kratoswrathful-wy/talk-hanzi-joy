@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
-import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 const BILLING_UNITS: BillingUnit[] = ["字", "小時"];
@@ -441,7 +441,7 @@ export const feeStore = {
 
     supabase
       .from("fees")
-      .update(dbUpdates)
+      .update(dbUpdates as TablesUpdate<"fees">)
       .eq("id", id)
       .then(({ error }) => {
         if (error) console.error("Failed to update fee:", error);

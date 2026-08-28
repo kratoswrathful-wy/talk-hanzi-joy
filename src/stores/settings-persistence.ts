@@ -1,6 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { envKey } from "@/lib/environment";
-import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
+
+async function requireUserForSettings() {
+  try {
+    return await getAuthenticatedUser();
+  } catch (e) {
+    if (e instanceof AuthRecoverableError) return null;
+    throw e;
+  }
+}
 import type { Json } from "@/integrations/supabase/types";
 
 const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {};
@@ -41,7 +50,7 @@ export function clearLoadedFlagsOnly() {
 }
 
 export async function loadSetting<T>(key: string): Promise<T | null> {
-  const user = await getAuthenticatedUser();
+  const user = await requireUserForSettings();
   if (!user) return null;
 
   const dbKey = envKey(key);
@@ -87,7 +96,7 @@ export function saveSetting(key: string, value: unknown, debounceMs = 500) {
 
   clearTimeout(saveTimers[key]);
   saveTimers[key] = setTimeout(async () => {
-    const user = await getAuthenticatedUser();
+    const user = await requireUserForSettings();
     if (!user) return;
 
     const { error } = await supabase

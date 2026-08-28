@@ -27,7 +27,7 @@ import { deriveReviewerSummary } from "@/lib/review-rows";
 import type { Block } from "@blocknote/core";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
-import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -520,7 +520,13 @@ async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
   const existing = getById(id);
   if (existing) return existing;
 
-  const user = await getAuthenticatedUser();
+  let user;
+  try {
+    user = await getAuthenticatedUser();
+  } catch (e) {
+    if (e instanceof AuthRecoverableError) return undefined;
+    throw e;
+  }
   if (!user) return undefined;
 
   const env = getEnvironment();

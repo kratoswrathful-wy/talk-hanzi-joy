@@ -8,7 +8,7 @@ import { commonLinksStore } from "@/stores/common-links-store";
 import { currencyStore } from "@/stores/currency-store";
 import { uiButtonStyleStore } from "@/stores/ui-button-style-store";
 import { clearLoadedFlagsOnly, resetLoadedKeys } from "@/stores/settings-persistence";
-import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import {
   parseSettingsLogicalKey,
   type SettingsLogicalKey,
@@ -52,7 +52,16 @@ async function reloadAllSettingStores(): Promise<void> {
 }
 
 async function runFullSettingsLoad(userId: string, generation: number): Promise<void> {
-  const user = await getAuthenticatedUser();
+  let user;
+  try {
+    user = await getAuthenticatedUser();
+  } catch (e) {
+    if (e instanceof AuthRecoverableError) {
+      loaded = false;
+      return;
+    }
+    throw e;
+  }
   if (generation !== loadGeneration || currentUserId !== userId) return;
   if (!user || user.id !== userId) {
     loaded = false;
@@ -76,7 +85,17 @@ async function runFullSettingsLoad(userId: string, generation: number): Promise<
 async function ensureLoaded(): Promise<void> {
   if (loaded && !loadPromise) return;
 
-  const user = await getAuthenticatedUser();
+  let user;
+  try {
+    user = await getAuthenticatedUser();
+  } catch (e) {
+    if (e instanceof AuthRecoverableError) {
+      loaded = false;
+      currentUserId = null;
+      return;
+    }
+    throw e;
+  }
   if (!user) {
     loaded = false;
     currentUserId = null;

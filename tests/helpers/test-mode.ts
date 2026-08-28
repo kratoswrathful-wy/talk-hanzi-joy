@@ -19,12 +19,19 @@ export async function isInOnlineTestMode(page: Page): Promise<boolean> {
 export async function enterOnlineTestMode(page: Page): Promise<void> {
   if (!shouldEnterOnlineTestMode()) return;
 
+  const banner = page.getByText(TEST_MODE_BANNER);
+  const enterBtn = page.getByRole("button", { name: "進入測試模式" });
+
+  // 等身分／roles 就緒後，頂欄會出現「進入測試模式」或已在測試模式橫幅其一
+  await Promise.race([
+    banner.waitFor({ state: "visible", timeout: 90_000 }),
+    enterBtn.waitFor({ state: "visible", timeout: 90_000 }),
+  ]).catch(() => undefined);
+
   if (await isInOnlineTestMode(page)) return;
 
-  // user_roles 載入前頂欄不會渲染「進入測試模式」
-  const enterBtn = page.getByRole("button", { name: "進入測試模式" });
   try {
-    await expect(enterBtn).toBeVisible({ timeout: 90_000 });
+    await expect(enterBtn).toBeVisible({ timeout: 5_000 });
   } catch {
     throw new Error(
       "PLAYWRIGHT_ENTER_TEST_MODE=1 但找不到「進入測試模式」按鈕（請確認帳號為真人執行長 executive，且假人已建立）",
@@ -33,5 +40,5 @@ export async function enterOnlineTestMode(page: Page): Promise<void> {
 
   await enterBtn.click();
   await page.waitForLoadState("load", { timeout: 120_000 });
-  await expect(page.getByText(TEST_MODE_BANNER)).toBeVisible({ timeout: 90_000 });
+  await expect(banner).toBeVisible({ timeout: 90_000 });
 }
