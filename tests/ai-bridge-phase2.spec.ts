@@ -205,7 +205,7 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
         if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
         // create 回傳的 id 巢狀在 data.invoice.id（與 get/update 直接回 data.id 不同形狀）。
         const createdId = created.data.invoice.id;
-        const got = agent.clientInvoice.get(createdId);
+        const got = await agent.clientInvoice.get(createdId);
         return {
           ok: got.ok && got.data?.id === createdId,
           clientInvoiceId: createdId,

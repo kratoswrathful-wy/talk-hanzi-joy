@@ -845,7 +845,7 @@ export interface LmsAgentApi {
   };
   clientInvoice: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<ClientInvoice[]>;
-    get: (id: string) => AgentResult<ClientInvoice>;
+    get: (id: string) => Promise<AgentResult<ClientInvoice>>;
     create: (input: { client: string; title?: string; feeIds?: string[] }) => Promise<
       AgentResult<{ invoice: ClientInvoice; created: boolean; verified: boolean }>
     >;
@@ -1177,14 +1177,22 @@ export function buildLmsAgentApi(): LmsAgentApi {
       },
     },
 
-    clientInvoice: {
-      list: (filter) => ok(filterList(clientInvoiceStore.getInvoices(), filter)),
+  clientInvoice: {
+    list: (filter) => ok(filterList(clientInvoiceStore.getInvoices(), filter)),
 
-      get: (id) => {
-        const inv = clientInvoiceStore.getInvoiceById(id);
-        if (!inv) return fail(`找不到客戶請款 id=${id}`);
-        return ok(inv);
-      },
+    get: async (id) => {
+      let inv = clientInvoiceStore.getInvoiceById(id);
+      if (!inv) {
+        // create 期間並行 loadInvoices 可能覆寫記憶體；先 ensure 再單筆補抓
+        await clientInvoiceStore.ensureLoaded();
+        inv = clientInvoiceStore.getInvoiceById(id);
+      }
+      if (!inv) {
+        inv = (await clientInvoiceStore.fetchInvoiceById(id)) ?? undefined;
+      }
+      if (!inv) return fail(`找不到客戶請款 id=${id}`);
+      return ok(inv);
+    },
 
       create: async ({ client, feeIds = [], title }) => {
         const perm = await assertClientInvoiceWriteAccess();
