@@ -826,7 +826,7 @@ export interface LmsAgentApi {
   };
   fee: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<TranslatorFee[]>;
-    get: (id: string) => AgentResult<TranslatorFee>;
+    get: (id: string) => Promise<AgentResult<TranslatorFee>>;
     create: (initial?: Partial<TranslatorFee>) => Promise<AgentResult<TranslatorFee>>;
     update: (id: string, patch: Partial<TranslatorFee>) => Promise<AgentResult<TranslatorFee>>;
   };
@@ -1101,7 +1101,8 @@ export function buildLmsAgentApi(): LmsAgentApi {
     fee: {
       list: (filter) => ok(filterList(feeStore.getFees(), filter)),
 
-      get: (id) => {
+      get: async (id) => {
+        await ensureFeesLoaded();
         const record = feeStore.getFeeById(id);
         if (!record) return fail(`找不到費用 id=${id}`);
         return ok(record);

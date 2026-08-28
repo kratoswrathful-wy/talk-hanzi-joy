@@ -390,11 +390,10 @@ export const feeStore = {
             user = await getAuthenticatedUser();
           } catch (e) {
             if (e instanceof AuthRecoverableError) {
-              fees = [];
+              // 可恢復 Auth 錯誤：不要假裝已載入空清單，結束本輪讓呼叫端重試
               loaded = false;
-              notify();
               lastResult = { error: e };
-              continue;
+              break;
             }
             throw e;
           }

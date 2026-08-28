@@ -94,48 +94,33 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
     expect(r.ok, r.error).toBe(true);
     expect(r.id, "create 未回傳 id").not.toBe("");
 
-    // 驗證重點＝「寫原表 fees → 經遮罩 view fees_visible 讀得回」的來回。
-    // createDraft 的 insert 為 fire-and-forget；先等 list 出現 id，再以 reload＋get 確認。
-    await expect
-      .poll(
-        async () => {
-          await waitForTmsAgent(page);
-          return await page.evaluate((feeId) => {
-            const a = (window as unknown as {
-              __lmsAgent?: {
-                fee: {
-                  list: (f: Record<string, unknown>) => { ok: boolean; data?: { id: string }[] };
-                  get: (id: string) => { ok: boolean; data?: { id: string } };
-                };
-              };
-            }).__lmsAgent;
-            if (!a) return false;
-            const listed = a.fee.list({});
-            if (listed.ok && listed.data?.some((f) => f.id === feeId)) return true;
-            const g = a.fee.get(feeId);
-            return g.ok && g.data?.id === feeId;
-          }, r.id);
-        },
-        { timeout: 45_000, intervals: [500, 1000, 2000, 3000, 5000] },
-      )
-      .toBe(true);
-
+    // 與 main 相同：reload 後經 fees_visible 載入再 get。
+    // fee.get 已改為 await ensureFeesLoaded()，避免 Auth 初始化變慢時讀到空 store。
+    // 禁止「未 reload 的 list」當通過條件（create 後記憶體必有草稿，會掩蓋寫入／view 問題）。
     await expect
       .poll(
         async () => {
           await page.reload();
           await expectListPageReady(page, "費用管理");
           await waitForTmsAgent(page);
-          return await page.evaluate((feeId) => {
+          return await page.evaluate(async (feeId) => {
             const a = (window as unknown as {
-              __lmsAgent?: { fee: { get: (id: string) => { ok: boolean; data?: { id: string } } } };
+              __lmsAgent?: {
+                fee: {
+                  get: (
+                    id: string,
+                  ) =>
+                    | { ok: boolean; data?: { id: string } }
+                    | Promise<{ ok: boolean; data?: { id: string } }>;
+                };
+              };
             }).__lmsAgent;
             if (!a) return false;
-            const g = a.fee.get(feeId);
+            const g = await a.fee.get(feeId);
             return g.ok && g.data?.id === feeId;
           }, r.id);
         },
-        { timeout: 45_000, intervals: [1000, 2000, 3000, 5000, 5000] },
+        { timeout: 60_000, intervals: [1000, 2000, 3000, 5000, 5000] },
       )
       .toBe(true);
   });

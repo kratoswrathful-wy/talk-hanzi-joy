@@ -336,8 +336,8 @@ Auth 修正上線穩定後，才回到 P0-A：先 rebase 到更新後的 `main`�
 
 - **已補單元／hook 測試**：auth-ready（error／同步 INITIAL_SESSION／timer）、auth-identity（force／A→B／錯誤不快取）、use-auth（多 consumer／signOut 競態）、use-permissions hook（fail-closed＋retry）— 本機 vitest 綠燈
 - **Auth E2E（本機 `npm run dev`）**：9/9 通過，含人工 pending（sessionStorage + 跳過 event-first）→ recovery → retry；TOKEN_REFRESHED／多分頁／背景／reload 受控注入
-- **W10 本機兩次**：W10-PM-1 通過；PM-2／3／4 **因無費用資料／`probeCanCreateCase` 不可寫而 skip**，**無法本機重現 CI 的 create 後 poll timeout**。已強化 list→reload→get poll（45s）與 fee-store 消化 `AuthRecoverableError`；是否轉綠以 push 後 CI 為準，若仍敗須再對 main CI artifact 比對
-- **範圍保留**：`TranslatorFees.hooks-order.test.ts` timeout 90s（並行 vitest eslint 子行程）；`tests/helpers/test-mode.ts` 已在測試模式 race 略過（第一輪必要）；`@testing-library/dom` 供 hook 測試；bun.lock 隨 supabase pin 同步
+- **W10／PR Playwright**：`main@5d552be2` 夜間 E2E **W10-PM-4 通過**；本分支 CI 兩次皆敗於 reload 後 `fee.get`（讀記憶體、Auth 變慢時 store 未載入）。已改 `fee.get` → `await ensureFeesLoaded()`，並將 W10 斷言改回「僅 reload＋get」路徑；**待下一輪 CI 驗證**。本機兩次仍因 `probeCanCreateCase` skip，無法重現寫入路徑。
+- **P2-L7**：同一次 CI 亦失敗；尚未認定與 Auth 無關，下一輪 CI 一併觀察。
 
 ### 9.4 未宣稱已驗證
 
