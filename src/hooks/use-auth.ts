@@ -12,15 +12,27 @@ import {
 } from "@/lib/auth-ready";
 import {
   beginIdentityLoad,
+  beginForcedProfileRefresh,
   invalidateIdentity,
   isIdentityResultCurrent,
+  setActiveUserId,
   type AuthProfile,
   type AuthUserRole,
+  type ProfileLoadResult,
+  type RolesLoadResult,
 } from "@/lib/auth-identity";
 import { setTestAccountFlag } from "@/lib/environment";
 
 type Profile = AuthProfile;
 type UserRole = AuthUserRole;
+
+const DEFAULT_SIGN_OUT_TIMEOUT_MS = 8_000;
+let signOutTimeoutMs = DEFAULT_SIGN_OUT_TIMEOUT_MS;
+
+/** 測試用：縮短 signOut race timer。 */
+export function __setSignOutTimeoutMsForTests(ms: number | null) {
+  signOutTimeoutMs = ms ?? DEFAULT_SIGN_OUT_TIMEOUT_MS;
+}
 
 export function useAuth() {
   const initialSnapshot = getAuthSnapshot();
@@ -33,8 +45,11 @@ export function useAuth() {
   const [identityLoading, setIdentityLoading] = useState(
     () => initialSnapshot.phase === "authenticated" || initialSnapshot.user != null,
   );
+  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [identityRetrying, setIdentityRetrying] = useState(false);
   const [authRetrying, setAuthRetrying] = useState(false);
   const userIdRef = useRef<string | null>(initialSnapshot.user?.id ?? null);
+  const signOutEpochRef = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -49,17 +64,20 @@ export function useAuth() {
       const nextId = snapshot.user?.id ?? null;
       if (nextId !== userIdRef.current) {
         userIdRef.current = nextId;
+        setActiveUserId(nextId);
         if (!nextId) {
           invalidateIdentity();
           setProfile(null);
           setRoles([]);
+          setIdentityError(null);
           setTestAccountFlag(null);
           setIdentityLoading(false);
         } else {
-          // 切換身分：先清舊角色，避免 A 的 PM 殘留到 B
           invalidateIdentity();
+          setActiveUserId(nextId);
           setProfile(null);
           setRoles([]);
+          setIdentityError(null);
           setTestAccountFlag(null);
         }
       }
@@ -90,6 +108,50 @@ export function useAuth() {
 
   const userId = user?.id;
 
+  const loadIdentity = useCallback(
+    (uid: string, opts?: { force?: boolean }) => {
+      setIdentityLoading(true);
+      setIdentityError(null);
+      setActiveUserId(uid);
+
+      const { generation, profilePromise, rolesPromise } = beginIdentityLoad(uid, opts);
+
+      void profilePromise.then((result: ProfileLoadResult) => {
+        if (!isIdentityResultCurrent(uid, generation)) return;
+        // strictNullChecks:false 下 ok 字面量無法可靠收窄，改用 in 檢查
+        if ("error" in result) {
+          if (result.error !== "stale") {
+            setIdentityError((prev) => prev ?? result.error);
+          }
+          return;
+        }
+        setProfile(result.profile);
+      });
+
+      void rolesPromise
+        .then((result: RolesLoadResult) => {
+          if (!isIdentityResultCurrent(uid, generation)) return;
+          if ("error" in result) {
+            if (result.error !== "stale") {
+              setRoles([]);
+              setIdentityError(result.error);
+            }
+            return;
+          }
+          setRoles(result.roles);
+          setIdentityError(null);
+        })
+        .finally(() => {
+          if (isIdentityResultCurrent(uid, generation)) {
+            setIdentityLoading(false);
+          }
+        });
+
+      return generation;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (authPhase === "recoverable_error" || authPhase === "anonymous" || authPhase === "idle") {
       setIdentityLoading(false);
@@ -101,68 +163,65 @@ export function useAuth() {
     }
 
     let active = true;
-    setIdentityLoading(true);
-
-    const { generation, profilePromise, rolesPromise } = beginIdentityLoad(userId);
-
-    void profilePromise.then((nextProfile) => {
-      if (!active || !isIdentityResultCurrent(userId, generation)) return;
-      setProfile(nextProfile);
-    });
-
-    void rolesPromise
-      .then((nextRoles) => {
-        if (!active || !isIdentityResultCurrent(userId, generation)) return;
-        setRoles(nextRoles);
-      })
-      .finally(() => {
-        if (active && isIdentityResultCurrent(userId, generation)) {
-          setIdentityLoading(false);
-        }
-      });
+    loadIdentity(userId);
 
     return () => {
       active = false;
+      void active;
     };
-  }, [userId, authPhase]);
+  }, [userId, authPhase, loadIdentity]);
 
-  // Auth session 初始化中 → 全畫面 loading；角色載入另計
   const authInitializing = authPhase === "initializing" || authPhase === "idle";
+  // 身分錯誤時結束 spinner（可重試），不得永久轉圈
   const loading =
     authInitializing ||
-    (authPhase === "authenticated" && identityLoading);
+    (authPhase === "authenticated" && identityLoading && !identityError);
 
-  const isAdmin = roles.some((r) => r.role === "pm" || r.role === "executive");
+  const rolesTrusted = !identityError && !identityLoading;
+  const isAdmin =
+    rolesTrusted && roles.some((r) => r.role === "pm" || r.role === "executive");
   const primaryRole: UserRole["role"] = (() => {
+    if (!rolesTrusted) return "member"; // 僅作 fail-closed 預設；UI 應先看 identityError
     if (roles.some((r) => r.role === "executive")) return "executive";
     if (roles.some((r) => r.role === "pm")) return "pm";
     if (roles.some((r) => r.role === "member")) return "member";
     return "member";
   })();
 
-  const isExecutive = roles.some((r) => r.role === "executive");
+  const isExecutive = rolesTrusted && roles.some((r) => r.role === "executive");
   const isTestAccount =
     profile?.is_test === true ||
     (user?.email?.toLowerCase().endsWith("@test.local") ?? false);
   const isRealExecutive = isExecutive && !isTestAccount;
 
   const signOut = useCallback(async () => {
+    const epoch = ++signOutEpochRef.current;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       localStorage.removeItem("keep_logged_in");
       sessionStorage.removeItem("session_active");
       const signOutPromise = supabase.auth.signOut({ scope: "local" });
-      const timeout = new Promise<"timeout">((resolve) => {
-        setTimeout(() => resolve("timeout"), 8_000);
+      digestLateSignOut(signOutPromise, epoch, () => signOutEpochRef.current);
+
+      const timed = new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), signOutTimeoutMs);
       });
-      await Promise.race([signOutPromise, timeout]);
+      await Promise.race([signOutPromise.then(() => "done" as const), timed]);
     } catch (e) {
       console.error("Sign out error:", e);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
+
+    // 逾時後若已有新登入／新的 signOut，不得覆寫新狀態
+    if (epoch !== signOutEpochRef.current) return;
+
     invalidateIdentity();
     setUser(null);
     setSession(null);
     setProfile(null);
     setRoles([]);
+    setIdentityError(null);
     setTestAccountFlag(null);
     setIdentityLoading(false);
     setAuthPhase("anonymous");
@@ -173,18 +232,35 @@ export function useAuth() {
     if (authRetrying) return;
     setAuthRetrying(true);
     try {
+      // 取消任何進行中的 signOut 落地
+      signOutEpochRef.current += 1;
       invalidateIdentity();
       setProfile(null);
       setRoles([]);
+      setIdentityError(null);
       const snap = await retryAuthInitialization();
       setAuthPhase(snap.phase);
       setAuthErrorKind(snap.errorKind);
       setUser(snap.user);
       setSession(snap.session);
+      if (snap.user?.id) {
+        userIdRef.current = snap.user.id;
+        setActiveUserId(snap.user.id);
+      }
     } finally {
       setAuthRetrying(false);
     }
   }, [authRetrying]);
+
+  const retryIdentity = useCallback(async () => {
+    if (!userId || identityRetrying) return;
+    setIdentityRetrying(true);
+    try {
+      loadIdentity(userId, { force: true });
+    } finally {
+      setIdentityRetrying(false);
+    }
+  }, [userId, identityRetrying, loadIdentity]);
 
   return {
     user,
@@ -196,6 +272,9 @@ export function useAuth() {
     authErrorKind,
     authRetrying,
     identityLoading,
+    identityError,
+    identityRetrying,
+    rolesTrusted,
     isAdmin,
     primaryRole,
     isExecutive,
@@ -203,13 +282,32 @@ export function useAuth() {
     isRealExecutive,
     signOut,
     retryAuth,
+    retryIdentity,
     refetchProfile: () => {
       if (!user) return;
-      const { generation, profilePromise } = beginIdentityLoad(user.id);
-      void profilePromise.then((next) => {
-        if (!isIdentityResultCurrent(user.id, generation)) return;
-        setProfile(next);
+      const uid = user.id;
+      const { generation, profilePromise } = beginForcedProfileRefresh(uid);
+      void profilePromise.then((result: ProfileLoadResult) => {
+        if (!isIdentityResultCurrent(uid, generation)) return;
+        if (!("error" in result)) {
+          setProfile(result.profile);
+        }
       });
     },
   };
+}
+
+function digestLateSignOut(
+  promise: Promise<unknown>,
+  epoch: number,
+  getCurrentEpoch: () => number,
+) {
+  void promise.then(
+    () => {
+      if (epoch !== getCurrentEpoch()) {
+        // 晚到的 signOut 已過期；不觸發額外 UI 寫入
+      }
+    },
+    () => undefined,
+  );
 }

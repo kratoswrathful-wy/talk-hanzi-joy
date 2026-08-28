@@ -2,7 +2,7 @@ import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditL
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
-import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
@@ -385,7 +385,19 @@ export const feeStore = {
         do {
           reloadRequested = false;
           const seq = ++loadSeq;
-          const user = await getAuthenticatedUser();
+          let user;
+          try {
+            user = await getAuthenticatedUser();
+          } catch (e) {
+            if (e instanceof AuthRecoverableError) {
+              fees = [];
+              loaded = false;
+              notify();
+              lastResult = { error: e };
+              continue;
+            }
+            throw e;
+          }
 
           if (seq !== loadSeq) {
             lastResult = { error: null };

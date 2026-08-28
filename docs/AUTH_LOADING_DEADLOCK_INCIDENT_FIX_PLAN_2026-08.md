@@ -1,4 +1,4 @@
-狀態：已落地待驗收（2026-08-28 實作於 fix/auth-loading-deadlock）
+狀態：實作中（2026-08-29 第二輪審核修正 follow-up；尚未核准 merge）
 
 # Auth 全畫面載入卡死事故修正計畫（2026-08）
 
@@ -303,3 +303,45 @@ Auth 修正上線穩定後，才回到 P0-A：先 rebase 到更新後的 `main`�
 | 2026-08-28 | 建立計畫；P0-A 隔離紀錄；call chain 與官方 2.112.4 證據核對通過，核准直接實作 |
 | 2026-08-28 | 嚴格審核修訂：校正 lockless 自 2.107.0 起之官方證據；新增 event-first settle、單一 listener、stale profile／roles 權限競態、multi-consumer single-flight、permission pending fail-closed、typed recoverable contract 與測試／回滾要求 |
 | 2026-08-28 | 實作落地：`auth-ready` 狀態機＋timeout／event-first；`auth-identity` single-flight；`use-permissions` bounded fetch；`App.tsx` 恢復畫面；鎖定 `@supabase/supabase-js@2.112.4`；單元測試紅轉綠 |
+| 2026-08-29 | 第二輪審核阻擋：`getSession` result.error、flight settled 清除、activeUserId guard、permissions fail-closed、signOut epoch／timer、E2E 注入與 W10 調查；詳見 §9 |
+
+---
+
+## 9. 第二輪審核修正（2026-08-29）
+
+### 9.1 新發現（合併阻擋）
+
+1. `getSession()` resolved `error` 被當成 anonymous
+2. identity single-flight settled 後未清除 → `refetchProfile` 重用舊結果；錯誤角色被永久快取
+3. `isIdentityResultCurrent` 未真正比對 activeUserId
+4. `canViewField`／`canEditField`／`canViewSection` 在 `!ready`／`error` 時仍可能 fail-open
+5. signOut timer 未清、晚到 Promise 可覆寫新登入
+6. Auth E2E 過寬（登入頁或案件頁任一即可）；缺人工 pending／recovery／retry
+7. PR Playwright：`w10-fees-visible-pm` W10-PM-4 失敗（需基準比較，不可只標「非本工項」）
+
+### 9.2 實際程式修正
+
+| 檔案 | 修正 |
+|---|---|
+| `auth-ready.ts` | result.error → recoverable_error；attempt 先於 listener；event-first 立即清 timer；DEV `__authReadyTest` |
+| `auth-identity.ts` | flight finally 清除；force refresh；activeUserId；錯誤不快取 |
+| `use-auth.ts` | identityError／retryIdentity；signOut epoch＋timer；rolesTrusted |
+| `use-permissions.ts` | view／edit／section 在 !ready／error 全 false |
+| `App.tsx` | 身分可恢復畫面；安裝 test hooks（僅 DEV） |
+| `fee-store.ts` | load 時消化 AuthRecoverableError |
+| E2E | 強制已登入斷言；人工 pending→recovery→retry；TOKEN_REFRESHED／多分頁等受控注入 |
+| W10 spec | list poll 後再 get；timeout 拉長 |
+
+### 9.3 本輪已執行／宣稱範圍（不得超報）
+
+- **已補單元／hook 測試**：auth-ready（error／同步 INITIAL_SESSION／timer）、auth-identity（force／A→B／錯誤不快取）、use-auth（多 consumer／signOut 競態）、use-permissions hook（fail-closed＋retry）— 本機 vitest 綠燈
+- **Auth E2E（本機 `npm run dev`）**：9/9 通過，含人工 pending（sessionStorage + 跳過 event-first）→ recovery → retry；TOKEN_REFRESHED／多分頁／背景／reload 受控注入
+- **W10 本機兩次**：W10-PM-1 通過；PM-2／3／4 **因無費用資料／`probeCanCreateCase` 不可寫而 skip**，**無法本機重現 CI 的 create 後 poll timeout**。已強化 list→reload→get poll（45s）與 fee-store 消化 `AuthRecoverableError`；是否轉綠以 push 後 CI 為準，若仍敗須再對 main CI artifact 比對
+- **範圍保留**：`TranslatorFees.hooks-order.test.ts` timeout 90s（並行 vitest eslint 子行程）；`tests/helpers/test-mode.ts` 已在測試模式 race 略過（第一輪必要）；`@testing-library/dom` 供 hook 測試；bun.lock 隨 supabase pin 同步
+
+### 9.4 未宣稱已驗證
+
+- production 部署（禁止）
+- merge 後正式站體感（禁止至核准）
+- `typecheck:e2e` 三項既有錯誤（與 main 相同，本工項不修）
+- W10-PM-4 在本機可寫環境之完整綠燈（本機帳號 skip；待 CI）

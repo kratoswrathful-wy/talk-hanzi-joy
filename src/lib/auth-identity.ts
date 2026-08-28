@@ -21,21 +21,34 @@ export interface AuthUserRole {
   role: "member" | "pm" | "executive";
 }
 
+export type ProfileLoadResult =
+  | { ok: true; profile: AuthProfile | null }
+  | { ok: false; error: string };
+
+export type RolesLoadResult =
+  | { ok: true; roles: AuthUserRole[] }
+  | { ok: false; error: string };
+
 const DEFAULT_ROLES_TIMEOUT_MS = 12_000;
 const DEFAULT_PROFILE_TIMEOUT_MS = 12_000;
 
 let rolesTimeoutMs = DEFAULT_ROLES_TIMEOUT_MS;
 let profileTimeoutMs = DEFAULT_PROFILE_TIMEOUT_MS;
 let identityGeneration = 0;
+/** 目前有效身分；isIdentityResultCurrent 必須同時比對此值。 */
+let activeUserId: string | null = null;
 
 type Flight = {
   userId: string;
   generation: number;
-  profilePromise: Promise<AuthProfile | null>;
-  rolesPromise: Promise<AuthUserRole[]>;
+  profilePromise: Promise<ProfileLoadResult>;
+  rolesPromise: Promise<RolesLoadResult>;
 };
 
+/** 僅代表仍在進行的請求；settled 後必須清除。 */
 let flight: Flight | null = null;
+
+/** 僅快取成功結果；錯誤／timeout 不得寫入。 */
 let cachedProfile: { userId: string; generation: number; value: AuthProfile | null } | null =
   null;
 let cachedRoles: { userId: string; generation: number; value: AuthUserRole[] } | null = null;
@@ -78,8 +91,7 @@ async function fetchProfile(userId: string): Promise<AuthProfile | null> {
     .maybeSingle();
 
   if (error) {
-    console.error("fetchProfile error:", error.message);
-    return null;
+    throw new Error(error.message || "fetchProfile_error");
   }
   if (!data) return null;
   return profileFromRow(data as Record<string, unknown>);
@@ -92,10 +104,20 @@ async function fetchRoles(userId: string): Promise<AuthUserRole[]> {
     .eq("user_id", userId);
 
   if (error) {
-    console.error("fetchRoles error:", error.message);
-    return [];
+    throw new Error(error.message || "fetchRoles_error");
   }
   return (data as AuthUserRole[]) || [];
+}
+
+function clearFlightIfCurrent(candidate: Flight) {
+  if (
+    flight &&
+    flight.userId === candidate.userId &&
+    flight.generation === candidate.generation &&
+    flight.profilePromise === candidate.profilePromise
+  ) {
+    flight = null;
+  }
 }
 
 /**
@@ -104,11 +126,20 @@ async function fetchRoles(userId: string): Promise<AuthUserRole[]> {
  */
 export function invalidateIdentity() {
   identityGeneration += 1;
+  activeUserId = null;
   flight = null;
   cachedProfile = null;
   cachedRoles = null;
   setTestAccountFlag(null);
   return identityGeneration;
+}
+
+export function setActiveUserId(userId: string | null) {
+  activeUserId = userId;
+}
+
+export function getActiveUserId() {
+  return activeUserId;
 }
 
 export function getIdentityGeneration() {
@@ -118,24 +149,41 @@ export function getIdentityGeneration() {
 export function getCachedRoles(userId: string): AuthUserRole[] | null {
   if (!cachedRoles || cachedRoles.userId !== userId) return null;
   if (cachedRoles.generation !== identityGeneration) return null;
+  if (activeUserId !== userId) return null;
   return cachedRoles.value;
 }
 
 export function getCachedProfile(userId: string): AuthProfile | null | undefined {
   if (!cachedProfile || cachedProfile.userId !== userId) return undefined;
   if (cachedProfile.generation !== identityGeneration) return undefined;
+  if (activeUserId !== userId) return undefined;
   return cachedProfile.value;
 }
 
+export function getPendingFlightForTests() {
+  return flight;
+}
+
 /**
- * 同一 userId + generation 多 consumer 共用 single-flight。
+ * 同一 userId + generation 多 consumer 共用仍在 pending 的 single-flight。
+ * force=true 時必定開新查詢（refetchProfile）。
  */
-export function beginIdentityLoad(userId: string): {
+export function beginIdentityLoad(
+  userId: string,
+  opts?: { force?: boolean },
+): {
   generation: number;
-  profilePromise: Promise<AuthProfile | null>;
-  rolesPromise: Promise<AuthUserRole[]>;
+  profilePromise: Promise<ProfileLoadResult>;
+  rolesPromise: Promise<RolesLoadResult>;
 } {
-  if (flight && flight.userId === userId && flight.generation === identityGeneration) {
+  activeUserId = userId;
+
+  if (
+    !opts?.force &&
+    flight &&
+    flight.userId === userId &&
+    flight.generation === identityGeneration
+  ) {
     return {
       generation: flight.generation,
       profilePromise: flight.profilePromise,
@@ -145,47 +193,81 @@ export function beginIdentityLoad(userId: string): {
 
   const generation = identityGeneration;
 
-  const profilePromise = withTimeout(
-    fetchProfile(userId),
-    profileTimeoutMs,
-    "fetchProfile",
-  )
-    .then((profile) => {
-      if (generation !== identityGeneration) return null;
+  const profilePromise = withTimeout(fetchProfile(userId), profileTimeoutMs, "fetchProfile")
+    .then((profile): ProfileLoadResult => {
+      if (!isIdentityResultCurrent(userId, generation)) {
+        return { ok: false, error: "stale" };
+      }
       cachedProfile = { userId, generation, value: profile };
       if (profile) {
         setTestAccountFlag(profile.is_test === true);
       }
-      return profile;
+      return { ok: true, profile };
     })
-    .catch((e) => {
-      console.error("[auth-identity] fetchProfile failed:", e);
-      if (generation !== identityGeneration) return null;
-      cachedProfile = { userId, generation, value: null };
-      return null;
+    .catch((e): ProfileLoadResult => {
+      const message = e instanceof Error ? e.message : "fetchProfile_error";
+      console.error("[auth-identity] fetchProfile failed:", message);
+      // 錯誤不得快取為可信 null
+      return { ok: false, error: message };
     });
 
   const rolesPromise = withTimeout(fetchRoles(userId), rolesTimeoutMs, "fetchRoles")
-    .then((roles) => {
-      if (generation !== identityGeneration) return [] as AuthUserRole[];
+    .then((roles): RolesLoadResult => {
+      if (!isIdentityResultCurrent(userId, generation)) {
+        return { ok: false, error: "stale" };
+      }
       cachedRoles = { userId, generation, value: roles };
-      return roles;
+      return { ok: true, roles };
     })
-    .catch((e) => {
-      console.error("[auth-identity] fetchRoles failed:", e);
-      if (generation !== identityGeneration) return [] as AuthUserRole[];
-      cachedRoles = { userId, generation, value: [] };
-      return [] as AuthUserRole[];
+    .catch((e): RolesLoadResult => {
+      const message = e instanceof Error ? e.message : "fetchRoles_error";
+      console.error("[auth-identity] fetchRoles failed:", message);
+      // 錯誤不得快取為空角色（避免 PM 被降級成 member）
+      return { ok: false, error: message };
     });
 
-  flight = { userId, generation, profilePromise, rolesPromise };
+  const candidate: Flight = { userId, generation, profilePromise, rolesPromise };
+  flight = candidate;
+
+  let remaining = 2;
+  const markSettled = () => {
+    remaining -= 1;
+    if (remaining <= 0) clearFlightIfCurrent(candidate);
+  };
+  void profilePromise.finally(markSettled);
+  void rolesPromise.finally(markSettled);
 
   return { generation, profilePromise, rolesPromise };
 }
 
-/** 套用結果前檢查：過期 generation 或 userId 不符則丟棄。 */
+/** 強制重新查詢 profile（清除成功快取與 pending flight）。 */
+export function beginForcedProfileRefresh(userId: string): {
+  generation: number;
+  profilePromise: Promise<ProfileLoadResult>;
+} {
+  activeUserId = userId;
+  if (cachedProfile?.userId === userId) {
+    cachedProfile = null;
+  }
+  // 拆掉既有 flight，避免重用已完成／pending 的 profilePromise
+  if (flight?.userId === userId) {
+    flight = null;
+  }
+  const { generation, profilePromise, rolesPromise } = beginIdentityLoad(userId, {
+    force: true,
+  });
+  // beginIdentityLoad force 會同時重查 roles；保留 rolesPromise 消化即可
+  void rolesPromise;
+  return { generation, profilePromise };
+}
+
+/** 套用結果前：必須同時比對 activeUserId 與 generation。 */
 export function isIdentityResultCurrent(userId: string, generation: number) {
-  return generation === identityGeneration && Boolean(userId);
+  return (
+    generation === identityGeneration &&
+    activeUserId === userId &&
+    Boolean(userId)
+  );
 }
 
 export function __resetAuthIdentityForTests(opts?: {
@@ -193,6 +275,7 @@ export function __resetAuthIdentityForTests(opts?: {
   profileTimeoutMs?: number;
 }) {
   identityGeneration = 0;
+  activeUserId = null;
   flight = null;
   cachedProfile = null;
   cachedRoles = null;

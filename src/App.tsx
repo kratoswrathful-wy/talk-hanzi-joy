@@ -35,6 +35,7 @@ import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
 import { setUserTimezone } from "@/lib/format-timestamp";
 import { installAiAgentBridge } from "@/lib/ai-agent-bridge";
+import { installAuthReadyTestHooks } from "@/lib/auth-ready";
 
 function TranslatorFeeDetailWrapper() {
   const { id } = useParams();
@@ -237,6 +238,38 @@ function AuthRecoverableScreen({
   );
 }
 
+function IdentityRecoverableScreen({
+  retrying,
+  onRetry,
+}: {
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center p-6"
+      data-testid="auth-identity-error"
+    >
+      <div className="w-full max-w-md space-y-4">
+        <Alert>
+          <AlertTitle>角色資料載入失敗</AlertTitle>
+          <AlertDescription className="mt-2 text-sm">
+            無法確認帳號角色，已暫時限制管理權限。請重試；這不是把你降級成一般成員的永久狀態。
+          </AlertDescription>
+        </Alert>
+        <Button
+          type="button"
+          data-testid="auth-identity-retry-button"
+          disabled={retrying}
+          onClick={onRetry}
+        >
+          {retrying ? "重試中…" : "重試"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function AuthenticatedRoutes() {
   const {
     user,
@@ -246,6 +279,9 @@ function AuthenticatedRoutes() {
     authRetrying,
     retryAuth,
     signOut,
+    identityError,
+    identityRetrying,
+    retryIdentity,
   } = useAuth();
 
   useEffect(() => {
@@ -253,13 +289,14 @@ function AuthenticatedRoutes() {
   }, [profile?.timezone]);
 
   useEffect(() => {
-    if (!loading && user && authPhase === "authenticated") {
+    if (!loading && user && authPhase === "authenticated" && !identityError) {
       initSettings();
     }
-  }, [loading, user, authPhase]);
+  }, [loading, user, authPhase, identityError]);
 
   useEffect(() => {
     installAiAgentBridge();
+    installAuthReadyTestHooks();
   }, []);
 
   // 判斷順序：initializing → recoverable_error → anonymous → authenticated
@@ -296,6 +333,15 @@ function AuthenticatedRoutes() {
       >
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (identityError) {
+    return (
+      <IdentityRecoverableScreen
+        retrying={identityRetrying}
+        onRetry={() => void retryIdentity()}
+      />
     );
   }
 

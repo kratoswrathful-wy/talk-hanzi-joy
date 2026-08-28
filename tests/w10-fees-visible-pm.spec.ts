@@ -95,9 +95,31 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
     expect(r.id, "create 未回傳 id").not.toBe("");
 
     // 驗證重點＝「寫原表 fees → 經遮罩 view fees_visible 讀得回」的來回。
-    // 註：agent.fee.create 內部 createDraft(insert) 後緊接 updateFee(update) 皆為 fire-and-forget，
-    //     兩者對同一 id 競速，title/assignee 可能尚未落地（與 W10 遮罩無關的既有 agent 競態）；
-    //     故此處斷言「該筆經 fees_visible 讀得回」（id 可見即證明來回），不綁定 racy 的 title。
+    // createDraft 的 insert 為 fire-and-forget；先等 list 出現 id，再以 reload＋get 確認。
+    await expect
+      .poll(
+        async () => {
+          await waitForTmsAgent(page);
+          return await page.evaluate((feeId) => {
+            const a = (window as unknown as {
+              __lmsAgent?: {
+                fee: {
+                  list: (f: Record<string, unknown>) => { ok: boolean; data?: { id: string }[] };
+                  get: (id: string) => { ok: boolean; data?: { id: string } };
+                };
+              };
+            }).__lmsAgent;
+            if (!a) return false;
+            const listed = a.fee.list({});
+            if (listed.ok && listed.data?.some((f) => f.id === feeId)) return true;
+            const g = a.fee.get(feeId);
+            return g.ok && g.data?.id === feeId;
+          }, r.id);
+        },
+        { timeout: 45_000, intervals: [500, 1000, 2000, 3000, 5000] },
+      )
+      .toBe(true);
+
     await expect
       .poll(
         async () => {
@@ -113,7 +135,7 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
             return g.ok && g.data?.id === feeId;
           }, r.id);
         },
-        { timeout: 30_000, intervals: [1000, 2000, 3000, 5000, 5000] },
+        { timeout: 45_000, intervals: [1000, 2000, 3000, 5000, 5000] },
       )
       .toBe(true);
   });

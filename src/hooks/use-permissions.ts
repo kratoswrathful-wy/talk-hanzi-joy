@@ -259,29 +259,32 @@ export function usePermissions() {
 
   const canViewField = useCallback(
     (fieldKey: string): boolean => {
+      if (!ready || error) return false;
       const roleConfig = config.fields[primaryRole];
       if (!roleConfig || !roleConfig[fieldKey]) return true;
       return roleConfig[fieldKey].view;
     },
-    [config, primaryRole]
+    [config, primaryRole, ready, error],
   );
 
   const canEditField = useCallback(
     (fieldKey: string): boolean => {
+      if (!ready || error) return false;
       const roleConfig = config.fields[primaryRole];
       if (!roleConfig || !roleConfig[fieldKey]) return false;
       return roleConfig[fieldKey].edit;
     },
-    [config, primaryRole]
+    [config, primaryRole, ready, error],
   );
 
   const canViewSection = useCallback(
     (sectionKey: string): boolean => {
+      if (!ready || error) return false;
       const roleConfig = config.settings_sections[primaryRole];
       if (!roleConfig) return false;
       return roleConfig[sectionKey] ?? false;
     },
-    [config, primaryRole]
+    [config, primaryRole, ready, error],
   );
 
   const updateConfig = useCallback(

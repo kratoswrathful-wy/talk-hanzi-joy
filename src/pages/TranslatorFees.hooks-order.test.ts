@@ -36,6 +36,7 @@ describe("TranslatorFees.tsx — React Hooks 規則回歸", () => {
 
     expect(hookRuleErrors).toEqual([]);
     },
-    30_000,
+    // 並行 vitest 下 eslint 子行程常超過 30s；本測僅回歸 rules-of-hooks，允許較長上限
+    90_000,
   );
 });
