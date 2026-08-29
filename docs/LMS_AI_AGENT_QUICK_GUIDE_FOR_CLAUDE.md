@@ -75,13 +75,14 @@ window.__lmsAgent.options.listKeys();
 | `case.create(initial?)` | 建立草稿案件（強制 `draft`） |
 | `case.update(id, patch)` | 修改案件 |
 | `fee.list({ search, status, limit })` | 搜尋費用 |
-| `fee.get(id)` | 讀單筆費用 |
+| `fee.get(id)` | **同步**讀本地 store 快照；寫入後立即驗證用此法（**勿**當成 Promise） |
+| `fee.getFresh(id)` | **非同步**；必須 `await`。本地缺列時 load／單筆補抓；**reload 後**請用此法 |
 | `fee.create(initial?)` | 建立草稿費用 |
 | `fee.update(id, patch)` | 修改費用（含 `finalized` 定案，Phase 2） |
 | `case.generateFees(caseId)` | 依案件譯者產生費用單 |
-| `invoice.list` / `get` / `create` / `update` / `delete` / `addFees` / `removeFee` | 譯者請款 |
+| `invoice.list` / `get` / `getFresh` / `create` / `update` / `delete` / `addFees` / `removeFee` | 譯者請款（`get` 同步本地；`getFresh` 須 `await`） |
 | `clientInvoice.create` / `addFees` / `adjustAmount` / `setChannel` / `setExpectedDate` | **客戶請款（優先，已驗收，2026-07-07 起可用）**；`addFees` 回 `added`+`skipped`；詳 §11.13 Operations Guide（`addFees` 已知限制見該節） |
-| `clientInvoice.list` / `get` / `update` / `delete` / `removeFee` | 客戶請款其餘 CRUD |
+| `clientInvoice.list` / `get` / `getFresh` / `update` / `delete` / `removeFee` | 客戶請款其餘 CRUD（`get` 同步；`getFresh` 須 `await`） |
 | `upload.fromBytes` | 上傳至 Storage，回傳 `{ name, url, size }` |
 | `navigate.urlFor({ type, id })` | 產生案件／費用／請款路徑 |
 | `cat.invoke(method, args)` | 代理 CAT iframe（須已開 `/cat/*`） |
@@ -97,6 +98,9 @@ window.__lmsAgent.options.listKeys();
 6. **`clientInfo` 可部分更新**（2026-06-30 起）：只傳要改的欄位即可；**未傳的 `clientTaskItems` 會保留**。若 patch 含 `clientTaskItems`，則**整包陣列取代**（須傳完整營收列），或使用 `{ mergeById: true, items: [...] }`。
 7. **陣列欄位**：可整包取代，或 `{ mergeById: true, items: [...] }` 合併單列。
 8. **寫入方法請 `await`**：`fee.create`／`invoice.update` 等已為 async（回讀輪詢）。
+9. **`get` vs `getFresh`（費用／譯者請款／客戶請款）**：
+   - `fee.get(id)`／`invoice.get(id)`／`clientInvoice.get(id)`：**同步**，只讀目前本地 store。寫入後立即驗證樂觀結果用此法：`const r = agent.fee.get(id); if (r.ok) …`（**禁止**假設 `get` 回傳 Promise）。
+   - `fee.getFresh(id)`／`invoice.getFresh(id)`／`clientInvoice.getFresh(id)`：**非同步**，必須 `await`。本地已有列則直接回；缺列則等待 store load，必要時單筆 fetch。頁面 `reload` 後請用 `getFresh`。
 ### 常用 options key
 
 `taskType`、`billingUnit`、`client`、`contact`、`dispatchRoute`、`caseCategory`、`executionTool`、`assignee` 等（完整清單：`options.listKeys()`）。

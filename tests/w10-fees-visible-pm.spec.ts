@@ -94,26 +94,31 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
     expect(r.ok, r.error).toBe(true);
     expect(r.id, "create 未回傳 id").not.toBe("");
 
-    // 驗證重點＝「寫原表 fees → 經遮罩 view fees_visible 讀得回」的來回。
-    // 註：agent.fee.create 內部 createDraft(insert) 後緊接 updateFee(update) 皆為 fire-and-forget，
-    //     兩者對同一 id 競速，title/assignee 可能尚未落地（與 W10 遮罩無關的既有 agent 競態）；
-    //     故此處斷言「該筆經 fees_visible 讀得回」（id 可見即證明來回），不綁定 racy 的 title。
+    // 與 main 相同：reload 後經 fees_visible 載入再 getFresh。
+    // getFresh：本地缺列時 ensureLoaded／單筆 fetch；勿用同步 get（reload 後可能尚未進 store）。
+    // 禁止「未 reload 的 list」當通過條件（create 後記憶體必有草稿，會掩蓋寫入／view 問題）。
     await expect
       .poll(
         async () => {
           await page.reload();
           await expectListPageReady(page, "費用管理");
           await waitForTmsAgent(page);
-          return await page.evaluate((feeId) => {
+          return await page.evaluate(async (feeId) => {
             const a = (window as unknown as {
-              __lmsAgent?: { fee: { get: (id: string) => { ok: boolean; data?: { id: string } } } };
+              __lmsAgent?: {
+                fee: {
+                  getFresh: (
+                    id: string,
+                  ) => Promise<{ ok: boolean; data?: { id: string } }>;
+                };
+              };
             }).__lmsAgent;
             if (!a) return false;
-            const g = a.fee.get(feeId);
+            const g = await a.fee.getFresh(feeId);
             return g.ok && g.data?.id === feeId;
           }, r.id);
         },
-        { timeout: 30_000, intervals: [1000, 2000, 3000, 5000, 5000] },
+        { timeout: 60_000, intervals: [1000, 2000, 3000, 5000, 5000] },
       )
       .toBe(true);
   });

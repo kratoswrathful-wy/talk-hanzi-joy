@@ -93,11 +93,15 @@ async function ensureReconciledFeeFixture(
   await expectListPageReady(page, "費用管理");
   await waitForTmsAgent(page);
   const confirmed = await page.evaluate(
-    ({ id, title }) => {
+    async ({ id, title }) => {
       const agent = (window as unknown as {
-        __lmsAgent: { fee: { get: (i: string) => { ok: boolean; data?: { title?: string } } } };
+        __lmsAgent: {
+          fee: {
+            getFresh: (i: string) => Promise<{ ok: boolean; data?: { title?: string } }>;
+          };
+        };
       }).__lmsAgent;
-      const got = agent.fee.get(id);
+      const got = await agent.fee.getFresh(id);
       return got.ok && got.data?.title === title;
     },
     { id: draftId, title: RECONCILED_FEE_FIXTURE_TITLE },
@@ -156,7 +160,8 @@ test.describe("LMS clientInvoice bridge（慢軌 High）", () => {
               id: string,
               d: string,
             ) => Promise<{ ok: boolean; data?: { verified?: boolean; invoice?: { expectedCollectionDate?: string } } }>;
-            get: (id: string) => { ok: boolean; data?: { title?: string; billingChannel?: string; expectedCollectionDate?: string } };
+            get: (id: string) => { ok: boolean; data?: { title?: string; billingChannel?: string; expectedCollectionDate?: string }; error?: string };
+            getFresh: (id: string) => Promise<{ ok: boolean; data?: { title?: string; billingChannel?: string; expectedCollectionDate?: string }; error?: string }>;
           };
         };
       }).__lmsAgent;
@@ -182,7 +187,17 @@ test.describe("LMS clientInvoice bridge（慢軌 High）", () => {
       const dt = await agent.clientInvoice.setExpectedDate(id, "2026-08-01");
       if (!dt.ok || !dt.data?.verified) return { ok: false, step: "setExpectedDate", error: "setExpectedDate 失敗", id };
 
+      // 寫入後樂觀驗證：同步 get
       const got = agent.clientInvoice.get(id);
+      if (!got.ok) {
+        return {
+          ok: false,
+          step: "get",
+          error: got.error ?? "get 失敗",
+          id,
+          createVerified: created.data.verified,
+        };
+      }
       return {
         ok: true,
         id,
@@ -207,11 +222,15 @@ test.describe("LMS clientInvoice bridge（慢軌 High）", () => {
     await page.reload();
     await expectListPageReady(page, "客戶請款");
     await waitForTmsAgent(page);
-    const afterReload = await page.evaluate((id) => {
-      const inv = (window as unknown as {
-        __lmsAgent: { clientInvoice: { get: (i: string) => { ok: boolean; data?: { title?: string } } } };
-      }).__lmsAgent.clientInvoice.get(id);
-      return inv.ok ? inv.data?.title : null;
+    const afterReload = await page.evaluate(async (id) => {
+      const inv = await (window as unknown as {
+        __lmsAgent: {
+          clientInvoice: {
+            getFresh: (i: string) => Promise<{ ok: boolean; data?: { title?: string }; error?: string }>;
+          };
+        };
+      }).__lmsAgent.clientInvoice.getFresh(id);
+      return inv.ok ? inv.data?.title ?? null : null;
     }, r.id);
     expect(afterReload).toBe(title);
   });
@@ -352,11 +371,15 @@ test.describe("LMS clientInvoice bridge（慢軌 High）", () => {
     await expectListPageReady(page, "客戶請款");
     await waitForTmsAgent(page);
     const persisted = await page.evaluate(
-      ({ id, fixtureFeeId }) => {
+      async ({ id, fixtureFeeId }) => {
         const agent = (window as unknown as {
-          __lmsAgent: { clientInvoice: { get: (i: string) => { ok: boolean; data?: { feeIds: string[] } } } };
+          __lmsAgent: {
+            clientInvoice: {
+              getFresh: (i: string) => Promise<{ ok: boolean; data?: { feeIds: string[] } }>;
+            };
+          };
         }).__lmsAgent;
-        const got = agent.clientInvoice.get(id);
+        const got = await agent.clientInvoice.getFresh(id);
         return got.ok && (got.data?.feeIds ?? []).includes(fixtureFeeId);
       },
       { id: invoiceId, fixtureFeeId: fixture.id },

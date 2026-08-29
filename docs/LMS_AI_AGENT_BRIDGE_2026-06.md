@@ -49,9 +49,12 @@ AI 腳本 → window.__lmsAgent → 驗證層 → caseStore / feeStore → 畫�
 | `__lmsAgent.case.create(initial?)` | 建立草稿案件（強制 `status: draft`） |
 | `__lmsAgent.case.update(id, patch)` | 修改案件欄位 |
 | `__lmsAgent.fee.list(filter?)` | 列出費用 |
-| `__lmsAgent.fee.get(id)` | 讀單筆費用 |
+| `__lmsAgent.fee.get(id)` | **同步**讀本地 store 快照（寫入後樂觀驗證用） |
+| `__lmsAgent.fee.getFresh(id)` | **非同步**；必須 `await`。缺列時 load／單筆補抓（reload 後用） |
 | `__lmsAgent.fee.create(initial?)` | 建立草稿費用 |
 | `__lmsAgent.fee.update(id, patch)` | 修改草稿費用 |
+| `__lmsAgent.invoice.get(id)` / `getFresh(id)` | 同上：同步本地／非同步補抓 |
+| `__lmsAgent.clientInvoice.get(id)` / `getFresh(id)` | 同上：同步本地／非同步補抓 |
 
 ## AI 使用守則
 

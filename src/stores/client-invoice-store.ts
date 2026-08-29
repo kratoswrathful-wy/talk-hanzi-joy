@@ -278,6 +278,12 @@ export const clientInvoiceStore = {
       if (linkErr) console.error("Failed to link fees:", errorMessage(linkErr));
     }
 
+    // 並行 loadInvoices 可能在 insert 期間覆寫記憶體；寫入成功後再確保本機列存在
+    if (!invoices.some((i) => i.id === id)) {
+      invoices = [newInvoice, ...invoices];
+      notify();
+    }
+
     return newInvoice;
   },
 
@@ -441,6 +447,32 @@ export const clientInvoiceStore = {
   },
 
   getInvoiceById: (id: string) => invoices.find((i) => i.id === id),
+
+  /** 單筆補抓：list load 競態時供 agent.get 使用，成功則寫回 store。 */
+  fetchInvoiceById: async (id: string): Promise<ClientInvoice | null> => {
+    const env = getEnvironment();
+    const { data, error } = await supabase
+      .from("client_invoices")
+      .select("*")
+      .eq("id", id)
+      .eq("env", env)
+      .maybeSingle();
+    if (error || !data) return null;
+    const { data: linkData } = await supabase
+      .from("client_invoice_fees")
+      .select("fee_id")
+      .eq("client_invoice_id", id)
+      .eq("env", env);
+    const feeIds = (linkData ?? []).map((l) => l.fee_id);
+    const mapped = dbToApp(data as DbClientInvoice, feeIds);
+    if (invoices.some((i) => i.id === id)) {
+      invoices = invoices.map((i) => (i.id === id ? mapped : i));
+    } else {
+      invoices = [mapped, ...invoices];
+    }
+    notify();
+    return mapped;
+  },
 
   getLinkedFeeIds: (): Set<string> => {
     const set = new Set<string>();

@@ -157,7 +157,11 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
     });
 
     test("P2-L6 — invoice.create + get", async ({ page }) => {
-      test.skip(!canWriteCases, `${LMS_WRITE_SKIP_REASON}${lmsWriteProbeError ? `（${lmsWriteProbeError}）` : ""}`);
+      // 稿費請款寫入與案件寫入權限不完全等同；clientInvoice 可寫時常亦可寫 invoice
+      test.skip(
+        !canWriteCases && !canWriteClientInvoices,
+        `${LMS_WRITE_SKIP_REASON}${lmsWriteProbeError ? `（${lmsWriteProbeError}）` : ""}`,
+      );
       const title = uniqueTitle("invoice");
       const r = await page.evaluate(async (invTitle) => {
         const agent = (window as unknown as {
@@ -174,6 +178,7 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
           assigneeOpts.ok && assigneeOpts.data?.labels?.length ? assigneeOpts.data.labels[0] : "";
         const created = await agent.invoice.create({ translator, title: invTitle });
         if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
+        // 寫入後樂觀驗證：同步 get（勿 await Promise 語意）
         const got = agent.invoice.get(created.data.id);
         return {
           ok: got.ok && got.data?.id === created.data.id,
@@ -217,7 +222,11 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
     });
 
     test("P2-L8 — fee.update finalized 應成功", async ({ page }) => {
-      test.skip(!canWriteCases, `${LMS_WRITE_SKIP_REASON}${lmsWriteProbeError ? `（${lmsWriteProbeError}）` : ""}`);
+      // finalized 只寫 fees；勿用「可否建案件」當唯一閘門（本機常可寫 fee／cinv 但不能建案）
+      test.skip(
+        !canWriteCases && !canWriteClientInvoices,
+        `${LMS_WRITE_SKIP_REASON}${lmsWriteProbeError ? `（${lmsWriteProbeError}）` : ""}`,
+      );
       const title = uniqueTitle("fee-finalize");
       const r = await page.evaluate(async (feeTitle) => {
         const agent = (window as unknown as {
@@ -225,22 +234,32 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
             fee: {
               create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
               update: (id: string, p: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
-              get: (id: string) => { ok: boolean; data?: { status?: string } };
+              get: (id: string) => { ok: boolean; data?: { status?: string }; error?: string };
             };
           };
         }).__lmsAgent;
         const created = await agent.fee.create({ title: feeTitle, status: "draft" });
         if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
         const updated = await agent.fee.update(created.data.id, { status: "finalized" });
+        if (!updated.ok) {
+          return {
+            ok: false,
+            feeId: created.data.id,
+            updateError: updated.error ?? "update failed",
+            status: undefined,
+          };
+        }
+        // 寫入後樂觀驗證：同步 get，避免稍舊整表 reload 覆寫前誤讀 Promise
         const got = agent.fee.get(created.data.id);
         return {
-          ok: updated.ok && got.ok && got.data?.status === "finalized",
+          ok: Boolean(updated.ok && got.ok && got.data?.status === "finalized"),
           feeId: created.data.id,
           updateError: updated.error,
           status: got.ok ? got.data?.status : undefined,
+          getError: got.ok ? undefined : got.error,
         };
       }, title);
-      expect(r.ok, `${r.updateError ?? ""} status=${r.status}${ctx.footnote()}`).toBe(true);
+      expect(r.ok, `${r.updateError ?? ""}${r.getError ? ` getError=${r.getError}` : ""} status=${r.status}${ctx.footnote()}`).toBe(true);
       if (r.feeId) ctx.feeId = r.feeId;
     });
   });

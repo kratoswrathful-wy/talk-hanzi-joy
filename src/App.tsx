@@ -30,10 +30,12 @@ import InternalNotesPage from "@/pages/InternalNotesPage";
 import CatToolPage from "@/pages/CatToolPage";
 import NotFound from "./pages/NotFound";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
 import { setUserTimezone } from "@/lib/format-timestamp";
 import { installAiAgentBridge } from "@/lib/ai-agent-bridge";
+import { installAuthReadyTestHooks } from "@/lib/auth-ready";
 
 function TranslatorFeeDetailWrapper() {
   const { id } = useParams();
@@ -100,7 +102,7 @@ function SettingsRoute() {
   const { isAdmin, loading } = useAuth();
   if (loading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
+      <div className="flex min-h-[40vh] items-center justify-center" data-testid="auth-route-spinner">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -134,8 +136,27 @@ function ModuleAccessDenied({ label }: { label: string }) {
 
 function RouteGuardSpinner() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center">
+    <div
+      className="flex min-h-[40vh] items-center justify-center"
+      data-testid="auth-route-spinner"
+    >
       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+function PermissionsLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="container max-w-lg py-10" data-testid="permissions-load-error">
+      <Alert>
+        <AlertTitle>權限設定載入失敗</AlertTitle>
+        <AlertDescription className="mt-2 space-y-3 text-sm">
+          <p>無法確認模組權限，已暫時阻擋進入受保護頁面。請重試；若持續失敗請聯絡管理員。</p>
+          <Button type="button" data-testid="permissions-retry-button" onClick={onRetry}>
+            重試
+          </Button>
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }
@@ -156,8 +177,9 @@ function RequireModule({
   children: ReactNode;
 }) {
   const { loading: authLoading } = useAuth();
-  const { checkPerm, loading: permLoading } = usePermissions();
+  const { checkPerm, loading: permLoading, error: permError, refetch } = usePermissions();
   if (authLoading || permLoading) return <RouteGuardSpinner />;
+  if (permError) return <PermissionsLoadError onRetry={() => void refetch()} />;
   if (!checkPerm(moduleKey, itemKey, "view")) return <ModuleAccessDenied label={label} />;
   return <>{children}</>;
 }
@@ -171,34 +193,156 @@ function RequireExecutive({ label, children }: { label: string; children: ReactN
   return <>{children}</>;
 }
 
-function AuthenticatedRoutes() {
-  const { user, loading, profile } = useAuth();
+function AuthRecoverableScreen({
+  retrying,
+  onRetry,
+  onSignInAgain,
+}: {
+  retrying: boolean;
+  onRetry: () => void;
+  onSignInAgain: () => void;
+}) {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center p-6"
+      data-testid="auth-recoverable-error"
+    >
+      <div className="w-full max-w-md space-y-4">
+        <Alert>
+          <AlertTitle>登入狀態載入逾時</AlertTitle>
+          <AlertDescription className="mt-2 text-sm">
+            登入狀態載入逾時，請重試。這不代表你已被登出；若重試後仍無法進入，可改為重新登入。
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            data-testid="auth-retry-button"
+            disabled={retrying}
+            onClick={onRetry}
+          >
+            {retrying ? "重試中…" : "重試"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="auth-relogin-button"
+            disabled={retrying}
+            onClick={onSignInAgain}
+          >
+            重新登入
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // Sync user timezone for formatters
+function IdentityRecoverableScreen({
+  retrying,
+  onRetry,
+}: {
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center p-6"
+      data-testid="auth-identity-error"
+    >
+      <div className="w-full max-w-md space-y-4">
+        <Alert>
+          <AlertTitle>角色資料載入失敗</AlertTitle>
+          <AlertDescription className="mt-2 text-sm">
+            無法確認帳號角色，已暫時限制管理權限。請重試；這不是把你降級成一般成員的永久狀態。
+          </AlertDescription>
+        </Alert>
+        <Button
+          type="button"
+          data-testid="auth-identity-retry-button"
+          disabled={retrying}
+          onClick={onRetry}
+        >
+          {retrying ? "重試中…" : "重試"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function AuthenticatedRoutes() {
+  const {
+    user,
+    loading,
+    profile,
+    authPhase,
+    authRetrying,
+    retryAuth,
+    signOut,
+    identityError,
+    identityRetrying,
+    retryIdentity,
+  } = useAuth();
+
   useEffect(() => {
     setUserTimezone(profile?.timezone);
   }, [profile?.timezone]);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && authPhase === "authenticated" && !identityError) {
       initSettings();
     }
-  }, [loading, user]);
+  }, [loading, user, authPhase, identityError]);
 
   useEffect(() => {
     installAiAgentBridge();
+    installAuthReadyTestHooks();
   }, []);
 
-  if (loading) {
+  // 判斷順序：initializing → recoverable_error → anonymous → authenticated
+  if (authPhase === "initializing" || authPhase === "idle") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div
+        className="flex min-h-screen items-center justify-center"
+        data-testid="auth-fullscreen-spinner"
+      >
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  if (!user) {
+  if (authPhase === "recoverable_error") {
+    return (
+      <AuthRecoverableScreen
+        retrying={authRetrying}
+        onRetry={() => void retryAuth()}
+        onSignInAgain={() => void signOut()}
+      />
+    );
+  }
+
+  if (authPhase === "anonymous" || !user) {
     return <AuthPage />;
+  }
+
+  if (loading) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center"
+        data-testid="auth-fullscreen-spinner"
+      >
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (identityError) {
+    return (
+      <IdentityRecoverableScreen
+        retrying={identityRetrying}
+        onRetry={() => void retryIdentity()}
+      />
+    );
   }
 
   return (
@@ -288,7 +432,6 @@ function AuthenticatedRoutes() {
         />
         <Route path="/cat/offline/*" element={<CatToolPage mode="offline" />} />
         <Route path="/cat/team/*" element={<CatToolPage mode="team" />} />
-        {/* Legacy redirect: keep old /cat URL working */}
         <Route path="/cat" element={<Navigate to="/cat/offline" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -642,7 +642,14 @@ await __lmsAgent.clientInvoice.setExpectedDate(invoiceId, "2026-08-15"); // YYYY
 
 **驗收標準**：每步 `verified: true`；整頁重載後欄位仍在（比照 C1）。Playwright：`tests/lms-client-invoice-bridge.spec.ts`（含 addFees 加入成功路徑，用固定 reconciled 費用 fixture，2026-07-07 起已覆蓋）。
 
-**`addFees` 已知限制（非本次修復範疇，留待 W1 store 工廠排入待辦）**：`client-invoice-store` 對 `client_invoices`／`client_invoice_fees` 的 realtime 變更會整表重載，且目前缺乏 in-flight 樂觀寫入保護；若短時間內連續呼叫 `create` 接 `addFees`，`addFees` 立即回傳的 `verified` **偶爾**會出現假陰性（實際已加入成功，只是回讀當下被稍舊的背景重載蓋過）。**AI 操作助理若遇到 `addFees` 回傳 `verified: false` 但 `added` 已列出該費用**，請以 `clientInvoice.get(invoiceId)` 重新查詢 `feeIds` 確認真實狀態，勿直接判定失敗重試（避免不必要的重複加入嘗試）。
+**`addFees` 已知限制（非本次修復範疇，留待 W1 store 工廠排入待辦）**：`client-invoice-store` 對 `client_invoices`／`client_invoice_fees` 的 realtime 變更會整表重載，且目前缺乏 in-flight 樂觀寫入保護；若短時間內連續呼叫 `create` 接 `addFees`，`addFees` 立即回傳的 `verified` **偶爾**會出現假陰性（實際已加入成功，只是回讀當下被稍舊的背景重載蓋過）。**AI 操作助理若遇到 `addFees` 回傳 `verified: false` 但 `added` 已列出該費用**，請以同步 `clientInvoice.get(invoiceId)` 查本地 `feeIds` 確認樂觀狀態；若剛 `reload` 或本地缺列，改用 `await clientInvoice.getFresh(invoiceId)`。勿直接判定失敗重試（避免不必要的重複加入嘗試）。
+
+### `get`／`getFresh` 讀取契約（費用／譯者請款／客戶請款）
+
+| 方法 | 語意 | 何時用 |
+|------|------|--------|
+| `fee.get`／`invoice.get`／`clientInvoice.get` | **同步**；只讀目前本地 store 快照 | 寫入後立即驗證樂觀結果：`agent.fee.get(id).ok` |
+| `fee.getFresh`／`invoice.getFresh`／`clientInvoice.getFresh` | **非同步**；必須 `await`；缺列時 load／單筆補抓 | 頁面 reload 後、或本地尚無該列時 |
 
 ### 11.12 後續（W9-B／W9 wave 2 C 類，未排入本輪）
 

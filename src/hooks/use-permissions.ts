@@ -8,6 +8,10 @@ import {
 } from "@/lib/permission-module-key";
 import { FEE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/fee-table-field-visibility";
 import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
+import {
+  fetchPermissionConfigBounded,
+  setPermissionFetchTimeoutMs,
+} from "@/lib/permission-settings-fetch";
 import type { Json } from "@/integrations/supabase/types";
 
 export interface FieldPermission {
@@ -50,6 +54,11 @@ const DEFAULT_CONFIG: PermissionConfig = {
   fields: {},
   settings_sections: {},
 };
+
+/** 測試用：縮短 permission_settings 查詢 timeout。 */
+export function __setPermissionsTestTimeoutMs(ms: number | null) {
+  setPermissionFetchTimeoutMs(ms);
+}
 
 function fieldPermissionFromJson(x: Json | undefined): FieldPermission | undefined {
   if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
@@ -196,58 +205,86 @@ export function usePermissions() {
   const { primaryRole } = useAuth();
   const [config, setConfig] = useState<PermissionConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchConfig = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setReady(false);
     try {
       const env = getEnvironment();
-      const { data, error } = await supabase
-        .from("permission_settings")
-        .select("config")
-        .eq("env", env)
-        .limit(1)
-        .maybeSingle();
-      if (error) {
-        console.error("[usePermissions] permission_settings:", error.message);
+      const result = await fetchPermissionConfigBounded(async () => {
+        const res = await supabase
+          .from("permission_settings")
+          .select("config")
+          .eq("env", env)
+          .limit(1)
+          .maybeSingle();
+        return {
+          data: res.data ? { config: res.data.config } : null,
+          error: res.error,
+        };
+      });
+
+      if (result.ok === false) {
+        console.error("[usePermissions] permission_settings:", result.error);
+        setConfig(DEFAULT_CONFIG);
+        setError(result.error);
+        setReady(false);
+        return;
       }
-      if (data?.config) {
-        setConfig(coercePermissionConfig(data.config));
+
+      if (result.data?.config != null) {
+        setConfig(coercePermissionConfig(result.data.config as Json));
+      } else {
+        setConfig(DEFAULT_CONFIG);
       }
+      setReady(true);
+      setError(null);
     } catch (e) {
-      console.error("[usePermissions] fetchConfig:", e);
+      const message = e instanceof Error ? e.message : "permission_settings_error";
+      console.error("[usePermissions] fetchConfig:", message);
+      setConfig(DEFAULT_CONFIG);
+      setError(message);
+      setReady(false);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchConfig();
+    void fetchConfig();
   }, [fetchConfig]);
 
   const canViewField = useCallback(
     (fieldKey: string): boolean => {
+      if (!ready || error) return false;
       const roleConfig = config.fields[primaryRole];
       if (!roleConfig || !roleConfig[fieldKey]) return true;
       return roleConfig[fieldKey].view;
     },
-    [config, primaryRole]
+    [config, primaryRole, ready, error],
   );
 
   const canEditField = useCallback(
     (fieldKey: string): boolean => {
+      if (!ready || error) return false;
       const roleConfig = config.fields[primaryRole];
       if (!roleConfig || !roleConfig[fieldKey]) return false;
       return roleConfig[fieldKey].edit;
     },
-    [config, primaryRole]
+    [config, primaryRole, ready, error],
   );
 
   const canViewSection = useCallback(
     (sectionKey: string): boolean => {
+      if (!ready || error) return false;
       const roleConfig = config.settings_sections[primaryRole];
       if (!roleConfig) return false;
       return roleConfig[sectionKey] ?? false;
     },
-    [config, primaryRole]
+    [config, primaryRole, ready, error],
   );
 
   const updateConfig = useCallback(
@@ -283,6 +320,9 @@ export function usePermissions() {
   const allRoles = getAllRolesOrdered(config);
 
   const checkPerm = useCallback((moduleKey: string, itemKey: string, permType: "view" | "edit"): boolean => {
+    // fail-closed：載入失敗／未 ready 時受保護路由不得放行
+    if (!ready || error) return false;
+
     const canonicalModule = canonicalizePermissionModuleKey(moduleKey);
     const roleModules = config.module_permissions?.[primaryRole];
     let modulePerms: ModulePermissionEntry | undefined;
@@ -363,11 +403,13 @@ export function usePermissions() {
       return true;
     }
     return itemPerm[permType] ?? true;
-  }, [config, primaryRole]);
+  }, [config, primaryRole, ready, error]);
 
   return {
     config,
     loading,
+    ready,
+    error,
     canViewField,
     canEditField,
     canViewSection,

@@ -2,8 +2,8 @@ import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditL
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
-import { getAuthenticatedUser } from "@/lib/auth-ready";
-import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 const BILLING_UNITS: BillingUnit[] = ["字", "小時"];
@@ -385,7 +385,18 @@ export const feeStore = {
         do {
           reloadRequested = false;
           const seq = ++loadSeq;
-          const user = await getAuthenticatedUser();
+          let user;
+          try {
+            user = await getAuthenticatedUser();
+          } catch (e) {
+            if (e instanceof AuthRecoverableError) {
+              // 可恢復 Auth 錯誤：不要假裝已載入空清單，結束本輪讓呼叫端重試
+              loaded = false;
+              lastResult = { error: e };
+              break;
+            }
+            throw e;
+          }
 
           if (seq !== loadSeq) {
             lastResult = { error: null };
@@ -441,7 +452,7 @@ export const feeStore = {
 
     supabase
       .from("fees")
-      .update(dbUpdates)
+      .update(dbUpdates as TablesUpdate<"fees">)
       .eq("id", id)
       .then(({ error }) => {
         if (error) console.error("Failed to update fee:", error);
@@ -462,6 +473,25 @@ export const feeStore = {
   },
 
   getFeeById: (id: string) => fees.find((f) => f.id === id),
+
+  /** 單筆補抓（fees_visible）：供 agent.getFresh 在整表尚未含該列時使用。 */
+  fetchFeeById: async (id: string): Promise<TranslatorFee | null> => {
+    const { data, error } = await supabase
+      .from("fees_visible")
+      .select("*")
+      .eq("id", id)
+      .eq("env", getEnvironment())
+      .maybeSingle();
+    if (error || !data) return null;
+    const mapped = dbToApp(data as DbFee);
+    if (fees.some((f) => f.id === id)) {
+      fees = fees.map((f) => (f.id === id ? mapped : f));
+    } else {
+      fees = [mapped, ...fees];
+    }
+    notify();
+    return mapped;
+  },
 
   createDraft: (): TranslatorFee => {
     const now = new Date();

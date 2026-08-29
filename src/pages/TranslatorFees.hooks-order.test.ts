@@ -16,7 +16,9 @@ import { spawnSync } from "node:child_process";
  * 會導致 API 呼叫失敗，子行程可完全避開此環境衝突。
  */
 describe("TranslatorFees.tsx — React Hooks 規則回歸", () => {
-  it("不應有 react-hooks/rules-of-hooks 違規（Hook 不得於條件式 return 之後才呼叫）", () => {
+  it(
+    "不應有 react-hooks/rules-of-hooks 違規（Hook 不得於條件式 return 之後才呼叫）",
+    () => {
     const result = spawnSync(
       "npx",
       ["eslint", "--format", "json", "src/pages/TranslatorFees.tsx"],
@@ -33,5 +35,8 @@ describe("TranslatorFees.tsx — React Hooks 規則回歸", () => {
       .filter((m) => m.ruleId === "react-hooks/rules-of-hooks");
 
     expect(hookRuleErrors).toEqual([]);
-  });
+    },
+    // 並行 vitest 下 eslint 子行程常超過 30s；本測僅回歸 rules-of-hooks，允許較長上限
+    90_000,
+  );
 });
