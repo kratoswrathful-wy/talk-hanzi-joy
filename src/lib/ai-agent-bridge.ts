@@ -832,7 +832,7 @@ export interface LmsAgentApi {
   };
   invoice: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<Invoice[]>;
-    get: (id: string) => AgentResult<Invoice>;
+    get: (id: string) => Promise<AgentResult<Invoice>>;
     create: (input: {
       translator: string;
       feeIds?: string[];
@@ -1102,8 +1102,11 @@ export function buildLmsAgentApi(): LmsAgentApi {
       list: (filter) => ok(filterList(feeStore.getFees(), filter)),
 
       get: async (id) => {
+        // 先讀本地：剛 update 的樂觀結果不可被 ensureLoaded→loadFees 用尚未落地的 DB 列覆寫
+        let record = feeStore.getFeeById(id);
+        if (record) return ok(record);
         await ensureFeesLoaded();
-        const record = feeStore.getFeeById(id);
+        record = feeStore.getFeeById(id);
         if (!record) return fail(`找不到費用 id=${id}`);
         return ok(record);
       },
@@ -1118,7 +1121,11 @@ export function buildLmsAgentApi(): LmsAgentApi {
       },
 
       update: async (id, patch) => {
-        const existing = feeStore.getFeeById(id);
+        let existing = feeStore.getFeeById(id);
+        if (!existing) {
+          await ensureFeesLoaded();
+          existing = feeStore.getFeeById(id);
+        }
         if (!existing) return fail(`找不到費用 id=${id}`);
         const validated = validateFeePatch(patch as Record<string, unknown>, existing);
         if (validated.ok === false) return failFrom(validated);
@@ -1136,8 +1143,14 @@ export function buildLmsAgentApi(): LmsAgentApi {
     invoice: {
       list: (filter) => ok(filterList(invoiceStore.getInvoices(), filter)),
 
-      get: (id) => {
-        const inv = invoiceStore.getInvoiceById(id);
+      get: async (id) => {
+        let inv = invoiceStore.getInvoiceById(id);
+        if (inv) return ok(inv);
+        await invoiceStore.ensureLoaded();
+        inv = invoiceStore.getInvoiceById(id);
+        if (!inv) {
+          inv = (await invoiceStore.fetchInvoiceById(id)) ?? undefined;
+        }
         if (!inv) return fail(`找不到譯者請款 id=${id}`);
         return ok(inv);
       },
@@ -1145,12 +1158,24 @@ export function buildLmsAgentApi(): LmsAgentApi {
       create: async ({ translator, feeIds = [], title }) => {
         const created = await invoiceStore.createInvoice(translator, feeIds);
         if (!created) return failWriteFailed("譯者請款", "建立譯者請款失敗");
+        // 並行 load 可能覆寫；補回本機列後再改 title
+        invoiceStore.ensureLocalPresent(created);
         if (title) invoiceStore.updateInvoice(created.id, { title });
-        return readbackAfterWrite("譯者請款", created.id, () => invoiceStore.getInvoiceById(created.id));
+        const read = await readbackAfterWrite("譯者請款", created.id, () =>
+          invoiceStore.getInvoiceById(created.id),
+        );
+        if (read.ok === false) {
+          const fetched = await invoiceStore.fetchInvoiceById(created.id);
+          if (fetched) return ok(fetched);
+        }
+        return read;
       },
 
       update: async (id, patch) => {
-        const existing = invoiceStore.getInvoiceById(id);
+        let existing = invoiceStore.getInvoiceById(id);
+        if (!existing) {
+          existing = (await invoiceStore.fetchInvoiceById(id)) ?? undefined;
+        }
         if (!existing) return fail(`找不到譯者請款 id=${id}`);
         const validated = validateInvoicePatch(patch);
         if (validated.ok === false) return failFrom(validated);
@@ -1181,12 +1206,11 @@ export function buildLmsAgentApi(): LmsAgentApi {
     list: (filter) => ok(filterList(clientInvoiceStore.getInvoices(), filter)),
 
     get: async (id) => {
+      // 與 fee.get 相同：本地已有列時不要先整表 reload，避免樂觀寫入被舊 DB 快照蓋掉
       let inv = clientInvoiceStore.getInvoiceById(id);
-      if (!inv) {
-        // create 期間並行 loadInvoices 可能覆寫記憶體；先 ensure 再單筆補抓
-        await clientInvoiceStore.ensureLoaded();
-        inv = clientInvoiceStore.getInvoiceById(id);
-      }
+      if (inv) return ok(inv);
+      await clientInvoiceStore.ensureLoaded();
+      inv = clientInvoiceStore.getInvoiceById(id);
       if (!inv) {
         inv = (await clientInvoiceStore.fetchInvoiceById(id)) ?? undefined;
       }

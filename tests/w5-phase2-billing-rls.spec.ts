@@ -59,7 +59,7 @@ test.describe("W5 Phase 2 — billing RLS（Playwright）", () => {
           options: { get: (k: string) => { ok: boolean; data?: { labels?: string[] } } };
           invoice: {
             create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
-            get: (id: string) => { ok: boolean; error?: string; data?: { id: string } };
+            get: (id: string) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
           };
         };
       }).__lmsAgent;
@@ -69,7 +69,7 @@ test.describe("W5 Phase 2 — billing RLS（Playwright）", () => {
       if (!translator) return { ok: false, error: "無 assignee 選項" };
       const created = await agent.invoice.create({ translator, title: invTitle });
       if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
-      const got = agent.invoice.get(created.data.id);
+      const got = await agent.invoice.get(created.data.id);
       return { ok: got.ok && got.data?.id === created.data.id, error: got.error };
     }, title);
     expect(r.ok, r.error ?? "").toBe(true);

@@ -273,10 +273,22 @@ export const invoiceStore = {
       if (linkErr) console.error("Failed to link fees:", linkErr);
     }
 
+    // 並行 loadInvoices 可能在 insert 期間覆寫記憶體；寫入成功後再確保本機列存在
+    if (!invoices.some((i) => i.id === id)) {
+      invoices = [newInvoice, ...invoices];
+      notify();
+    }
+
     return newInvoice;
   },
 
   updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt">> & Record<string, unknown>) => {
+    const existing = invoices.find((inv) => inv.id === id);
+    if (!existing) {
+      // 並行 load 覆寫後 map 會變成 no-op；呼叫端應先 ensureLocal／fetch
+      console.warn("[invoice-store] updateInvoice: 本地找不到 id=", id);
+      return;
+    }
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -346,6 +358,39 @@ export const invoiceStore = {
   },
 
   getInvoiceById: (id: string) => invoices.find((i) => i.id === id),
+
+  /** 寫入後防並行 load 覆寫：若本地已無此列則重新放入。 */
+  ensureLocalPresent: (invoice: Invoice) => {
+    if (invoices.some((i) => i.id === invoice.id)) return;
+    invoices = [invoice, ...invoices];
+    notify();
+  },
+
+  /** 單筆補抓：list load 競態時供 agent.get／create 回讀使用。 */
+  fetchInvoiceById: async (id: string): Promise<Invoice | null> => {
+    const env = getEnvironment();
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("id", id)
+      .eq("env", env)
+      .maybeSingle();
+    if (error || !data) return null;
+    const { data: linkData } = await supabase
+      .from("invoice_fees")
+      .select("fee_id")
+      .eq("invoice_id", id)
+      .eq("env", env);
+    const feeIds = (linkData ?? []).map((l) => l.fee_id);
+    const mapped = dbToApp(data as DbInvoice, feeIds);
+    if (invoices.some((i) => i.id === id)) {
+      invoices = invoices.map((i) => (i.id === id ? mapped : i));
+    } else {
+      invoices = [mapped, ...invoices];
+    }
+    notify();
+    return mapped;
+  },
 
   getLinkedFeeIds: (): Set<string> => {
     const set = new Set<string>();

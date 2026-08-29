@@ -303,7 +303,7 @@ Auth 修正上線穩定後，才回到 P0-A：先 rebase 到更新後的 `main`�
 | 2026-08-28 | 建立計畫；P0-A 隔離紀錄；call chain 與官方 2.112.4 證據核對通過，核准直接實作 |
 | 2026-08-28 | 嚴格審核修訂：校正 lockless 自 2.107.0 起之官方證據；新增 event-first settle、單一 listener、stale profile／roles 權限競態、multi-consumer single-flight、permission pending fail-closed、typed recoverable contract 與測試／回滾要求 |
 | 2026-08-28 | 實作落地：`auth-ready` 狀態機＋timeout／event-first；`auth-identity` single-flight；`use-permissions` bounded fetch；`App.tsx` 恢復畫面；鎖定 `@supabase/supabase-js@2.112.4`；單元測試紅轉綠 |
-| 2026-08-29 | 第二輪審核阻擋：`getSession` result.error、flight settled 清除、activeUserId guard、permissions fail-closed、signOut epoch／timer、E2E 注入與 W10 調查；詳見 §9 |
+| 2026-08-29 | CI `a523a502`：P2-L7／W10-PM-4／Auth E2E 過；P2-L8／cinv-bridge 因 **async get 未 await** 讀到 Promise（`ok`／`title`／`status` 為 undefined）；P2-L6 為 invoice create 與並行 load 覆寫記憶體（readback 逾時，retry 才過）。已修 await 契約＋invoice ensureLocal／fetchById |
 
 ---
 
