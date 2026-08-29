@@ -166,6 +166,11 @@ export const SYNC_ERROR_STATUS = {
   openai_fetch_failed: 502,
   openai_invalid_response: 502,
   openai_invalid_key: 503,
+  openai_insufficient_quota: 429,
+  openai_rate_limited: 429,
+  openai_permission_denied: 403,
+  openai_unsupported_region: 403,
+  openai_overloaded: 503,
   openai_timeout: 504,
   db_write_failed: 500,
 };

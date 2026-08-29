@@ -6,40 +6,66 @@
 ;(function () {
     'use strict';
 
-    // ---- 錯誤訊息對照 ----
-    const ERROR_MESSAGES = {
-        invalid_api_key:      'API Key 無效或已過期，請至「AI 設定」重新輸入。',
-        insufficient_quota:   '帳號額度已用盡，請至 OpenAI 後台儲值後再試。',
-        rate_limit_exceeded:  '請求速率超過上限，請稍後再試。',
-        context_length_exceeded: '提示內容過長，請縮短準則或減少批次大小後再試。',
-        model_not_found:      '指定的模型不存在，請至「AI 設定」確認模型名稱。',
-        server_error:         'OpenAI 伺服器發生錯誤，請稍後再試。',
-        network_error:        '網路連線失敗，請確認網路狀態後再試。',
-        parse_error:          'AI 回傳格式不正確，正在重試……',
-        unknown:              '發生未知錯誤，請稍後再試。'
-    };
-
-    function classifyError(err, status, body) {
-        if (!status) return 'network_error';
-        if (status === 401) return 'invalid_api_key';
-        if (status === 429) {
-            const code = body?.error?.code || '';
-            if (code === 'insufficient_quota') return 'insufficient_quota';
-            return 'rate_limit_exceeded';
-        }
-        if (status === 400) {
-            const code = body?.error?.code || '';
-            if (code === 'context_length_exceeded') return 'context_length_exceeded';
-            if (code === 'model_not_found') return 'model_not_found';
-            return 'unknown';
-        }
-        if (status >= 500) return 'server_error';
-        return 'unknown';
+    // ---- 錯誤分類（見 js/ai-openai-errors.core.mjs）----
+    function _aiErrors() {
+        return window.CatAiOpenaiErrors || {};
     }
 
-    function friendlyError(err, status, body) {
-        const key = classifyError(err, status, body);
-        return ERROR_MESSAGES[key] || ERROR_MESSAGES.unknown;
+    function _classifyAi(opts) {
+        const fn = _aiErrors().classifyAiError;
+        if (typeof fn === 'function') return fn(opts);
+        return {
+            type: 'unknown',
+            code: 'unknown',
+            message: '發生未知錯誤，請稍後再試。',
+            actionHint: '',
+            retryable: false,
+            retryAfterMs: 0,
+            httpStatus: opts.status || 0,
+            provider: 'openai',
+            source: opts.source || 'unknown',
+            rawSummary: '',
+        };
+    }
+
+    function _apiErrorPayload(resp, body, ctx) {
+        const classified = _classifyAi({
+            status: resp && resp.status,
+            body,
+            headers: resp && resp.headers,
+            source: ctx.source || 'unknown',
+            fromProxy: !!ctx.fromProxy,
+            noKey: !!ctx.noKey,
+            err: ctx.err || null,
+            finishReason: ctx.finishReason || null,
+        });
+        const detailFn = _aiErrors().buildTaskLogErrorDetailFromResponse;
+        const errorDetail = typeof detailFn === 'function'
+            ? detailFn(classified, body, resp && resp.headers, ctx.finishReason || null)
+            : null;
+        return {
+            error: classified.message,
+            errorCode: classified.code,
+            errorDetail,
+            classified,
+        };
+    }
+
+    function _isRetryableCode(code) {
+        const c = String(code || '');
+        return c === 'rate_limit_exceeded'
+            || c === 'rate_limit_tpm'
+            || c === 'rate_limit_rpm'
+            || c === 'rate_limit_rpd'
+            || c === 'server_error'
+            || c === 'overloaded'
+            || c === 'slow_down'
+            || c === 'timeout'
+            || c === 'proxy_fetch_failed'
+            || c === 'parse_error'
+            || c === 'context_length_exceeded'
+            || c === 'response_truncated'
+            || c === 'empty_response';
     }
 
     // ---- XLIFF tag 處理 ----
@@ -223,24 +249,28 @@
     }
 
     /**
-     * 優先走同源 /api/cat-openai（主站帶金鑰）；失敗或 4xx/5xx 則在具本機 Key 時改直連。
+     * 優先走同源 /api/cat-openai（主站帶金鑰）；僅在 proxy 無法連線時才 fallback 直連。
      */
     async function postChatCompletions(settings, openaiBody) {
         const useProxy = settings.preferOpenAiProxy !== false;
         const baseOrigin = (typeof location !== 'undefined' && location.origin) ? location.origin : '';
-        if (useProxy) {
+        if (useProxy && baseOrigin) {
             try {
                 const resp = await fetch(baseOrigin + '/api/cat-openai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ openaiPath: '/v1/chat/completions', openaiBody })
                 });
-                if (resp.ok) return { resp, fromProxy: true };
-            } catch (_) { /* 本機靜態檔或無此路由 */ }
+                return { resp, fromProxy: true, noKey: false };
+            } catch (_) { /* proxy 無法連線，允許 fallback */ }
         }
         const apiKey = settings.apiKey;
         if (!apiKey) {
-            return { resp: { ok: false, status: 0, async json() { return {}; } }, fromProxy: false, noKey: true };
+            return {
+                resp: { ok: false, status: 0, headers: new Headers(), async json() { return {}; } },
+                fromProxy: false,
+                noKey: true
+            };
         }
         const baseUrl = (settings.apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
         const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
@@ -262,13 +292,9 @@
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    function _isRetryableError(status, body) {
-        if (!status) return true;
-        if (status === 429) {
-            const code = body?.error?.code || '';
-            return code !== 'insufficient_quota';
-        }
-        return status >= 500;
+    function _isRetryableError(status, body, headers, fromProxy) {
+        const classified = _classifyAi({ status, body, headers, fromProxy });
+        return !!classified.retryable;
     }
 
     function _retryAfterToMs(resp) {
@@ -294,7 +320,7 @@
             last = { ...call, body };
             if (call.resp && call.resp.ok) return last;
             if (call.noKey) return last;
-            if (!_isRetryableError(call.resp && call.resp.status, body) || attempt >= RETRYABLE_MAX_ATTEMPTS) {
+            if (!_isRetryableError(call.resp && call.resp.status, body, call.resp && call.resp.headers, call.fromProxy) || attempt >= RETRYABLE_MAX_ATTEMPTS) {
                 return last;
             }
             const jitter = Math.floor(Math.random() * 240);
@@ -311,63 +337,88 @@
      * @param {boolean} jsonMode - true（預設）時要求 JSON 回傳格式；false 時回傳純文字（用於掃描）
      * @returns {{ results: [{idx, translation}], missing: [idx], error: string|null, content?: string }}
      */
-    async function callApi(messages, settings, jsonMode = true) {
+    async function callApi(messages, settings, jsonMode = true, source = 'unknown') {
         const openaiBody = _openAiBody(settings, messages, {
             ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
             temperature: 0.3
         });
-        const { resp, noKey, body } = await postChatCompletionsWithRetry(settings, openaiBody);
+        const { resp, noKey, body, fromProxy } = await postChatCompletionsWithRetry(settings, openaiBody);
 
         if (!resp || !resp.ok) {
-            if (noKey) {
-                return { results: [], missing: [], error: '未設定存取方式：主站 /api 不可用，且本機未填 API Key。請在「AI 管理」處理。' };
-            }
-            return { results: [], missing: [], error: friendlyError(null, resp && resp.status, body) };
+            const fail = _apiErrorPayload(resp, body, { source, fromProxy, noKey });
+            return { results: [], missing: [], error: fail.error, errorCode: fail.errorCode, errorDetail: fail.errorDetail };
+        }
+
+        const finishReason = body?.choices?.[0]?.finish_reason || null;
+        if (finishReason === 'length') {
+            const fail = _apiErrorPayload(resp, body, { source, fromProxy, finishReason: 'length' });
+            return { results: [], missing: [], error: fail.error, errorCode: fail.errorCode, errorDetail: fail.errorDetail };
+        }
+        if (finishReason === 'content_filter') {
+            const fail = _apiErrorPayload(resp, body, { source, fromProxy, finishReason: 'content_filter' });
+            return { results: [], missing: [], error: fail.error, errorCode: fail.errorCode, errorDetail: fail.errorDetail };
         }
 
         const raw = body?.choices?.[0]?.message?.content || '';
+        if (!String(raw).trim()) {
+            const fail = _apiErrorPayload(resp, body, { source, fromProxy, finishReason: 'empty' });
+            return { results: [], missing: [], error: fail.error, errorCode: fail.errorCode, errorDetail: fail.errorDetail };
+        }
 
         if (!jsonMode) {
-            return { results: [], missing: [], error: null, content: raw };
+            return { results: [], missing: [], error: null, errorCode: null, errorDetail: null, content: raw };
         }
 
         let parsed;
         try {
             parsed = JSON.parse(raw);
         } catch (_) {
-            return { results: [], missing: [], error: ERROR_MESSAGES.parse_error };
+            const classified = _classifyAi({ finishReason: 'parse_error', source });
+            return { results: [], missing: [], error: classified.message, errorCode: 'parse_error', errorDetail: null };
         }
 
         const translations = Array.isArray(parsed.translations) ? parsed.translations : [];
-        return { results: translations, missing: [], error: null };
+        return { results: translations, missing: [], error: null, errorCode: null, errorDetail: null };
     }
 
     /**
      * 一般 JSON 物件回傳（用於 QA 等非翻譯格式）。
      * @returns {{ data: Object|null, error: string|null }}
      */
-    async function callApiJsonObject(messages, settings) {
+    async function callApiJsonObject(messages, settings, source = 'qa') {
         const openaiBody = _openAiBody(settings, messages, {
             response_format: { type: 'json_object' },
             temperature: 0.2
         });
-        const { resp, noKey, body } = await postChatCompletionsWithRetry(settings, openaiBody);
+        const { resp, noKey, body, fromProxy } = await postChatCompletionsWithRetry(settings, openaiBody);
 
         if (!resp || !resp.ok) {
-            if (noKey) {
-                return { data: null, error: '未設定存取方式。請在「AI 管理」處理。' };
-            }
-            return { data: null, error: friendlyError(null, resp && resp.status, body) };
+            const fail = _apiErrorPayload(resp, body, { source, fromProxy, noKey });
+            return { data: null, error: fail.error, errorCode: fail.errorCode, errorDetail: fail.errorDetail };
+        }
+
+        const finishReason = body?.choices?.[0]?.finish_reason || null;
+        if (finishReason === 'length' || finishReason === 'content_filter') {
+            const fail = _apiErrorPayload(resp, body, { source, fromProxy, finishReason });
+            return { data: null, error: fail.error, errorCode: fail.errorCode, errorDetail: fail.errorDetail };
         }
 
         const raw = body?.choices?.[0]?.message?.content || '';
+        if (!String(raw).trim()) {
+            const fail = _apiErrorPayload(resp, body, { source, fromProxy });
+            fail.errorCode = 'empty_response';
+            fail.error = _classifyAi({ finishReason: 'empty', source }).message;
+            return { data: null, error: fail.error, errorCode: 'empty_response', errorDetail: fail.errorDetail };
+        }
+
         let parsed;
         try {
             parsed = JSON.parse(raw);
         } catch (_) {
-            return { data: null, error: ERROR_MESSAGES.parse_error };
+            const classified = _classifyAi({ finishReason: 'parse_error', source });
+            return { data: null, error: classified.message, errorCode: 'parse_error', errorDetail: null };
         }
-        return { data: parsed, error: null };
+        return { data: parsed, error: null, errorCode: null, errorDetail: null };
     }
 
     const QA_TYPO_BATCH = 24;
@@ -592,9 +643,15 @@
             surroundingContext: options.surroundingContext || null
         });
 
-        const apiResult = await callApi(messages, settings);
+        const apiResult = await callApi(messages, settings, true, 'batch-translate');
         if (apiResult.error && apiResult.results.length === 0) {
-            return { results: [], missing: segments.map(s => s.id), error: apiResult.error };
+            return {
+                results: [],
+                missing: segments.map(s => s.id),
+                error: apiResult.error,
+                errorCode: apiResult.errorCode || null,
+                errorDetail: apiResult.errorDetail || null,
+            };
         }
 
         // 建立 idx → translation 對照
@@ -616,7 +673,11 @@
         return {
             results,
             missing: missingSegIds,
-            error: apiResult.error || null
+            error: missingSegIds.length > 0
+                ? (_aiErrors().ERROR_MESSAGES?.translations_missing || 'AI 未回傳部分句段，請使用「只重試缺漏句段」。')
+                : (apiResult.error || null),
+            errorCode: missingSegIds.length > 0 ? 'translations_missing' : (apiResult.errorCode || null),
+            errorDetail: apiResult.errorDetail || null,
         };
     }
 
@@ -776,11 +837,50 @@
             { role: 'user', content: userMsg }
         ];
 
-        const result = await callApi(messages, settings, false);
-        if (result.error) throw new Error(result.error);
+        const result = await callApi(messages, settings, false, 'scan');
+        if (result.error) {
+            const err = new Error(result.error);
+            err.errorCode = result.errorCode;
+            err.errorDetail = result.errorDetail;
+            throw err;
+        }
         const content = result.content;
         if (!content) throw new Error('AI 未回傳報告內容');
         return content.trim();
+    }
+
+    /**
+     * AI 設定「測試連線」：與批次翻譯相同 proxy/direct 路徑。
+     */
+    async function testConnection(settings, openaiBody) {
+        const { resp, noKey, body, fromProxy } = await postChatCompletions(settings, openaiBody);
+        if (resp && (resp.ok || resp.status === 400)) {
+            return { ok: true, status: resp.status, body, fromProxy, classified: null };
+        }
+        const classified = _classifyAi({
+            status: resp && resp.status,
+            body,
+            headers: resp && resp.headers,
+            source: 'test-connection',
+            fromProxy,
+            noKey,
+        });
+        return {
+            ok: false,
+            status: resp && resp.status,
+            body,
+            fromProxy,
+            classified,
+            message: classified.message,
+            errorCode: classified.code,
+            errorDetail: _aiErrors().buildTaskLogErrorDetailFromResponse
+                ? _aiErrors().buildTaskLogErrorDetailFromResponse(classified, body, resp && resp.headers, null)
+                : null,
+        };
+    }
+
+    function friendlyError(err, status, body, extra) {
+        return _classifyAi({ err, status, body, ...(extra || {}) }).message;
     }
 
     // ---- 公開介面 ----
@@ -790,6 +890,9 @@
         buildPrompt,
         buildTranslatePromptMessages,
         diffRatio,
+        classifyAiError: _classifyAi,
+        isRetryableErrorCode: _isRetryableCode,
+        testConnection,
         friendlyError,
         scanFullText,
         estimateScanTokens,

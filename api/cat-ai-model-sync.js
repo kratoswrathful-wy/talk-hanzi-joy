@@ -16,6 +16,7 @@
 
 import { requireExecutive } from "./lib/require-executive.js";
 import { buildSyncPlan, statusForSyncError } from "./lib/model-sync-rules.js";
+import { classifyOpenAiModelsFetch, messageForSyncError } from "./lib/ai-openai-errors.js";
 
 const OPENAI_TIMEOUT_MS = 25000;
 const SUPPORTED_PROVIDER_KEY = "openai";
@@ -55,29 +56,28 @@ async function fetchOpenAiModels(apiKey) {
     });
     clearTimeout(timer);
 
-    if (resp.status === 401) {
-      return { kind: "invalid_key" };
-    }
-    if (!resp.ok) {
-      return { kind: "fetch_failed", status: resp.status };
+    let body = null;
+    try {
+      body = await resp.json();
+    } catch {
+      body = null;
     }
 
-    let json;
-    try {
-      json = await resp.json();
-    } catch {
+    if (!resp.ok) {
+      const code = classifyOpenAiModelsFetch(resp.status, body);
+      return { kind: "error", code, status: resp.status, message: messageForSyncError(code), body };
+    }
+
+    if (!body || !Array.isArray(body.data)) {
       return { kind: "invalid_response" };
     }
-    if (!json || !Array.isArray(json.data)) {
-      return { kind: "invalid_response" };
-    }
-    return { kind: "ok", models: json.data };
+    return { kind: "ok", models: body.data };
   } catch (e) {
     clearTimeout(timer);
     if (e && e.name === "AbortError") {
-      return { kind: "timeout" };
+      return { kind: "error", code: "openai_timeout", status: 504, message: messageForSyncError("openai_timeout") };
     }
-    return { kind: "fetch_failed" };
+    return { kind: "error", code: "openai_fetch_failed", status: 502, message: messageForSyncError("openai_fetch_failed") };
   }
 }
 
@@ -148,21 +148,13 @@ export default async function handler(req, res) {
   }
 
   const openaiResult = await fetchOpenAiModels(openaiKey);
-  if (openaiResult.kind === "invalid_key") {
-    await failRun("openai_invalid_key");
-    return sendError(res, statusForSyncError("openai_invalid_key"), "openai_invalid_key");
-  }
-  if (openaiResult.kind === "timeout") {
-    await failRun("openai_timeout");
-    return sendError(res, statusForSyncError("openai_timeout"), "openai_timeout");
+  if (openaiResult.kind === "error") {
+    await failRun(openaiResult.code, openaiResult.message);
+    return sendError(res, statusForSyncError(openaiResult.code), openaiResult.code, openaiResult.message);
   }
   if (openaiResult.kind === "invalid_response") {
-    await failRun("openai_invalid_response");
-    return sendError(res, statusForSyncError("openai_invalid_response"), "openai_invalid_response");
-  }
-  if (openaiResult.kind === "fetch_failed") {
-    await failRun("openai_fetch_failed");
-    return sendError(res, statusForSyncError("openai_fetch_failed"), "openai_fetch_failed");
+    await failRun("openai_invalid_response", messageForSyncError("openai_invalid_response"));
+    return sendError(res, statusForSyncError("openai_invalid_response"), "openai_invalid_response", messageForSyncError("openai_invalid_response"));
   }
 
   let existingProviderModelIds;

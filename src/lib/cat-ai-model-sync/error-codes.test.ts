@@ -32,6 +32,20 @@ describe("statusForSyncError", () => {
     expect(statusForSyncError("server_missing_supabase_config")).toBe(503);
   });
 
+  it("maps openai quota/rate errors to 429", () => {
+    expect(statusForSyncError("openai_insufficient_quota")).toBe(429);
+    expect(statusForSyncError("openai_rate_limited")).toBe(429);
+  });
+
+  it("maps openai permission/region to 403", () => {
+    expect(statusForSyncError("openai_permission_denied")).toBe(403);
+    expect(statusForSyncError("openai_unsupported_region")).toBe(403);
+  });
+
+  it("maps openai overloaded to 503", () => {
+    expect(statusForSyncError("openai_overloaded")).toBe(503);
+  });
+
   it("maps openai fetch/response failures to 502", () => {
     expect(statusForSyncError("openai_fetch_failed")).toBe(502);
     expect(statusForSyncError("openai_invalid_response")).toBe(502);

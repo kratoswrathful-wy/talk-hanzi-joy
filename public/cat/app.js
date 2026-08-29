@@ -31955,6 +31955,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (toast) toast.style.display = 'none';
     }
 
+    function _isAiBatchRetryableError(result) {
+        const code = String(result?.errorCode || '');
+        if (window.CatAiTranslate && typeof window.CatAiTranslate.isRetryableErrorCode === 'function') {
+            return window.CatAiTranslate.isRetryableErrorCode(code);
+        }
+        return code.startsWith('rate_limit_') || code === 'parse_error' || code === 'context_length_exceeded'
+            || code === 'request_too_large' || code === 'response_truncated';
+    }
+
+    function _aiBatchRetryLabel(errorCode) {
+        const code = String(errorCode || '');
+        if (code.startsWith('rate_limit')) return '速率限制';
+        if (code === 'parse_error') return 'AI 回傳格式問題';
+        if (code === 'context_length_exceeded' || code === 'request_too_large' || code === 'response_truncated') return '提示過長';
+        return '錯誤';
+    }
+
+    function _buildAiTaskErrorPatch(errorMessage, errorCode, errorDetail) {
+        const patch = { errorMessage: String(errorMessage || '') };
+        if (errorCode) patch.errorCode = String(errorCode);
+        if (errorDetail && typeof errorDetail === 'object') patch.errorDetail = errorDetail;
+        return patch;
+    }
+
     /** 簡短成功／提示訊息（綠底，數秒後關閉） */
     function _showCatBriefToast(msg) {
         const toast = document.getElementById('aiProgressToast');
@@ -32039,7 +32063,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             total: Number(payload.total) || 0,
             batchNo: Number(payload.batchNo) || 0,
             batchTotalHint: Number(payload.batchTotalHint) || 0,
-            errorMessage: ''
+            errorMessage: '',
+            errorCode: '',
+            errorDetail: null
         });
         return id;
     }
@@ -32069,7 +32095,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             total: patch.total,
             batchNo: patch.batchNo,
             batchTotalHint: patch.batchTotalHint,
-            errorMessage: patch.errorMessage || ''
+            errorMessage: patch.errorMessage != null ? patch.errorMessage : undefined,
+            errorCode: patch.errorCode != null ? patch.errorCode : undefined,
+            errorDetail: patch.errorDetail != null ? patch.errorDetail : undefined,
         });
     }
 
@@ -32247,42 +32275,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!_isCatExecutive()) return;
                 testResult.textContent = '測試中…';
                 testResult.style.color = '#64748b';
-                // 先儲存目前表單值再測試
                 const apiKey = apiKeyEl?.value?.trim() || '';
-                if (!apiKey) { testResult.textContent = '若僅用主站代打可不填，改以佈署環境變數測試。若要直連測試請先填入本機金鑰'; testResult.style.color = '#b45309'; return; }
                 const baseUrl = (baseUrlEl?.value?.trim() || 'https://api.openai.com').replace(/\/$/, '');
                 const model = _getSelectedModel();
                 const testBody = (window.CatAiModelTemperature && typeof window.CatAiModelTemperature.buildOpenAiChatBody === 'function')
                     ? window.CatAiModelTemperature.buildOpenAiChatBody({ model }, [{ role: 'user', content: 'hi' }], { max_tokens: 1 })
                     : { model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 };
 
-                // 測試連線（Chat Completions；不拉取 /v1/models 全量清單）
                 try {
-                    const r = await fetch(`${baseUrl}/v1/chat/completions`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                        body: JSON.stringify(testBody)
-                    });
-                    if (r.ok || r.status === 400) {
-                        // 400 可能是參數問題但連線 OK；200 是正常回應
+                    const baseSettings = await DBService.getAiSettings().catch(() => ({}));
+                    const settings = {
+                        ...(baseSettings || {}),
+                        apiKey,
+                        apiBaseUrl: baseUrl,
+                        model,
+                        preferOpenAiProxy: baseSettings?.preferOpenAiProxy !== false,
+                    };
+                    if (!window.CatAiTranslate || typeof window.CatAiTranslate.testConnection !== 'function') {
+                        testResult.textContent = 'AI 模組尚未載入，請重新整理頁面';
+                        testResult.style.color = '#ef4444';
+                        return;
+                    }
+                    const outcome = await window.CatAiTranslate.testConnection(settings, testBody);
+                    if (outcome.ok) {
                         await DBService.saveAiSettings({ apiKey, model, apiBaseUrl: baseUrl });
                         testResult.textContent = `連線成功，已自動儲存 ✓（${model}）`;
                         testResult.style.color = '#16a34a';
-                    } else if (r.status === 401) {
-                        testResult.textContent = 'API Key 無效（HTTP 401）';
-                        testResult.style.color = '#ef4444';
                         return;
-                    } else if (r.status === 404) {
-                        testResult.textContent = `模型不存在：${model}（HTTP 404）`;
-                        testResult.style.color = '#ef4444';
-                    } else {
-                        testResult.textContent = `連線失敗（HTTP ${r.status}）`;
-                        testResult.style.color = '#ef4444';
                     }
+                    testResult.textContent = outcome.message || `連線失敗（HTTP ${outcome.status || '—'}）`;
+                    testResult.style.color = '#ef4444';
                 } catch (_) {
                     testResult.textContent = '網路錯誤，請確認連線狀態';
                     testResult.style.color = '#ef4444';
-                    return;
                 }
             };
         }
@@ -36932,7 +36957,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _finishAiTaskLog(taskLogId, {
                 status: 'failed',
                 progressLabel: '執行失敗',
-                errorMessage: err?.message || String(err)
+                ..._buildAiTaskErrorPatch(err?.message || String(err), err?.errorCode, err?.errorDetail),
             });
             taskLogId = null;
         } finally {
@@ -37173,19 +37198,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             let result = await window.CatAiTranslate.translate(batch, batchOptions);
             let guardRetry = 0;
             while (result.error && result.results.length === 0) {
-                const isRateLimit = String(result.error || '').includes('請求速率超過上限');
-                const isParseError = String(result.error || '').includes('回傳格式不正確');
-                const isContextLong = String(result.error || '').includes('提示內容過長');
-                const isRetryable = isRateLimit || isParseError || isContextLong;
+                const errorCode = String(result.errorCode || '');
+                const isRetryable = _isAiBatchRetryableError(result);
                 if (!isRetryable || guardRetry >= 2) {
                     allMissing.push(...segments.slice(i).map((s) => s.id));
-                    return { results: allResults, missing: allMissing, error: result.error };
+                    return { results: allResults, missing: allMissing, error: result.error, errorCode, errorDetail: result.errorDetail || null };
                 }
                 guardRetry += 1;
                 dynamicBatchSize = Math.max(AI_BATCH_MIN_SIZE, Math.floor(dynamicBatchSize / 2));
                 dynamicCharLimit = Math.max(500, Math.floor(dynamicCharLimit * 0.75));
-                const retryLabel = isRateLimit ? '速率限制' : isParseError ? 'AI 回傳格式問題' : '提示過長';
-                const backoffMs = isRateLimit
+                const retryLabel = _aiBatchRetryLabel(errorCode);
+                const backoffMs = errorCode.startsWith('rate_limit')
                     ? Math.min(12000, 1200 * guardRetry + Math.floor(Math.random() * 400))
                     : Math.min(2000, 400 * guardRetry + Math.floor(Math.random() * 200));
                 _showAiToast(`偵測到${retryLabel}，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
@@ -38231,10 +38254,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let result = await window.CatAiTranslate.translate(batch, batchOptions);
                 let guardRetry = 0;
                 while (result.error && result.results.length === 0) {
-                    const isRateLimit = String(result.error || '').includes('請求速率超過上限');
-                    const isParseError = String(result.error || '').includes('回傳格式不正確');
-                    const isContextLong = String(result.error || '').includes('提示內容過長');
-                    const isRetryable = isRateLimit || isParseError || isContextLong;
+                    const errorCode = String(result.errorCode || '');
+                    const isRetryable = _isAiBatchRetryableError(result);
                     if (!isRetryable || guardRetry >= 2) {
                         _saveCatAiBatchResume({
                             v: 1,
@@ -38255,7 +38276,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             batchNo,
                             batchTotalHint: totalBatchesHint,
                             progressLabel: `失敗於第 ${batchNo} 批`,
-                            errorMessage: String(result.error || '翻譯失敗')
+                            ..._buildAiTaskErrorPatch(result.error, errorCode, result.errorDetail),
                         });
                         taskLogId = null;
                         return;
@@ -38263,8 +38284,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     guardRetry += 1;
                     dynamicBatchSize = Math.max(AI_BATCH_MIN_SIZE, Math.floor(dynamicBatchSize / 2));
                     dynamicCharLimit = Math.max(500, Math.floor(dynamicCharLimit * 0.75));
-                    const retryLabel = isRateLimit ? '速率限制' : isParseError ? 'AI 回傳格式問題' : '提示過長';
-                    const backoffMs = isRateLimit
+                    const retryLabel = _aiBatchRetryLabel(errorCode);
+                    const backoffMs = errorCode.startsWith('rate_limit')
                         ? Math.min(12000, 1200 * guardRetry + Math.floor(Math.random() * 400))
                         : Math.min(2000, 400 * guardRetry + Math.floor(Math.random() * 200));
                     _showAiToast(`偵測到${retryLabel}，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
