@@ -474,6 +474,25 @@ export const feeStore = {
 
   getFeeById: (id: string) => fees.find((f) => f.id === id),
 
+  /** 單筆補抓（fees_visible）：供 agent.getFresh 在整表尚未含該列時使用。 */
+  fetchFeeById: async (id: string): Promise<TranslatorFee | null> => {
+    const { data, error } = await supabase
+      .from("fees_visible")
+      .select("*")
+      .eq("id", id)
+      .eq("env", getEnvironment())
+      .maybeSingle();
+    if (error || !data) return null;
+    const mapped = dbToApp(data as DbFee);
+    if (fees.some((f) => f.id === id)) {
+      fees = fees.map((f) => (f.id === id ? mapped : f));
+    } else {
+      fees = [mapped, ...fees];
+    }
+    notify();
+    return mapped;
+  },
+
   createDraft: (): TranslatorFee => {
     const now = new Date();
     const newFee: TranslatorFee = {

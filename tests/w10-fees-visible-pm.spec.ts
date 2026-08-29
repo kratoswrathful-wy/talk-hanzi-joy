@@ -94,8 +94,8 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
     expect(r.ok, r.error).toBe(true);
     expect(r.id, "create 未回傳 id").not.toBe("");
 
-    // 與 main 相同：reload 後經 fees_visible 載入再 get。
-    // fee.get 已改為 await ensureFeesLoaded()，避免 Auth 初始化變慢時讀到空 store。
+    // 與 main 相同：reload 後經 fees_visible 載入再 getFresh。
+    // getFresh：本地缺列時 ensureLoaded／單筆 fetch；勿用同步 get（reload 後可能尚未進 store）。
     // 禁止「未 reload 的 list」當通過條件（create 後記憶體必有草稿，會掩蓋寫入／view 問題）。
     await expect
       .poll(
@@ -107,16 +107,14 @@ test.describe("W10 Phase 2 — PM 讀取回歸（fees_visible）", () => {
             const a = (window as unknown as {
               __lmsAgent?: {
                 fee: {
-                  get: (
+                  getFresh: (
                     id: string,
-                  ) =>
-                    | { ok: boolean; data?: { id: string } }
-                    | Promise<{ ok: boolean; data?: { id: string } }>;
+                  ) => Promise<{ ok: boolean; data?: { id: string } }>;
                 };
               };
             }).__lmsAgent;
             if (!a) return false;
-            const g = await a.fee.get(feeId);
+            const g = await a.fee.getFresh(feeId);
             return g.ok && g.data?.id === feeId;
           }, r.id);
         },

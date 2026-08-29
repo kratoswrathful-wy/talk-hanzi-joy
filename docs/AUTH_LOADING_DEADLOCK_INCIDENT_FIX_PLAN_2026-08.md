@@ -304,6 +304,7 @@ Auth 修正上線穩定後，才回到 P0-A：先 rebase 到更新後的 `main`�
 | 2026-08-28 | 嚴格審核修訂：校正 lockless 自 2.107.0 起之官方證據；新增 event-first settle、單一 listener、stale profile／roles 權限競態、multi-consumer single-flight、permission pending fail-closed、typed recoverable contract 與測試／回滾要求 |
 | 2026-08-28 | 實作落地：`auth-ready` 狀態機＋timeout／event-first；`auth-identity` single-flight；`use-permissions` bounded fetch；`App.tsx` 恢復畫面；鎖定 `@supabase/supabase-js@2.112.4`；單元測試紅轉綠 |
 | 2026-08-29 | CI `a523a502`：P2-L7／W10-PM-4／Auth E2E 過；P2-L8／cinv-bridge 因 **async get 未 await** 讀到 Promise（`ok`／`title`／`status` 為 undefined）；P2-L6 為 invoice create 與並行 load 覆寫記憶體（readback 逾時，retry 才過）。已修 await 契約＋invoice ensureLocal／fetchById |
+| 2026-08-29 | **向下相容**：撤回 async `get`；`fee`／`invoice`／`clientInvoice` 恢復同步 `get`（本地快照），新增 `getFresh`（await；缺列 load／單筆 fetch）。契約 vitest＋文件＋E2E 呼叫點已對齊；待 CI／Vercel／Playwright 全綠 |
 
 ---
 
@@ -336,8 +337,8 @@ Auth 修正上線穩定後，才回到 P0-A：先 rebase 到更新後的 `main`�
 
 - **已補單元／hook 測試**：auth-ready（error／同步 INITIAL_SESSION／timer）、auth-identity（force／A→B／錯誤不快取）、use-auth（多 consumer／signOut 競態）、use-permissions hook（fail-closed＋retry）— 本機 vitest 綠燈
 - **Auth E2E（本機 `npm run dev`）**：9/9 通過，含人工 pending（sessionStorage + 跳過 event-first）→ recovery → retry；TOKEN_REFRESHED／多分頁／背景／reload 受控注入
-- **W10／PR Playwright**：`main@5d552be2` 夜間 E2E **W10-PM-4 通過**；本分支 CI 兩次皆敗於 reload 後 `fee.get`（讀記憶體、Auth 變慢時 store 未載入）。已改 `fee.get` → `await ensureFeesLoaded()`，並將 W10 斷言改回「僅 reload＋get」路徑；**待下一輪 CI 驗證**。本機兩次仍因 `probeCanCreateCase` skip，無法重現寫入路徑。
-- **P2-L7**：同一次 CI 亦失敗；尚未認定與 Auth 無關，下一輪 CI 一併觀察。
+- **W10／PR Playwright**：`main@5d552be2` 夜間 E2E **W10-PM-4 通過**；本分支曾敗於 reload 後同步 `fee.get`（store 未載入）。已改為 **同步 `get` + 非同步 `getFresh`**；W10 reload 斷言改 `await fee.getFresh`。`54e7015f` 曾以 async `get`＋await 全綠，但屬破壞性 API，已撤回。
+- **P2-L7**：寫入後樂觀驗證用同步 `get`；reload 後用 `getFresh`。
 
 ### 9.4 未宣稱已驗證
 

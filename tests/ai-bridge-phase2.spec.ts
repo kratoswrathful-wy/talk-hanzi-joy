@@ -169,7 +169,7 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
             options: { get: (k: string) => { ok: boolean; data?: { labels?: string[] } } };
             invoice: {
               create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
-              get: (id: string) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
+              get: (id: string) => { ok: boolean; error?: string; data?: { id: string } };
             };
           };
         }).__lmsAgent;
@@ -178,7 +178,8 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
           assigneeOpts.ok && assigneeOpts.data?.labels?.length ? assigneeOpts.data.labels[0] : "";
         const created = await agent.invoice.create({ translator, title: invTitle });
         if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
-        const got = await agent.invoice.get(created.data.id);
+        // 寫入後樂觀驗證：同步 get（勿 await Promise 語意）
+        const got = agent.invoice.get(created.data.id);
         return {
           ok: got.ok && got.data?.id === created.data.id,
           invoiceId: created.data.id,
@@ -209,7 +210,7 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
         if (!created.ok || !created.data) return { ok: false, error: created.error ?? "create failed" };
         // create 回傳的 id 巢狀在 data.invoice.id（與 get/update 直接回 data.id 不同形狀）。
         const createdId = created.data.invoice.id;
-        const got = await agent.clientInvoice.get(createdId);
+        const got = agent.clientInvoice.get(createdId);
         return {
           ok: got.ok && got.data?.id === createdId,
           clientInvoiceId: createdId,
@@ -233,7 +234,7 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
             fee: {
               create: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>;
               update: (id: string, p: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
-              get: (id: string) => Promise<{ ok: boolean; data?: { status?: string } }>;
+              get: (id: string) => { ok: boolean; data?: { status?: string }; error?: string };
             };
           };
         }).__lmsAgent;
@@ -248,7 +249,8 @@ test.describe("AI Bridge Phase 2 (Playwright)", () => {
             status: undefined,
           };
         }
-        const got = await agent.fee.get(created.data.id);
+        // 寫入後樂觀驗證：同步 get，避免稍舊整表 reload 覆寫前誤讀 Promise
+        const got = agent.fee.get(created.data.id);
         return {
           ok: Boolean(updated.ok && got.ok && got.data?.status === "finalized"),
           feeId: created.data.id,

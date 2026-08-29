@@ -746,11 +746,20 @@ function buildFieldCatalog() {
         clientTaskItems: scalarFields(FEE_CLIENT_TASK_FIELDS),
       },
       arrayMerge: "taskItems / clientInfo.clientTaskItems 可傳 { mergeById: true, items: [...] }",
+      readMethods: {
+        get: "同步；只讀目前本地 store 快照。寫入後立即驗證樂觀結果請用 get(id)，勿 await。",
+        getFresh:
+          "非同步；必須 await。本地缺列時會 ensureLoaded／單筆 fetch。頁面 reload 後請用 getFresh。",
+      },
       limitations: ["連結案件自動帶入等 UI 連動需手動填欄位"],
     },
     invoice: {
       fields: scalarFields(INVOICE_FIELDS),
       statusFields: statusFields(INVOICE_FIELDS),
+      readMethods: {
+        get: "同步；只讀目前本地 store 快照。",
+        getFresh: "非同步；必須 await。本地缺列時 load／單筆補抓。",
+      },
     },
     clientInvoice: {
       fields: scalarFields(CLIENT_INVOICE_FIELDS),
@@ -761,7 +770,13 @@ function buildFieldCatalog() {
         "clientInvoice.adjustAmount(invoiceId, { mode, currency, targetAmount })",
         "clientInvoice.setChannel(invoiceId, channel)",
         "clientInvoice.setExpectedDate(invoiceId, isoDate)",
+        "clientInvoice.get(id) → 同步本地快照",
+        "clientInvoice.getFresh(id) → await；可載入／補抓",
       ],
+      readMethods: {
+        get: "同步；只讀目前本地 store 快照。",
+        getFresh: "非同步；必須 await。本地缺列時 load／單筆補抓。",
+      },
       addFeeSkipReasons: [
         "not_found",
         "already_on_invoice",
@@ -780,6 +795,8 @@ function buildFieldCatalog() {
     datetimeFormat: "ISO 8601 字串，例如 2026-06-30T14:30:00.000Z；null 表示清空",
     usage: [
       "先呼叫 describe() 或 options.get(fieldKey) 查合法值",
+      "fee/invoice/clientInvoice.get(id) 為同步本地快照；getFresh(id) 必須 await，用於 reload 或缺列補抓",
+      "寫入後立即驗證樂觀結果用同步 get；勿對 get 使用 await（它不是 Promise）",
       "工具多行欄位先 options.getToolSchema(toolLabel) 查 field id／label，再 tool.setField 寫入並回讀驗證",
       "檔案先 upload.fromBytes，再將 { name, url } 寫入欄位",
       "再呼叫 case.update / fee.update / invoice.update 等",
@@ -826,13 +843,19 @@ export interface LmsAgentApi {
   };
   fee: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<TranslatorFee[]>;
-    get: (id: string) => Promise<AgentResult<TranslatorFee>>;
+    /** 同步：只讀目前本地 store 快照（樂觀寫入後立即驗證請用此方法）。 */
+    get: (id: string) => AgentResult<TranslatorFee>;
+    /** 非同步：本地缺列時等待 load／單筆補抓；reload 後請 `await getFresh`。 */
+    getFresh: (id: string) => Promise<AgentResult<TranslatorFee>>;
     create: (initial?: Partial<TranslatorFee>) => Promise<AgentResult<TranslatorFee>>;
     update: (id: string, patch: Partial<TranslatorFee>) => Promise<AgentResult<TranslatorFee>>;
   };
   invoice: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<Invoice[]>;
-    get: (id: string) => Promise<AgentResult<Invoice>>;
+    /** 同步：只讀目前本地 store 快照。 */
+    get: (id: string) => AgentResult<Invoice>;
+    /** 非同步：本地缺列時等待 load／單筆補抓。 */
+    getFresh: (id: string) => Promise<AgentResult<Invoice>>;
     create: (input: {
       translator: string;
       feeIds?: string[];
@@ -845,7 +868,10 @@ export interface LmsAgentApi {
   };
   clientInvoice: {
     list: (filter?: { search?: string; status?: string; limit?: number }) => AgentResult<ClientInvoice[]>;
-    get: (id: string) => Promise<AgentResult<ClientInvoice>>;
+    /** 同步：只讀目前本地 store 快照。 */
+    get: (id: string) => AgentResult<ClientInvoice>;
+    /** 非同步：本地缺列時等待 load／單筆補抓。 */
+    getFresh: (id: string) => Promise<AgentResult<ClientInvoice>>;
     create: (input: { client: string; title?: string; feeIds?: string[] }) => Promise<
       AgentResult<{ invoice: ClientInvoice; created: boolean; verified: boolean }>
     >;
@@ -1101,12 +1127,20 @@ export function buildLmsAgentApi(): LmsAgentApi {
     fee: {
       list: (filter) => ok(filterList(feeStore.getFees(), filter)),
 
-      get: async (id) => {
-        // 先讀本地：剛 update 的樂觀結果不可被 ensureLoaded→loadFees 用尚未落地的 DB 列覆寫
+      get: (id) => {
+        const record = feeStore.getFeeById(id);
+        if (!record) return fail(`找不到費用 id=${id}`);
+        return ok(record);
+      },
+
+      getFresh: async (id) => {
         let record = feeStore.getFeeById(id);
         if (record) return ok(record);
         await ensureFeesLoaded();
         record = feeStore.getFeeById(id);
+        if (!record) {
+          record = (await feeStore.fetchFeeById(id)) ?? undefined;
+        }
         if (!record) return fail(`找不到費用 id=${id}`);
         return ok(record);
       },
@@ -1126,6 +1160,9 @@ export function buildLmsAgentApi(): LmsAgentApi {
           await ensureFeesLoaded();
           existing = feeStore.getFeeById(id);
         }
+        if (!existing) {
+          existing = (await feeStore.fetchFeeById(id)) ?? undefined;
+        }
         if (!existing) return fail(`找不到費用 id=${id}`);
         const validated = validateFeePatch(patch as Record<string, unknown>, existing);
         if (validated.ok === false) return failFrom(validated);
@@ -1143,7 +1180,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
     invoice: {
       list: (filter) => ok(filterList(invoiceStore.getInvoices(), filter)),
 
-      get: async (id) => {
+      get: (id) => {
+        const inv = invoiceStore.getInvoiceById(id);
+        if (!inv) return fail(`找不到譯者請款 id=${id}`);
+        return ok(inv);
+      },
+
+      getFresh: async (id) => {
         let inv = invoiceStore.getInvoiceById(id);
         if (inv) return ok(inv);
         await invoiceStore.ensureLoaded();
@@ -1205,8 +1248,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
   clientInvoice: {
     list: (filter) => ok(filterList(clientInvoiceStore.getInvoices(), filter)),
 
-    get: async (id) => {
-      // 與 fee.get 相同：本地已有列時不要先整表 reload，避免樂觀寫入被舊 DB 快照蓋掉
+    get: (id) => {
+      const inv = clientInvoiceStore.getInvoiceById(id);
+      if (!inv) return fail(`找不到客戶請款 id=${id}`);
+      return ok(inv);
+    },
+
+    getFresh: async (id) => {
       let inv = clientInvoiceStore.getInvoiceById(id);
       if (inv) return ok(inv);
       await clientInvoiceStore.ensureLoaded();
