@@ -12,7 +12,7 @@
 | 同日 | reset 後仍卡在 max `20260610120000`（103／149） |
 | 同日 | **刪除** `p0a-verify-20260830`（避免對不完整 schema 硬跑） |
 | 改用 | 既有 `p0a-security-20260827` → ref **`zbjuymveersziptdmtfu`**（schema 對齊 production 149／`20260825120952`，`with_data=false`，僅殘餘合成 `[AI驗收]` 列） |
-| 驗證後 | 刪除 `p0a-security-20260827`（見文末） |
+| 驗證後 | **已刪除** `p0a-security-20260827`；`list_branches` 僅剩 main；舊 endpoint 回 410／DNS 失效 |
 
 Production ref（禁止目標）：`wshsmerltcakffllgyul`
 
