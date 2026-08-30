@@ -1,5 +1,5 @@
 # R1-D migration 靜態審核（recovery/p0a-20260830）
-狀態：實作中（本機 checkpoint；unverified；not deployable）
+狀態：partially verified / not deployable（靜態審核；乾淨重放未執行）
 
 ## 環境
 
@@ -34,7 +34,7 @@
 | 撤銷 PUBLIC／anon 後再 grant | **PASS**（action／field／credential RPC） |
 | 不可只依 `TO authenticated` | **PASS**（函式內 `auth.uid()`／`current_env()`／admin／participant） |
 | mutation 用 expected revision | **PASS**（`p_expected_revision` 出現多次） |
-| `cases_visible` definer 語意 | **刻意 `security_invoker=false` + `security_barrier=true`**：遮罩敏感欄、`WHERE env = current_env()` 與 admin／participant／公開詢案列謂詞；並 `revoke select on public.cases from anon,authenticated`。**隔離庫負向測試尚未執行 → 未驗證** |
+| `cases_visible` definer 語意 | 草稿為 `security_invoker=false` + `security_barrier=true`（遮罩＋env 謂詞＋撤銷基表 SELECT）。Advisors `security_definer_view` ERROR 為**未決安全例外**，**不得**標已接受；乾淨環境旁路測試未做 |
 | 不得單純 drop 敏感更新防護而無替代 | 草稿保留／重建遮罩 view＋credential RPC；**DB 未套用、未驗證** |
 
 ## 與 8/28 差異

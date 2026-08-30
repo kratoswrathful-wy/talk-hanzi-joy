@@ -1,5 +1,18 @@
 # P0-A 救援重建紀錄（recovery / 2026-08-30）
-狀態：實作中（本機 checkpoint；unverified；not deployable）
+狀態：partially verified / not deployable（本機 checkpoint；不可部署）
+
+## 驗證定性（強制，2026-08-30 修正）
+
+| 聲明 | 說明 |
+|---|---|
+| **僅完成** | 對**既有舊 Preview**（`p0a-security-20260827`／已刪除）上**既有 P0-A 物件**的**部分行為驗證** |
+| **未完成** | 本 repo 五支 `20260830122*` recovery migration **尚未**在乾淨環境從零套用 |
+| SQL ACL 三支通過 | **不證明** recovery migration 可重建出相同物件 |
+| `e4377e59` types | 來自舊 Preview，僅 **provisional**；正式型別必須在**目前 P0-A＋P0-B migration 乾淨重放後**重新產生 |
+| Advisors | 同樣來自舊 Preview，**不得**當成 recovery migration 的驗證結果 |
+| `cases_visible` `security_definer_view` ERROR | **未決安全例外**，**不得**標示為已接受／已核准 |
+| 整體狀態 | **`partially verified / not deployable`** |
+| Playwright | Preview 已刪；原則核准但**暫不執行** |
 
 ## 基準
 
@@ -8,6 +21,7 @@
 | 分支 | `recovery/p0a-20260830` |
 | worktree | `C:\Homemade Apps\1UP-TMS-p0a-20260828` |
 | 基準 commit | **`724eb886`**（`origin/main`／已部署 PR #80 Auth merge） |
+| 本文件 checkpoint 時 HEAD | **`7b5eaa2e`**（其後另有定性修正 commit） |
 | 禁止 | push／PR／部署／任何正式 DB 操作 |
 
 ## 遺失事件
@@ -31,6 +45,7 @@
 - `docs/P0A_RECOVERY_R1A_SOURCE_MATRIX_2026-08.md`
 - `docs/P0A_RECOVERY_R1B_SOURCE_MATRIX_2026-08.md`
 - `docs/P0A_RECOVERY_R1D_MIGRATION_AUDIT_2026-08.md`
+- `docs/P0A_PREVIEW_BRANCH_VERIFY_REPORT_2026-08.md`（定性見該檔；**partially verified**）
 
 ## Recovery commits（本機）
 
@@ -39,8 +54,11 @@
 3. `3895c5cb` — R1-C preflight／gitignore
 4. `4841730b` — R1-D migration drafts
 5. `24b966cc` — R1-E ACL 測試草稿／stub／recovery DEVLOG＋品質閘門本機通過項
+6. `1e3d94b4` — DEVLOG 補 hash
+7. `e4377e59` — provisional types（舊 Preview）＋verify report
+8. `7b5eaa2e` — 註記 Preview 已刪
 
-## 本機品質閘門（2026-08-30）
+## 本機品質閘門（程式層，2026-08-30）
 
 | 閘門 | 結果 |
 |---|---|
@@ -51,16 +69,11 @@
 | encoding | 通過 |
 | forbidden-casts | 通過 |
 | build | 通過 |
-| SQL ACL／advisors／Playwright DB | **未驗證**（無隔離庫） |
-
-## 尚未 DB 驗證
-
-- 五支 migration **未** `db push`／未套用任何庫
-- `supabase/tests/p0_case_*_acl_check.sql`：**未執行**（需隔離庫）
-- Advisors：**未執行**
-- Playwright `smoke-cases-translator-update-rpc`：預設 skip；需隔離庫 + `PLAYWRIGHT_P0A_CASE_RPC_SMOKE=1`
-- `src/integrations/supabase/types.ts`：未整檔重生；僅 `p0a-rpc-types.stub.ts` 暫時標記
+| Recovery `20260830122*` 乾淨重放 | **未執行** |
+| SQL ACL 對 recovery migration | **未證明**（僅對舊 Preview 物件） |
+| Advisors（recovery／乾淨環境） | **未執行** |
+| Playwright | **暫不執行**（Preview 已刪） |
 
 ## 部署邊界（強制）
 
-**P0-A 不可單獨部署。** 必須與 **P0-B**（收緊／撤除過渡 `apply_case_update` 一般路徑等）合併為同一部署候選後，才可考慮正式庫與正式站。本分支所有 commit 訊息均含 `unverified`／`not deployable`。
+**P0-A 不可單獨部署**，且目前僅 **partially verified**。必須與 **P0-B** 合併，並在**全新隔離環境**完成：migration 乾淨重放、SQL ACL、advisors／definer 威脅模型、types 重生、Preview Playwright、舊寫入面關閉——才可能成為部署候選。Baseline schema repair **不得**混入此部署包。
