@@ -19,7 +19,6 @@ import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
 import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
-import { resolveActorDisplayName } from "@/lib/actor-display-name";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
@@ -725,25 +724,13 @@ export default function CasesPage() {
     toast({ title: "已退回處理" });
   }, [selectedSingleCase]);
 
-  const handleFlowAcceptCase = useCallback(() => {
+  const handleFlowAcceptCase = useCallback(async () => {
     if (!selectedSingleCase) return;
-    const displayName = resolveActorDisplayName({
-      displayName: profile?.display_name,
-      email: profile?.email,
-      userMetadataDisplayName:
-        typeof user?.user_metadata?.display_name === "string"
-          ? user.user_metadata.display_name
-          : null,
-    });
-    if (!displayName) {
-      toast({ title: "無法承接", description: "找不到目前登入者的顯示名稱，請重新整理後再試。", variant: "destructive" });
+    const error = await caseStore.acceptPublicInquiry(selectedSingleCase.id);
+    if (error) {
+      toast({ title: "無法承接", description: error.message, variant: "destructive" });
       return;
     }
-    const currentTranslators = selectedSingleCase.translator || [];
-    const updatedTranslators = currentTranslators.includes(displayName)
-      ? currentTranslators
-      : [...currentTranslators, displayName];
-    caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus, translator: updatedTranslators });
     toast({ title: "已承接本案" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -762,9 +749,13 @@ export default function CasesPage() {
     toast({ title: "已確定指派" });
   }, [selectedSingleCase]);
 
-  const handleFlowTaskComplete = useCallback(() => {
+  const handleFlowTaskComplete = useCallback(async () => {
     if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "task_completed" as CaseStatus });
+    const error = await caseStore.completeCaseTranslation(selectedSingleCase.id);
+    if (error) {
+      toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "任務已完成" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -801,26 +792,20 @@ export default function CasesPage() {
     toast({ title: "處理回饋中" });
   }, [selectedSingleCase]);
 
-  const handleDeclineConfirm = useCallback(() => {
+  const handleDeclineConfirm = useCallback(async () => {
     if (!selectedSingleCase) return;
-    const displayName = profile?.display_name || profile?.email || "";
-    const record: import("@/data/case-types").DeclineRecord = {
-      id: crypto.randomUUID(),
-      translator: displayName,
+    const decline = {
       proposedDeadline: declineProposedDeadline || undefined,
       availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
       message: declineMessage.trim() || undefined,
-      createdAt: new Date().toISOString(),
     };
-    const existing = selectedSingleCase.declineRecords || [];
-    caseStore.update(selectedSingleCase.id, { declineRecords: [...existing, record] });
+    const error = await caseStore.declinePublicInquiry(selectedSingleCase.id, decline);
+    if (error) {
+      toast({ title: "無法記錄", description: error.message, variant: "destructive" });
+      return;
+    }
     const caseId = selectedSingleCase.id;
     const caseTitle = selectedSingleCase.title || "";
-    const slackDecline = {
-      proposedDeadline: declineProposedDeadline || undefined,
-      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
-      message: declineMessage.trim() || undefined,
-    };
     setDeclineOpen(false);
     setDeclineProposedDeadline(null);
     setDeclineAvailableCount("");
@@ -833,7 +818,7 @@ export default function CasesPage() {
         caseId,
         caseTitle,
         kind: "decline",
-        decline: slackDecline,
+        decline,
       });
     }
   }, [selectedSingleCase, profile, declineProposedDeadline, declineAvailableCount, declineMessage, user]);
