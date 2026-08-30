@@ -38,8 +38,7 @@
 2. `e0c5a114` — R1-B case store／pages
 3. `3895c5cb` — R1-C preflight／gitignore
 4. `4841730b` — R1-D migration drafts
-
-5. （見 git log）— R1-E ACL 測試草稿／stub／recovery DEVLOG＋品質閘門本機通過項
+5. `24b966cc` — R1-E ACL 測試草稿／stub／recovery DEVLOG＋品質閘門本機通過項
 
 ## 本機品質閘門（2026-08-30）
 
