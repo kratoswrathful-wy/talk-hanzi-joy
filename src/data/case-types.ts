@@ -149,6 +149,8 @@ export interface CaseRecord {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  /** P0-A optimistic concurrency；DB 欄位待 isolation migration 後由 types 重生對齊 */
+  revision: number;
   /**
    * Slack inquiry history for each case (who already received the InquirySlackDialog DM
    * for this case). Used to lock checkboxes and prevent re-sending.
