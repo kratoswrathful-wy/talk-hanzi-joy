@@ -10,9 +10,12 @@
 --   - admin 錯 revision → stale_revision
 --   - admin 同 env 成功 → ok + revision 遞增（trigger）
 --   - patch 含 login_*／tools 等敏感鍵被剝除後仍可更新其他欄
---   - cases 基表 UPDATE policy 僅 admin 同 env
+--   - 未知 key → unknown_patch_key 且不突變（harden）
+--   - 僅 updated_at → empty_patch_after_filter（harden）
+--   - cases 基表 UPDATE policy 僅 admin 同 env；authenticated 無 UPDATE privilege（harden）
 --
 -- 執行：隔離 branch／本機 DB；全程 BEGIN…ROLLBACK。禁止對正式庫執行。
+-- 另見：supabase/tests/p0b_acl_harden_check.sql
 
 begin;
 

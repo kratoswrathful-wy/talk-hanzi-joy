@@ -2449,28 +2449,20 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.assignView": {
       const { viewId, assigneeUserIds } = payload;
       if (!Array.isArray(assigneeUserIds) || assigneeUserIds.length === 0) return [];
-      const rows = assigneeUserIds.map((uid: string) => ({
-        view_id: viewId,
-        assignee_user_id: uid,
-        status: "assigned",
-        assigned_by: userId,
-        assigned_at: nowIso(),
-        updated_at: nowIso(),
-      }));
-      const { data, error } = await supabase
-        .from("cat_view_assignments" as any)
-        .upsert(rows as any, { onConflict: "view_id,assignee_user_id" })
-        .select("id");
+      const { data, error } = await supabase.rpc("cat_pm_assign_view" as never, {
+        p_view_id: viewId,
+        p_assignee_user_ids: assigneeUserIds,
+      } as never);
       if (error) throw error;
-      return (data ?? []).map((r: any) => r.id);
+      const ids = (data as { ids?: string[] } | null)?.ids;
+      return Array.isArray(ids) ? ids : [];
     }
     case "db.unassignView": {
       const { viewId, assigneeUserId } = payload;
-      const { error } = await supabase
-        .from("cat_view_assignments" as any)
-        .update({ status: "cancelled", updated_at: nowIso() } as any)
-        .eq("view_id", viewId)
-        .eq("assignee_user_id", assigneeUserId);
+      const { error } = await supabase.rpc("cat_pm_unassign_view" as never, {
+        p_view_id: viewId,
+        p_assignee_user_id: assigneeUserId,
+      } as never);
       if (error) throw error;
       return true;
     }

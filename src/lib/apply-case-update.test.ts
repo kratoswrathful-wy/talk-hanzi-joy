@@ -1,5 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyCaseUpdate, applyCaseUpdateErrorMessage } from "./apply-case-update";
+import {
+  applyCaseUpdate,
+  applyCaseUpdateErrorMessage,
+  stripCaseUpdateClientPatch,
+} from "./apply-case-update";
+
+describe("stripCaseUpdateClientPatch", () => {
+  it("removes updated_at without mutating other keys", () => {
+    expect(
+      stripCaseUpdateClientPatch({
+        title: "x",
+        updated_at: "2099-01-01T00:00:00Z",
+      }),
+    ).toEqual({ title: "x" });
+  });
+});
 
 describe("applyCaseUpdate", () => {
   it("rejects empty caseId / patch / invalid revision before calling rpc", async () => {
@@ -14,9 +29,44 @@ describe("applyCaseUpdate", () => {
     expect(emptyPatch.error?.message).toMatch(/empty_patch/i);
     expect(rpc).not.toHaveBeenCalled();
 
+    const onlyUpdatedAt = await applyCaseUpdate(
+      supabase,
+      "case-1",
+      { updated_at: "2099-01-01T00:00:00Z" },
+      0,
+    );
+    expect(onlyUpdatedAt.error?.message).toMatch(/empty_patch_after_filter/i);
+    expect(rpc).not.toHaveBeenCalled();
+
     const badRev = await applyCaseUpdate(supabase, "case-1", { status: "dispatched" }, -1);
     expect(badRev.error?.message).toMatch(/expectedRevision/i);
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("strips updated_at before rpc and surfaces unknown_patch_key", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { ok: false, error: "unknown_patch_key" },
+      error: null,
+    });
+    const supabase = { rpc } as never;
+
+    const result = await applyCaseUpdate(
+      supabase,
+      "case-1",
+      {
+        title: "ok",
+        updated_at: "2099-01-01T00:00:00Z",
+        not_a_column: true,
+      },
+      3,
+    );
+    expect(rpc).toHaveBeenCalledWith("apply_case_update", {
+      p_case_id: "case-1",
+      p_patch: { title: "ok", not_a_column: true },
+      p_expected_revision: 3,
+    });
+    expect(result.data?.ok).toBe(false);
+    expect(result.error?.message).toBe("unknown_patch_key");
   });
 
   it("calls apply_case_update rpc with p_expected_revision and surfaces ok:false", async () => {
