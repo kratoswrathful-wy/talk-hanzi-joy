@@ -699,15 +699,19 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   let error: Error | { message: string } | null;
   let nextRevision: number | undefined;
   if (isAdmin) {
-    // P0-B 前過渡：PM／執行長仍可走 apply_case_update（已剝除憑證／工具敏感鍵）。
-    // 一般成員不得再經此 RPC 取得任意 patch。
+    // P0-B：PM／執行長走 apply_case_update（admin-only + expected revision；剝除憑證／工具鍵）。
     const result = await applyCaseUpdate(
       supabase,
       id,
       mapped as Record<string, unknown>,
+      prev?.revision ?? 0,
     );
     error = result.error;
-    nextRevision = error ? undefined : (prev?.revision ?? 0) + 1;
+    nextRevision = error
+      ? undefined
+      : (typeof result.data?.revision === "number"
+          ? result.data.revision
+          : (prev?.revision ?? 0) + 1);
   } else {
     const permittedKeys = new Set<keyof CaseRecord>([
       "title", "bodyContent", "category", "workType", "workGroups",
@@ -770,7 +774,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   if (!error && shouldSyncCatAssignments) {
     try {
-      await supabase.rpc("sync_cat_file_assignments_for_case", { p_case_id: id });
+      await supabase.rpc("lms_sync_cat_file_assignments_for_case", { p_case_id: id });
     } catch (e) {
       console.warn("[case-store] sync CAT assignments skipped:", e);
     }
