@@ -11,6 +11,8 @@
 --      （INSERT/DELETE 於 file／view assignment 亦無）
 --   6) apply_case_update：updated_at 竄改被剝除；未知 key → unknown_patch_key 且不突變
 --   7) PUBLIC／anon 不得 EXECUTE 新／外層 privileged RPC
+--   8) P0-C：apply_case_update 成功寫 audit；authenticated 無 cases INSERT/DELETE
+--   9) P0-C：admin_create_case／admin_delete_case（PM only）
 --
 -- 執行：隔離 branch／本機 DB；全程 BEGIN…ROLLBACK。禁止對正式庫執行。
 
@@ -31,6 +33,11 @@ declare
   v_title text;
   v_result jsonb;
   v_fake uuid := '00000000-0000-4000-8000-000000000099'::uuid;
+  v_new_case uuid := gen_random_uuid();
+  v_audit_before int;
+  v_audit_after int;
+  v_direct_insert_blocked boolean := false;
+  v_direct_delete_blocked boolean := false;
 begin
   insert into auth.users(id, email, raw_user_meta_data)
   values
@@ -191,6 +198,76 @@ begin
     raise exception 'updated_at-only should empty_patch_after_filter, got %', v_result;
   end if;
 
+  -- P0-C：authenticated 無 cases INSERT/DELETE
+  if has_table_privilege('authenticated', 'public.cases', 'INSERT')
+     or has_table_privilege('authenticated', 'public.cases', 'DELETE')
+  then
+    raise exception 'authenticated still has INSERT/DELETE on cases';
+  end if;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_member::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  begin
+    insert into public.cases (id, title, status, client, env)
+    values (gen_random_uuid(), 'hack', 'draft', 'x', 'test');
+    raise exception 'member direct insert should fail';
+  exception
+    when insufficient_privilege or sqlstate '42501' then
+      v_direct_insert_blocked := true;
+  end;
+  begin
+    delete from public.cases where id = v_case;
+    raise exception 'member direct delete should fail';
+  exception
+    when insufficient_privilege or sqlstate '42501' then
+      v_direct_delete_blocked := true;
+  end;
+  reset role;
+  if not v_direct_insert_blocked or not v_direct_delete_blocked then
+    raise exception 'direct cases DML bypass not blocked';
+  end if;
+
+  -- P0-C：apply_case_update 成功寫 audit
+  select count(*) into v_audit_before
+  from public.case_mutation_audit where case_id = v_case;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  select revision into v_revision from public.cases where id = v_case;
+  v_result := public.apply_case_update(
+    v_case,
+    jsonb_build_object('title', '[P0-B] harden fixture updated'),
+    v_revision
+  );
+  if coalesce(v_result->>'ok', '') <> 'true' then
+    raise exception 'admin apply_case_update failed: %', v_result;
+  end if;
+  select count(*) into v_audit_after
+  from public.case_mutation_audit
+  where case_id = v_case and action = 'apply_case_update';
+  if v_audit_after <= v_audit_before then
+    raise exception 'apply_case_update did not write audit';
+  end if;
+
+  -- P0-C：admin_create_case / admin_delete_case
+  v_result := public.admin_create_case(
+    v_new_case,
+    jsonb_build_object('title', '[P0-C] rpc create', 'status', 'draft', 'client', 'c')
+  );
+  if coalesce(v_result->>'ok', '') <> 'true' then
+    raise exception 'admin_create_case failed: %', v_result;
+  end if;
+  v_result := public.admin_delete_case(v_new_case, 0);
+  if coalesce(v_result->>'ok', '') <> 'true' then
+    raise exception 'admin_delete_case failed: %', v_result;
+  end if;
   reset role;
 
   raise notice 'p0b_acl_harden_check: draft assertions would pass in this transaction';

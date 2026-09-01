@@ -29,6 +29,7 @@ import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import {
   acceptPublicInquiryCase as acceptPublicInquiryCaseRpc,
   acceptInquiryCollabRow as acceptInquiryCollabRowRpc,
@@ -600,10 +601,10 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
     env,
     created_by: user?.id || null,
   };
-  // P0-A：避免 INSERT ... RETURNING * 依賴基表 SELECT；改從 cases_visible 讀回遮罩列。
-  const { error: insertError } = await supabase.from("cases").insert(payload);
-  if (insertError) {
-    console.error("[case-store] create failed", errorMessage(insertError), { payloadKeys: Object.keys(payload || {}) });
+  // P0-C：建案走 admin_create_case RPC（收回 authenticated INSERT）。
+  const { error: createError } = await adminCreateCase(supabase, id, payload as Record<string, Json>);
+  if (createError) {
+    console.error("[case-store] create failed", errorMessage(createError), { payloadKeys: Object.keys(payload || {}) });
     return null;
   }
   const { data, error } = await supabase
@@ -920,7 +921,8 @@ async function updateCredentials(id: string, credentials: Record<string, unknown
 }
 
 async function remove(id: string) {
-  const { error } = await supabase.from("cases").delete().eq("id", id);
+  const current = getById(id);
+  const { error } = await adminDeleteCase(supabase, id, current?.revision ?? 0);
   if (!error) {
     cases = cases.filter((c) => c.id !== id);
     caseCredentialAccess.clear(id);
