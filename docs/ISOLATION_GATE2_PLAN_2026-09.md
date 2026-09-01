@@ -1,169 +1,217 @@
-狀態：第五次 Micro 全綠；**待 GitHub 第二關審核**（正式庫仍 not deployable）
+狀態：第五次 Micro 全綠；**Gate 2 改採單次受控維護窗口，待 Draft PR 與正式執行核准**
 
-# GitHub 第二關計畫（2026-09-02）
+# Gate 2：P0 安全修正正式發布計畫（2026-09-02）
 
-**前置**：[`ISOLATION_GATE1_REPORT_2026-09.md`](ISOLATION_GATE1_REPORT_2026-09.md) + **第五次** Micro 從零重放全綠（見 Gate 1 §1）。  
-**現階段**：不 push、不開 PR、不 merge、不部署正式庫。
-
----
-
-## 1. 目標
-
-在 `main` 合併 `feat/isolation-replay-20260901`（**164** 支 migration + P0 收斂）前，完成 GitHub 審核閘門。
-
-**禁止**採用「merge 整條隔離分支 → 一次 `db push` → Vercel 自動部署」——`supabase db push` **沒有** `--up-to`／版號上界參數；它會套用 repo 中**所有**本機尚未在遠端登記的 migration 檔。因此正式推出必須拆成**三個可獨立 merge 的 release unit**（各含自己的 migration 檔子集 + 對應前端／Edge 步驟）。
+**權威基準**：`feat/isolation-replay-20260901` @ `cfca5b17`，基於 production `main` @ `724eb886`。
+**已完成**：第五次 Micro 164/164 從零重放、10/10 SQL、雙 client 競態、Data API、types、本機品質閘門均通過。
+**本文件授權範圍**：可推功能分支、建立 Draft PR、取得 CI／Vercel Preview 證據；**不得 merge、不得操作正式 Supabase、不得部署 production**，直到維護窗口另獲明確核准。
 
 ---
 
-## 2. 部署機制（強制理解）
+## 1. 為何改成單次維護窗口
 
-| 誤解 | 事實 |
-|---|---|
-| 「db push 至 20300」 | **不可執行**；CLI 無版號上界 |
-| 單 PR merge 164 支 | 等同一次 push 全鏈；**禁止**直接 merge 到會自動部署 production 的 `main` |
-| 正確做法 | 每個 release unit = **獨立 PR** 只新增該 unit 列出的 migration 檔 → merge → `db push` → 驗收 → 下一 unit |
+原三 release unit（Expand → Application switch → Harden）經逐檔核對後不可執行：
 
-**正式庫 baseline**：merge 前執行 `node scripts/check-migration-history.mjs --live`，以 Remote 已套用版號為起點；下列「尚未在正式庫」的 migration 才進下一 unit。
+1. `20260830122353_p0a_case_participant_backfill_safe.sql` 依賴 `20260830122351_p0a_case_participants_revision_audit.sql` 建立的 unresolved 表，不能先拆出套用。
+2. 新前端需要的多個 RPC 與 REVOKE／RLS 收緊位於同一批 migration；若先切前端，RPC 尚不存在；若先套 Harden，舊前端會失效。
+3. `supabase db push` 沒有版號上界。拆 PR 會形成一條未在第五次 Micro 驗證過的新 migration 鏈；依既定封頂線，不再建立第六次 Micro。
 
----
+因此正式發布採用：
 
-## 3. P0 全批分類（14 支；不可只列 Slack）
+> **公告短暫維護 → 阻止新操作 → 備份 → 一次套用第五次 Micro 已驗證的完整待辦 migration → 部署同一候選版本的前端與 Edge Functions → 冒煙驗收 → 恢復服務。**
 
-隔離鏈 P0 區間：`20260830122351`～`20260901120400`（14 檔）。分類依**是否含會使舊前端失效的 authenticated 直寫／直讀 REVOKE**（同一檔內若混有 REVOKE，整檔歸 Harden unit，不得拆檔名）。
-
-| # | Migration 檔 | 分類 | 說明 |
-|---|---|---|---|
-| 1 | `20260830122351_p0a_case_participants_revision_audit.sql` | **Harden** | `case_participants`／audit 等 REVOKE authenticated 直寫 |
-| 2 | `20260830122353_p0a_case_participant_backfill_safe.sql` | **Expand** | 僅 backfill／安全補資料；不撤銷舊 client 路徑 |
-| 3 | `20260830122356_p0a_case_action_rpcs.sql` | **Harden** | 新 action RPC + REVOKE 舊入口 |
-| 4 | `20260830122359_p0a_case_field_acl.sql` | **Harden** | 欄位 ACL + REVOKE `update_case_permitted_fields` 舊路徑 |
-| 5 | `20260830122401_p0a_case_credentials.sql` | **Harden** | REVOKE `cases` SELECT；改走 credentials RPC |
-| 6 | `20260831043141_p0b_apply_case_update_admin_only.sql` | **Harden** | `apply_case_update` ACL 收緊 |
-| 7 | `20260831043143_p0b_workflow_rpc_acl.sql` | **Harden** | Workflow RPC REVOKE／重導 |
-| 8 | `20260831043145_p0b_assignment_rls.sql` | **Harden** | 指派表 REVOKE authenticated 直寫 |
-| 9 | `20260831151322_p0b_acl_harden.sql` | **Harden** | CAT／cases 大批 REVOKE |
-| 10 | `20260901120000_p0c_security_convergence.sql` | **Harden** | `admin_create_case`、cases／fees REVOKE 等收斂 |
-| 11 | `20260901120100_p0c_view_helper_grants_and_display_name.sql` | **Harden** | private helper REVOKE（含 `p0_assert_translator_eligible`） |
-| 12 | `20260901120200_p0c_privileged_function_hardening.sql` | **Harden** | 特權函式 REVOKE |
-| 13 | `20260901120300_p0c_slack_meta_rpc_expand.sql` | **Expand** | 新增 `get_own_slack_meta()`；僅 REVOKE PUBLIC／anon 執行 RPC；**不** REVOKE 三表 client grants |
-| 14 | `20260901120400_p0c_slack_edge_revoke.sql` | **Harden** | Slack 三表 REVOKE `PUBLIC`／`anon`／`authenticated` |
-
-**Expand 僅 2 支 P0**：`22353`、`20300`。其餘 **12 支 P0 全屬 Harden unit**。
-
-**Pre-P0（150 支，版號 `< 20260830122351`）**：隔離鏈中已存在、若正式庫尚未套用則**預設歸 Expand unit**（scheme A 合併內容以 additive 為主）。完整檔名清單見 [`supabase/migrations/`](../../supabase/migrations/) 排序後前 150 檔，或執行：
-
-```powershell
-Get-ChildItem supabase\migrations\*.sql | Sort-Object Name |
-  Where-Object { $_.Name -lt "20260830122351" } | ForEach-Object Name
-```
+不再宣稱可在資料庫已 Harden 後「只回滾 Vercel」：舊前端可能與新 ACL 不相容。
 
 ---
 
-## 4. Release Unit 1 — Expand
+## 2. 固定範圍與封頂線
 
-| 項目 | 內容 |
-|---|---|
-| **目的** | 只新增與**目前 production 前端**相容的 schema／RPC；**不**撤銷舊 client 直寫／直讀 |
-| **Git／PR** | 分支 `release/p0-expand` ← `main`；PR **僅**含下列 migration 檔（不得夾帶 Harden 檔） |
-| **Migration 清單** | ① 正式庫 baseline 至 `20260830122351` 之間**尚未套用**的全部 pre-P0 檔（見 §3 指令）；② `20260830122353_p0a_case_participant_backfill_safe.sql`；③ `20260901120300_p0c_slack_meta_rpc_expand.sql` |
-| **不含** | §3 表中 12 支 **Harden** P0；尤其 **不含** `20260901120400` |
-| **Vercel** | **禁止** Production 自動部署；可維持現行 production 前端 |
-| **順序** | ① merge PR → ② `check-migration-history.mjs --live` → ③ `supabase db push`（正式庫）→ ④ 冒煙：舊前端核心流程仍可用 |
-| **停止點** | `db push` 失敗或舊前端冒煙失敗 → **停止**；不進 Unit 2 |
-| **回復** | 無自動 down migration；需從備份還原或人工還原 grants（見 [`DEV_PIPELINE.md`](DEV_PIPELINE.md)） |
-| **宣稱** | **不得**宣稱 P0 安全修復完成 |
+### 2.1 本次候選範圍
 
----
+- 正式 migration history：149 個版本，最高 `20260825120952`。
+- repo migration：164 支。
+- 正式庫預期待套用：**15 支**：
+  - 1 支 backdated Scheme A 前置：`20260610135900_cat_workflow_phase_b_prereq.sql`
+  - 14 支 P0：`20260830122351`～`20260901120400`
+- 正式執行前以 `supabase db push --linked --include-all --dry-run` 重新列舉；結果必須**恰好等於上述 15 支**，順序以 CLI 顯示為準。
+- 不帶 seed、不使用 `db reset --linked`、不使用 Dashboard SQL Editor 或 MCP 直接套 migration。
 
-## 5. Release Unit 2 — Application switch
+### 2.2 新問題封頂線
 
-| 項目 | 內容 |
-|---|---|
-| **目的** | 部署**已完全改用**新 RPC／新寫入路徑的前端與必要 Edge Functions |
-| **Git／PR** | 分支 `release/p0-app-switch`；含 `feat/isolation-replay-20260901` 上 isolation checkpoint 起之 **src/**、**supabase/functions/** 等應用變更；**不含新 migration 檔** |
-| **Migration 清單** | **（無）** — DB 維持 Unit 1 狀態 |
-| **Vercel** | Production：**手動**或受控 Preview 驗收後再 promote；**暫停** merge 觸發的自動 production deploy |
-| **順序** | ① Unit 1 已全綠 → ② 部署前端＋Edge → ③ 驗證 network／log **無**舊寫入入口（例如 `from('user_slack_meta')`、直寫 `cases`、舊 CAT 指派直寫等） |
-| **停止點** | RPC 錯誤率上升或冒煙失敗 → **暫停 Unit 3** |
-| **回復** | **僅回滾 Vercel** 至上一版；Expand DB 仍與舊版前端相容 |
-| **宣稱** | 仍**不得**宣稱 P0 Harden 完成 |
+只有下列證據可阻擋本次上線：
 
-**Slack OAuth（G2-9，merge 前阻擋）**：Preview + **專用測試 Slack App** 完成「連結 → 已連結 → 解除」；callback 須原子消耗 state、meta 失敗不得誤刪既有 credentials（見 isolation checkpoint Edge 修正）。
+- 可重現的權限繞過或敏感資料外洩；
+- 可重現的資料遺失／破壞；
+- migration 無法完整套用或 history 與預期不同；
+- 合法 LMS／CAT 核心流程無法操作；
+- Auth 永久 loading／登入循環；
+- Slack OAuth 造成既有 credentials 遺失，或 Edge 回傳錯誤成功狀態；
+- CI、必要 SQL 契約或正式冒煙出現明確失敗。
+
+一般 warning、尚未改善的舊問題、非本次範圍的最佳化、文件偏好，不得再擴張為新 P0。`cases_visible`／`fees_visible` 的 2 件 definer Advisor ERROR 已有 Data API 負向測試佐證，維持「受控例外」，不得宣稱零 ERROR，也不再因此重開架構。
 
 ---
 
-## 6. Release Unit 3 — Contract／Harden
+## 3. Gate 2A：GitHub／Preview 候選（現在可執行）
 
-| 項目 | 內容 |
-|---|---|
-| **目的** | 套用 REVOKE／RLS 收緊／舊 RPC 關閉；達 P0 契約 |
-| **Git／PR** | 分支 `release/p0-harden` ← `main`（已含 Unit 1）；PR **僅**含 12 支 Harden P0 migration 檔 |
-| **Migration 清單** | `20260830122351`、`20260830122356`、`20260830122359`、`20260830122401`、`20260831043141`、`20260831043143`、`20260831043145`、`20260831151322`、`20260901120000`、`20260901120100`、`20260901120200`、`20260901120400` |
-| **Vercel** | 須已為 Unit 2 前端；push 後可允許 production deploy |
-| **順序** | ① 確認 Unit 2 前端已上線 → ② merge PR → ③ `db push` → ④ 重跑 10 支 P0 SQL + live Advisors |
-| **停止點** | REVOKE 後 Edge／RPC 失敗 → **立即**評估還原 grants 或暫停宣稱 |
-| **回復** | 需還原 migration 影響的 grants／policies（無一鍵 down）；必要時暫時 re-grant 並記錄事故 |
-| **宣稱** | **僅此 unit 驗收全綠後**可宣稱 P0 修復完成 |
+1. 在現有權威分支更新本文件並跑本機品質閘門。
+2. 確認 diff 不含其他 worktree、P0-B 舊草稿或 production secret。
+3. push `feat/isolation-replay-20260901`。
+4. 建立 **Draft PR** 指向 `main`，附上：
+   - 第五次 Micro 證據；
+   - 2 件 Advisor 受控例外；
+   - 本文件的維護窗口與回復限制；
+   - 明文標示「不可直接 merge」。
+5. 等待 GitHub CI 與 Vercel Preview build 全綠。
+6. Preview 只驗證 build、路由、Auth loading fallback 與不依賴新 RPC 的靜態流程。Preview 若連到尚未套 P0 RPC 的正式 Supabase，**不得**以新 RPC 功能失敗判定候選失敗，也不得在正式資料建立測試資料。
+7. G2-9 Slack OAuth 使用專用測試 Slack App；若 Preview 缺少安全的測試 App／callback 設定，移至維護窗口內、恢復服務前執行，不因此建立新 Supabase Micro。
+
+### Gate 2A 停止點
+
+Draft PR checks 未全綠、diff 混入其他工作、Vercel Preview build 失敗，立即停止；不得 merge、不得碰正式資料庫。
 
 ---
 
-## 7. 合併前必備（blocking）
+## 4. 正式維護窗口前置條件（全部 blocking）
 
-| # | 項目 | 通過條件 |
+| # | 條件 | 通過證據 |
 |---|---|---|
-| G2-1 | **164 支 migration 單次從零重放** | 第五次 Micro `db push` 164/164 |
-| G2-2 | **10 支 P0 SQL** | 原 9 支 + `p0_slack_edge_only_contract_check.sql` |
-| G2-3 | **建案四入口** | `p0_admin_create_case_check.sql` + Vitest `case-create-payload.test.ts` |
-| G2-4 | **雙 client 競態** | `scripts/dual-client-collab-race.mjs` |
-| G2-5 | **Data API definer** | `scripts/micro3-definer-view-api-check.mjs` |
-| G2-6 | **Live Advisors** | 2 件 `cases_visible`／`fees_visible` ERROR **如實列為受控例外**；**不得**零 ERROR |
-| G2-7 | **本機五關 + build** | typecheck／test／lint 0 error／encoding／forbidden-casts／build |
-| G2-8 | **types 重生** | `supabase gen types` 與隔離庫一致 |
-| G2-9 | **Preview Slack OAuth** | 真實「連結→已連結→解除」；**merge 前阻擋**；專用測試 Slack App |
+| M-1 | Draft PR 的 GitHub CI 與 Vercel build 全綠 | PR checks + deployment READY |
+| M-2 | 候選 commit 固定 | SHA 記入執行紀錄；窗口中不得換 commit |
+| M-3 | 正式 migration history 無漂移 | 遠端仍 149 支；無 only-remote；dry-run 恰好 15 支 |
+| M-4 | 正式庫為 ACTIVE_HEALTHY | Supabase 狀態與 SQL 健康檢查 |
+| M-5 | 可用備份 | 確認最新平台備份；另取得窗口前的 logical schema／roles／data dump，存於 Git 外受限位置並記錄 hash |
+| M-6 | 已知良好 production 前端 | 記錄目前 deployment、commit `724eb886` 與 URL；不得刪除此 deployment |
+| M-7 | 維護頁／公告就緒 | 能阻止新使用者開始工作；公告要求已開啟頁面停止操作並重新整理 |
+| M-8 | 執行者與觀察者就緒 | 一人操作、一人核對；若只有一人，逐項截圖／記錄後才繼續 |
+| M-9 | Slack 測試條件就緒 | 專用測試帳號與 Slack App，不使用真實使用者資料 |
+| M-10 | 明確核准 | 使用者核准窗口時間、預估停機與正式 DB／Vercel 操作 |
+
+未滿足任一項，不進入維護窗口。
 
 ---
 
-## 8. GitHub 流程（核准後執行）
+## 5. 正式發布順序（單次維護窗口）
 
-1. PR：`feat/isolation-replay-20260901` → `main`（**規劃用**；實際正式推出仍走 §4–§6 三 unit，不得一次 merge 164 支到會 auto-deploy 的 `main`）。
-2. PR 附：本檔三 release unit、第五次 Micro 摘要、Advisor 例外說明。
-3. **Merge 不等於上線**：依 §4→§5→§6 順序；每 unit 獨立簽核。
-4. 正式庫 `db push` 前：`check-migration-history.mjs --live`、備份（見 [`DEV_PIPELINE.md`](DEV_PIPELINE.md)）。
+### Phase 0 — 開始維護
+
+1. 宣布維護開始，記錄開始時間。
+2. 將 production 網頁切至維護頁；確認 `/cases`、`/cat/team` 不再讓使用者開始新工作。
+3. 等候短暫排空時間，提醒現有分頁停止編輯。
+4. 再次確認 Supabase 正式專案 ref 必須為 `wshsmerltcakffllgyul`，Vercel project 必須為 `talk-hanzi-joy`。
+
+### Phase 1 — 備份與 dry-run
+
+1. 確認平台備份時間與可還原性；建立 logical roles／schema／data dump。
+2. 計算備份檔 hash，保存於 Git／repo／`.env` 外。
+3. 唯讀列出正式 migration history。
+4. 執行 `supabase db push --linked --include-all --dry-run`。
+5. dry-run 必須只顯示 15 支預期 migration；多一支、少一支、順序異常或 project ref 不符，**立即停止**。
+
+### Phase 2 — 套用正式 migration
+
+1. 執行一次 `supabase db push --linked --include-all`；不帶 seed。
+2. 保存完整輸出與完成時間，不把密碼或 token 寫入 log／文件。
+3. 任一 migration 失敗：維持維護頁，禁止重跑、禁止在 Dashboard 手修後宣稱成功；進入 §7 回復決策。
+4. 成功後確認遠端 migration history 新增恰好 15 支，最高 `20260901120400`。
+
+### Phase 3 — 部署應用與 Edge Functions
+
+1. 部署固定候選 commit 對應的 Supabase Edge Functions。
+2. 建立／確認同一 commit 的 Vercel production build，切換 production domain。
+3. 不以舊 frontend 作為 DB Harden 後的普通回滾目標。
+
+### Phase 4 — 維護中驗收
+
+依序執行；前一項失敗即停：
+
+1. Auth：登入、F5 `/cases`、`/cases` ↔ `/cat/team`、CAT F5，皆須在 bounded time 離開全畫面 loading。
+2. Cases：PM 建案、一般 participant 允許欄位更新、未受指派者越權拒絕、公開詢案承接。
+3. CAT：合法 assignee 讀寫本人範圍；非 assignee、跨 env、direct assignment mutation 拒絕。
+4. Credentials：`cases_visible` 不含敏感值；合法 participant 專用 RPC 可讀；撤銷後新讀取拒絕。
+5. Slack G2-9：專用測試帳號完成「連結 → 已連結 → 解除」；callback state 僅消耗一次，meta 失敗不得誤報成功或刪除既有 credentials。
+6. Bridge：同步 `fee.get`／`invoice.get`／`clientInvoice.get` 與 `await *.getFresh()` 均相容。
+7. Realtime／背景分頁：無 auth loading 循環、無大量重載。
+8. Logs：Vercel／Supabase Auth／Edge 無新 P0 級錯誤；不得紀錄 token、完整 session 或 credential value。
+9. Advisors：記錄結果；允許既有 2 件受控 definer ERROR，其他新 ERROR 阻擋開站。
+
+### Phase 5 — 恢復服務
+
+只有 Phase 4 全部通過才：
+
+1. 解除維護頁並公告服務恢復。
+2. 監看至少 30 分鐘：Auth、Cases、CAT、Slack、Bridge、Vercel error 與 Supabase logs。
+3. 30 分鐘無 P0 異常後，才可將 Draft PR 轉正式／依 repo 流程完成 main 對齊；實際順序由執行時避免 main auto-deploy 重複發布。
 
 ---
 
-## 9. Migration 鏈（隔離線現況）
+## 6. 成功標準
 
-| 項目 | 值 |
-|---|---|
-| 總數 | **164** |
-| P0 Expand（2） | `20260830122353`、`20260901120300` |
-| P0 Harden（12） | 見 §3 表 |
-| 最高版號 | `20260901120400` |
+本次 P0 只有在下列全部成立後才算正式完成：
+
+- 正式 history 精確加入 15 支候選 migration；
+- 正式前端與 Edge Functions 均對應固定候選 commit；
+- 維護中冒煙全綠；
+- 30 分鐘監看無 P0 異常；
+- 舊一般寫入面確實關閉，合法 RPC 正常；
+- 2 件 definer Advisor ERROR 如實保留為受控例外；
+- PR／main／production commit 可追溯且沒有混入其他 worktree。
 
 ---
 
-## 10. 第五次 Micro 紀錄（2026-09-02，最終）
+## 7. 失敗與回復策略
+
+### 7.1 在 DB push 前失敗
+
+- 不變更正式資料庫；恢復原 production deployment／移除維護頁即可。
+
+### 7.2 DB push 部分或全部完成後失敗
+
+- **保持維護頁，不單獨 Instant Rollback 到舊 frontend。**
+- 先判斷能否在固定候選上小幅向前修復；只有具體 P0 問題可改候選。
+- 若無法在維護窗口內安全向前修復：依窗口前備份還原正式 DB，確認 history／資料，再將 Vercel 回復到已知良好 deployment。
+- 如採臨時 re-grant／補償 migration 恢復舊版相容，等同暫時重新開放已知漏洞，必須由使用者明確核准並記錄事故；不得當成一般一鍵回滾。
+- Supabase restore 期間專案不可用；備份不包含 Storage 物件本體，故本次不得對 Storage 物件做破壞性操作。
+
+### 7.3 回復後
+
+- 重跑 Auth／Cases／CAT 基本冒煙；公告延長維護或回復舊版。
+- 不修改已套用 migration；後續修正使用新的 forward／compensation migration。
+
+---
+
+## 8. GitHub／Vercel 操作規則
+
+- `main` 目前會觸發 Vercel production；Draft PR 在正式窗口前**不可 merge**。
+- Preview deployment 只作候選 build 證據，不因 Preview URL 存在而視為已部署。
+- 正式窗口要避免「merge main 自動上線」和手動 promotion 重複發版；採單一指定操作者、單一固定 commit。
+- Vercel Instant Rollback 只改路由／前端部署，不會回復 Supabase schema、grants、RLS 或資料，因此不得脫離 §7 單獨使用。
+- production deployment 與備份在驗收結束前不得刪除。
+
+---
+
+## 9. 第五次 Micro 最終證據（封頂）
 
 | 項目 | 結果 |
 |---|---|
-| ref `enexnghinsnyzmezxphk` | **164/164** migration 重放成功 |
-| SQL | **10/10** 通過 |
+| ref `enexnghinsnyzmezxphk` | 164/164 migration 從零重放成功 |
+| SQL | 10/10 通過 |
 | 競態 | `dual-client-collab-race.mjs` PASS |
 | Data API definer | `micro3-definer-view-api-check.mjs` PASS |
-| Advisors | 2 件 ERROR（`cases_visible`／`fees_visible`）— **受控例外** |
+| Advisors | 2 件 ERROR（`cases_visible`／`fees_visible`）— 受控例外 |
 | types | 已重生並通過 typecheck |
-| 處置 | **已刪除**；不得建第六次 |
-
-**現狀：隔離驗收全綠；等待 GitHub 審核。未 push、未開 PR、未部署正式庫。**
+| 處置 | 已刪除；**不得建第六次 Micro** |
 
 ---
 
-## 11. 第四次 Micro 紀錄（歷史）
+## 10. 下一個明確停止點
 
-| 項目 | 結果 |
-|---|---|
-| ref `vysyjvgkddjwdcwalbee` | **164/164** migration 重放成功 |
-| SQL | 9/10 通過；`p0_slack_edge_only` 失敗（測試 bug，已修） |
-| 競態／Advisors／types | **未執行** |
-| 處置 | 已刪除 |
+先完成 Gate 2A：push 功能分支、建立 Draft PR、等 CI／Preview build。完成後回報：
+
+- PR 與固定 commit；
+- checks／Preview 結果；
+- 正式 dry-run 預期 15 支清單（尚未執行正式 push）；
+- 維護窗口需要使用者提供／確認的時間、Slack 測試 App 與備份安排。
+
+到此必須停止，等待使用者另行核准正式維護窗口。
+**現況：Gate 1 通過；production 尚未變更。**
