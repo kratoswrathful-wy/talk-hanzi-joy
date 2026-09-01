@@ -475,6 +475,154 @@ $$;
 comment on function public.apply_case_update(uuid, jsonb, bigint) is
   'P0-C：admin-only；allowlist 不含 revision／憑證／tools 敏感鍵（已剝除）；成功寫入 case_mutation_audit。';
 
+-- ── 3b) admin_create_case payload 驗證（固定 allowlist；拒絕 unknown／forbidden）──
+create or replace function private.p0_admin_create_validate_payload(p_payload jsonb)
+returns text
+language plpgsql
+immutable
+set search_path = pg_catalog
+as $$
+declare
+  v_key text;
+  v_forbidden text[] := array[
+    'id', 'env', 'created_at', 'created_by', 'revision', 'updated_at',
+    'login_account', 'login_password', 'login_url', 'other_login_info',
+    'tools', 'question_tools', 'tool_field_values'
+  ];
+  v_allowed text[] := array[
+    'billing_unit', 'body_content', 'case_reference_materials', 'cat_tool_enabled',
+    'category', 'change_log_enabled_at', 'client', 'client_case_link', 'client_guidelines',
+    'client_po_number', 'client_question_form', 'client_receipt', 'client_receipt_files',
+    'collab_count', 'collab_rows', 'comments', 'common_info', 'common_links', 'contact',
+    'custom_guidelines_url', 'decline_records', 'delivery_method', 'delivery_method_files',
+    'dispatch_route', 'edit_logs', 'execution_tool', 'fee_entry', 'icon_url', 'inquiry_note',
+    'inquiry_slack_records', 'internal_comments', 'internal_note_form', 'internal_records',
+    'internal_review_final', 'keyword', 'multi_collab', 'online_tool_filename',
+    'online_tool_project', 'process_note', 'question_form', 'reference_materials',
+    'review_deadline', 'review_rows', 'reviewer', 'series_reference_materials', 'source_files',
+    'status', 'task_status', 'title', 'track_changes', 'translation_deadline', 'translator',
+    'translator_final', 'unit_count', 'work_groups', 'work_type', 'working_files'
+  ];
+  v_text_keys text[] := array[
+    'billing_unit', 'category', 'client', 'client_po_number', 'client_receipt', 'contact',
+    'delivery_method', 'dispatch_route', 'execution_tool', 'fee_entry', 'icon_url',
+    'inquiry_note', 'keyword', 'online_tool_filename', 'online_tool_project', 'process_note',
+    'question_form', 'reviewer', 'status', 'task_status', 'title'
+  ];
+  v_json_array_keys text[] := array[
+    'collab_rows', 'common_info', 'decline_records', 'edit_logs', 'inquiry_slack_records',
+    'internal_records', 'internal_review_final', 'reference_materials', 'review_rows',
+    'source_files', 'translator', 'translator_final', 'work_groups', 'work_type', 'working_files'
+  ];
+  v_json_nullable_keys text[] := array[
+    'body_content', 'case_reference_materials', 'client_case_link', 'client_guidelines',
+    'client_receipt_files', 'comments', 'common_links', 'custom_guidelines_url',
+    'delivery_method_files', 'internal_comments', 'series_reference_materials', 'track_changes'
+  ];
+  v_bool_keys text[] := array[
+    'cat_tool_enabled', 'client_question_form', 'internal_note_form', 'multi_collab'
+  ];
+  v_num_keys text[] := array['collab_count', 'unit_count'];
+  v_ts_keys text[] := array[
+    'change_log_enabled_at', 'review_deadline', 'translation_deadline'
+  ];
+  v_statuses text[] := array[
+    'draft', 'inquiry', 'dispatched', 'task_completed', 'delivered', 'feedback',
+    'feedback_completed'
+  ];
+begin
+  if p_payload is null or p_payload = '{}'::jsonb then
+    return 'empty_payload';
+  end if;
+
+  select k into v_key
+  from jsonb_object_keys(p_payload) as t(k)
+  where k = any(v_forbidden)
+  limit 1;
+  if v_key is not null then
+    return 'forbidden_create_key';
+  end if;
+
+  select k into v_key
+  from jsonb_object_keys(p_payload) as t(k)
+  where not (k = any(v_allowed))
+  limit 1;
+  if v_key is not null then
+    return 'unknown_create_key';
+  end if;
+
+  foreach v_key in array v_text_keys loop
+    if p_payload ? v_key
+       and jsonb_typeof(p_payload->v_key) not in ('string', 'null') then
+      return 'invalid_field_type';
+    end if;
+  end loop;
+
+  if p_payload ? 'title'
+     and p_payload->>'title' is not null
+     and length(p_payload->>'title') > 500 then
+    return 'invalid_field_length';
+  end if;
+
+  if p_payload ? 'status' then
+    if jsonb_typeof(p_payload->'status') <> 'string'
+       or not (p_payload->>'status' = any(v_statuses)) then
+      return 'invalid_status';
+    end if;
+  end if;
+
+  foreach v_key in array v_bool_keys loop
+    if p_payload ? v_key
+       and jsonb_typeof(p_payload->v_key) not in ('boolean', 'null') then
+      return 'invalid_field_type';
+    end if;
+  end loop;
+
+  foreach v_key in array v_num_keys loop
+    if p_payload ? v_key
+       and jsonb_typeof(p_payload->v_key) not in ('number', 'null') then
+      return 'invalid_field_type';
+    end if;
+  end loop;
+
+  foreach v_key in array v_json_array_keys loop
+    if p_payload ? v_key
+       and jsonb_typeof(p_payload->v_key) not in ('array', 'null') then
+      return 'invalid_field_type';
+    end if;
+  end loop;
+
+  foreach v_key in array v_json_nullable_keys loop
+    if p_payload ? v_key
+       and jsonb_typeof(p_payload->v_key) not in ('object', 'array', 'string', 'null') then
+      return 'invalid_field_type';
+    end if;
+  end loop;
+
+  foreach v_key in array v_ts_keys loop
+    if p_payload ? v_key and jsonb_typeof(p_payload->v_key) = 'string' then
+      begin
+        perform (p_payload->>v_key)::timestamptz;
+      exception
+        when others then
+          return 'invalid_field_type';
+      end;
+    elsif p_payload ? v_key
+       and jsonb_typeof(p_payload->v_key) not in ('null') then
+      return 'invalid_field_type';
+    end if;
+  end loop;
+
+  return null;
+end;
+$$;
+
+revoke all on function private.p0_admin_create_validate_payload(jsonb)
+  from public, anon, authenticated;
+
+comment on function private.p0_admin_create_validate_payload(jsonb) is
+  'P0-C：admin_create_case 固定 allowlist 驗證；拒絕 unknown／forbidden／型別不符。';
+
 -- ── 4) admin 建刪案 RPC＋收回 authenticated INSERT/DELETE ───────────────────
 create or replace function public.admin_create_case(
   p_case_id uuid,
@@ -489,7 +637,7 @@ declare
   v_uid uuid := (select auth.uid());
   v_env text := public.current_env();
   v_clean jsonb;
-  v_row public.cases%rowtype;
+  v_err text;
 begin
   if v_uid is null or not public.is_admin(v_uid) then
     return jsonb_build_object('ok', false, 'error', 'not_authorized');
@@ -497,26 +645,152 @@ begin
   if p_case_id is null then
     return jsonb_build_object('ok', false, 'error', 'invalid_case_id');
   end if;
-  if p_payload is null or p_payload = '{}'::jsonb then
-    return jsonb_build_object('ok', false, 'error', 'empty_payload');
+
+  v_clean := coalesce(p_payload, '{}'::jsonb);
+  v_err := private.p0_admin_create_validate_payload(v_clean);
+  if v_err is not null then
+    return jsonb_build_object('ok', false, 'error', v_err);
   end if;
 
-  v_clean := coalesce(p_payload, '{}'::jsonb)
-    - 'id' - 'env' - 'created_at' - 'created_by' - 'revision' - 'updated_at'
-    - 'login_account' - 'login_password' - 'login_url' - 'other_login_info'
-    - 'tools' - 'question_tools' - 'tool_field_values';
-
-  v_row := jsonb_populate_record(
-    null::public.cases,
-    v_clean || jsonb_build_object(
-      'id', p_case_id,
-      'env', v_env,
-      'created_by', v_uid
-    )
+  insert into public.cases (
+    id,
+    env,
+    created_by,
+    title,
+    status,
+    client,
+    contact,
+    keyword,
+    client_po_number,
+    client_case_link,
+    dispatch_route,
+    category,
+    work_type,
+    work_groups,
+    process_note,
+    billing_unit,
+    unit_count,
+    inquiry_note,
+    translator,
+    translation_deadline,
+    reviewer,
+    review_deadline,
+    execution_tool,
+    cat_tool_enabled,
+    delivery_method,
+    delivery_method_files,
+    client_receipt,
+    client_receipt_files,
+    custom_guidelines_url,
+    client_guidelines,
+    common_info,
+    common_links,
+    internal_note_form,
+    client_question_form,
+    working_files,
+    online_tool_project,
+    online_tool_filename,
+    source_files,
+    series_reference_materials,
+    case_reference_materials,
+    reference_materials,
+    question_form,
+    translator_final,
+    internal_review_final,
+    track_changes,
+    fee_entry,
+    internal_records,
+    comments,
+    internal_comments,
+    body_content,
+    multi_collab,
+    collab_count,
+    collab_rows,
+    review_rows,
+    decline_records,
+    icon_url,
+    inquiry_slack_records,
+    edit_logs,
+    change_log_enabled_at,
+    task_status
+  )
+  values (
+    p_case_id,
+    v_env,
+    v_uid,
+    coalesce(nullif(trim(v_clean->>'title'), ''), ''),
+    coalesce(nullif(trim(v_clean->>'status'), ''), 'draft'),
+    coalesce(nullif(trim(v_clean->>'client'), ''), ''),
+    coalesce(nullif(trim(v_clean->>'contact'), ''), ''),
+    coalesce(nullif(trim(v_clean->>'keyword'), ''), ''),
+    coalesce(nullif(trim(v_clean->>'client_po_number'), ''), ''),
+    case when v_clean ? 'client_case_link' then v_clean->'client_case_link' else null end,
+    coalesce(nullif(trim(v_clean->>'dispatch_route'), ''), ''),
+    coalesce(nullif(trim(v_clean->>'category'), ''), ''),
+    coalesce(v_clean->'work_type', '[]'::jsonb),
+    coalesce(v_clean->'work_groups', '[]'::jsonb),
+    coalesce(nullif(trim(v_clean->>'process_note'), ''), ''),
+    coalesce(nullif(trim(v_clean->>'billing_unit'), ''), ''),
+    coalesce((v_clean->>'unit_count')::numeric, 0),
+    coalesce(nullif(trim(v_clean->>'inquiry_note'), ''), ''),
+    coalesce(v_clean->'translator', '[]'::jsonb),
+    case
+      when v_clean ? 'translation_deadline'
+        and jsonb_typeof(v_clean->'translation_deadline') = 'string'
+      then (v_clean->>'translation_deadline')::timestamptz
+      else null
+    end,
+    coalesce(nullif(trim(v_clean->>'reviewer'), ''), ''),
+    case
+      when v_clean ? 'review_deadline'
+        and jsonb_typeof(v_clean->'review_deadline') = 'string'
+      then (v_clean->>'review_deadline')::timestamptz
+      else null
+    end,
+    coalesce(nullif(trim(v_clean->>'execution_tool'), ''), ''),
+    coalesce((v_clean->>'cat_tool_enabled')::boolean, false),
+    coalesce(nullif(trim(v_clean->>'delivery_method'), ''), ''),
+    case when v_clean ? 'delivery_method_files' then v_clean->'delivery_method_files' else null end,
+    coalesce(nullif(trim(v_clean->>'client_receipt'), ''), ''),
+    case when v_clean ? 'client_receipt_files' then v_clean->'client_receipt_files' else null end,
+    coalesce(v_clean->'custom_guidelines_url', '""'::jsonb),
+    coalesce(v_clean->'client_guidelines', '[]'::jsonb),
+    coalesce(v_clean->'common_info', '[]'::jsonb),
+    case when v_clean ? 'common_links' then v_clean->'common_links' else null end,
+    coalesce((v_clean->>'internal_note_form')::boolean, false),
+    coalesce((v_clean->>'client_question_form')::boolean, false),
+    coalesce(v_clean->'working_files', '[]'::jsonb),
+    coalesce(nullif(trim(v_clean->>'online_tool_project'), ''), ''),
+    coalesce(nullif(trim(v_clean->>'online_tool_filename'), ''), ''),
+    coalesce(v_clean->'source_files', '[]'::jsonb),
+    case when v_clean ? 'series_reference_materials' then v_clean->'series_reference_materials' else null end,
+    case when v_clean ? 'case_reference_materials' then v_clean->'case_reference_materials' else null end,
+    coalesce(v_clean->'reference_materials', '[]'::jsonb),
+    coalesce(nullif(trim(v_clean->>'question_form'), ''), ''),
+    coalesce(v_clean->'translator_final', '[]'::jsonb),
+    coalesce(v_clean->'internal_review_final', '[]'::jsonb),
+    coalesce(v_clean->'track_changes', '[]'::jsonb),
+    coalesce(nullif(trim(v_clean->>'fee_entry'), ''), ''),
+    coalesce(v_clean->'internal_records', '[]'::jsonb),
+    case when v_clean ? 'comments' then v_clean->'comments' else null end,
+    case when v_clean ? 'internal_comments' then v_clean->'internal_comments' else null end,
+    case when v_clean ? 'body_content' then v_clean->'body_content' else null end,
+    coalesce((v_clean->>'multi_collab')::boolean, false),
+    coalesce((v_clean->>'collab_count')::numeric, 0),
+    coalesce(v_clean->'collab_rows', '[]'::jsonb),
+    coalesce(v_clean->'review_rows', '[]'::jsonb),
+    coalesce(v_clean->'decline_records', '[]'::jsonb),
+    case when v_clean ? 'icon_url' then nullif(trim(v_clean->>'icon_url'), '') else null end,
+    coalesce(v_clean->'inquiry_slack_records', '[]'::jsonb),
+    coalesce(v_clean->'edit_logs', '[]'::jsonb),
+    case
+      when v_clean ? 'change_log_enabled_at'
+        and jsonb_typeof(v_clean->'change_log_enabled_at') = 'string'
+      then (v_clean->>'change_log_enabled_at')::timestamptz
+      else null
+    end,
+    coalesce(nullif(trim(v_clean->>'task_status'), ''), '')
   );
-
-  insert into public.cases
-  select (v_row).*;
 
   perform private.record_case_mutation(
     p_case_id, v_env, v_uid, 'admin_create_case',
@@ -532,7 +806,9 @@ exception
   when unique_violation then
     return jsonb_build_object('ok', false, 'error', 'case_already_exists');
   when others then
-    return jsonb_build_object('ok', false, 'error', SQLERRM);
+    raise log 'admin_create_case internal error case_id=% env=% sqlstate=%',
+      p_case_id, v_env, sqlstate;
+    return jsonb_build_object('ok', false, 'error', 'internal_error');
 end;
 $$;
 
@@ -598,7 +874,7 @@ grant execute on function public.admin_delete_case(uuid, bigint)
 revoke insert, delete on public.cases from authenticated;
 
 comment on function public.admin_create_case(uuid, jsonb) is
-  'P0-C：僅 PM／執行長同 env 建案；憑證鍵剝除；寫入 case_mutation_audit。';
+  'P0-C：僅 PM／執行長同 env 建案；固定 allowlist 明列 INSERT；forbidden／unknown 拒絕；audit 不含欄位值。';
 comment on function public.admin_delete_case(uuid, bigint) is
   'P0-C：僅 PM／執行長同 env 刪案（需 expected revision）；寫入 case_mutation_audit。';
 

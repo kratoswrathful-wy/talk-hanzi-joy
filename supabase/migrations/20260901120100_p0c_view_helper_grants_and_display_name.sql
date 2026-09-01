@@ -1,11 +1,18 @@
--- P0-C 補丁：security-definer view owner 須能 EXECUTE 私有 helper；
--- 譯者資格須 trim(display_name) 非空（對齊 UI，不得僅靠 email 後備）。
+-- P0-C 補丁（整併 201–205 之 view／資格修正）：
+--   - security-definer view owner 須能 EXECUTE 私有 helper
+--   - security_barrier view 評估須 grant authenticated EXECUTE helper（仍無 private schema USAGE）
+--   - 譯者資格須 trim(display_name) 非空（對齊 UI，不得僅靠 email 後備）
 
 alter function private.public_tool_structure(jsonb) owner to postgres;
 alter function private.case_field_permission_allowed(text, text) owner to postgres;
 
 grant execute on function private.public_tool_structure(jsonb) to postgres;
 grant execute on function private.case_field_permission_allowed(text, text) to postgres;
+
+grant execute on function private.public_tool_structure(jsonb) to authenticated;
+grant execute on function private.case_field_permission_allowed(text, text) to authenticated;
+
+revoke all on schema private from public, anon, authenticated;
 
 create or replace function private.p0_assert_translator_eligible(p_user_id uuid)
 returns void
