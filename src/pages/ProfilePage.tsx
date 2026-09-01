@@ -395,6 +395,7 @@ export default function ProfilePage() {
       </Card>
 
       <ProfileSlackCard
+        userId={user?.id}
         isAdmin={isAdmin}
         receiveCaseReplySlackDms={receiveCaseReplySlackDms}
         onReceiveCaseReplySlackDmsChange={setReceiveCaseReplySlackDms}

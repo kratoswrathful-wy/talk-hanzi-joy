@@ -84,7 +84,7 @@ export function NoteReminderSlackDialog({
   note: InternalNote;
 }) {
   const { user, isAdmin } = useAuth();
-  const { status: slackStatus } = useOwnSlackMetaStatus(open && !!user?.id);
+  const { status: slackStatus } = useOwnSlackMetaStatus(open && !!user?.id, user?.id);
   const [rows, setRows] = useState<NoteReminderRecipientRow[]>([]);
   const [workloadByName, setWorkloadByName] = useState<Map<string, number>>(() => new Map());
   const [loading, setLoading] = useState(false);

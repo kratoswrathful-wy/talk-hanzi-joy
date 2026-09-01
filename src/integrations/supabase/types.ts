@@ -3894,9 +3894,9 @@ export type Database = {
       }
       get_case_credentials: { Args: { p_case_id: string }; Returns: Json }
       get_own_slack_meta: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
-          slack_team_id: string | null
+          slack_team_id: string
           slack_user_id: string
           user_id: string
         }[]

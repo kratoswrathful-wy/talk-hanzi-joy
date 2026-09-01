@@ -26,6 +26,7 @@ const PREVIEW_PLACEHOLDER_VOLUME = "<所輸入的可承接量>";
 const PREVIEW_LINE4_PLACEHOLDER = "<按下按鈕後額外輸入的補充留言>";
 
 type ProfileSlackCardProps = {
+  userId: string | null | undefined;
   isAdmin: boolean;
   receiveCaseReplySlackDms: boolean;
   onReceiveCaseReplySlackDmsChange: (v: boolean) => void;
@@ -47,6 +48,7 @@ type ProfileSlackCardProps = {
  * - Slack 詢案（僅 PM／Executive 顯示說明；與上共用同一連結）
  */
 export function ProfileSlackCard({
+  userId,
   isAdmin,
   receiveCaseReplySlackDms,
   onReceiveCaseReplySlackDmsChange,
@@ -60,7 +62,10 @@ export function ProfileSlackCard({
   onDeclineLine3SuffixChange,
 }: ProfileSlackCardProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { status: slackStatus, reload: reloadSlackMeta } = useOwnSlackMetaStatus(true);
+  const { status: slackStatus, reload: reloadSlackMeta } = useOwnSlackMetaStatus(
+    true,
+    userId,
+  );
   const [actionLoading, setActionLoading] = useState(false);
 
   const acceptPreviewText = useMemo(() => {

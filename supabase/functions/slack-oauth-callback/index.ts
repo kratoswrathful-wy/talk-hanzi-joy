@@ -1,5 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
+type SlackCredentialRow = {
+  user_id: string;
+  access_token: string;
+  refresh_token: string | null;
+  token_expires_at: string | null;
+  slack_user_id: string;
+  slack_team_id: string | null;
+  updated_at: string;
+};
+
 Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
@@ -20,13 +30,22 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { data: row, error: stErr } = await supabase
+    const { data: consumed, error: consumeErr } = await supabase
       .from("slack_oauth_states")
-      .select("user_id, expires_at")
+      .delete()
       .eq("state", state)
+      .select("user_id, expires_at")
       .maybeSingle();
 
-    if (stErr || !row || new Date(row.expires_at) < new Date()) {
+    if (consumeErr) {
+      console.error("slack_oauth_states consume failed", {
+        code: consumeErr.code,
+        message: consumeErr.message,
+      });
+      return Response.redirect(`${siteUrl}/profile?slack_error=invalid_or_expired_state`);
+    }
+
+    if (!consumed || new Date(consumed.expires_at) < new Date()) {
       return Response.redirect(`${siteUrl}/profile?slack_error=invalid_or_expired_state`);
     }
 
@@ -66,9 +85,17 @@ Deno.serve(async (req) => {
       return Response.redirect(`${siteUrl}/profile?slack_error=no_user_token`);
     }
 
+    const { data: previousCred } = await supabase
+      .from("user_slack_credentials")
+      .select(
+        "user_id, access_token, refresh_token, token_expires_at, slack_user_id, slack_team_id, updated_at"
+      )
+      .eq("user_id", consumed.user_id)
+      .maybeSingle();
+
     const { error: upCred } = await supabase.from("user_slack_credentials").upsert(
       {
-        user_id: row.user_id,
+        user_id: consumed.user_id,
         access_token: userToken,
         refresh_token: authed?.refresh_token ?? null,
         token_expires_at: null,
@@ -86,7 +113,7 @@ Deno.serve(async (req) => {
 
     const { error: upMeta } = await supabase.from("user_slack_meta").upsert(
       {
-        user_id: row.user_id,
+        user_id: consumed.user_id,
         slack_user_id: slackUserId,
         slack_team_id: teamId ?? null,
         updated_at: new Date().toISOString(),
@@ -96,20 +123,30 @@ Deno.serve(async (req) => {
 
     if (upMeta) {
       console.error("user_slack_meta upsert failed", { code: upMeta.code, message: upMeta.message });
-      const { error: rollbackErr } = await supabase
-        .from("user_slack_credentials")
-        .delete()
-        .eq("user_id", row.user_id);
-      if (rollbackErr) {
-        console.error("rollback user_slack_credentials failed", {
-          code: rollbackErr.code,
-          message: rollbackErr.message,
-        });
+      if (previousCred) {
+        const { error: restoreErr } = await supabase
+          .from("user_slack_credentials")
+          .upsert(previousCred as SlackCredentialRow, { onConflict: "user_id" });
+        if (restoreErr) {
+          console.error("restore previous user_slack_credentials failed", {
+            code: restoreErr.code,
+            message: restoreErr.message,
+          });
+        }
+      } else {
+        const { error: rollbackErr } = await supabase
+          .from("user_slack_credentials")
+          .delete()
+          .eq("user_id", consumed.user_id);
+        if (rollbackErr) {
+          console.error("rollback new user_slack_credentials failed", {
+            code: rollbackErr.code,
+            message: rollbackErr.message,
+          });
+        }
       }
       return Response.redirect(`${siteUrl}/profile?slack_error=save_failed`);
     }
-
-    await supabase.from("slack_oauth_states").delete().eq("state", state);
 
     return Response.redirect(`${siteUrl}/profile?slack=connected`);
   } catch (e) {

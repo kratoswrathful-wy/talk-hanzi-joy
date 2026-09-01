@@ -60,9 +60,40 @@ begin
     end loop;
   end loop;
 
-  -- anon 不可執行 RPC
+  -- get_own_slack_meta()：函式 ACL 與定義
+  if has_function_privilege('public', 'public.get_own_slack_meta()', 'EXECUTE') then
+    raise exception 'PUBLIC must not execute get_own_slack_meta';
+  end if;
+
   if has_function_privilege('anon', 'public.get_own_slack_meta()', 'EXECUTE') then
     raise exception 'anon must not execute get_own_slack_meta';
+  end if;
+
+  if not has_function_privilege('authenticated', 'public.get_own_slack_meta()', 'EXECUTE') then
+    raise exception 'authenticated must execute get_own_slack_meta';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'get_own_slack_meta'
+      and p.pronargs > 0
+  ) then
+    raise exception 'get_own_slack_meta must not accept user id parameters';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join lateral unnest(coalesce(p.proconfig, array[]::text[])) cfg
+    where n.nspname = 'public'
+      and p.proname = 'get_own_slack_meta'
+      and cfg like 'search_path=pg_catalog, public'
+  ) then
+    raise exception 'get_own_slack_meta must set fixed search_path';
   end if;
 
   -- 使用者 A：RPC 只得本人 meta
