@@ -45,8 +45,6 @@ declare
   ];
   v_actual_cols text[];
   v_drift text[];
-  v_tbl text;
-  v_priv text;
 begin
   insert into auth.users(id, email, raw_user_meta_data)
   values
@@ -160,17 +158,7 @@ begin
     raise exception 'anon must not select definer views';
   end if;
 
-  foreach v_tbl in array array['slack_oauth_states', 'user_slack_meta'] loop
-    if not (select relrowsecurity from pg_class where oid = format('public.%I', v_tbl)::regclass) then
-      raise exception '% must have RLS', v_tbl;
-    end if;
-    foreach v_priv in array array['SELECT','INSERT','UPDATE','DELETE'] loop
-      if has_table_privilege('anon', format('public.%I', v_tbl), v_priv)
-         or has_table_privilege('authenticated', format('public.%I', v_tbl), v_priv) then
-        raise exception '% % grant must not exist for anon/authenticated', v_tbl, v_priv;
-      end if;
-    end loop;
-  end loop;
+  -- Slack 三表契約見 p0_slack_edge_only_contract_check.sql
 
   if exists (
     select 1

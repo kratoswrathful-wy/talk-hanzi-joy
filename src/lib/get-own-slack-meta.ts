@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type OwnSlackMetaRow = {
@@ -6,10 +7,62 @@ export type OwnSlackMetaRow = {
   slack_team_id: string | null;
 };
 
-/** 讀取目前登入者的 Slack 連結 meta（經 RPC；不可直查 user_slack_meta）。 */
-export async function fetchOwnSlackMeta(): Promise<OwnSlackMetaRow | null> {
+export type OwnSlackMetaLoadResult =
+  | { ok: true; meta: OwnSlackMetaRow | null }
+  | { ok: false; error: { message: string; code?: string } };
+
+export type OwnSlackMetaStatus =
+  | { kind: "loading" }
+  | { kind: "connected"; slackUserId: string }
+  | { kind: "not_connected" }
+  | { kind: "error"; message: string };
+
+export const OWN_SLACK_META_LOAD_ERROR_MESSAGE =
+  "無法讀取 Slack 連結狀態，請稍後再試。";
+
+/** 讀取目前登入者的 Slack 連結 meta（經 RPC；不可直查 Slack 表）。 */
+export async function fetchOwnSlackMeta(): Promise<OwnSlackMetaLoadResult> {
   const { data, error } = await supabase.rpc("get_own_slack_meta");
-  if (error) throw error;
+  if (error) {
+    return {
+      ok: false,
+      error: { message: error.message, code: error.code },
+    };
+  }
   const row = (data as OwnSlackMetaRow[] | null)?.[0];
-  return row ?? null;
+  return { ok: true, meta: row ?? null };
+}
+
+export function mapOwnSlackMetaLoadResult(result: OwnSlackMetaLoadResult): OwnSlackMetaStatus {
+  if (!result.ok) {
+    return { kind: "error", message: OWN_SLACK_META_LOAD_ERROR_MESSAGE };
+  }
+  if (!result.meta) {
+    return { kind: "not_connected" };
+  }
+  return { kind: "connected", slackUserId: result.meta.slack_user_id };
+}
+
+/** 含 stale／unmount guard 的 Slack 綁定狀態讀取。 */
+export function useOwnSlackMetaStatus(enabled: boolean) {
+  const [status, setStatus] = useState<OwnSlackMetaStatus>({ kind: "loading" });
+  const requestIdRef = useRef(0);
+
+  const reload = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    setStatus({ kind: "loading" });
+    const result = await fetchOwnSlackMeta();
+    if (requestId !== requestIdRef.current) return;
+    setStatus(mapOwnSlackMetaLoadResult(result));
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    void reload();
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [enabled, reload]);
+
+  return { status, reload };
 }

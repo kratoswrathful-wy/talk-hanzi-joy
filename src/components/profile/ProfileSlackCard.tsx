@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, MessageSquare, Bell, Link2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2, MessageSquare, Bell, Link2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
-import { fetchOwnSlackMeta } from "@/lib/get-own-slack-meta";
+import { useOwnSlackMetaStatus } from "@/lib/get-own-slack-meta";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import {
   DEFAULT_ACCEPT_SUFFIX,
@@ -59,9 +60,7 @@ export function ProfileSlackCard({
   onDeclineLine3SuffixChange,
 }: ProfileSlackCardProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [connected, setConnected] = useState<boolean | null>(null);
-  const [slackUserId, setSlackUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { status: slackStatus, reload: reloadSlackMeta } = useOwnSlackMetaStatus(true);
   const [actionLoading, setActionLoading] = useState(false);
 
   const acceptPreviewText = useMemo(() => {
@@ -83,21 +82,8 @@ export function ProfileSlackCard({
   }, [declineLine1Suffix, declineLine2Suffix, declineLine3Suffix]);
 
   const refresh = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.id) {
-      setConnected(false);
-      setLoading(false);
-      return;
-    }
-    const data = await fetchOwnSlackMeta();
-    setConnected(!!data);
-    setSlackUserId(data?.slack_user_id ?? null);
-    setLoading(false);
+    await reloadSlackMeta();
   };
-
-  useEffect(() => {
-    void refresh();
-  }, []);
 
   useEffect(() => {
     const slack = searchParams.get("slack");
@@ -177,15 +163,26 @@ export function ProfileSlackCard({
       <CardContent className="space-y-6">
         <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
           <p className="text-sm font-medium">連結狀態</p>
-          {loading ? (
+          {slackStatus.kind === "loading" ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               讀取中…
             </div>
-          ) : connected ? (
+          ) : slackStatus.kind === "error" ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>無法讀取 Slack 連結狀態</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{slackStatus.message}</p>
+                <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={actionLoading}>
+                  重新讀取
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : slackStatus.kind === "connected" ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                已連結 Slack（使用者 ID：<span className="font-mono text-xs">{slackUserId}</span>）
+                已連結 Slack（使用者 ID：<span className="font-mono text-xs">{slackStatus.slackUserId}</span>）
               </p>
               <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={actionLoading}>
                 {actionLoading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}

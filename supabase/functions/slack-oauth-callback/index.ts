@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
     const json = await tokenRes.json();
     if (!json.ok) {
-      console.error("oauth.v2.access", json);
+      console.error("oauth.v2.access failed", { error: json.error ?? "oauth_failed" });
       return Response.redirect(
         `${siteUrl}/profile?slack_error=${encodeURIComponent(json.error || "oauth_failed")}`
       );
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     const teamId = json.team?.id as string | undefined;
 
     if (!userToken || !slackUserId) {
-      console.error("Missing user token in response", json);
+      console.error("Missing user token in Slack OAuth response");
       return Response.redirect(`${siteUrl}/profile?slack_error=no_user_token`);
     }
 
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     );
 
     if (upCred) {
-      console.error(upCred);
+      console.error("user_slack_credentials upsert failed", { code: upCred.code, message: upCred.message });
       return Response.redirect(`${siteUrl}/profile?slack_error=save_failed`);
     }
 
@@ -95,14 +95,25 @@ Deno.serve(async (req) => {
     );
 
     if (upMeta) {
-      console.error(upMeta);
+      console.error("user_slack_meta upsert failed", { code: upMeta.code, message: upMeta.message });
+      const { error: rollbackErr } = await supabase
+        .from("user_slack_credentials")
+        .delete()
+        .eq("user_id", row.user_id);
+      if (rollbackErr) {
+        console.error("rollback user_slack_credentials failed", {
+          code: rollbackErr.code,
+          message: rollbackErr.message,
+        });
+      }
+      return Response.redirect(`${siteUrl}/profile?slack_error=save_failed`);
     }
 
     await supabase.from("slack_oauth_states").delete().eq("state", state);
 
     return Response.redirect(`${siteUrl}/profile?slack=connected`);
   } catch (e) {
-    console.error(e);
+    console.error("slack-oauth-callback exception", e instanceof Error ? e.message : "unknown");
     const siteUrl = (Deno.env.get("SITE_URL") || "http://localhost:5173").replace(/\/$/, "");
     return Response.redirect(`${siteUrl}/profile?slack_error=exception`);
   }

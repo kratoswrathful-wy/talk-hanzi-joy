@@ -129,8 +129,28 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
 }): Promise<void> {
   const { userId, slackMessageDefaults, caseId, caseTitle, kind, decline, segmentTitle } = params;
 
-  const meta = await fetchOwnSlackMeta();
+  let metaResult: Awaited<ReturnType<typeof fetchOwnSlackMeta>>;
+  try {
+    metaResult = await fetchOwnSlackMeta();
+  } catch {
+    toast({
+      title: "Slack 通知未送出",
+      description: "無法確認 Slack 連結狀態。",
+      variant: "destructive",
+    });
+    return;
+  }
 
+  if (!metaResult.ok) {
+    toast({
+      title: "Slack 通知未送出",
+      description: "無法確認 Slack 連結狀態。",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  const meta = metaResult.meta;
   if (!meta || meta.user_id !== userId) return;
 
   const token = await getAccessTokenForEdgeFunctions();

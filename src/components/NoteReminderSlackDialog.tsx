@@ -26,7 +26,7 @@ import {
 import { Loader2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
-import { fetchOwnSlackMeta } from "@/lib/get-own-slack-meta";
+import { OWN_SLACK_META_LOAD_ERROR_MESSAGE, useOwnSlackMetaStatus } from "@/lib/get-own-slack-meta";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import type { CaseRecord } from "@/data/case-types";
 import {
@@ -84,7 +84,7 @@ export function NoteReminderSlackDialog({
   note: InternalNote;
 }) {
   const { user, isAdmin } = useAuth();
-  const [slackConnected, setSlackConnected] = useState<boolean | null>(null);
+  const { status: slackStatus } = useOwnSlackMetaStatus(open && !!user?.id);
   const [rows, setRows] = useState<NoteReminderRecipientRow[]>([]);
   const [workloadByName, setWorkloadByName] = useState<Map<string, number>>(() => new Map());
   const [loading, setLoading] = useState(false);
@@ -137,13 +137,9 @@ export function NoteReminderSlackDialog({
     setMessageBody(defaultMessage);
   }, [open, defaultMessage]);
 
-  useEffect(() => {
-    if (!open || !user?.id) return;
-    void (async () => {
-      const data = await fetchOwnSlackMeta();
-      setSlackConnected(!!data);
-    })();
-  }, [open, user?.id]);
+  const slackConnected = slackStatus.kind === "connected";
+  const slackStatusLoading = slackStatus.kind === "loading";
+  const slackStatusError = slackStatus.kind === "error";
 
   useEffect(() => {
     if (!open) return;
@@ -343,6 +339,10 @@ export function NoteReminderSlackDialog({
       toast.error("找不到關聯案件，無法發送");
       return;
     }
+    if (slackStatusError) {
+      toast.error(OWN_SLACK_META_LOAD_ERROR_MESSAGE);
+      return;
+    }
     if (!slackConnected) {
       toast.error("請先到「個人檔案」連結 Slack");
       return;
@@ -436,7 +436,10 @@ export function NoteReminderSlackDialog({
             {!relatedCaseRecord && note.relatedCase && (
               <span className="block mt-2 text-destructive">找不到與標題相符的案件，無法組合預設訊息。</span>
             )}
-            {slackConnected === false && (
+            {slackStatusError && (
+              <span className="block mt-2 text-destructive">{OWN_SLACK_META_LOAD_ERROR_MESSAGE}</span>
+            )}
+            {!slackStatusLoading && !slackStatusError && slackStatus.kind === "not_connected" && (
               <span className="block mt-2 text-destructive">
                 尚未連結 Slack，請至{" "}
                 <Link to="/profile" className="underline font-medium" onClick={() => onOpenChange(false)}>
@@ -627,7 +630,10 @@ export function NoteReminderSlackDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button onClick={handleSend} disabled={sending || !slackConnected || !canSendNow || loading}>
+          <Button
+            onClick={handleSend}
+            disabled={sending || slackStatusLoading || slackStatusError || !slackConnected || !canSendNow || loading}
+          >
             {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             發送 Slack 私訊
           </Button>
