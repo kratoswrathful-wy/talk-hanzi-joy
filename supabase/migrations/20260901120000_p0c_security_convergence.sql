@@ -721,20 +721,16 @@ create policy fees_update on public.fees
 revoke select on public.cases from anon, authenticated;
 revoke select on public.fees from anon, authenticated;
 
-comment on view public.cases_visible is
-  'P0-C 威脅模型：非 admin 唯一讀取面；基表 cases SELECT 已 revoke（anon/authenticated）。'
-  || E'\n' ||
-  '  - 列級：security definer + env/participant 遮罩（見 P0-A/W10）。'
-  || E'\n' ||
-  '  - 欄位：憑證空值、tool JSON allowlist；禁止 PostgREST 直讀基表繞過。'
-  || E'\n' ||
-  '  - 負向測試：w10_cases_base_select_deny_check、p0c 建刪案後 authenticated INSERT/DELETE deny。';
+comment on view public.cases_visible is $p0c_cases_visible$
+P0-C 威脅模型：非 admin 唯一讀取面；基表 cases SELECT 已 revoke（anon/authenticated）。
+  - 列級：security definer + env/participant 遮罩（見 P0-A/W10）。
+  - 欄位：憑證空值、tool JSON allowlist；禁止 PostgREST 直讀基表繞過。
+  - 負向測試：w10_cases_base_select_deny_check、p0c 建刪案後 authenticated INSERT/DELETE deny。
+$p0c_cases_visible$;
 
-comment on view public.fees_visible is
-  'P0-C 威脅模型：譯者唯一讀取面；基表 fees SELECT 已 revoke（anon/authenticated）。'
-  || E'\n' ||
-  '  - 列級：本人草稿／admin／相關案件白名單（W10）。'
-  || E'\n' ||
-  '  - 欄位：非 admin 遮罩 client_info／edit_logs／rateConfirmed。'
-  || E'\n' ||
-  '  - 負向測試：w10_fees_base_select_deny_check。';
+comment on view public.fees_visible is $p0c_fees_visible$
+P0-C 威脅模型：譯者唯一讀取面；基表 fees SELECT 已 revoke（anon/authenticated）。
+  - 列級：本人草稿／admin／相關案件白名單（W10）。
+  - 欄位：非 admin 遮罩 client_info／edit_logs／rateConfirmed。
+  - 負向測試：w10_fees_base_select_deny_check。
+$p0c_fees_visible$;
