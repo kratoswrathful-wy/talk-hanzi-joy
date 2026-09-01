@@ -170,8 +170,17 @@ begin
   -- PM 可 cancelled
   perform public.cat_update_file_assignment_status(v_asg, 'cancelled');
 
-  -- apply_case_update：未知鍵
+  reset role;
+
+  -- apply_case_update：未知鍵（基表 SELECT 僅 postgres／service_role）
   select revision, title into v_revision, v_title from public.cases where id = v_case;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
   v_result := public.apply_case_update(
     v_case,
     jsonb_build_object('title', 'should-not-apply', 'not_a_column', true),
@@ -182,11 +191,19 @@ begin
   then
     raise exception 'unknown_patch_key expected, got %', v_result;
   end if;
+  reset role;
   if exists (
     select 1 from public.cases where id = v_case and title is distinct from v_title
   ) then
     raise exception 'unknown key mutated title';
   end if;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   -- 僅 updated_at → empty_patch_after_filter
   v_result := public.apply_case_update(
@@ -234,13 +251,14 @@ begin
   -- P0-C：apply_case_update 成功寫 audit
   select count(*) into v_audit_before
   from public.case_mutation_audit where case_id = v_case;
+  reset role;
+  select revision into v_revision from public.cases where id = v_case;
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
     true
   );
   set local role authenticated;
-  select revision into v_revision from public.cases where id = v_case;
   v_result := public.apply_case_update(
     v_case,
     jsonb_build_object('title', '[P0-B] harden fixture updated'),

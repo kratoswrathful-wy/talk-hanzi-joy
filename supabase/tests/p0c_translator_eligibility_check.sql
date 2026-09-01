@@ -191,7 +191,14 @@ begin
   end if;
 
   -- 協作：已指派他人列，t1 不得承接
+  reset role;
   select revision into v_revision from public.cases where id = v_case_collab;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
   begin
     perform public.accept_inquiry_collab_row(
       v_case_collab, 'p0c-collab-row-assigned', v_revision

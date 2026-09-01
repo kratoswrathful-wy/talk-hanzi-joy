@@ -3511,12 +3511,16 @@ export type Database = {
         Args: { p_case_id: string; p_expected_revision: number }
         Returns: Json
       }
+      admin_create_case: {
+        Args: { p_case_id: string; p_payload: Json }
+        Returns: Json
+      }
+      admin_delete_case: {
+        Args: { p_case_id: string; p_expected_revision: number }
+        Returns: Json
+      }
       apply_case_update: {
-        Args: {
-          p_case_id: string
-          p_expected_revision: number
-          p_patch: Json
-        }
+        Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
         Returns: Json
       }
       apply_cat_segment_target_update: {
@@ -3617,6 +3621,73 @@ export type Database = {
         Args: { p_range: string }
         Returns: Record<string, unknown>
       }
+      cat_pm_assign_file: {
+        Args: { p_assignee_user_ids: string[]; p_file_id: string }
+        Returns: Json
+      }
+      cat_pm_assign_view: {
+        Args: { p_assignee_user_ids: string[]; p_view_id: string }
+        Returns: Json
+      }
+      cat_pm_unassign_file: {
+        Args: { p_assignee_user_id: string; p_file_id: string }
+        Returns: Json
+      }
+      cat_pm_unassign_view: {
+        Args: { p_assignee_user_id: string; p_view_id: string }
+        Returns: Json
+      }
+      cat_pm_update_file_workflow_stage_status: {
+        Args: { p_stage_id: string; p_status: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          file_id: string
+          id: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_file_workflow_stages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cat_pm_upsert_review_stage_assignment: {
+        Args: {
+          p_allow_downgrade?: boolean
+          p_assigned_by?: string
+          p_assignee_user_id: string
+          p_collab_row_id?: string
+          p_file_id: string
+          p_line_end?: number
+          p_line_start?: number
+          p_scope_label?: string
+          p_view_id?: string
+          p_workflow_status?: string
+        }
+        Returns: undefined
+      }
+      cat_pm_upsert_translate_stage_assignment: {
+        Args: {
+          p_allow_downgrade?: boolean
+          p_assigned_by?: string
+          p_assignee_user_id: string
+          p_collab_row_id?: string
+          p_file_id: string
+          p_line_end?: number
+          p_line_start?: number
+          p_scope_label?: string
+          p_view_id?: string
+          p_workflow_status?: string
+        }
+        Returns: undefined
+      }
       cat_resolve_effective_upsert_workflow_status: {
         Args: {
           p_allow_downgrade?: boolean
@@ -3688,6 +3759,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cat_update_file_assignment_status: {
+        Args: { p_assignment_id: string; p_status: string }
+        Returns: Json
+      }
+      cat_update_stage_assignment_workflow_status: {
+        Args: { p_assignment_id: string; p_workflow_status: string }
+        Returns: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          collab_row_id: string | null
+          file_id: string
+          file_workflow_stage_id: string
+          first_edited_at: string | null
+          id: string
+          line_end: number | null
+          line_start: number | null
+          scope_label: string | null
+          updated_at: string
+          view_id: string | null
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_stage_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cat_update_view_assignment_status: {
+        Args: { p_assignment_id: string; p_status: string }
+        Returns: Json
+      }
       cat_upsert_review_stage_assignment: {
         Args: {
           p_allow_downgrade?: boolean
@@ -3701,60 +3805,6 @@ export type Database = {
           p_workflow_status: string
         }
         Returns: undefined
-      }
-      cat_pm_assign_file: {
-        Args: { p_assignee_user_ids: string[]; p_file_id: string }
-        Returns: Json
-      }
-      cat_pm_unassign_file: {
-        Args: { p_assignee_user_id: string; p_file_id: string }
-        Returns: Json
-      }
-      cat_pm_upsert_review_stage_assignment: {
-        Args: {
-          p_allow_downgrade?: boolean
-          p_assigned_by?: string
-          p_assignee_user_id: string
-          p_collab_row_id?: string
-          p_file_id: string
-          p_line_end?: number
-          p_line_start?: number
-          p_scope_label?: string
-          p_view_id?: string
-          p_workflow_status?: string
-        }
-        Returns: undefined
-      }
-      cat_pm_upsert_translate_stage_assignment: {
-        Args: {
-          p_allow_downgrade?: boolean
-          p_assigned_by?: string
-          p_assignee_user_id: string
-          p_collab_row_id?: string
-          p_file_id: string
-          p_line_end?: number
-          p_line_start?: number
-          p_scope_label?: string
-          p_view_id?: string
-          p_workflow_status?: string
-        }
-        Returns: undefined
-      }
-      cat_pm_update_file_workflow_stage_status: {
-        Args: { p_stage_id: string; p_status: string }
-        Returns: Json
-      }
-      cat_update_file_assignment_status: {
-        Args: { p_assignment_id: string; p_status: string }
-        Returns: Json
-      }
-      cat_update_stage_assignment_workflow_status: {
-        Args: { p_assignment_id: string; p_workflow_status: string }
-        Returns: Json
-      }
-      cat_update_view_assignment_status: {
-        Args: { p_assignment_id: string; p_status: string }
-        Returns: Json
       }
       cat_upsert_segment_snapshot: {
         Args: {
@@ -3851,6 +3901,14 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      lms_sync_cat_file_assignments_for_case: {
+        Args: { p_case_id: string }
+        Returns: undefined
+      }
+      lms_sync_cat_workflow_for_case: {
+        Args: { p_case_id: string }
+        Returns: Json
+      }
       release_cat_segment_edit_lease: {
         Args: { p_segment_id: string; p_session_id: string }
         Returns: boolean
@@ -3869,14 +3927,6 @@ export type Database = {
         Returns: undefined
       }
       sync_cat_workflow_assignments_for_case: {
-        Args: { p_case_id: string }
-        Returns: Json
-      }
-      lms_sync_cat_file_assignments_for_case: {
-        Args: { p_case_id: string }
-        Returns: undefined
-      }
-      lms_sync_cat_workflow_for_case: {
         Args: { p_case_id: string }
         Returns: Json
       }
