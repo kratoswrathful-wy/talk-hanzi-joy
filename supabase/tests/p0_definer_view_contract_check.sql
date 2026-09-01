@@ -85,23 +85,103 @@ begin
     id, title, assignee, status, env, created_by, client_info, edit_logs, created_at, updated_at
   ) values
     (
-      v_fee_own, '[P0-V] own fee', 'P0V 譯者一', 'submitted', 'test', v_pm,
+      v_fee_own, '[P0-V] own fee', 'P0V 譯者一', 'finalized', 'test', v_pm,
       '{"client":"fee-secret-client","rateConfirmed":true,"revenue":999}'::jsonb,
       '[{"fieldKey":"client","newValue":"secret"}]'::jsonb,
       now(), now()
     ),
     (
-      v_fee_other, '[P0-V] other fee', 'P0V 譯者二', 'submitted', 'test', v_pm,
+      v_fee_other, '[P0-V] other fee', 'P0V 譯者二', 'finalized', 'test', v_pm,
       '{"client":"other-secret","rateConfirmed":true}'::jsonb,
       '[]'::jsonb,
       now(), now()
     ),
     (
-      v_fee_prod, '[P0-V] prod fee', 'P0V 譯者一', 'submitted', 'production', v_pm,
+      v_fee_prod, '[P0-V] prod fee', 'P0V 譯者一', 'finalized', 'production', v_pm,
       '{"client":"prod-secret"}'::jsonb,
       '[]'::jsonb,
       now(), now()
     );
+
+  -- catalog 契約（superuser 執行；authenticated 無 private schema USAGE）
+  if has_schema_privilege('authenticated', 'private', 'USAGE') then
+    raise exception 'authenticated must not have private schema USAGE';
+  end if;
+  if not has_function_privilege('authenticated', 'private.public_tool_structure(jsonb)', 'EXECUTE') then
+    raise exception 'missing EXECUTE on public_tool_structure';
+  end if;
+  if not has_function_privilege('authenticated', 'private.case_field_permission_allowed(text,text)', 'EXECUTE') then
+    raise exception 'missing EXECUTE on case_field_permission_allowed';
+  end if;
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'private'
+      and p.proname in ('public_tool_structure', 'case_field_permission_allowed')
+      and has_function_privilege('anon', p.oid, 'EXECUTE')
+  ) then
+    raise exception 'private helpers must not be anon executable';
+  end if;
+
+  select array_agg(column_name::text order by ordinal_position)
+    into v_actual_cols
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'cases_visible';
+  select array_agg(c) into v_drift
+  from unnest(v_actual_cols) c where not (c = any(v_cases_expected_cols));
+  if v_drift is not null and array_length(v_drift, 1) > 0 then
+    raise exception 'cases_visible allowlist drift: %', v_drift;
+  end if;
+  select array_agg(c) into v_drift
+  from unnest(v_cases_expected_cols) c where not (c = any(v_actual_cols));
+  if v_drift is not null and array_length(v_drift, 1) > 0 then
+    raise exception 'cases_visible missing expected columns: %', v_drift;
+  end if;
+
+  select array_agg(column_name::text order by ordinal_position)
+    into v_actual_cols
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'fees_visible';
+  select array_agg(c) into v_drift
+  from unnest(v_actual_cols) c where not (c = any(v_fees_expected_cols));
+  if v_drift is not null and array_length(v_drift, 1) > 0 then
+    raise exception 'fees_visible allowlist drift extra: %', v_drift;
+  end if;
+
+  if pg_get_userbyid((select relowner from pg_class where oid = 'public.cases_visible'::regclass)) <> 'postgres' then
+    raise exception 'cases_visible owner must be postgres';
+  end if;
+  if pg_get_userbyid((select relowner from pg_class where oid = 'public.fees_visible'::regclass)) <> 'postgres' then
+    raise exception 'fees_visible owner must be postgres';
+  end if;
+  if has_table_privilege('anon', 'public.cases_visible', 'SELECT')
+     or has_table_privilege('anon', 'public.fees_visible', 'SELECT') then
+    raise exception 'anon must not select definer views';
+  end if;
+
+  foreach v_tbl in array array['slack_oauth_states', 'user_slack_meta'] loop
+    if not (select relrowsecurity from pg_class where oid = format('public.%I', v_tbl)::regclass) then
+      raise exception '% must have RLS', v_tbl;
+    end if;
+    foreach v_priv in array array['SELECT','INSERT','UPDATE','DELETE'] loop
+      if has_table_privilege('anon', format('public.%I', v_tbl), v_priv)
+         or has_table_privilege('authenticated', format('public.%I', v_tbl), v_priv) then
+        raise exception '% % grant must not exist for anon/authenticated', v_tbl, v_priv;
+      end if;
+    end loop;
+  end loop;
+
+  if exists (
+    select 1
+    from pg_default_acl d
+    join pg_namespace n on n.oid = d.defaclnamespace
+    where n.nspname = 'private'
+      and (d.defaclacl::text ilike '%=X%/public%' or d.defaclacl::text ilike '%=X%/anon%'
+           or d.defaclacl::text ilike '%=X%/authenticated%')
+  ) then
+    raise exception 'private schema default EXECUTE must not grant client roles';
+  end if;
 
   -- 1) anon 無 view SELECT
   perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
@@ -136,18 +216,7 @@ begin
   exception when insufficient_privilege then null;
   end;
 
-  -- 3) authenticated 無 private schema USAGE
-  if has_schema_privilege('authenticated', 'private', 'USAGE') then
-    raise exception 'authenticated must not have private schema USAGE';
-  end if;
-
-  -- 4) 兩支 helper 皆無法 qualified call（即使具 EXECUTE grant）
-  if not has_function_privilege('authenticated', 'private.public_tool_structure(jsonb)', 'EXECUTE') then
-    raise exception 'missing EXECUTE on public_tool_structure';
-  end if;
-  if not has_function_privilege('authenticated', 'private.case_field_permission_allowed(text,text)', 'EXECUTE') then
-    raise exception 'missing EXECUTE on case_field_permission_allowed';
-  end if;
+  -- 4) qualified helper call 失敗（authenticated session）
   begin
     perform private.public_tool_structure('[]'::jsonb);
     raise exception 'public_tool_structure qualified call must fail';
@@ -200,19 +269,7 @@ begin
     raise exception 'cross-env case visible';
   end if;
 
-  -- fees_visible：allowlist、本人／他人、遮罩、跨 env、filter/count/join/subquery
-  select array_agg(column_name::text order by ordinal_position)
-    into v_actual_cols
-  from information_schema.columns
-  where table_schema = 'public' and table_name = 'fees_visible';
-
-  select array_agg(c) into v_drift
-  from unnest(v_actual_cols) c
-  where not (c = any(v_fees_expected_cols));
-  if v_drift is not null and array_length(v_drift, 1) > 0 then
-    raise exception 'fees_visible allowlist drift extra: %', v_drift;
-  end if;
-
+  -- fees_visible：本人／他人、遮罩、跨 env、filter/count/join
   select count(*) into v_count from public.fees_visible fv where fv.id = v_fee_own;
   if v_count <> 1 then raise exception 'assignee must see own fee row'; end if;
 
@@ -241,55 +298,6 @@ begin
   if v_count > 0 then raise exception 'fee join leaked revenue'; end if;
 
   reset role;
-
-  -- 8) cases_visible allowlist drift → FAIL
-  select array_agg(column_name::text order by ordinal_position)
-    into v_actual_cols
-  from information_schema.columns
-  where table_schema = 'public' and table_name = 'cases_visible';
-
-  select array_agg(c) into v_drift
-  from unnest(v_actual_cols) c where not (c = any(v_cases_expected_cols));
-  if v_drift is not null and array_length(v_drift, 1) > 0 then
-    raise exception 'cases_visible allowlist drift: %', v_drift;
-  end if;
-
-  -- 10) owner／grants
-  if pg_get_userbyid((select relowner from pg_class where oid = 'public.cases_visible'::regclass)) <> 'postgres' then
-    raise exception 'cases_visible owner must be postgres';
-  end if;
-  if pg_get_userbyid((select relowner from pg_class where oid = 'public.fees_visible'::regclass)) <> 'postgres' then
-    raise exception 'fees_visible owner must be postgres';
-  end if;
-  if has_table_privilege('anon', 'public.cases_visible', 'SELECT')
-     or has_table_privilege('anon', 'public.fees_visible', 'SELECT') then
-    raise exception 'anon must not select definer views';
-  end if;
-
-  -- Slack：RLS + 無 client policy + 無 table grants
-  foreach v_tbl in array array['slack_oauth_states', 'user_slack_meta'] loop
-    if not (select relrowsecurity from pg_class where oid = format('public.%I', v_tbl)::regclass) then
-      raise exception '% must have RLS', v_tbl;
-    end if;
-    foreach v_priv in array array['SELECT','INSERT','UPDATE','DELETE'] loop
-      if has_table_privilege('anon', format('public.%I', v_tbl), v_priv)
-         or has_table_privilege('authenticated', format('public.%I', v_tbl), v_priv) then
-        raise exception '% % grant must not exist for anon/authenticated', v_tbl, v_priv;
-      end if;
-    end loop;
-  end loop;
-
-  -- private schema default privileges：不得自動 PUBLIC 化新 helper
-  if exists (
-    select 1
-    from pg_default_acl d
-    join pg_namespace n on n.oid = d.defaclnamespace
-    where n.nspname = 'private'
-      and (d.defaclacl::text ilike '%=X%/public%' or d.defaclacl::text ilike '%=X%/anon%'
-           or d.defaclacl::text ilike '%=X%/authenticated%')
-  ) then
-    raise exception 'private schema default EXECUTE must not grant client roles';
-  end if;
 
   raise notice 'p0_definer_view_contract_check: all assertions passed';
 end $$;

@@ -3893,6 +3893,14 @@ export type Database = {
         Returns: string
       }
       get_case_credentials: { Args: { p_case_id: string }; Returns: Json }
+      get_own_slack_meta: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          slack_team_id: string | null
+          slack_user_id: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

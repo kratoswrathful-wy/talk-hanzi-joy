@@ -29,7 +29,6 @@ declare
   v_case_ai uuid := gen_random_uuid();
   v_case_neg uuid := gen_random_uuid();
   v_result jsonb;
-  v_row public.cases%rowtype;
   v_visible record;
   v_audit_count int;
   v_audit_cols text[];
@@ -73,11 +72,14 @@ begin
   if coalesce(v_result->>'ok', '') <> 'true' then
     raise exception 'T1 general create failed: %', v_result;
   end if;
-  select * into v_row from public.cases where id = v_case_general;
-  if v_row.title <> '[P0-C] general create'
-     or v_row.client <> 'Acme'
-     or v_row.contact <> 'contact@test.local'
-     or v_row.process_note <> 'note' then
+  select title, client, contact, process_note
+    into v_visible
+  from public.cases_visible
+  where id = v_case_general;
+  if v_visible.title <> '[P0-C] general create'
+     or v_visible.client <> 'Acme'
+     or v_visible.contact <> 'contact@test.local'
+     or v_visible.process_note <> 'note' then
     raise exception 'T1 round-trip field mismatch';
   end if;
 
@@ -113,13 +115,16 @@ begin
   if coalesce(v_result->>'ok', '') <> 'true' then
     raise exception 'T2 template create failed: %', v_result;
   end if;
-  select * into v_row from public.cases where id = v_case_template;
-  if v_row.status <> 'inquiry'
-     or v_row.category <> 'game'
-     or v_row.unit_count <> 1200
-     or v_row.multi_collab is not true
-     or jsonb_array_length(v_row.collab_rows) <> 1
-     or v_row.translation_deadline is null then
+  select status, category, unit_count, multi_collab, collab_rows, translation_deadline
+    into v_visible
+  from public.cases_visible
+  where id = v_case_template;
+  if v_visible.status <> 'inquiry'
+     or v_visible.category <> 'game'
+     or v_visible.unit_count <> 1200
+     or v_visible.multi_collab is not true
+     or jsonb_array_length(v_visible.collab_rows) <> 1
+     or v_visible.translation_deadline is null then
     raise exception 'T2 template round-trip mismatch';
   end if;
 
@@ -145,10 +150,13 @@ begin
   if coalesce(v_result->>'ok', '') <> 'true' then
     raise exception 'T3 restore create failed: %', v_result;
   end if;
-  select * into v_row from public.cases where id = v_case_restore;
-  if v_row.status <> 'dispatched'
-     or v_row.reviewer <> '審稿者 A'
-     or jsonb_array_length(v_row.translator) <> 1 then
+  select status, reviewer, translator
+    into v_visible
+  from public.cases_visible
+  where id = v_case_restore;
+  if v_visible.status <> 'dispatched'
+     or v_visible.reviewer <> '審稿者 A'
+     or jsonb_array_length(v_visible.translator) <> 1 then
     raise exception 'T3 restore round-trip mismatch';
   end if;
 
@@ -167,10 +175,10 @@ begin
     raise exception 'T4 AI create failed: %', v_result;
   end if;
   select inquiry_note, body_content
-    into v_row.inquiry_note, v_row.body_content
-  from public.cases
+    into v_visible
+  from public.cases_visible
   where id = v_case_ai;
-  if v_row.inquiry_note <> 'from agent' or v_row.body_content is null then
+  if v_visible.inquiry_note <> 'from agent' or v_visible.body_content is null then
     raise exception 'T4 AI round-trip mismatch';
   end if;
 
@@ -272,8 +280,8 @@ begin
     raise exception 'T11 create failed unexpectedly: %', v_result;
   end if;
   select count(*) into v_audit_count
-  from public.cases c
-  where c.created_by = v_other_env_pm and c.env = 'production';
+  from public.cases_visible cv
+  where cv.created_by = v_other_env_pm and cv.env = 'production';
   if v_audit_count <> 1 then
     raise exception 'T11 case must land in production env for prod PM';
   end if;

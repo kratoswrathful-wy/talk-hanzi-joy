@@ -10,7 +10,7 @@
 |---|---:|---|
 | **P0 deploy blocker** | ~22 | 寫入／副作用／憑證／權限路徑；`20260901120200` 已批次 REVOKE public/anon EXECUTE + 修正 legacy `search_path=public` |
 | **Named exception** | ~34 | 純函式或 ACL 已在 P0-A/B/C 收斂；Advisor 仍可能 WARN search_path，文件化後可接受 |
-| **Slack edge-only（INFO）** | 2 | `slack_oauth_states`、`user_slack_meta`：RLS 啟用、無 authenticated policy |
+| **Slack edge-only（INFO）** | 2 | `slack_oauth_states`、`user_slack_meta`：RLS + 無 client table grants；meta 讀取經 RPC |
 | **P0-V definer view（ERROR）** | 2 | `cases_visible`、`fees_visible`：受控例外；見 `p0_definer_view_contract_check.sql` |
 
 ## P0 deploy blocker（已落地 migration 20260901120200）
@@ -44,8 +44,9 @@
 
 - 表：`slack_oauth_states`、`user_slack_meta`
 - RLS：**enabled**
-- Policy：**無** authenticated／anon client policy（僅 Edge `service_role`）
-- 驗證：`p0_definer_view_contract_check.sql` 末段
+- **Table grants**：`anon`／`authenticated` **無** SELECT／INSERT／UPDATE／DELETE（`20260901120200` REVOKE）
+- **Policy**：兩表皆**無** client policy；`user_slack_meta` 讀取改經 `get_own_slack_meta()` RPC
+- 驗證：`p0_definer_view_contract_check.sql` catalog 段 + Data API 腳本
 
 ## 殘餘 Advisor ERROR（不可聲稱為零）
 

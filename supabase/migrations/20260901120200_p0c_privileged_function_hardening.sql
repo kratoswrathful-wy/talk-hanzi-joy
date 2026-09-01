@@ -41,5 +41,32 @@ end $$;
 
 revoke all on function public.current_env() from anon;
 
+-- Slack Edge-only：撤銷 client 角色 table grants；OAuth state 僅 service_role／Edge
+revoke all on table public.slack_oauth_states from anon, authenticated;
+
+-- user_slack_meta：撤銷 client grants 並移除 direct policy；改經 RPC 讀取本人 meta
+revoke all on table public.user_slack_meta from anon, authenticated;
+
+drop policy if exists "user_slack_meta_select_own" on public.user_slack_meta;
+drop policy if exists "user_slack_meta_delete_own" on public.user_slack_meta;
+
+create or replace function public.get_own_slack_meta()
+returns table (user_id uuid, slack_user_id text, slack_team_id text)
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+  select m.user_id, m.slack_user_id, m.slack_team_id
+  from public.user_slack_meta m
+  where m.user_id = auth.uid();
+$$;
+
+revoke all on function public.get_own_slack_meta() from public, anon;
+grant execute on function public.get_own_slack_meta() to authenticated;
+
+comment on function public.get_own_slack_meta() is
+  '回傳目前登入者的 Slack meta；取代 client 直查 user_slack_meta（該表已 revoke client grants）。';
+
 comment on function public.current_env() is
   '回傳目前登入者所屬環境；authenticated/service_role 可 EXECUTE；anon 已 revoke。search_path 見 20200。';

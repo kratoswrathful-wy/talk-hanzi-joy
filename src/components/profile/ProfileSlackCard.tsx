@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, MessageSquare, Bell, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
+import { fetchOwnSlackMeta } from "@/lib/get-own-slack-meta";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import {
   DEFAULT_ACCEPT_SUFFIX,
@@ -88,7 +89,7 @@ export function ProfileSlackCard({
       setLoading(false);
       return;
     }
-    const { data } = await supabase.from("user_slack_meta").select("slack_user_id").eq("user_id", user.id).maybeSingle();
+    const data = await fetchOwnSlackMeta();
     setConnected(!!data);
     setSlackUserId(data?.slack_user_id ?? null);
     setLoading(false);

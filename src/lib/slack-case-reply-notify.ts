@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
+import { fetchOwnSlackMeta } from "@/lib/get-own-slack-meta";
 import { getEnvironment } from "@/lib/environment";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
 import {
@@ -128,13 +129,9 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
 }): Promise<void> {
   const { userId, slackMessageDefaults, caseId, caseTitle, kind, decline, segmentTitle } = params;
 
-  const { data: meta } = await supabase
-    .from("user_slack_meta")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const meta = await fetchOwnSlackMeta();
 
-  if (!meta) return;
+  if (!meta || meta.user_id !== userId) return;
 
   const token = await getAccessTokenForEdgeFunctions();
   if (!token) return;

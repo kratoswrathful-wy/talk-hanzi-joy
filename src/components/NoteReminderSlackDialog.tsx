@@ -26,6 +26,7 @@ import {
 import { Loader2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
+import { fetchOwnSlackMeta } from "@/lib/get-own-slack-meta";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import type { CaseRecord } from "@/data/case-types";
 import {
@@ -139,7 +140,7 @@ export function NoteReminderSlackDialog({
   useEffect(() => {
     if (!open || !user?.id) return;
     void (async () => {
-      const { data } = await supabase.from("user_slack_meta").select("user_id").eq("user_id", user.id).maybeSingle();
+      const data = await fetchOwnSlackMeta();
       setSlackConnected(!!data);
     })();
   }, [open, user?.id]);
