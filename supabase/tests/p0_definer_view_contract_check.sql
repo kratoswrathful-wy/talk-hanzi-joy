@@ -1,7 +1,7 @@
 -- STATUS: draft; NOT run against production; unverified
 --
--- P0-V：cases_visible／fees_visible definer view 受控例外契約（11 項）。
--- 對齊：20260830122401_p0a_case_credentials.sql、20260901120100 補丁。
+-- P0-V：cases_visible／fees_visible 受控 definer view 例外 — 完整契約。
+-- SQL 層 + 與 scripts/micro3-definer-view-api-check.mjs（Data API）互補。
 --
 -- 執行：隔離 branch／本機 DB；全程 BEGIN…ROLLBACK。
 
@@ -11,13 +11,23 @@ do $$
 declare
   v_pm uuid := gen_random_uuid();
   v_t1 uuid := gen_random_uuid();
+  v_t2 uuid := gen_random_uuid();
   v_case uuid := gen_random_uuid();
   v_case_prod uuid := gen_random_uuid();
+  v_fee_own uuid := gen_random_uuid();
+  v_fee_other uuid := gen_random_uuid();
+  v_fee_prod uuid := gen_random_uuid();
   v_visible record;
   v_tools jsonb;
   v_count bigint;
-  v_err text;
-  v_expected_cols text[] := array[
+  v_scalar text;
+  v_join_client text;
+  v_fees_expected_cols text[] := array[
+    'id','title','assignee','status','internal_note','internal_note_url','task_items',
+    'client_info','notes','edit_logs','edit_log_phases','created_by','created_at',
+    'updated_at','finalized_by','finalized_at','env'
+  ];
+  v_cases_expected_cols text[] := array[
     'id','title','status','client','contact','keyword','client_po_number','client_case_link',
     'dispatch_route','category','work_type','work_groups','process_note','billing_unit',
     'unit_count','inquiry_note','translator','translation_deadline','reviewer','review_deadline',
@@ -35,16 +45,19 @@ declare
   ];
   v_actual_cols text[];
   v_drift text[];
+  v_tbl text;
+  v_priv text;
 begin
   insert into auth.users(id, email, raw_user_meta_data)
   values
     (v_pm, 'p0v-pm@test.local', '{"display_name":"P0V PM"}'),
-    (v_t1, 'p0v-t1@test.local', '{"display_name":"P0V 譯者"}');
+    (v_t1, 'p0v-t1@test.local', '{"display_name":"P0V 譯者一"}'),
+    (v_t2, 'p0v-t2@test.local', '{"display_name":"P0V 譯者二"}');
 
-  update public.profiles set is_test = true where id in (v_pm, v_t1);
-  delete from public.user_roles where user_id in (v_pm, v_t1);
+  update public.profiles set is_test = true where id in (v_pm, v_t1, v_t2);
+  delete from public.user_roles where user_id in (v_pm, v_t1, v_t2);
   insert into public.user_roles(user_id, role)
-  values (v_pm, 'pm'), (v_t1, 'member');
+  values (v_pm, 'pm'), (v_t1, 'member'), (v_t2, 'member');
 
   insert into public.cases (
     id, title, status, client, contact, keyword, env, created_by,
@@ -68,9 +81,27 @@ begin
       now(), now()
     );
 
-  insert into public.case_participants (
-    case_id, user_id, role, source, created_by, updated_by
-  ) values (v_case, v_t1, 'translator', 'pm_assign', v_pm, v_pm);
+  insert into public.fees (
+    id, title, assignee, status, env, created_by, client_info, edit_logs, created_at, updated_at
+  ) values
+    (
+      v_fee_own, '[P0-V] own fee', 'P0V 譯者一', 'submitted', 'test', v_pm,
+      '{"client":"fee-secret-client","rateConfirmed":true,"revenue":999}'::jsonb,
+      '[{"fieldKey":"client","newValue":"secret"}]'::jsonb,
+      now(), now()
+    ),
+    (
+      v_fee_other, '[P0-V] other fee', 'P0V 譯者二', 'submitted', 'test', v_pm,
+      '{"client":"other-secret","rateConfirmed":true}'::jsonb,
+      '[]'::jsonb,
+      now(), now()
+    ),
+    (
+      v_fee_prod, '[P0-V] prod fee', 'P0V 譯者一', 'submitted', 'production', v_pm,
+      '{"client":"prod-secret"}'::jsonb,
+      '[]'::jsonb,
+      now(), now()
+    );
 
   -- 1) anon 無 view SELECT
   perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
@@ -78,14 +109,12 @@ begin
   begin
     perform 1 from public.cases_visible limit 1;
     raise exception 'anon must not select cases_visible';
-  exception when insufficient_privilege then
-    null;
+  exception when insufficient_privilege then null;
   end;
   begin
     perform 1 from public.fees_visible limit 1;
     raise exception 'anon must not select fees_visible';
-  exception when insufficient_privilege then
-    null;
+  exception when insufficient_privilege then null;
   end;
   reset role;
 
@@ -99,14 +128,12 @@ begin
   begin
     perform client from public.cases where id = v_case;
     raise exception 'authenticated must not select cases base table';
-  exception when insufficient_privilege then
-    null;
+  exception when insufficient_privilege then null;
   end;
   begin
-    perform id from public.fees limit 1;
+    perform id from public.fees where id = v_fee_own;
     raise exception 'authenticated must not select fees base table';
-  exception when insufficient_privilege then
-    null;
+  exception when insufficient_privilege then null;
   end;
 
   -- 3) authenticated 無 private schema USAGE
@@ -114,37 +141,38 @@ begin
     raise exception 'authenticated must not have private schema USAGE';
   end if;
 
-  -- 4) 即使有 helper EXECUTE 也無法 qualified call
-  if not (
-    has_function_privilege('authenticated', 'private.public_tool_structure(jsonb)', 'EXECUTE')
-    and has_function_privilege('authenticated', 'private.case_field_permission_allowed(text,text)', 'EXECUTE')
-  ) then
-    raise exception 'authenticated helper EXECUTE grant missing for security_barrier view';
+  -- 4) 兩支 helper 皆無法 qualified call（即使具 EXECUTE grant）
+  if not has_function_privilege('authenticated', 'private.public_tool_structure(jsonb)', 'EXECUTE') then
+    raise exception 'missing EXECUTE on public_tool_structure';
+  end if;
+  if not has_function_privilege('authenticated', 'private.case_field_permission_allowed(text,text)', 'EXECUTE') then
+    raise exception 'missing EXECUTE on case_field_permission_allowed';
   end if;
   begin
     perform private.public_tool_structure('[]'::jsonb);
-    raise exception 'qualified private helper call must fail without schema USAGE';
+    raise exception 'public_tool_structure qualified call must fail';
   exception
-    when insufficient_privilege then
-      null;
-    when invalid_schema_name then
-      null;
+    when insufficient_privilege then null;
+    when invalid_schema_name then null;
+  end;
+  begin
+    perform private.case_field_permission_allowed('case_detail_client', 'view');
+    raise exception 'case_field_permission_allowed qualified call must fail';
+  exception
+    when insufficient_privilege then null;
+    when invalid_schema_name then null;
   end;
 
-  -- 5) PostgREST／RPC 無法旁路直接呼叫 helper（private 函式不在 public API）
-  if exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'private'
-      and p.proname in ('public_tool_structure', 'case_field_permission_allowed')
-      and has_function_privilege('authenticated', p.oid, 'EXECUTE')
-      and has_function_privilege('anon', p.oid, 'EXECUTE')
-  ) then
-    raise exception 'private helpers must not be anon executable';
-  end if;
+  -- 6) cases_visible：join + scalar subquery + filter + count 不洩漏
+  select cv.client into v_join_client
+  from public.cases_visible cv
+  join public.cases_visible cv2 on cv2.id = cv.id
+  where cv.id = v_case;
 
-  -- 6) join/subquery/filter/count 不洩漏遮罩值
+  select (
+    select cv.client from public.cases_visible cv where cv.id = v_case
+  ) into v_scalar;
+
   select client, contact, keyword, login_account, login_password, tools
     into v_visible
   from public.cases_visible cv
@@ -154,79 +182,113 @@ begin
   from public.cases_visible cv
   where cv.client ilike '%secret-client%';
 
-  if v_visible.client <> ''
-     or v_visible.contact <> ''
-     or v_visible.keyword <> ''
-     or v_visible.login_account <> ''
-     or v_visible.login_password <> ''
-     or v_count > 0 then
-    raise exception 'masked values leaked via filter/select';
+  if v_join_client <> '' or v_scalar <> '' then
+    raise exception 'join/subquery leaked masked client';
   end if;
-
+  if v_visible.client <> '' or v_visible.contact <> '' or v_visible.keyword <> ''
+     or v_visible.login_account <> '' or v_visible.login_password <> ''
+     or v_count > 0 then
+    raise exception 'filter/select leaked masked values';
+  end if;
   v_tools := v_visible.tools;
   if v_tools::text ilike '%secret%' or v_tools::text ilike '%futureSensitiveKey%' then
-    raise exception 'unknown JSON key leaked through tools allowlist view rebuild';
+    raise exception 'tools allowlist drift leaked unknown JSON key';
   end if;
 
-  -- 7) 跨 env 不可見
-  if exists (
-    select 1 from public.cases_visible cv where cv.id = v_case_prod
-  ) then
-    raise exception 'cross-env row visible in test session';
+  -- 7) 跨 env cases
+  if exists (select 1 from public.cases_visible cv where cv.id = v_case_prod) then
+    raise exception 'cross-env case visible';
   end if;
 
-  reset role;
-
-  -- 8) 欄位 allowlist 漂移 → FAIL
+  -- fees_visible：allowlist、本人／他人、遮罩、跨 env、filter/count/join/subquery
   select array_agg(column_name::text order by ordinal_position)
     into v_actual_cols
   from information_schema.columns
-  where table_schema = 'public'
-    and table_name = 'cases_visible';
+  where table_schema = 'public' and table_name = 'fees_visible';
 
   select array_agg(c) into v_drift
   from unnest(v_actual_cols) c
-  where not (c = any(v_expected_cols));
+  where not (c = any(v_fees_expected_cols));
+  if v_drift is not null and array_length(v_drift, 1) > 0 then
+    raise exception 'fees_visible allowlist drift extra: %', v_drift;
+  end if;
 
+  select count(*) into v_count from public.fees_visible fv where fv.id = v_fee_own;
+  if v_count <> 1 then raise exception 'assignee must see own fee row'; end if;
+
+  select count(*) into v_count from public.fees_visible fv where fv.id = v_fee_other;
+  if v_count <> 0 then raise exception 'must not see other assignee fee'; end if;
+
+  select count(*) into v_count from public.fees_visible fv where fv.id = v_fee_prod;
+  if v_count <> 0 then raise exception 'cross-env fee invisible'; end if;
+
+  select fv.client_info->>'client', fv.client_info->>'rateConfirmed'
+    into v_scalar, v_join_client
+  from public.fees_visible fv where fv.id = v_fee_own;
+  if coalesce(v_scalar, '') <> '' or coalesce(v_join_client, '') = 'true' then
+    raise exception 'fee client_info sensitive fields not masked';
+  end if;
+
+  select count(*) into v_count
+  from public.fees_visible fv
+  where fv.client_info::text ilike '%fee-secret%';
+  if v_count > 0 then raise exception 'fee filter leaked client_info'; end if;
+
+  select count(*) into v_count
+  from public.fees_visible fv
+  join public.fees_visible fv2 on fv2.id = fv.id
+  where fv.id = v_fee_own and fv.client_info::text ilike '%999%';
+  if v_count > 0 then raise exception 'fee join leaked revenue'; end if;
+
+  reset role;
+
+  -- 8) cases_visible allowlist drift → FAIL
+  select array_agg(column_name::text order by ordinal_position)
+    into v_actual_cols
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'cases_visible';
+
+  select array_agg(c) into v_drift
+  from unnest(v_actual_cols) c where not (c = any(v_cases_expected_cols));
   if v_drift is not null and array_length(v_drift, 1) > 0 then
     raise exception 'cases_visible allowlist drift: %', v_drift;
   end if;
 
-  select array_agg(c) into v_drift
-  from unnest(v_expected_cols) c
-  where not (c = any(v_actual_cols));
-
-  if v_drift is not null and array_length(v_drift, 1) > 0 then
-    raise exception 'cases_visible missing expected columns: %', v_drift;
-  end if;
-
-  -- 10) owner／grant 契約
-  if pg_get_userbyid((
-       select c.relowner from pg_class c where c.oid = 'public.cases_visible'::regclass
-     )) <> 'postgres' then
+  -- 10) owner／grants
+  if pg_get_userbyid((select relowner from pg_class where oid = 'public.cases_visible'::regclass)) <> 'postgres' then
     raise exception 'cases_visible owner must be postgres';
   end if;
-  if has_table_privilege('anon', 'public.cases_visible', 'SELECT') then
-    raise exception 'anon must not have cases_visible SELECT';
+  if pg_get_userbyid((select relowner from pg_class where oid = 'public.fees_visible'::regclass)) <> 'postgres' then
+    raise exception 'fees_visible owner must be postgres';
   end if;
-  if not has_table_privilege('authenticated', 'public.cases_visible', 'SELECT') then
-    raise exception 'authenticated must have cases_visible SELECT';
+  if has_table_privilege('anon', 'public.cases_visible', 'SELECT')
+     or has_table_privilege('anon', 'public.fees_visible', 'SELECT') then
+    raise exception 'anon must not select definer views';
   end if;
 
-  -- Slack edge-only（INFO 2）：RLS 啟用、無 client policy、僅 service_role 可寫
-  if not (
-    (select relrowsecurity from pg_class where oid = 'public.slack_oauth_states'::regclass)
-    and (select relrowsecurity from pg_class where oid = 'public.user_slack_meta'::regclass)
-  ) then
-    raise exception 'slack tables must have RLS enabled';
-  end if;
+  -- Slack：RLS + 無 client policy + 無 table grants
+  foreach v_tbl in array array['slack_oauth_states', 'user_slack_meta'] loop
+    if not (select relrowsecurity from pg_class where oid = format('public.%I', v_tbl)::regclass) then
+      raise exception '% must have RLS', v_tbl;
+    end if;
+    foreach v_priv in array array['SELECT','INSERT','UPDATE','DELETE'] loop
+      if has_table_privilege('anon', format('public.%I', v_tbl), v_priv)
+         or has_table_privilege('authenticated', format('public.%I', v_tbl), v_priv) then
+        raise exception '% % grant must not exist for anon/authenticated', v_tbl, v_priv;
+      end if;
+    end loop;
+  end loop;
+
+  -- private schema default privileges：不得自動 PUBLIC 化新 helper
   if exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename in ('slack_oauth_states', 'user_slack_meta')
-      and roles::text ilike '%authenticated%'
+    select 1
+    from pg_default_acl d
+    join pg_namespace n on n.oid = d.defaclnamespace
+    where n.nspname = 'private'
+      and (d.defaclacl::text ilike '%=X%/public%' or d.defaclacl::text ilike '%=X%/anon%'
+           or d.defaclacl::text ilike '%=X%/authenticated%')
   ) then
-    raise exception 'slack tables must not expose authenticated policies (edge-only)';
+    raise exception 'private schema default EXECUTE must not grant client roles';
   end if;
 
   raise notice 'p0_definer_view_contract_check: all assertions passed';

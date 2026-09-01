@@ -30,6 +30,7 @@ import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
+import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
 import {
   acceptPublicInquiryCase as acceptPublicInquiryCaseRpc,
   acceptInquiryCollabRow as acceptInquiryCollabRowRpc,
@@ -456,7 +457,7 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   }
   if (c.declineRecords !== undefined) map.decline_records = toJson(c.declineRecords);
   if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
-  if (c.createdBy !== undefined) map.created_by = c.createdBy;
+  // createdBy：僅供本地/UI；建案 RPC 由 server 依 session 寫入，不得經 p_payload 傳送。
   if (c.inquirySlackRecords !== undefined) map.inquiry_slack_records = toJson(c.inquirySlackRecords);
   if (c.edit_logs !== undefined) map.edit_logs = toJson(c.edit_logs);
   if (c.changeLogEnabledAt !== undefined) map.change_log_enabled_at = c.changeLogEnabledAt;
@@ -589,22 +590,19 @@ function getById(id: string): CaseRecord | undefined {
 }
 
 async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
-  const env = getEnvironment();
   const user = await getAuthenticatedUser().catch((e) => {
     if (e instanceof AuthRecoverableError) return null;
     throw e;
   });
+  if (!user) return null;
   const id = crypto.randomUUID();
-  const payload: DbCaseInsert = {
-    ...toDb(partial),
-    id,
-    env,
-    created_by: user?.id || null,
-  };
-  // P0-C：建案走 admin_create_case RPC（收回 authenticated INSERT）。
-  const { error: createError } = await adminCreateCase(supabase, id, payload as Record<string, Json>);
+  const rpcPayload = buildAdminCreateRpcPayload(toDb(partial));
+  // P0-C：建案走 admin_create_case RPC；p_case_id 獨立參數，env/created_by 由 server 產生。
+  const { error: createError } = await adminCreateCase(supabase, id, rpcPayload);
   if (createError) {
-    console.error("[case-store] create failed", errorMessage(createError), { payloadKeys: Object.keys(payload || {}) });
+    console.error("[case-store] create failed", errorMessage(createError), {
+      payloadKeys: Object.keys(rpcPayload),
+    });
     return null;
   }
   const { data, error } = await supabase
@@ -1210,3 +1208,8 @@ export const caseStore = {
   subscribe: subscribePoll,
   reset,
 };
+
+/** 供契約測試：partial → snake_case DB 欄位（不含 RPC 禁止鍵過濾）。 */
+export function mapPartialCaseToDb(c: Partial<CaseRecord>): DbCaseUpdate {
+  return toDb(c);
+}

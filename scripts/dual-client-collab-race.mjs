@@ -2,191 +2,300 @@
 /**
  * 真正雙 authenticated client 競態驗收（第三次 Micro 專用）。
  *
- * 前置：.env 或 .env.playwright.local 含
- *   SUPABASE_URL / VITE_SUPABASE_URL
- *   SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY
- *   PLAYWRIGHT_TEST_EMAIL / PLAYWRIGHT_TEST_PASSWORD（PM，用於建案）
- *   P0_RACE_MEMBER1_EMAIL / P0_RACE_MEMBER1_PASSWORD
- *   P0_RACE_MEMBER2_EMAIL / P0_RACE_MEMBER2_PASSWORD
+ * 憑證來源（二擇一，不得讀 .env）：
+ *   1) stdin 單行 JSON（由 orchestrator 管道送入，含即時刪除）
+ *   2) 環境變數 MICRO3_RACE_CREDS_FILE 指向單次暫存檔（0600；腳本結束後刪除）
  *
- * 用法：node scripts/dual-client-collab-race.mjs
+ * JSON 形狀：
+ * { "url","anonKey","pm":{email,password},"m1":{...},"m2":{...} }
+ *
+ * log 僅輸出 PM/M1/M2 標籤與 uid 前 8 字，不輸出 email／密碼／token。
  */
 import { createClient } from "@supabase/supabase-js";
+import { createReadStream } from "node:fs";
+import { readFile, unlink } from "node:fs/promises";
+import { createInterface } from "node:readline";
 
-function loadEnv() {
-  for (const file of [".env", ".env.playwright.local"]) {
-    try {
-      process.loadEnvFile(file);
-    } catch {
-      /* optional */
+const ALLOWED_FAIL = new Set([
+  "case_revision_conflict",
+  "case_unavailable",
+  "collab_row_unavailable",
+  "collab_row_not_assigned_to_actor",
+  "not_authorized",
+]);
+
+function shortId(uuid) {
+  return typeof uuid === "string" ? uuid.slice(0, 8) : "?";
+}
+
+async function readCreds() {
+  const file = process.env.MICRO3_RACE_CREDS_FILE;
+  if (file) {
+    const raw = await readFile(file, "utf8");
+    await unlink(file).catch(() => {});
+    return JSON.parse(raw);
+  }
+  if (!process.stdin.isTTY) {
+    const rl = createInterface({ input: process.stdin });
+    for await (const line of rl) {
+      if (line.trim()) return JSON.parse(line);
     }
   }
+  throw new Error(
+    "缺少憑證：請以 stdin JSON 或 MICRO3_RACE_CREDS_FILE 提供（不得使用 .env）",
+  );
 }
 
-loadEnv();
-
-const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const pmEmail = process.env.PLAYWRIGHT_TEST_EMAIL;
-const pmPassword = process.env.PLAYWRIGHT_TEST_PASSWORD;
-const m1Email = process.env.P0_RACE_MEMBER1_EMAIL;
-const m1Password = process.env.P0_RACE_MEMBER1_PASSWORD;
-const m2Email = process.env.P0_RACE_MEMBER2_EMAIL;
-const m2Password = process.env.P0_RACE_MEMBER2_PASSWORD;
-
-function requireEnv(name, value) {
-  if (!value) {
-    console.error(`缺少環境變數 ${name}`);
-    process.exit(2);
-  }
-}
-
-requireEnv("SUPABASE_URL", url);
-requireEnv("SUPABASE_ANON_KEY", anonKey);
-requireEnv("PLAYWRIGHT_TEST_EMAIL", pmEmail);
-requireEnv("PLAYWRIGHT_TEST_PASSWORD", pmPassword);
-requireEnv("P0_RACE_MEMBER1_EMAIL", m1Email);
-requireEnv("P0_RACE_MEMBER1_PASSWORD", m1Password);
-requireEnv("P0_RACE_MEMBER2_EMAIL", m2Email);
-requireEnv("P0_RACE_MEMBER2_PASSWORD", m2Password);
-
-async function signIn(email, password) {
+async function signIn(url, anonKey, account, label) {
   const client = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
   });
-  const { data, error } = await client.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(`signIn ${email}: ${error.message}`);
-  return { client, user: data.user, session: data.session };
+  const { data, error } = await client.auth.signInWithPassword({
+    email: account.email,
+    password: account.password,
+  });
+  if (error) throw new Error(`${label} signIn failed: ${error.message}`);
+  return { client, user: data.user, label };
 }
 
-async function assertIdentity(label, client, user) {
-  const { data: roles, error: roleErr } = await client.from("user_roles").select("role").eq("user_id", user.id);
+async function assertIdentity(label, client, user, { expectAdmin, expectMember }) {
+  const uid = user.id;
+  const { data: roles, error: roleErr } = await client
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", uid);
   if (roleErr) throw roleErr;
+  const roleSet = new Set((roles || []).map((r) => r.role));
+
   const { data: profile, error: profErr } = await client
     .from("profiles")
-    .select("is_test, display_name")
-    .eq("id", user.id)
+    .select("is_test, display_name, email")
+    .eq("id", uid)
     .maybeSingle();
   if (profErr) throw profErr;
-  console.log(`[${label}] uid=${user.id} roles=${(roles || []).map((r) => r.role).join(",")} is_test=${profile?.is_test} display_name=${profile?.display_name ?? ""}`);
+
+  if (expectAdmin && !roleSet.has("pm") && !roleSet.has("executive")) {
+    throw new Error(`${label} must be pm or executive`);
+  }
+  if (expectMember && !roleSet.has("member")) {
+    throw new Error(`${label} must have member role`);
+  }
+  if (expectMember && (roleSet.has("pm") || roleSet.has("executive"))) {
+    throw new Error(`${label} must not be admin`);
+  }
+  if (!profile?.display_name || !String(profile.display_name).trim()) {
+    throw new Error(`${label} display_name required`);
+  }
+  if (profile.is_test !== true) {
+    throw new Error(`${label} must be test env (is_test=true)`);
+  }
+
+  const { data: frozenRow } = await client
+    .from("member_translator_settings")
+    .select("frozen")
+    .ilike("email", profile.email)
+    .maybeSingle();
+  if (frozenRow?.frozen === true) {
+    throw new Error(`${label} must not be frozen`);
+  }
+
+  console.log(`[${label}] ok uid=${shortId(uid)} roles=${[...roleSet].join(",")}`);
+  return { uid, roles: roleSet, profile };
+}
+
+function isAcceptSuccess(res, caseId, rowId, expectedRevision) {
+  if (res.error) return false;
+  const d = res.data;
+  if (!d || typeof d !== "object") return false;
+  return (
+    d.caseId === caseId &&
+    d.rowId === rowId &&
+    Number(d.revision) === expectedRevision + 1
+  );
+}
+
+function extractFailCode(res) {
+  if (res.error?.message) return res.error.message;
+  if (typeof res.data === "string") return res.data;
+  if (res.data?.message) return res.data.message;
+  return String(res.data ?? "unknown");
+}
+
+async function signOutQuiet(client) {
+  try {
+    await client.auth.signOut();
+  } catch {
+    /* ignore */
+  }
 }
 
 async function main() {
-  const pm = await signIn(pmEmail, pmPassword);
-  const m1 = await signIn(m1Email, m1Password);
-  const m2 = await signIn(m2Email, m2Password);
+  const creds = await readCreds();
+  const url = creds.url;
+  const anonKey = creds.anonKey;
+  if (!url || !anonKey) throw new Error("creds missing url or anonKey");
 
-  await assertIdentity("PM", pm.client, pm.user);
-  await assertIdentity("M1", m1.client, m1.user);
-  await assertIdentity("M2", m2.client, m2.user);
+  let pm;
+  let m1;
+  let m2;
+  try {
+    pm = await signIn(url, anonKey, creds.pm, "PM");
+    m1 = await signIn(url, anonKey, creds.m1, "M1");
+    m2 = await signIn(url, anonKey, creds.m2, "M2");
 
-  const caseId = crypto.randomUUID();
-  const collabRowId = `race-${Date.now()}`;
+    if (new Set([pm.user.id, m1.user.id, m2.user.id]).size !== 3) {
+      throw new Error("PM/M1/M2 user ids must be distinct");
+    }
 
-  const createRes = await pm.client.rpc("admin_create_case", {
-    p_case_id: caseId,
-    p_payload: {
-      title: "[P0-RACE] dual client collab",
-      status: "inquiry",
-      client: "RaceCo",
-      multi_collab: true,
-      collab_rows: [
-        {
-          id: collabRowId,
-          segment: "1-50",
-          translator: "",
-          unitCount: 100,
-          accepted: false,
-        },
-      ],
-    },
-  });
-  if (createRes.error || createRes.data?.ok !== true) {
-    throw new Error(`admin_create_case failed: ${JSON.stringify(createRes)}`);
-  }
+    await assertIdentity("PM", pm.client, pm.user, { expectAdmin: true, expectMember: false });
+    const id1 = await assertIdentity("M1", m1.client, m1.user, {
+      expectAdmin: false,
+      expectMember: true,
+    });
+    const id2 = await assertIdentity("M2", m2.client, m2.user, {
+      expectAdmin: false,
+      expectMember: true,
+    });
+    if (id1.uid === id2.uid) throw new Error("M1/M2 must differ");
 
-  const { data: caseRow, error: caseErr } = await pm.client
-    .from("cases_visible")
-    .select("revision")
-    .eq("id", caseId)
-    .single();
-  if (caseErr) throw caseErr;
-  const revision = caseRow.revision;
+    const caseId = crypto.randomUUID();
+    const collabRowId = `race-${Date.now()}`;
 
-  const attempt = (client, label) =>
-    client.rpc("accept_inquiry_collab_row", {
+    const createRes = await pm.client.rpc("admin_create_case", {
       p_case_id: caseId,
-      p_collab_row_id: collabRowId,
-      p_expected_revision: revision,
-    }).then((res) => ({ label, res }));
+      p_payload: {
+        title: "[P0-RACE] dual client collab",
+        status: "inquiry",
+        client: "RaceCo",
+        multi_collab: true,
+        collab_rows: [
+          {
+            id: collabRowId,
+            segment: "1-50",
+            translator: "",
+            unitCount: 100,
+            accepted: false,
+          },
+        ],
+      },
+    });
+    if (createRes.error || createRes.data?.ok !== true) {
+      throw new Error(`admin_create_case failed`);
+    }
 
-  const [r1, r2] = await Promise.all([attempt(m1.client, "M1"), attempt(m2.client, "M2")]);
+    const { data: caseRow, error: caseErr } = await pm.client
+      .from("cases_visible")
+      .select("revision")
+      .eq("id", caseId)
+      .single();
+    if (caseErr) throw caseErr;
+    const revision = caseRow.revision;
 
-  const oks = [r1, r2].filter((r) => r.res.data?.ok === true);
-  const fails = [r1, r2].filter((r) => r.res.data?.ok !== true);
+    const attempt = (session, label) =>
+      session.client
+        .rpc("accept_inquiry_collab_row", {
+          p_case_id: caseId,
+          p_collab_row_id: collabRowId,
+          p_expected_revision: revision,
+        })
+        .then((res) => ({ label, session, res }));
 
-  console.log("M1:", JSON.stringify(r1.res.data ?? r1.res.error));
-  console.log("M2:", JSON.stringify(r2.res.data ?? r2.res.error));
+    const [r1, r2] = await Promise.all([attempt(m1, "M1"), attempt(m2, "M2")]);
 
-  if (oks.length !== 1 || fails.length !== 1) {
-    throw new Error(`expected exactly one success; got ok=${oks.length} fail=${fails.length}`);
+    const expectedRev = revision + 1;
+    const successes = [r1, r2].filter((r) =>
+      isAcceptSuccess(r.res, caseId, collabRowId, revision),
+    );
+    const failures = [r1, r2].filter(
+      (r) => !isAcceptSuccess(r.res, caseId, collabRowId, revision),
+    );
+
+    console.log(`[M1] success=${successes.some((s) => s.label === "M1")}`);
+    console.log(`[M2] success=${successes.some((s) => s.label === "M2")}`);
+
+    if (successes.length !== 1 || failures.length !== 1) {
+      throw new Error(`expected exactly one success; got ${successes.length}`);
+    }
+
+    const failCode = extractFailCode(failures[0].res);
+    const allowed = [...ALLOWED_FAIL].some((code) => failCode.includes(code));
+    if (!allowed) {
+      throw new Error(`failure not in allowed set: ${failCode}`);
+    }
+
+    const winner = successes[0];
+    const loser = failures[0];
+    const winnerId = winner.session.user.id;
+    const loserId = loser.session.user.id;
+
+    const { data: afterCase, error: afterErr } = await pm.client
+      .from("cases_visible")
+      .select("revision, collab_rows")
+      .eq("id", caseId)
+      .single();
+    if (afterErr) throw afterErr;
+    if (afterCase.revision !== expectedRev) {
+      throw new Error(`revision must increment once`);
+    }
+
+    const row = (afterCase.collab_rows || []).find((r) => r.id === collabRowId);
+    if (row?.translatorUserId !== winnerId) {
+      throw new Error(`collab row translatorUserId must equal winner`);
+    }
+
+    const { data: participants, error: pErr } = await pm.client
+      .from("case_participants")
+      .select("user_id, role")
+      .eq("case_id", caseId)
+      .eq("role", "translator");
+    if (pErr) throw pErr;
+    if ((participants || []).length !== 1) {
+      throw new Error(`expected one translator participant`);
+    }
+    if (participants[0].user_id !== winnerId) {
+      throw new Error(`participant user_id must equal winner`);
+    }
+
+    const { data: audits, error: aErr } = await pm.client
+      .from("case_mutation_audit")
+      .select("actor_user_id, action")
+      .eq("case_id", caseId)
+      .eq("action", "accept_inquiry_collab_row");
+    if (aErr) throw aErr;
+    if ((audits || []).length !== 1) {
+      throw new Error(`expected one success audit`);
+    }
+    if (audits[0].actor_user_id !== winnerId) {
+      throw new Error(`audit actor must equal winner`);
+    }
+
+    const { data: loserParts } = await pm.client
+      .from("case_participants")
+      .select("user_id")
+      .eq("case_id", caseId)
+      .eq("user_id", loserId);
+    if ((loserParts || []).length > 0) {
+      throw new Error(`loser must not have participant row`);
+    }
+
+    const { data: loserAudits } = await pm.client
+      .from("case_mutation_audit")
+      .select("actor_user_id")
+      .eq("case_id", caseId)
+      .eq("actor_user_id", loserId);
+    if ((loserAudits || []).length > 0) {
+      throw new Error(`loser must not have audit rows`);
+    }
+
+    console.log("dual-client-collab-race: PASS");
+  } finally {
+    if (pm) await signOutQuiet(pm.client);
+    if (m1) await signOutQuiet(m1.client);
+    if (m2) await signOutQuiet(m2.client);
   }
-
-  const failErr = fails[0].res.data?.error || fails[0].res.error?.message;
-  if (!/case_revision_conflict|case_unavailable|collab_row_not_assigned_to_actor/i.test(String(failErr))) {
-    throw new Error(`unexpected failure error: ${failErr}`);
-  }
-
-  const { data: afterCase, error: afterErr } = await pm.client
-    .from("cases_visible")
-    .select("revision, collab_rows")
-    .eq("id", caseId)
-    .single();
-  if (afterErr) throw afterErr;
-
-  if (afterCase.revision !== revision + 1) {
-    throw new Error(`revision must increment once: before=${revision} after=${afterCase.revision}`);
-  }
-
-  const row = (afterCase.collab_rows || []).find((r) => r.id === collabRowId);
-  const translatorIds = new Set(
-    (afterCase.collab_rows || [])
-      .map((r) => r.translatorUserId)
-      .filter(Boolean),
-  );
-  if (translatorIds.size !== 1) {
-    throw new Error(`expected one translatorUserId across collab rows; got ${translatorIds.size}`);
-  }
-
-  const winnerId = oks[0].label === "M1" ? m1.user.id : m2.user.id;
-  if (row?.translatorUserId !== winnerId) {
-    throw new Error(`winner participant mismatch: row=${row?.translatorUserId} winner=${winnerId}`);
-  }
-
-  const { count: participantCount, error: pErr } = await pm.client
-    .from("case_participants")
-    .select("*", { count: "exact", head: true })
-    .eq("case_id", caseId)
-    .eq("role", "translator");
-  if (pErr) throw pErr;
-  if (participantCount !== 1) {
-    throw new Error(`expected one translator participant; got ${participantCount}`);
-  }
-
-  const { count: auditCount, error: aErr } = await pm.client
-    .from("case_mutation_audit")
-    .select("*", { count: "exact", head: true })
-    .eq("case_id", caseId)
-    .eq("action", "accept_inquiry_collab_row");
-  if (aErr) throw aErr;
-  if (auditCount !== 1) {
-    throw new Error(`expected one success audit; got ${auditCount}`);
-  }
-
-  console.log("dual-client-collab-race: PASS");
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(String(err.message || err));
   process.exit(1);
 });
