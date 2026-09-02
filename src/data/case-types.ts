@@ -100,8 +100,12 @@ export interface CaseRecord {
   unitCount: number;     // legacy
   inquiryNote: string;
   translator: string[];
+  /** RPC meta：單人指派時的可信 user_id（不存 cases 表） */
+  translatorUserId?: string | null;
   translationDeadline: string | null;
   reviewer: string;
+  /** RPC meta：整檔審稿 reviewer user_id（不存 cases 表） */
+  reviewerUserId?: string | null;
   reviewDeadline: string | null;
   
   executionTool: string;

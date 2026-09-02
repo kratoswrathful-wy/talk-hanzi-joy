@@ -21,7 +21,8 @@ import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views"
 import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
-import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
+import { useSelectOptions, getStatusLabelStyle, selectOptionsStore } from "@/stores/select-options-store";
+import { resolveAssigneeUserIdByLabel } from "@/lib/case-assignment-patch";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { useState, useRef, useCallback, useEffect, useMemo, useDeferredValue } from "react";
@@ -938,7 +939,27 @@ export default function CasesPage() {
 
       const oldValue = (c as CaseRecord & Record<string, unknown>)[field] ?? "";
       undoEntries.push({ recordId: id, oldValue });
-      caseStore.update(id, { [field]: value });
+      if (field === "translator" && Array.isArray(value)) {
+        const name = value[0] ?? "";
+        const uid = name
+          ? resolveAssigneeUserIdByLabel(name, selectOptionsStore.getField("assignee").options)
+          : null;
+        caseStore.update(id, {
+          translator: value,
+          translatorUserId: uid,
+        });
+      } else if (field === "reviewer" && typeof value === "string") {
+        const uid = resolveAssigneeUserIdByLabel(
+          value,
+          selectOptionsStore.getField("assignee").options,
+        );
+        caseStore.update(id, {
+          reviewer: value,
+          reviewerUserId: uid,
+        });
+      } else {
+        caseStore.update(id, { [field]: value });
+      }
       editedCount++;
     }
 

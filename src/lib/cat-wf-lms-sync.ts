@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { getEnvironment } from "@/lib/environment";
 
 type CollabRowJson = {
@@ -82,7 +83,7 @@ export async function setCollabRowTaskCompletedFromCat(
     updates.status = "dispatched";
   }
 
-  const { error: updErr } = await applyCaseUpdate(
+  const { error: updErr } = await pmUpdateCaseAssignments(
     supabase,
     caseId,
     updates,
@@ -139,7 +140,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
     patch.status = "dispatched";
   }
 
-  const { error: updErr } = await applyCaseUpdate(
+  const { error: updErr } = await pmUpdateCaseAssignments(
     supabase,
     caseId,
     patch,

@@ -40,6 +40,7 @@ import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, 
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions, getStatusLabelStyle, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment, CollabRow, DeclineRecord } from "@/data/case-types";
+import { isTrustedUserId } from "@/lib/case-assignment-patch";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -2437,7 +2438,14 @@ export default function CaseDetailPage() {
                     : <span className="text-sm text-muted-foreground">—</span>}
                 </div>
               ) : (
-                <ColorSelect fieldKey="assignee" value={(caseData.translator || [])[0] || ""} onValueChange={(v) => save({ translator: v ? [v] : [] })} />
+                <ColorSelect fieldKey="assignee" value={(caseData.translator || [])[0] || ""} onValueChange={(v) => {
+                  const name = v ? [v] : [];
+                  const uid = selectOptionsStore.getField("assignee").options.find((o) => o.label === v)?.id ?? null;
+                  save({
+                    translator: name,
+                    translatorUserId: uid && isTrustedUserId(uid) ? uid : null,
+                  });
+                }} />
               )}
             </Field>
             <Field label="審稿人員">

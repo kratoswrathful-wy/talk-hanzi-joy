@@ -29,6 +29,12 @@ import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import {
+  buildAdminCreateAssignmentMeta,
+  splitDbCasePatch,
+  wholeFileReviewerUserId,
+} from "@/lib/case-assignment-patch";
+import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
 import {
@@ -597,6 +603,15 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
   if (!user) return null;
   const id = crypto.randomUUID();
   const rpcPayload = buildAdminCreateRpcPayload(toDb(partial));
+  const createMeta = buildAdminCreateAssignmentMeta(partial as Record<string, unknown>);
+  if (createMeta.translatorUserId) {
+    rpcPayload.translator_user_id = createMeta.translatorUserId;
+  }
+  const reviewerUid =
+    createMeta.reviewerUserId ?? wholeFileReviewerUserId(partial.reviewRows);
+  if (reviewerUid) {
+    rpcPayload.reviewer_user_id = reviewerUid;
+  }
   // P0-C：建案走 admin_create_case RPC；p_case_id 獨立參數，env/created_by 由 server 產生。
   const { error: createError } = await adminCreateCase(supabase, id, rpcPayload);
   if (createError) {
@@ -698,19 +713,46 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   let error: Error | { message: string } | null;
   let nextRevision: number | undefined;
   if (isAdmin) {
-    // P0-B：PM／執行長走 apply_case_update（admin-only + expected revision；剝除憑證／工具鍵）。
-    const result = await applyCaseUpdate(
-      supabase,
-      id,
+    let revision = prev?.revision ?? 0;
+    const assignmentMeta = {
+      translatorUserId: (partial as { translatorUserId?: string | null }).translatorUserId,
+      reviewerUserId: (partial as { reviewerUserId?: string | null }).reviewerUserId,
+    };
+    const { assignment, general } = splitDbCasePatch(
       mapped as Record<string, unknown>,
-      prev?.revision ?? 0,
+      assignmentMeta,
     );
-    error = result.error;
-    nextRevision = error
-      ? undefined
-      : (typeof result.data?.revision === "number"
-          ? result.data.revision
-          : (prev?.revision ?? 0) + 1);
+
+    if (Object.keys(assignment).length > 0) {
+      const assignResult = await pmUpdateCaseAssignments(
+        supabase,
+        id,
+        assignment,
+        revision,
+      );
+      error = assignResult.error;
+      if (!error && typeof assignResult.data?.revision === "number") {
+        revision = assignResult.data.revision;
+        nextRevision = revision;
+      }
+    }
+
+    if (!error && Object.keys(general).length > 0) {
+      const result = await applyCaseUpdate(
+        supabase,
+        id,
+        general,
+        revision,
+      );
+      error = result.error;
+      nextRevision = error
+        ? undefined
+        : (typeof result.data?.revision === "number"
+            ? result.data.revision
+            : revision + 1);
+    } else if (!error && Object.keys(assignment).length > 0 && nextRevision === undefined) {
+      nextRevision = revision;
+    }
   } else {
     const permittedKeys = new Set<keyof CaseRecord>([
       "title", "bodyContent", "category", "workType", "workGroups",

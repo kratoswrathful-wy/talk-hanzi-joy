@@ -3523,6 +3523,10 @@ export type Database = {
         Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
         Returns: Json
       }
+      pm_update_case_assignments: {
+        Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
+        Returns: Json
+      }
       apply_cat_segment_target_update: {
         Args: {
           p_expected_segment_revision: number

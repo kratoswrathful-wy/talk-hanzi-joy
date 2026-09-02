@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import { getEnvironment } from "@/lib/environment";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
 import { fetchEnabledCatAiModelOptions } from "@/lib/cat-ai-model-registry/list-registry-options";
 import { mapEnabledModelOptionsToRpc } from "@/lib/cat-ai-model-registry/rpc-enabled-models";
@@ -2885,7 +2886,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ];
         casePatch.reviewer = names.join("、");
       }
-      const { error: updErr } = await applyCaseUpdate(
+      const { error: updErr } = await pmUpdateCaseAssignments(
         supabase,
         caseId,
         casePatch,
