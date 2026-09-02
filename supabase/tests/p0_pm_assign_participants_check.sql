@@ -1,4 +1,4 @@
-﻿-- STATUS: draft; NOT run against production; use isolated branch / local DB only.
+-- STATUS: draft; NOT run against production; use isolated branch / local DB only.
 --
 -- P0-D: pm_update_case_assignments + admin_create participant sync +
 -- apply_case_update assignment strip + permission_settings dedup contract.
