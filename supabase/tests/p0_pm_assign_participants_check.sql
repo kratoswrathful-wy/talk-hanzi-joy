@@ -1,4 +1,4 @@
--- STATUS: draft; NOT run against production; use isolated branch / local DB only.
+﻿-- STATUS: draft; NOT run against production; use isolated branch / local DB only.
 --
 -- P0-D: pm_update_case_assignments + admin_create participant sync +
 -- apply_case_update assignment strip + permission_settings dedup contract.
@@ -26,6 +26,9 @@ declare
   v_canonical uuid;
   v_translator_name text;
   v_dup_ok boolean := false;
+  v_case_translator jsonb;
+  v_case_reviewer text;
+  v_case_status text;
 begin
   insert into auth.users(id, email, raw_user_meta_data)
   values
@@ -108,6 +111,7 @@ begin
   );
   set local role authenticated;
 
+  -- 1) admin_create_case: participant sync (not only ok=true)
   v_result := public.admin_create_case(v_case, jsonb_build_object(
     'title', '[P0D] single assign',
     'status', 'dispatched',
@@ -117,6 +121,18 @@ begin
   ));
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'admin_create_case failed: %', v_result;
+  end if;
+
+  if not exists (
+    select 1 from public.case_participants cp
+    where cp.case_id = v_case
+      and cp.user_id = v_member_a
+      and cp.role = 'translator'
+      and cp.work_status = 'active'
+      and cp.source = 'pm_assign'
+      and cp.access_revoked_at is null
+  ) then
+    raise exception 'admin_create_case did not create active pm_assign translator participant';
   end if;
 
   select revision into v_revision from public.cases where id = v_case;
@@ -130,7 +146,7 @@ begin
     raise exception 'apply_case_update should reject assignment keys, got %', v_result;
   end if;
 
-  -- same display name: bind by selected UUID (member_c also named Member A)
+  -- 2) same display name: bind selected UUID; revoke prior participant
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object(
@@ -142,27 +158,59 @@ begin
     raise exception 'same-name assign by uuid failed: %', v_result;
   end if;
 
+  if not exists (
+    select 1 from public.case_participants cp
+    where cp.case_id = v_case
+      and cp.user_id = v_member_c
+      and cp.role = 'translator'
+      and cp.work_status = 'active'
+      and cp.access_revoked_at is null
+  ) then
+    raise exception 'same-name assign should bind member_c as active translator participant';
+  end if;
+
+  if exists (
+    select 1 from public.case_participants cp
+    where cp.case_id = v_case
+      and cp.user_id = v_member_a
+      and cp.role = 'translator'
+      and cp.access_revoked_at is null
+  ) then
+    raise exception 'same-name reassign should revoke member_a participant';
+  end if;
+
+  select translator->>0 into v_translator_name from public.cases where id = v_case;
+  if v_translator_name <> 'Member A' then
+    raise exception 'same-name reassign should server-normalize display name to Member A, got %', v_translator_name;
+  end if;
+
   select revision into v_revision from public.cases where id = v_case;
 
-  -- invalid translator UUID before normalize (stable error)
+  -- 5) invalid translator UUID (stable, before normalize)
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object('translator_user_id', 'not-a-valid-uuid')
   );
+  if coalesce(v_result->>'ok', 'false') = 'true' then
+    raise exception 'invalid translator uuid should not succeed';
+  end if;
   if coalesce(v_result->>'error', '') <> 'invalid_translator_user_id' then
     raise exception 'expected invalid_translator_user_id, got %', v_result;
   end if;
 
-  -- invalid reviewer UUID
+  -- 5) invalid reviewer UUID
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object('reviewer_user_id', 'not-a-valid-uuid')
   );
+  if coalesce(v_result->>'ok', 'false') = 'true' then
+    raise exception 'invalid reviewer uuid should not succeed';
+  end if;
   if coalesce(v_result->>'error', '') <> 'invalid_reviewer_user_id' then
     raise exception 'expected invalid_reviewer_user_id, got %', v_result;
   end if;
 
-  -- display name mismatch: server normalizes from profile
+  -- server normalizes mismatched display name from profile UUID
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object(
@@ -181,7 +229,7 @@ begin
 
   select revision into v_revision from public.cases where id = v_case;
 
-  -- name without UUID rejected
+  -- 5) name-only single translator assignment
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object('translator', jsonb_build_array('Member A'))
@@ -189,8 +237,11 @@ begin
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'name-only assign should not succeed';
   end if;
+  if coalesce(v_result->>'error', '') <> 'missing_translator_user_id' then
+    raise exception 'expected missing_translator_user_id, got %', v_result;
+  end if;
 
-  -- cross-env user rejected
+  -- 5) cross-env user
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object(
@@ -201,9 +252,15 @@ begin
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'cross-env assign should not succeed';
   end if;
+  if coalesce(v_result->>'error', '') <> 'invalid_assignee' then
+    raise exception 'expected invalid_assignee for cross-env, got %', v_result;
+  end if;
 
-  -- failed update must not partially write
+  -- 6) failed update atomic rollback: revision, participant, audit unchanged
   select revision into v_revision from public.cases where id = v_case;
+  select translator, reviewer, status
+    into v_case_translator, v_case_reviewer, v_case_status
+  from public.cases where id = v_case;
   select count(*) into v_participant_count
   from public.case_participants cp
   where cp.case_id = v_case and cp.access_revoked_at is null;
@@ -219,9 +276,21 @@ begin
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'atomic rollback setup failed';
   end if;
+  if coalesce(v_result->>'error', '') <> 'invalid_assignee' then
+    raise exception 'atomic rollback setup expected invalid_assignee, got %', v_result;
+  end if;
 
   if (select revision from public.cases where id = v_case) is distinct from v_revision then
     raise exception 'failed assign must not bump revision';
+  end if;
+  if (select translator from public.cases where id = v_case) is distinct from v_case_translator then
+    raise exception 'failed assign must not change cases.translator';
+  end if;
+  if (select reviewer from public.cases where id = v_case) is distinct from v_case_reviewer then
+    raise exception 'failed assign must not change cases.reviewer';
+  end if;
+  if (select status from public.cases where id = v_case) is distinct from v_case_status then
+    raise exception 'failed assign must not change cases.status';
   end if;
   if (select count(*) from public.case_participants cp where cp.case_id = v_case and cp.access_revoked_at is null)
      <> v_participant_count then
@@ -296,7 +365,7 @@ begin
     raise exception 'participant should be revoked after last range removed';
   end if;
 
-  -- hidden UUID (blank name + UUID) rejected
+  -- 5) hidden translator UUID (blank name + UUID)
   v_result := public.admin_create_case(v_case3, jsonb_build_object(
     'title', '[P0D] hidden uuid',
     'status', 'dispatched',
@@ -312,7 +381,11 @@ begin
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'hidden uuid collab row should not succeed';
   end if;
+  if coalesce(v_result->>'error', '') <> 'hidden_translator_participant' then
+    raise exception 'expected hidden_translator_participant, got %', v_result;
+  end if;
 
+  -- 5) collab name-only (no UUID)
   v_result := public.admin_create_case(v_case4, jsonb_build_object(
     'title', '[P0D] name only collab',
     'status', 'dispatched',
@@ -324,6 +397,119 @@ begin
   ));
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'collab name-only should not succeed';
+  end if;
+  if coalesce(v_result->>'error', '') <> 'missing_translator_user_id' then
+    raise exception 'expected missing_translator_user_id for collab, got %', v_result;
+  end if;
+
+  -- 5) hidden reviewer UUID
+  v_result := public.admin_create_case(gen_random_uuid(), jsonb_build_object(
+    'title', '[P0D] hidden reviewer',
+    'status', 'dispatched',
+    'client', 'c',
+    'multi_collab', true,
+    'review_rows', jsonb_build_array(
+      jsonb_build_object(
+        'id', 'rev-h', 'segment', 'R', 'reviewer', '',
+        'reviewerUserId', v_member_b
+      )
+    )
+  ));
+  if coalesce(v_result->>'ok', 'false') = 'true' then
+    raise exception 'hidden reviewer uuid should not succeed';
+  end if;
+  if coalesce(v_result->>'error', '') <> 'hidden_reviewer_participant' then
+    raise exception 'expected hidden_reviewer_participant, got %', v_result;
+  end if;
+
+  -- 3) non-admin member: not_authorized, no side effects
+  select revision into v_revision from public.cases where id = v_case;
+  select translator, reviewer, status
+    into v_case_translator, v_case_reviewer, v_case_status
+  from public.cases where id = v_case;
+  select count(*) into v_participant_count
+  from public.case_participants cp
+  where cp.case_id = v_case and cp.access_revoked_at is null;
+  select count(*) into v_audit_count from public.case_mutation_audit where case_id = v_case;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_member_a::text, 'role', 'authenticated')::text,
+    true
+  );
+  v_result := public.pm_update_case_assignments(
+    v_case, v_revision, jsonb_build_object('status', 'delivered')
+  );
+  if coalesce(v_result->>'error', '') <> 'not_authorized' then
+    raise exception 'non-admin pm_update should be not_authorized, got %', v_result;
+  end if;
+  if coalesce(v_result->>'ok', 'false') = 'true' then
+    raise exception 'non-admin pm_update must not succeed';
+  end if;
+
+  if (select revision from public.cases where id = v_case) is distinct from v_revision then
+    raise exception 'not_authorized must not bump revision';
+  end if;
+  if (select translator from public.cases where id = v_case) is distinct from v_case_translator then
+    raise exception 'not_authorized must not change cases.translator';
+  end if;
+  if (select reviewer from public.cases where id = v_case) is distinct from v_case_reviewer then
+    raise exception 'not_authorized must not change cases.reviewer';
+  end if;
+  if (select status from public.cases where id = v_case) is distinct from v_case_status then
+    raise exception 'not_authorized must not change cases.status';
+  end if;
+  if (select count(*) from public.case_participants cp where cp.case_id = v_case and cp.access_revoked_at is null)
+     <> v_participant_count then
+    raise exception 'not_authorized must not change participants';
+  end if;
+  if (select count(*) from public.case_mutation_audit where case_id = v_case) <> v_audit_count then
+    raise exception 'not_authorized must not write audit';
+  end if;
+
+  -- 4) stale revision: no side effects
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  select revision into v_revision from public.cases where id = v_case;
+  select translator, reviewer, status
+    into v_case_translator, v_case_reviewer, v_case_status
+  from public.cases where id = v_case;
+  select count(*) into v_participant_count
+  from public.case_participants cp
+  where cp.case_id = v_case and cp.access_revoked_at is null;
+  select count(*) into v_audit_count from public.case_mutation_audit where case_id = v_case;
+
+  v_result := public.pm_update_case_assignments(
+    v_case, 0, jsonb_build_object('status', 'delivered')
+  );
+  if coalesce(v_result->>'error', '') <> 'stale_revision' then
+    raise exception 'stale revision not rejected: %', v_result;
+  end if;
+  if coalesce(v_result->>'ok', 'false') = 'true' then
+    raise exception 'stale revision must not succeed';
+  end if;
+
+  if (select revision from public.cases where id = v_case) is distinct from v_revision then
+    raise exception 'stale_revision must not bump revision';
+  end if;
+  if (select translator from public.cases where id = v_case) is distinct from v_case_translator then
+    raise exception 'stale_revision must not change cases.translator';
+  end if;
+  if (select reviewer from public.cases where id = v_case) is distinct from v_case_reviewer then
+    raise exception 'stale_revision must not change cases.reviewer';
+  end if;
+  if (select status from public.cases where id = v_case) is distinct from v_case_status then
+    raise exception 'stale_revision must not change cases.status';
+  end if;
+  if (select count(*) from public.case_participants cp where cp.case_id = v_case and cp.access_revoked_at is null)
+     <> v_participant_count then
+    raise exception 'stale_revision must not change participants';
+  end if;
+  if (select count(*) from public.case_mutation_audit where case_id = v_case) <> v_audit_count then
+    raise exception 'stale_revision must not write audit';
   end if;
 
   raise notice 'P0-D pm_assign_participants_check: all assertions passed';
