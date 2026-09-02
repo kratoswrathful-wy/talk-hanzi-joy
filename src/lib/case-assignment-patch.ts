@@ -36,17 +36,6 @@ export function isTrustedUserId(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
-export function resolveAssigneeUserIdByLabel(
-  label: string,
-  options: ReadonlyArray<{ id: string; label: string }>,
-): string | null {
-  const trimmed = label.trim();
-  if (!trimmed) return null;
-  const opt = options.find((o) => o.label === trimmed);
-  if (!opt || !isTrustedUserId(opt.id)) return null;
-  return opt.id;
-}
-
 export type CaseAssignmentMeta = {
   translatorUserId?: string | null;
   reviewerUserId?: string | null;

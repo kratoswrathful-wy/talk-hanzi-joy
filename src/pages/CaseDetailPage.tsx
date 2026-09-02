@@ -40,9 +40,8 @@ import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, 
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions, getStatusLabelStyle, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment, CollabRow, DeclineRecord } from "@/data/case-types";
-import { isTrustedUserId } from "@/lib/case-assignment-patch";
-import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
+import ColorSelect from "@/components/ColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField, { type FileItem } from "@/components/FileField";
@@ -2438,14 +2437,17 @@ export default function CaseDetailPage() {
                     : <span className="text-sm text-muted-foreground">—</span>}
                 </div>
               ) : (
-                <ColorSelect fieldKey="assignee" value={(caseData.translator || [])[0] || ""} onValueChange={(v) => {
-                  const name = v ? [v] : [];
-                  const uid = selectOptionsStore.getField("assignee").options.find((o) => o.label === v)?.id ?? null;
-                  save({
-                    translator: name,
-                    translatorUserId: uid && isTrustedUserId(uid) ? uid : null,
-                  });
-                }} />
+                <ColorSelect
+                  fieldKey="assignee"
+                  value={(caseData.translator || [])[0] || ""}
+                  onValueChange={() => {}}
+                  onAssigneeSelect={(selection) => {
+                    save({
+                      translator: selection ? [selection.label] : [],
+                      translatorUserId: selection?.userId ?? null,
+                    });
+                  }}
+                />
               )}
             </Field>
             <Field label="審稿人員">
@@ -2461,11 +2463,16 @@ export default function CaseDetailPage() {
                   value={deriveReviewerSummary(caseData.reviewRows) || caseData.reviewer}
                   onValueChange={(v) => {
                     const name = (v || "").trim();
-                    const uid = selectOptionsStore.getField("assignee").options.find((o) => o.label === name)?.id ?? null;
+                    if (!name) {
+                      save({ reviewRows: [], reviewer: "" });
+                    }
+                  }}
+                  onAssigneeSelect={(selection) => {
+                    const name = (selection?.label || "").trim();
                     const next = writeThroughWholeFileReviewer(
                       caseData.reviewRows,
                       name,
-                      uid ? String(uid) : null,
+                      selection?.userId ? String(selection.userId) : null,
                       caseData.reviewDeadline,
                     );
                     save({ reviewRows: next, reviewer: name });

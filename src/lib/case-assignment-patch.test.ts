@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   hasAssignmentPatchKeys,
   isTrustedUserId,
-  resolveAssigneeUserIdByLabel,
   splitDbCasePatch,
 } from "@/lib/case-assignment-patch";
 
@@ -30,12 +29,5 @@ describe("case-assignment-patch", () => {
   it("hasAssignmentPatchKeys detects assignment fields", () => {
     expect(hasAssignmentPatchKeys({ translator: [] })).toBe(true);
     expect(hasAssignmentPatchKeys({ title: "x" })).toBe(false);
-  });
-
-  it("resolveAssigneeUserIdByLabel ignores invitation pseudo ids", () => {
-    const uid = resolveAssigneeUserIdByLabel("bob@test.local", [
-      { id: "assignee-bob@test.local", label: "bob@test.local" },
-    ]);
-    expect(uid).toBeNull();
   });
 });

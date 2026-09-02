@@ -17,7 +17,11 @@ begin
     delete from public.permission_settings ps
     where ps.env = 'test'
       and ps.id <> (
-        select min(p2.id) from public.permission_settings p2 where p2.env = 'test'
+        select p2.id
+        from public.permission_settings p2
+        where p2.env = 'test'
+        order by p2.id::text asc
+        limit 1
       );
   end if;
 end;
@@ -28,6 +32,25 @@ create unique index if not exists permission_settings_env_unique
 
 comment on index public.permission_settings_env_unique is
   'P0-D：每 env 恰好一筆 permission_settings；RPC fail-closed 依賴此約束。';
+
+create or replace function private.p0_permission_settings_canonical_id(p_env text)
+returns uuid
+language sql
+stable
+set search_path = pg_catalog
+as $$
+  select ps.id
+  from public.permission_settings ps
+  where ps.env = p_env
+  order by ps.id::text asc
+  limit 1;
+$$;
+
+revoke all on function private.p0_permission_settings_canonical_id(text)
+  from public, anon, authenticated;
+
+comment on function private.p0_permission_settings_canonical_id(text) is
+  'P0-D：permission_settings 同 env 多筆且 config 相同時，保留 id::text 最小者。';
 
 -- ── 2) participant 同步 helper ────────────────────────────────────────────────
 create or replace function private.p0_is_valid_uuid(p_text text)
@@ -94,6 +117,183 @@ $$;
 revoke all on function private.p0_collect_desired_participants(boolean, jsonb, uuid, jsonb, jsonb, text, uuid)
   from public, anon, authenticated;
 
+create or replace function private.p0_assignment_profile_name(p_user_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  v_name text;
+begin
+  perform private.p0b_require_profile(p_user_id);
+  v_name := private.case_actor_display_name(p_user_id);
+  if v_name is null then
+    raise exception using errcode = '22023', message = 'invalid_assignee_profile';
+  end if;
+  return v_name;
+end;
+$$;
+
+revoke all on function private.p0_assignment_profile_name(uuid)
+  from public, anon, authenticated;
+
+create or replace function private.p0_normalize_collab_rows(p_rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  v_row jsonb;
+  v_uid uuid;
+  v_name text;
+  v_out jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(coalesce(p_rows, '[]'::jsonb)) <> 'array' then
+    return '[]'::jsonb;
+  end if;
+  for v_row in
+    select r.value from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) r(value)
+  loop
+    if private.p0_is_valid_uuid(v_row->>'translatorUserId') then
+      v_uid := (v_row->>'translatorUserId')::uuid;
+      if nullif(trim(v_row->>'translator'), '') is null then
+        raise exception using errcode = '22023', message = 'hidden_translator_participant';
+      end if;
+      v_name := private.p0_assignment_profile_name(v_uid);
+      v_row := v_row || jsonb_build_object('translator', v_name, 'translatorUserId', v_uid);
+    elsif nullif(trim(v_row->>'translator'), '') is not null then
+      raise exception using errcode = '22023', message = 'missing_translator_user_id';
+    end if;
+    v_out := v_out || jsonb_build_array(v_row);
+  end loop;
+  return v_out;
+end;
+$$;
+
+revoke all on function private.p0_normalize_collab_rows(jsonb)
+  from public, anon, authenticated;
+
+create or replace function private.p0_normalize_review_rows(p_rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  v_row jsonb;
+  v_uid uuid;
+  v_name text;
+  v_out jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(coalesce(p_rows, '[]'::jsonb)) <> 'array' then
+    return '[]'::jsonb;
+  end if;
+  for v_row in
+    select r.value from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) r(value)
+  loop
+    if private.p0_is_valid_uuid(v_row->>'reviewerUserId') then
+      v_uid := (v_row->>'reviewerUserId')::uuid;
+      if nullif(trim(v_row->>'reviewer'), '') is null then
+        raise exception using errcode = '22023', message = 'hidden_reviewer_participant';
+      end if;
+      v_name := private.p0_assignment_profile_name(v_uid);
+      v_row := v_row || jsonb_build_object('reviewer', v_name, 'reviewerUserId', v_uid);
+    elsif nullif(trim(v_row->>'reviewer'), '') is not null then
+      raise exception using errcode = '22023', message = 'missing_reviewer_user_id';
+    end if;
+    v_out := v_out || jsonb_build_array(v_row);
+  end loop;
+  return v_out;
+end;
+$$;
+
+revoke all on function private.p0_normalize_review_rows(jsonb)
+  from public, anon, authenticated;
+
+create or replace function private.p0_resolve_assignment_user_ids(
+  p_case_id uuid,
+  p_patch jsonb,
+  p_multi_collab boolean,
+  p_translator jsonb,
+  p_reviewer text,
+  p_review_rows jsonb,
+  out o_translator_user_id uuid,
+  out o_reviewer_user_id uuid,
+  out o_translator jsonb,
+  out o_reviewer text
+)
+language plpgsql
+stable
+set search_path = pg_catalog
+as $$
+declare
+  v_changing_translator boolean := p_patch ? 'translator' or p_patch ? 'translator_user_id';
+  v_changing_reviewer boolean := p_patch ? 'reviewer' or p_patch ? 'reviewer_user_id'
+    or p_patch ? 'review_rows';
+begin
+  o_translator := coalesce(p_translator, '[]'::jsonb);
+  o_reviewer := coalesce(p_reviewer, '');
+
+  if coalesce(p_multi_collab, false) then
+    o_translator_user_id := null;
+  elsif v_changing_translator then
+    if p_patch ? 'translator_user_id'
+      and private.p0_is_valid_uuid(p_patch->>'translator_user_id')
+    then
+      o_translator_user_id := (p_patch->>'translator_user_id')::uuid;
+      o_translator := jsonb_build_array(
+        private.p0_assignment_profile_name(o_translator_user_id)
+      );
+    elsif jsonb_typeof(o_translator) = 'array' and jsonb_array_length(o_translator) > 0 then
+      raise exception using errcode = '22023', message = 'missing_translator_user_id';
+    else
+      o_translator_user_id := null;
+      o_translator := '[]'::jsonb;
+    end if;
+  else
+    select cp.user_id into o_translator_user_id
+    from public.case_participants cp
+    where cp.case_id = p_case_id
+      and cp.role = 'translator'
+      and cp.access_revoked_at is null
+    order by cp.updated_at desc
+    limit 1;
+  end if;
+
+  if jsonb_typeof(coalesce(p_review_rows, '[]'::jsonb)) = 'array'
+    and jsonb_array_length(coalesce(p_review_rows, '[]'::jsonb)) > 0
+  then
+    o_reviewer_user_id := null;
+    o_reviewer := '';
+  elsif v_changing_reviewer then
+    if p_patch ? 'reviewer_user_id'
+      and private.p0_is_valid_uuid(p_patch->>'reviewer_user_id')
+    then
+      o_reviewer_user_id := (p_patch->>'reviewer_user_id')::uuid;
+      o_reviewer := private.p0_assignment_profile_name(o_reviewer_user_id);
+    elsif nullif(trim(o_reviewer), '') is not null then
+      raise exception using errcode = '22023', message = 'missing_reviewer_user_id';
+    else
+      o_reviewer_user_id := null;
+      o_reviewer := '';
+    end if;
+  else
+    select cp.user_id into o_reviewer_user_id
+    from public.case_participants cp
+    where cp.case_id = p_case_id
+      and cp.role = 'reviewer'
+      and cp.access_revoked_at is null
+    order by cp.updated_at desc
+    limit 1;
+  end if;
+end;
+$$;
+
+revoke all on function private.p0_resolve_assignment_user_ids(uuid, jsonb, boolean, jsonb, text, jsonb)
+  from public, anon, authenticated;
+
 create or replace function private.p0_assert_pm_assign_patch_keys(p_patch jsonb)
 returns text
 language plpgsql
@@ -123,59 +323,6 @@ end;
 $$;
 
 revoke all on function private.p0_assert_pm_assign_patch_keys(jsonb)
-  from public, anon, authenticated;
-
-create or replace function private.p0_validate_assignment_display_requires_user_id(
-  p_multi_collab boolean,
-  p_translator jsonb,
-  p_translator_user_id uuid,
-  p_collab_rows jsonb,
-  p_review_rows jsonb
-)
-returns void
-language plpgsql
-stable
-set search_path = pg_catalog
-as $$
-declare
-  v_row jsonb;
-begin
-  if coalesce(p_multi_collab, false) then
-    if jsonb_typeof(coalesce(p_collab_rows, '[]'::jsonb)) = 'array' then
-      for v_row in
-        select r.value
-        from jsonb_array_elements(coalesce(p_collab_rows, '[]'::jsonb)) r(value)
-      loop
-        if nullif(trim(v_row->>'translator'), '') is not null
-          and not private.p0_is_valid_uuid(v_row->>'translatorUserId')
-        then
-          raise exception using errcode = '22023', message = 'missing_translator_user_id';
-        end if;
-      end loop;
-    end if;
-  elsif jsonb_typeof(coalesce(p_translator, '[]'::jsonb)) = 'array'
-    and jsonb_array_length(coalesce(p_translator, '[]'::jsonb)) > 0
-    and p_translator_user_id is null
-  then
-    raise exception using errcode = '22023', message = 'missing_translator_user_id';
-  end if;
-
-  if jsonb_typeof(coalesce(p_review_rows, '[]'::jsonb)) = 'array' then
-    for v_row in
-      select r.value
-      from jsonb_array_elements(coalesce(p_review_rows, '[]'::jsonb)) r(value)
-    loop
-      if nullif(trim(v_row->>'reviewer'), '') is not null
-        and not private.p0_is_valid_uuid(v_row->>'reviewerUserId')
-      then
-        raise exception using errcode = '22023', message = 'missing_reviewer_user_id';
-      end if;
-    end loop;
-  end if;
-end;
-$$;
-
-revoke all on function private.p0_validate_assignment_display_requires_user_id(boolean, jsonb, uuid, jsonb, jsonb)
   from public, anon, authenticated;
 
 create or replace function private.p0_sync_case_participants_from_desired(
@@ -276,47 +423,6 @@ $$;
 revoke all on function private.p0_desired_participants_map(boolean, jsonb, uuid, jsonb, jsonb, text, uuid)
   from public, anon, authenticated;
 
-create or replace function private.p0_resolve_single_translator_user_id(
-  p_case_id uuid,
-  p_patch jsonb,
-  p_translator jsonb,
-  p_multi_collab boolean
-)
-returns uuid
-language plpgsql
-stable
-set search_path = pg_catalog
-as $$
-declare
-  v_uid uuid;
-begin
-  if coalesce(p_multi_collab, false) then
-    return null;
-  end if;
-  if p_patch ? 'translator_user_id' then
-    if not private.p0_is_valid_uuid(p_patch->>'translator_user_id') then
-      raise exception using errcode = '22023', message = 'invalid_translator_user_id';
-    end if;
-    return (p_patch->>'translator_user_id')::uuid;
-  end if;
-  if jsonb_typeof(coalesce(p_translator, '[]'::jsonb)) = 'array'
-    and jsonb_array_length(coalesce(p_translator, '[]'::jsonb)) > 0
-  then
-    select cp.user_id into v_uid
-    from public.case_participants cp
-    where cp.case_id = p_case_id
-      and cp.role = 'translator'
-      and cp.access_revoked_at is null
-    order by cp.updated_at desc
-    limit 1;
-  end if;
-  return v_uid;
-end;
-$$;
-
-revoke all on function private.p0_resolve_single_translator_user_id(uuid, jsonb, jsonb, boolean)
-  from public, anon, authenticated;
-
 -- ── 3) PM 指派 RPC ─────────────────────────────────────────────────────────────
 create or replace function public.pm_update_case_assignments(
   p_case_id uuid,
@@ -382,38 +488,43 @@ begin
   v_translator := coalesce(v_patch_clean->'translator', v_row.translator, '[]'::jsonb);
   v_collab_rows := coalesce(v_patch_clean->'collab_rows', v_row.collab_rows, '[]'::jsonb);
   v_review_rows := coalesce(v_patch_clean->'review_rows', v_row.review_rows, '[]'::jsonb);
-
-  v_translator_user_id := private.p0_resolve_single_translator_user_id(
-    p_case_id, v_patch_clean, v_translator, v_multi_collab
-  );
   v_reviewer := coalesce(
     case when v_patch_clean ? 'reviewer' then v_patch_clean->>'reviewer' end,
     v_row.reviewer,
     ''
   );
-  v_reviewer_user_id := case
-    when v_patch_clean ? 'reviewer_user_id'
-      and private.p0_is_valid_uuid(v_patch_clean->>'reviewer_user_id')
-    then (v_patch_clean->>'reviewer_user_id')::uuid
-    else null
-  end;
-  if v_reviewer_user_id is null and nullif(trim(v_reviewer), '') is not null then
-    select cp.user_id into v_reviewer_user_id
-    from public.case_participants cp
-    where cp.case_id = p_case_id
-      and cp.role = 'reviewer'
-      and cp.access_revoked_at is null
-    order by cp.updated_at desc
-    limit 1;
+
+  if v_patch_clean ? 'collab_rows' then
+    v_collab_rows := private.p0_normalize_collab_rows(v_collab_rows);
+  end if;
+  if v_patch_clean ? 'review_rows' then
+    v_review_rows := private.p0_normalize_review_rows(v_review_rows);
   end if;
 
-  perform private.p0_validate_assignment_display_requires_user_id(
-    v_multi_collab, v_translator, v_translator_user_id, v_collab_rows, v_review_rows
-  );
+  select r.o_translator_user_id, r.o_reviewer_user_id, r.o_translator, r.o_reviewer
+    into v_translator_user_id, v_reviewer_user_id, v_translator, v_reviewer
+  from private.p0_resolve_assignment_user_ids(
+    p_case_id, v_patch_clean, v_multi_collab, v_translator, v_reviewer, v_review_rows
+  ) as r;
 
-  v_old_translator_user_id := private.p0_resolve_single_translator_user_id(
-    p_case_id, '{}'::jsonb, v_row.translator, v_row.multi_collab
-  );
+  if p_patch_clean ? 'reviewer_user_id'
+    and not private.p0_is_valid_uuid(p_patch_clean->>'reviewer_user_id')
+  then
+    return jsonb_build_object('ok', false, 'error', 'invalid_reviewer_user_id');
+  end if;
+  if p_patch_clean ? 'translator_user_id'
+    and not private.p0_is_valid_uuid(p_patch_clean->>'translator_user_id')
+  then
+    return jsonb_build_object('ok', false, 'error', 'invalid_translator_user_id');
+  end if;
+
+  select cp.user_id into v_old_translator_user_id
+  from public.case_participants cp
+  where cp.case_id = p_case_id
+    and cp.role = 'translator'
+    and cp.access_revoked_at is null
+  order by cp.updated_at desc
+  limit 1;
   select cp.user_id into v_old_reviewer_user_id
   from public.case_participants cp
   where cp.case_id = p_case_id
@@ -431,7 +542,9 @@ begin
   );
 
   update public.cases c set
-    translator = case when v_patch_clean ? 'translator' then v_translator else c.translator end,
+    translator = case
+      when v_patch_clean ? 'translator' or v_patch_clean ? 'translator_user_id' then v_translator
+      else c.translator end,
     translation_deadline = case
       when v_patch_clean ? 'translation_deadline'
         and jsonb_typeof(v_patch_clean->'translation_deadline') = 'string'
@@ -439,7 +552,11 @@ begin
       when v_patch_clean ? 'translation_deadline' and v_patch_clean->'translation_deadline' = 'null'::jsonb
       then null
       else c.translation_deadline end,
-    reviewer = case when v_patch_clean ? 'reviewer' then coalesce(v_patch_clean->>'reviewer', '') else c.reviewer end,
+    reviewer = case
+      when v_patch_clean ? 'reviewer' or v_patch_clean ? 'reviewer_user_id'
+        or v_patch_clean ? 'review_rows'
+      then coalesce(v_reviewer, '')
+      else c.reviewer end,
     review_deadline = case
       when v_patch_clean ? 'review_deadline'
         and jsonb_typeof(v_patch_clean->'review_deadline') = 'string'
@@ -484,6 +601,9 @@ begin
     'id', p_case_id,
     'revision', v_revision
   );
+exception
+  when sqlstate '22023' then
+    return jsonb_build_object('ok', false, 'error', sqlerrm);
 end;
 $$;
 
@@ -802,6 +922,8 @@ declare
   v_collab_rows jsonb;
   v_review_rows jsonb;
   v_translator_user_id uuid;
+  v_reviewer text;
+  v_reviewer_user_id uuid;
   v_new_map jsonb;
 begin
   if v_uid is null or not public.is_admin(v_uid) then
@@ -818,18 +940,40 @@ begin
   end if;
 
   v_multi_collab := coalesce((v_clean->>'multi_collab')::boolean, false);
+  v_collab_rows := private.p0_normalize_collab_rows(coalesce(v_clean->'collab_rows', '[]'::jsonb));
+  v_review_rows := private.p0_normalize_review_rows(coalesce(v_clean->'review_rows', '[]'::jsonb));
   v_translator := coalesce(v_clean->'translator', '[]'::jsonb);
-  v_collab_rows := coalesce(v_clean->'collab_rows', '[]'::jsonb);
-  v_review_rows := coalesce(v_clean->'review_rows', '[]'::jsonb);
-  v_translator_user_id := case
-    when v_clean ? 'translator_user_id'
-    then (v_clean->>'translator_user_id')::uuid
-    else null
-  end;
+  v_reviewer := coalesce(nullif(trim(v_clean->>'reviewer'), ''), '');
 
-  perform private.p0_validate_assignment_display_requires_user_id(
-    v_multi_collab, v_translator, v_translator_user_id, v_collab_rows, v_review_rows
-  );
+  if v_multi_collab then
+    v_translator := '[]'::jsonb;
+    v_translator_user_id := null;
+  elsif v_clean ? 'translator_user_id'
+    and private.p0_is_valid_uuid(v_clean->>'translator_user_id')
+  then
+    v_translator_user_id := (v_clean->>'translator_user_id')::uuid;
+    v_translator := jsonb_build_array(private.p0_assignment_profile_name(v_translator_user_id));
+  elsif jsonb_typeof(v_translator) = 'array' and jsonb_array_length(v_translator) > 0 then
+    return jsonb_build_object('ok', false, 'error', 'missing_translator_user_id');
+  else
+    v_translator := '[]'::jsonb;
+    v_translator_user_id := null;
+  end if;
+
+  if jsonb_array_length(v_review_rows) > 0 then
+    v_reviewer := '';
+    v_reviewer_user_id := null;
+  elsif v_clean ? 'reviewer_user_id'
+    and private.p0_is_valid_uuid(v_clean->>'reviewer_user_id')
+  then
+    v_reviewer_user_id := (v_clean->>'reviewer_user_id')::uuid;
+    v_reviewer := private.p0_assignment_profile_name(v_reviewer_user_id);
+  elsif nullif(trim(v_reviewer), '') is not null then
+    return jsonb_build_object('ok', false, 'error', 'missing_reviewer_user_id');
+  else
+    v_reviewer_user_id := null;
+    v_reviewer := '';
+  end if;
 
   insert into public.cases (
     id, env, created_by, title, status, client, contact, keyword, client_po_number,
@@ -869,7 +1013,7 @@ begin
       then (v_clean->>'translation_deadline')::timestamptz
       else null
     end,
-    coalesce(nullif(trim(v_clean->>'reviewer'), ''), ''),
+    v_reviewer,
     case
       when v_clean ? 'review_deadline'
         and jsonb_typeof(v_clean->'review_deadline') = 'string'
@@ -923,9 +1067,7 @@ begin
 
   v_new_map := private.p0_desired_participants_map(
     v_multi_collab, v_translator, v_translator_user_id, v_collab_rows, v_review_rows,
-    coalesce(nullif(trim(v_clean->>'reviewer'), ''), ''),
-    case when v_clean ? 'reviewer_user_id'
-      then (v_clean->>'reviewer_user_id')::uuid else null end
+    v_reviewer, v_reviewer_user_id
   );
   perform private.p0_sync_case_participants_from_desired(
     p_case_id, v_uid, '{}'::jsonb, v_new_map
@@ -944,6 +1086,8 @@ begin
 exception
   when unique_violation then
     return jsonb_build_object('ok', false, 'error', 'case_already_exists');
+  when sqlstate '22023' then
+    return jsonb_build_object('ok', false, 'error', sqlerrm);
   when others then
     raise log 'admin_create_case internal error case_id=% env=% sqlstate=%',
       p_case_id, v_env, sqlstate;

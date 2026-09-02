@@ -2,7 +2,7 @@
  * Multi-select version of ColorSelect.
  * Reuses the same selectOptionsStore options but allows selecting multiple values.
  */
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Plus, Trash2, Palette, Check, Pencil, X, Search, MoreHorizontal } from "lucide-react";
 import AssigneeTag from "@/components/AssigneeTag";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,6 +31,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { sortSelectedAssigneeOptions } from "@/lib/assignee-option-order";
+import {
+  assigneeOptionToPayload,
+  assigneeSelectionsFromIds,
+  type AssigneeSelectPayload,
+} from "@/lib/assignee-select";
 import { buildWorkloadCountByDisplayNameTranslatorReviewerOnly } from "@/lib/inquiry-slack-workload";
 import { useAuth } from "@/hooks/use-auth";
 import { useCases } from "@/hooks/use-case-store";
@@ -58,6 +63,8 @@ interface MultiColorSelectProps {
   defaultOpen?: boolean;
   /** Notify parent when open state changes (e.g. exit InlineEditCell on close). */
   onOpenChange?: (open: boolean) => void;
+  /** assignee 專用：以 option id 追蹤選取，不依 label 反查 UUID。 */
+  onAssigneeSelectionsChange?: (selections: AssigneeSelectPayload[]) => void;
 }
 
 export default function MultiColorSelect({
@@ -70,6 +77,7 @@ export default function MultiColorSelect({
   triggerClassName,
   defaultOpen,
   onOpenChange,
+  onAssigneeSelectionsChange,
 }: MultiColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
   const labelStyles = useLabelStyles();
@@ -171,7 +179,42 @@ export default function MultiColorSelect({
     return [...sortArr(pinned), ...sortArr(rest)];
   }, [fieldKey, filteredOptions, values, assigneeSortMode, assigneeWorkloadByLabel]);
 
+  const assigneeSelectedIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (fieldKey === "assignee") {
+      const ids = new Set<string>();
+      for (const label of values) {
+        const opt = options.find((o) => o.label === label);
+        if (opt && assigneeOptionToPayload(opt)) ids.add(opt.id);
+      }
+      assigneeSelectedIdsRef.current = ids;
+    }
+  }, [fieldKey, values, options]);
+
+  const notifyAssigneeSelections = useCallback(
+    (ids: Set<string>) => {
+      if (fieldKey !== "assignee" || !onAssigneeSelectionsChange) return;
+      onAssigneeSelectionsChange(assigneeSelectionsFromIds(options, ids));
+    },
+    [fieldKey, onAssigneeSelectionsChange, options],
+  );
+
   const handleToggle = (opt: SelectOption) => {
+    if (fieldKey === "assignee") {
+      const payload = assigneeOptionToPayload(opt);
+      if (!payload) return;
+      const ids = new Set(assigneeSelectedIdsRef.current);
+      if (ids.has(opt.id)) ids.delete(opt.id);
+      else ids.add(opt.id);
+      assigneeSelectedIdsRef.current = ids;
+      const nextLabels = options
+        .filter((o) => ids.has(o.id))
+        .map((o) => o.label);
+      onValuesChange(nextLabels);
+      notifyAssigneeSelections(ids);
+      return;
+    }
     if (values.includes(opt.label)) {
       onValuesChange(values.filter((v) => v !== opt.label));
     } else {

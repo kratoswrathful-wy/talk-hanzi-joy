@@ -21,8 +21,8 @@ import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views"
 import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
-import { useSelectOptions, getStatusLabelStyle, selectOptionsStore } from "@/stores/select-options-store";
-import { resolveAssigneeUserIdByLabel } from "@/lib/case-assignment-patch";
+import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
+import type { CaseAssignmentMeta } from "@/lib/case-assignment-patch";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { useState, useRef, useCallback, useEffect, useMemo, useDeferredValue } from "react";
@@ -176,7 +176,7 @@ interface ColumnDef {
   key: string;
   label: string;
   minWidth: number;
-  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean | string[]) => void }) => React.ReactNode;
+  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean | string[] | null, meta?: CaseAssignmentMeta) => void }) => React.ReactNode;
 }
 
 function CategoryLabel({ value }: { value: string }) {
@@ -378,7 +378,7 @@ const allColumnDefs: ColumnDef[] = [
     render: (c, { editable, onCommit }) => {
       const translators = c.translator || [];
       return (
-        <InlineEditCell value={translators} type="multiColorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("translator", v)}>
+        <InlineEditCell value={translators} type="multiColorSelect" fieldKey="assignee" editable={editable} assigneeRole="translator" onCommit={(v, meta) => onCommit("translator", v, meta)}>
           {translators.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {translators.map((name) => (
@@ -420,7 +420,7 @@ const allColumnDefs: ColumnDef[] = [
     label: "審稿人員",
     minWidth: 90,
     render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("reviewer", v)}>
+      <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" assigneeRole="reviewer" editable={editable} onCommit={(v, meta) => onCommit("reviewer", v, meta)}>
         <AssigneeLabel value={c.reviewer} />
       </InlineEditCell>
     ),
@@ -925,7 +925,12 @@ export default function CasesPage() {
     delivered: "已交件", feedback: "處理回饋", feedback_completed: "回饋處理完畢",
   };
 
-  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[] | null) => {
+  const handleCellCommit = useCallback((
+    caseId: string,
+    field: string,
+    value: string | boolean | string[] | null,
+    meta?: CaseAssignmentMeta,
+  ) => {
     const isBatch = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1;
     const targetIds = isBatch ? Array.from(rowSelection.selectedIds) : [caseId];
 
@@ -940,22 +945,14 @@ export default function CasesPage() {
       const oldValue = (c as CaseRecord & Record<string, unknown>)[field] ?? "";
       undoEntries.push({ recordId: id, oldValue });
       if (field === "translator" && Array.isArray(value)) {
-        const name = value[0] ?? "";
-        const uid = name
-          ? resolveAssigneeUserIdByLabel(name, selectOptionsStore.getField("assignee").options)
-          : null;
         caseStore.update(id, {
           translator: value,
-          translatorUserId: uid,
+          translatorUserId: meta?.translatorUserId ?? null,
         });
       } else if (field === "reviewer" && typeof value === "string") {
-        const uid = resolveAssigneeUserIdByLabel(
-          value,
-          selectOptionsStore.getField("assignee").options,
-        );
         caseStore.update(id, {
           reviewer: value,
-          reviewerUserId: uid,
+          reviewerUserId: meta?.reviewerUserId ?? null,
         });
       } else {
         caseStore.update(id, { [field]: value });

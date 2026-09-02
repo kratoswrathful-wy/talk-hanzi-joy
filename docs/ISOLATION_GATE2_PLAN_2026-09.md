@@ -2,8 +2,9 @@
 
 # Gate 2：P0 安全修正正式發布計畫（2026-09-02）
 
-**權威基準**：`feat/isolation-replay-20260901` @ `cfca5b17`，基於 production `main` @ `724eb886`。
-**已完成**：第五次 Micro 164/164 從零重放、10/10 SQL、雙 client 競態、Data API、types、本機品質閘門均通過。
+**權威基準**：`feat/isolation-replay-20260901`（checkpoint 見 Draft PR #81 最新 commit），基於 production `main` @ `724eb886`。
+**已完成**：第五次 Micro **164/164** 從零重放、10/10 SQL、雙 client 競態、Data API、types、本機品質閘門均通過。
+**尚未完成**：P0-D（`20260902054823_p0d_pm_assign_participants_sync.sql`）**未經隔離 DB 驗證**；第五次 Micro **不含**此支 migration。
 **本文件授權範圍**：可推功能分支、建立 Draft PR、取得 CI／Vercel Preview 證據；**不得 merge、不得操作正式 Supabase、不得部署 production**，直到維護窗口另獲明確核准。
 
 ---
@@ -29,11 +30,11 @@
 ### 2.1 本次候選範圍
 
 - 正式 migration history：149 個版本，最高 `20260825120952`。
-- repo migration：164 支。
-- 正式庫預期待套用：**15 支**：
+- repo migration：**165 支**。
+- 正式庫預期待套用：**16 支**：
   - 1 支 backdated Scheme A 前置：`20260610135900_cat_workflow_phase_b_prereq.sql`
-  - 14 支 P0：`20260830122351`～`20260901120400`
-- 正式執行前以 `supabase db push --linked --include-all --dry-run` 重新列舉；結果必須**恰好等於上述 15 支**，順序以 CLI 顯示為準。
+  - 15 支 P0：`20260830122351`～`20260901120400`，以及 **`20260902054823_p0d_pm_assign_participants_sync.sql`（P0-D）**
+- 正式執行前以 `supabase db push --linked --include-all --dry-run` 重新列舉；結果必須**恰好等於上述 16 支**，順序以 CLI 顯示為準。
 - 不帶 seed、不使用 `db reset --linked`、不使用 Dashboard SQL Editor 或 MCP 直接套 migration。
 
 ### 2.2 新問題封頂線
@@ -78,7 +79,7 @@ Draft PR checks 未全綠、diff 混入其他工作、Vercel Preview build 失�
 |---|---|---|
 | M-1 | Draft PR 的 GitHub CI 與 Vercel build 全綠 | PR checks + deployment READY |
 | M-2 | 候選 commit 固定 | SHA 記入執行紀錄；窗口中不得換 commit |
-| M-3 | 正式 migration history 無漂移 | 遠端仍 149 支；無 only-remote；dry-run 恰好 15 支 |
+| M-3 | 正式 migration history 無漂移 | 遠端仍 149 支；無 only-remote；dry-run 恰好 **16 支** |
 | M-4 | 正式庫為 ACTIVE_HEALTHY | Supabase 狀態與 SQL 健康檢查 |
 | M-5 | 可用備份 | 確認最新平台備份；另取得窗口前的 logical schema／roles／data dump，存於 Git 外受限位置並記錄 hash |
 | M-6 | 已知良好 production 前端 | 記錄目前 deployment、commit `724eb886` 與 URL；不得刪除此 deployment |
@@ -106,14 +107,14 @@ Draft PR checks 未全綠、diff 混入其他工作、Vercel Preview build 失�
 2. 計算備份檔 hash，保存於 Git／repo／`.env` 外。
 3. 唯讀列出正式 migration history。
 4. 執行 `supabase db push --linked --include-all --dry-run`。
-5. dry-run 必須只顯示 15 支預期 migration；多一支、少一支、順序異常或 project ref 不符，**立即停止**。
+5. dry-run 必須只顯示 **16 支**預期 migration；多一支、少一支、順序異常或 project ref 不符，**立即停止**。
 
 ### Phase 2 — 套用正式 migration
 
 1. 執行一次 `supabase db push --linked --include-all`；不帶 seed。
 2. 保存完整輸出與完成時間，不把密碼或 token 寫入 log／文件。
 3. 任一 migration 失敗：維持維護頁，禁止重跑、禁止在 Dashboard 手修後宣稱成功；進入 §7 回復決策。
-4. 成功後確認遠端 migration history 新增恰好 15 支，最高 `20260901120400`。
+4. 成功後確認遠端 migration history 新增恰好 **16 支**，最高 `20260902054823`。
 
 ### Phase 3 — 部署應用與 Edge Functions
 
@@ -149,7 +150,7 @@ Draft PR checks 未全綠、diff 混入其他工作、Vercel Preview build 失�
 
 本次 P0 只有在下列全部成立後才算正式完成：
 
-- 正式 history 精確加入 15 支候選 migration；
+- 正式 history 精確加入 **16 支**候選 migration；
 - 正式前端與 Edge Functions 均對應固定候選 commit；
 - 維護中冒煙全綠；
 - 30 分鐘監看無 P0 異常；
@@ -194,13 +195,23 @@ Draft PR checks 未全綠、diff 混入其他工作、Vercel Preview build 失�
 
 | 項目 | 結果 |
 |---|---|
-| ref `enexnghinsnyzmezxphk` | 164/164 migration 從零重放成功 |
+| ref `enexnghinsnyzmezxphk` | **164/164** migration 從零重放成功（**不含 P0-D**） |
 | SQL | 10/10 通過 |
 | 競態 | `dual-client-collab-race.mjs` PASS |
 | Data API definer | `micro3-definer-view-api-check.mjs` PASS |
 | Advisors | 2 件 ERROR（`cases_visible`／`fees_visible`）— 受控例外 |
 | types | 已重生並通過 typecheck |
-| 處置 | 已刪除；**不得建第六次 Micro** |
+| 處置 | 已刪除；**不得建第六次 Micro**；P0-D 須使用者核准後另做一次且僅一次隔離驗證 |
+
+**P0-D 隔離驗證（尚未執行，需使用者另行核准）**
+
+| 項目 | 內容 |
+|---|---|
+| 範圍 | repo **165/165** 從零重放（含 `20260902054823`） |
+| SQL | `supabase/tests/p0_pm_assign_participants_check.sql` 全項通過 |
+| 預估時間 | 建置／重放 45–90 分；SQL＋冒煙 30–45 分 |
+| 預估費用 | Supabase Micro 單次約 USD 0.01–0.05／小時 × 2 小時上限 ≈ **USD 0.10 以內**（依實際計費為準） |
+| 限制 | **不得**宣稱第五次 Micro 已驗證 P0-D |
 
 ---
 
@@ -210,7 +221,7 @@ Draft PR checks 未全綠、diff 混入其他工作、Vercel Preview build 失�
 
 - PR 與固定 commit；
 - checks／Preview 結果；
-- 正式 dry-run 預期 15 支清單（尚未執行正式 push）；
+- 正式 dry-run 預期 **16 支**清單（尚未執行正式 push）；
 - 維護窗口需要使用者提供／確認的時間、Slack 測試 App 與備份安排。
 
 到此必須停止，等待使用者另行核准正式維護窗口。
