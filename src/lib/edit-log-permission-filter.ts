@@ -1,4 +1,4 @@
-﻿import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import type { EditLog } from "@/data/fee-mock-data";
 
 export type CheckPermFn = (moduleKey: string, itemKey: string, permType: "view" | "edit") => boolean;
