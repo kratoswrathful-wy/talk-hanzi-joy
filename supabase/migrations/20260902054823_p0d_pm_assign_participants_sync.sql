@@ -2,30 +2,44 @@
 -- admin_create_case 原子建 participant；permission_settings 每 env 唯一。idempotent。
 
 -- ── 1) permission_settings：test 重複列清理（僅 config 完全相同）＋ env 唯一 ──
-do $$
+create or replace function private.p0_dedupe_permission_settings_env(p_env text)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
 declare
+  v_count int;
   v_distinct_configs int;
-  v_test_count int;
 begin
-  select count(*) into v_test_count from public.permission_settings where env = 'test';
-  if v_test_count > 1 then
-    select count(distinct config::text) into v_distinct_configs
-    from public.permission_settings where env = 'test';
-    if v_distinct_configs > 1 then
-      raise exception using errcode = '22023', message = 'permission_settings_test_config_conflict';
-    end if;
-    delete from public.permission_settings ps
-    where ps.env = 'test'
-      and ps.id <> (
-        select p2.id
-        from public.permission_settings p2
-        where p2.env = 'test'
-        order by p2.id::text asc
-        limit 1
-      );
+  select count(*) into v_count from public.permission_settings where env = p_env;
+  if v_count <= 1 then
+    return;
   end if;
+  select count(distinct config::text) into v_distinct_configs
+  from public.permission_settings where env = p_env;
+  if v_distinct_configs > 1 then
+    raise exception using errcode = '22023', message = 'permission_settings_test_config_conflict';
+  end if;
+  delete from public.permission_settings ps
+  where ps.env = p_env
+    and ps.id <> (
+      select p2.id
+      from public.permission_settings p2
+      where p2.env = p_env
+      order by p2.id::text asc
+      limit 1
+    );
 end;
 $$;
+
+revoke all on function private.p0_dedupe_permission_settings_env(text)
+  from public, anon, authenticated;
+
+comment on function private.p0_dedupe_permission_settings_env(text) is
+  'P0-D：permission_settings 同 env 多筆且 config 相同時，保留 id::text 最小者；config 不同則 fail closed。';
+
+select private.p0_dedupe_permission_settings_env('test');
 
 create unique index if not exists permission_settings_env_unique
   on public.permission_settings (env);
@@ -494,6 +508,17 @@ begin
     ''
   );
 
+  if v_patch_clean ? 'reviewer_user_id'
+    and not private.p0_is_valid_uuid(v_patch_clean->>'reviewer_user_id')
+  then
+    return jsonb_build_object('ok', false, 'error', 'invalid_reviewer_user_id');
+  end if;
+  if v_patch_clean ? 'translator_user_id'
+    and not private.p0_is_valid_uuid(v_patch_clean->>'translator_user_id')
+  then
+    return jsonb_build_object('ok', false, 'error', 'invalid_translator_user_id');
+  end if;
+
   if v_patch_clean ? 'collab_rows' then
     v_collab_rows := private.p0_normalize_collab_rows(v_collab_rows);
   end if;
@@ -506,17 +531,6 @@ begin
   from private.p0_resolve_assignment_user_ids(
     p_case_id, v_patch_clean, v_multi_collab, v_translator, v_reviewer, v_review_rows
   ) as r;
-
-  if p_patch_clean ? 'reviewer_user_id'
-    and not private.p0_is_valid_uuid(p_patch_clean->>'reviewer_user_id')
-  then
-    return jsonb_build_object('ok', false, 'error', 'invalid_reviewer_user_id');
-  end if;
-  if p_patch_clean ? 'translator_user_id'
-    and not private.p0_is_valid_uuid(p_patch_clean->>'translator_user_id')
-  then
-    return jsonb_build_object('ok', false, 'error', 'invalid_translator_user_id');
-  end if;
 
   select cp.user_id into v_old_translator_user_id
   from public.case_participants cp

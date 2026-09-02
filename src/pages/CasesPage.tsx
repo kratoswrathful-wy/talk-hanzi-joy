@@ -245,12 +245,6 @@ function AssigneeLabelById({ id }: { id: string }) {
   return <AssigneeTag label={opt?.label || id} avatarUrl={opt?.avatarUrl} />;
 }
 
-function TranslatorAvatarTag({ name }: { name: string }) {
-  const { options } = useSelectOptions("assignee");
-  const opt = options.find((o) => o.label === name);
-  return <AssigneeTag label={name} avatarUrl={opt?.avatarUrl} />;
-}
-
 function OpenButton({ caseId }: { caseId: string }) {
   const navigate = useNavigate();
   return (
@@ -376,15 +370,18 @@ const allColumnDefs: ColumnDef[] = [
     label: "譯者",
     minWidth: 90,
     render: (c, { editable, onCommit }) => {
-      const translators = c.translator || [];
+      const translatorName = (c.translator || [])[0] || "";
       return (
-        <InlineEditCell value={translators} type="multiColorSelect" fieldKey="assignee" editable={editable} assigneeRole="translator" onCommit={(v, meta) => onCommit("translator", v, meta)}>
-          {translators.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {translators.map((name) => (
-                <TranslatorAvatarTag key={name} name={name} />
-              ))}
-            </div>
+        <InlineEditCell
+          value={translatorName}
+          type="colorSelect"
+          fieldKey="assignee"
+          editable={editable}
+          assigneeRole="translator"
+          onCommit={(v, meta) => onCommit("translator", v ? [String(v)] : [], meta)}
+        >
+          {translatorName ? (
+            <AssigneeLabel value={translatorName} />
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
           )}

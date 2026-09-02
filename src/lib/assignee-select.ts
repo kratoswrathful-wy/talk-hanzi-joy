@@ -37,3 +37,19 @@ export function assigneeSelectionsFromIds(
   }
   return out;
 }
+
+/** 案件協作列：由 ColorSelect 選項直接寫入 label + UUID。 */
+export function collabTranslatorFromSelection(
+  selection: AssigneeSelectPayload,
+): { translator: string; translatorUserId: string | null } {
+  if (!selection) return { translator: "", translatorUserId: null };
+  return { translator: selection.label, translatorUserId: selection.userId };
+}
+
+/** 審稿協作列：由 ColorSelect 選項直接寫入 label + UUID。 */
+export function reviewRowFromSelection(
+  selection: AssigneeSelectPayload,
+): { reviewer: string; reviewerUserId: string | null } {
+  if (!selection) return { reviewer: "", reviewerUserId: null };
+  return { reviewer: selection.label, reviewerUserId: selection.userId };
+}

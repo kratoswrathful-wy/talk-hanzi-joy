@@ -65,6 +65,8 @@ interface MultiColorSelectProps {
   onOpenChange?: (open: boolean) => void;
   /** assignee 專用：以 option id 追蹤選取，不依 label 反查 UUID。 */
   onAssigneeSelectionsChange?: (selections: AssigneeSelectPayload[]) => void;
+  /** assignee 案件授權路徑：以 UUID 驅動勾選；未提供時僅供非案件標籤（如內部註記）。 */
+  selectedIds?: string[];
 }
 
 export default function MultiColorSelect({
@@ -78,6 +80,7 @@ export default function MultiColorSelect({
   defaultOpen,
   onOpenChange,
   onAssigneeSelectionsChange,
+  selectedIds,
 }: MultiColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
   const labelStyles = useLabelStyles();
@@ -138,11 +141,24 @@ export default function MultiColorSelect({
     setAssigneeWorkloadByLabel(wMap);
   }, [open, fieldKey, assigneeSortMode, assigneeWorkloadByLabel, cases]);
 
+  const assigneeUsesIdMode = fieldKey === "assignee" && selectedIds !== undefined;
+
+  const assigneeSelectedIdSet = useMemo(() => {
+    if (!assigneeUsesIdMode) return null;
+    return new Set(selectedIds.filter(Boolean));
+  }, [assigneeUsesIdMode, selectedIds]);
+
   const selectedOptions = useMemo(() => {
+    if (assigneeUsesIdMode && assigneeSelectedIdSet) {
+      return sortSelectedAssigneeOptions(
+        options,
+        options.filter((o) => assigneeSelectedIdSet.has(o.id)).map((o) => o.label),
+      );
+    }
     const sel = options.filter((o) => values.includes(o.label));
     if (fieldKey !== "assignee") return sel;
     return sortSelectedAssigneeOptions(options, values);
-  }, [options, values, fieldKey]);
+  }, [options, values, fieldKey, assigneeUsesIdMode, assigneeSelectedIdSet]);
 
   const filteredOptions = searchQuery.trim()
     ? options.filter((o) => o.label.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -150,6 +166,28 @@ export default function MultiColorSelect({
 
   const displayOptions = useMemo(() => {
     if (fieldKey !== "assignee") return filteredOptions;
+    if (assigneeUsesIdMode && assigneeSelectedIdSet) {
+      const pinned = filteredOptions.filter((o) => assigneeSelectedIdSet.has(o.id));
+      const rest = filteredOptions.filter((o) => !assigneeSelectedIdSet.has(o.id));
+      const sortByName = (arr: SelectOption[]) =>
+        [...arr].sort((a, b) => a.label.localeCompare(b.label, "zh-Hant", { sensitivity: "base" }));
+      const sortByWorkload = (arr: SelectOption[]) => {
+        const map = assigneeWorkloadByLabel;
+        const get = (label: string) => map?.get(label.trim()) ?? 0;
+        return [...arr].sort((a, b) => {
+          const diff = get(b.label) - get(a.label);
+          if (diff !== 0) return diff;
+          return a.label.localeCompare(b.label, "zh-Hant", { sensitivity: "base" });
+        });
+      };
+      const sortByCustom = (arr: SelectOption[]) => arr;
+      const sortArr = (arr: SelectOption[]) => {
+        if (assigneeSortMode === "name") return sortByName(arr);
+        if (assigneeSortMode === "workload") return sortByWorkload(arr);
+        return sortByCustom(arr);
+      };
+      return [...sortArr(pinned), ...sortArr(rest)];
+    }
     const selectedSet = new Set(values);
     const pinned = filteredOptions.filter((o) => selectedSet.has(o.label));
     const rest = filteredOptions.filter((o) => !selectedSet.has(o.label));
@@ -177,20 +215,15 @@ export default function MultiColorSelect({
 
     // Checked items pinned to top; each group uses the chosen sort mode.
     return [...sortArr(pinned), ...sortArr(rest)];
-  }, [fieldKey, filteredOptions, values, assigneeSortMode, assigneeWorkloadByLabel]);
+  }, [fieldKey, filteredOptions, values, assigneeSortMode, assigneeWorkloadByLabel, assigneeUsesIdMode, assigneeSelectedIdSet]);
 
   const assigneeSelectedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (fieldKey === "assignee") {
-      const ids = new Set<string>();
-      for (const label of values) {
-        const opt = options.find((o) => o.label === label);
-        if (opt && assigneeOptionToPayload(opt)) ids.add(opt.id);
-      }
-      assigneeSelectedIdsRef.current = ids;
+    if (assigneeUsesIdMode && assigneeSelectedIdSet) {
+      assigneeSelectedIdsRef.current = new Set(assigneeSelectedIdSet);
     }
-  }, [fieldKey, values, options]);
+  }, [assigneeUsesIdMode, assigneeSelectedIdSet]);
 
   const notifyAssigneeSelections = useCallback(
     (ids: Set<string>) => {
@@ -201,7 +234,7 @@ export default function MultiColorSelect({
   );
 
   const handleToggle = (opt: SelectOption) => {
-    if (fieldKey === "assignee") {
+    if (fieldKey === "assignee" && assigneeUsesIdMode) {
       const payload = assigneeOptionToPayload(opt);
       if (!payload) return;
       const ids = new Set(assigneeSelectedIdsRef.current);
@@ -213,6 +246,14 @@ export default function MultiColorSelect({
         .map((o) => o.label);
       onValuesChange(nextLabels);
       notifyAssigneeSelections(ids);
+      return;
+    }
+    if (fieldKey === "assignee" && !assigneeUsesIdMode) {
+      if (values.includes(opt.label)) {
+        onValuesChange(values.filter((v) => v !== opt.label));
+      } else {
+        onValuesChange([...values, opt.label]);
+      }
       return;
     }
     if (values.includes(opt.label)) {
@@ -340,7 +381,9 @@ export default function MultiColorSelect({
             {/* Options */}
             <div className="max-h-[330px] overflow-y-auto p-1">
               {displayOptions.map((opt) => {
-                const isChecked = values.includes(opt.label);
+                const isChecked = assigneeUsesIdMode && assigneeSelectedIdSet
+                  ? assigneeSelectedIdSet.has(opt.id)
+                  : values.includes(opt.label);
                 const isAssignee = fieldKey === "assignee";
                 return (
                   <div key={opt.id} className="relative group">

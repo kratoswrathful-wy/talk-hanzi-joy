@@ -3,6 +3,8 @@ import {
   assigneeOptionToPayload,
   assigneeSelectionsFromIds,
   primaryAssigneeUserId,
+  collabTranslatorFromSelection,
+  reviewRowFromSelection,
 } from "@/lib/assignee-select";
 
 describe("assignee-select", () => {
@@ -42,5 +44,23 @@ describe("assignee-select", () => {
 
   it("clear selection is null user id", () => {
     expect(primaryAssigneeUserId([])).toBeNull();
+  });
+
+  it("collabTranslatorFromSelection uses option UUID", () => {
+    expect(collabTranslatorFromSelection({ userId: uuidB, label: "Alice" })).toEqual({
+      translator: "Alice",
+      translatorUserId: uuidB,
+    });
+    expect(collabTranslatorFromSelection(null)).toEqual({
+      translator: "",
+      translatorUserId: null,
+    });
+  });
+
+  it("reviewRowFromSelection uses option UUID", () => {
+    expect(reviewRowFromSelection({ userId: uuidB, label: "Alice" })).toEqual({
+      reviewer: "Alice",
+      reviewerUserId: uuidB,
+    });
   });
 });
