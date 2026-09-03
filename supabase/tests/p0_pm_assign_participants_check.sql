@@ -4,6 +4,11 @@
 -- apply_case_update assignment strip + permission_settings dedup contract.
 -- PostgreSQL 17: permission_settings dedup uses id::text ordering (not min(uuid)).
 --
+-- Role pattern: JWT + set local role authenticated + assert current_user
+-- before every RPC; reset role immediately after RPC returns; inspect
+-- cases / case_participants / case_mutation_audit / revision only after RESET ROLE.
+-- Do NOT grant SELECT on cases to authenticated.
+--
 -- Run inside BEGIN ... ROLLBACK only.
 
 begin;
@@ -107,14 +112,16 @@ begin
       null;
   end;
 
+  -- 1) admin_create_case: participant sync (not only ok=true)
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
     true
   );
   set local role authenticated;
-
-  -- 1) admin_create_case: participant sync (not only ok=true)
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before admin_create, got %', current_user;
+  end if;
   v_result := public.admin_create_case(v_case, jsonb_build_object(
     'title', '[P0D] single assign',
     'status', 'dispatched',
@@ -122,6 +129,8 @@ begin
     'translator', jsonb_build_array('Member A'),
     'translator_user_id', v_member_a::text
   ));
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'admin_create_case failed: %', v_result;
   end if;
@@ -140,16 +149,36 @@ begin
 
   select revision into v_revision from public.cases where id = v_case;
 
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before apply_case_update, got %', current_user;
+  end if;
   v_result := public.apply_case_update(
     v_case,
     jsonb_build_object('translator', jsonb_build_array('Member B')),
     v_revision
   );
+  reset role;
+
   if coalesce(v_result->>'error', '') <> 'assignment_field_use_pm_rpc' then
     raise exception 'apply_case_update should reject assignment keys, got %', v_result;
   end if;
 
   -- 2) same display name: bind selected UUID; revoke prior participant
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before same-name assign, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object(
@@ -157,6 +186,8 @@ begin
       'translator_user_id', v_member_c::text
     )
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'same-name assign by uuid failed: %', v_result;
   end if;
@@ -190,10 +221,21 @@ begin
   select revision into v_revision from public.cases where id = v_case;
 
   -- 5) invalid translator UUID (stable, before normalize)
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before invalid translator uuid, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object('translator_user_id', 'not-a-valid-uuid')
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'invalid translator uuid should not succeed';
   end if;
@@ -202,10 +244,21 @@ begin
   end if;
 
   -- 5) invalid reviewer UUID
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before invalid reviewer uuid, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object('reviewer_user_id', 'not-a-valid-uuid')
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'invalid reviewer uuid should not succeed';
   end if;
@@ -214,6 +267,15 @@ begin
   end if;
 
   -- server normalizes mismatched display name from profile UUID
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before display normalize, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object(
@@ -221,6 +283,8 @@ begin
       'translator_user_id', v_member_b::text
     )
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'mismatched display normalize failed: %', v_result;
   end if;
@@ -233,10 +297,21 @@ begin
   select revision into v_revision from public.cases where id = v_case;
 
   -- 5) name-only single translator assignment
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before name-only assign, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object('translator', jsonb_build_array('Member A'))
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'name-only assign should not succeed';
   end if;
@@ -245,6 +320,15 @@ begin
   end if;
 
   -- 5) cross-env user
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before cross-env assign, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object(
@@ -252,6 +336,8 @@ begin
       'translator_user_id', v_prod_only::text
     )
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'cross-env assign should not succeed';
   end if;
@@ -269,6 +355,15 @@ begin
   where cp.case_id = v_case and cp.access_revoked_at is null;
   select count(*) into v_audit_count from public.case_mutation_audit where case_id = v_case;
 
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before atomic rollback probe, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision,
     jsonb_build_object(
@@ -276,6 +371,8 @@ begin
       'translator_user_id', v_prod_only::text
     )
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'atomic rollback setup failed';
   end if;
@@ -304,6 +401,15 @@ begin
   end if;
 
   -- multi collab: partial row remove keeps participant
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before multi collab create, got %', current_user;
+  end if;
   v_result := public.admin_create_case(v_case2, jsonb_build_object(
     'title', '[P0D] multi collab',
     'status', 'dispatched',
@@ -321,12 +427,23 @@ begin
       )
     )
   ));
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'admin_create_case multi failed: %', v_result;
   end if;
 
   select revision into v_revision from public.cases where id = v_case2;
 
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before partial row remove, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case2, v_revision,
     jsonb_build_object(
@@ -339,6 +456,8 @@ begin
       'collab_count', 1
     )
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'pm partial row remove failed: %', v_result;
   end if;
@@ -352,10 +471,22 @@ begin
   end if;
 
   select revision into v_revision from public.cases where id = v_case2;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before last collab revoke, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case2, v_revision,
     jsonb_build_object('collab_rows', '[]'::jsonb, 'collab_count', 0)
   );
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'pm remove last collab row failed: %', v_result;
   end if;
@@ -369,6 +500,15 @@ begin
   end if;
 
   -- 5) hidden translator UUID (blank name + UUID)
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before hidden translator, got %', current_user;
+  end if;
   v_result := public.admin_create_case(v_case3, jsonb_build_object(
     'title', '[P0D] hidden uuid',
     'status', 'dispatched',
@@ -381,6 +521,8 @@ begin
       )
     )
   ));
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'hidden uuid collab row should not succeed';
   end if;
@@ -389,6 +531,15 @@ begin
   end if;
 
   -- 5) collab name-only (no UUID)
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before collab name-only, got %', current_user;
+  end if;
   v_result := public.admin_create_case(v_case4, jsonb_build_object(
     'title', '[P0D] name only collab',
     'status', 'dispatched',
@@ -398,6 +549,8 @@ begin
       jsonb_build_object('id', 'row-x', 'segment', 'X', 'translator', 'Member B')
     )
   ));
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'collab name-only should not succeed';
   end if;
@@ -406,6 +559,15 @@ begin
   end if;
 
   -- 5) hidden reviewer UUID
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before hidden reviewer, got %', current_user;
+  end if;
   v_result := public.admin_create_case(gen_random_uuid(), jsonb_build_object(
     'title', '[P0D] hidden reviewer',
     'status', 'dispatched',
@@ -418,6 +580,8 @@ begin
       )
     )
   ));
+  reset role;
+
   if coalesce(v_result->>'ok', 'false') = 'true' then
     raise exception 'hidden reviewer uuid should not succeed';
   end if;
@@ -440,9 +604,15 @@ begin
     json_build_object('sub', v_member_a::text, 'role', 'authenticated')::text,
     true
   );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before member not_authorized, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, v_revision, jsonb_build_object('status', 'delivered')
   );
+  reset role;
+
   if coalesce(v_result->>'error', '') <> 'not_authorized' then
     raise exception 'non-admin pm_update should be not_authorized, got %', v_result;
   end if;
@@ -471,11 +641,6 @@ begin
   end if;
 
   -- 4) stale revision: no side effects
-  perform set_config(
-    'request.jwt.claims',
-    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
-    true
-  );
   select revision into v_revision from public.cases where id = v_case;
   select translator, reviewer, status
     into v_case_translator, v_case_reviewer, v_case_status
@@ -485,9 +650,20 @@ begin
   where cp.case_id = v_case and cp.access_revoked_at is null;
   select count(*) into v_audit_count from public.case_mutation_audit where case_id = v_case;
 
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  if current_user <> 'authenticated' then
+    raise exception 'expected current_user=authenticated before stale_revision, got %', current_user;
+  end if;
   v_result := public.pm_update_case_assignments(
     v_case, 0, jsonb_build_object('status', 'delivered')
   );
+  reset role;
+
   if coalesce(v_result->>'error', '') <> 'stale_revision' then
     raise exception 'stale revision not rejected: %', v_result;
   end if;

@@ -39,6 +39,8 @@ declare
   v_cross_case_blocked boolean := false;
   v_stale_blocked boolean := false;
   v_a2_blocked boolean := false;
+  v_revision bigint;
+  v_title text;
 begin
   insert into auth.users(id, email, raw_user_meta_data)
   values
@@ -335,21 +337,49 @@ begin
     raise exception 'credential key write via field RPC was not denied';
   end if;
 
-  -- ── permission_settings 重複列 → 55000 ──
+  -- ── permission_settings duplicate row → 55000 (temp drop UNIQUE; restore after) ──
+  drop index if exists public.permission_settings_env_unique;
+
+  select revision, title into v_revision, v_title
+  from public.cases where id = v_case;
+
   insert into public.permission_settings(id, env, config, updated_by)
   values (v_duplicate_setting, 'test', '{}'::jsonb, v_pm);
+
   set local role authenticated;
   begin
     perform public.update_case_permitted_fields(
-      v_case, 1, jsonb_build_object('title', 'must not update')
+      v_case, v_revision, jsonb_build_object('title', 'must not update')
     );
   exception when sqlstate '55000' then
     v_ambiguous_blocked := true;
   end;
   reset role;
+
   if not v_ambiguous_blocked then
     raise exception 'duplicate permission_settings was not blocked';
   end if;
+  if (select revision from public.cases where id = v_case) is distinct from v_revision then
+    raise exception 'ambiguous permission_settings must not bump revision';
+  end if;
+  if (select title from public.cases where id = v_case) is distinct from v_title then
+    raise exception 'ambiguous permission_settings must not change title';
+  end if;
+
+  delete from public.permission_settings where id = v_duplicate_setting;
+
+  create unique index if not exists permission_settings_env_unique
+    on public.permission_settings (env);
+
+  -- verify UNIQUE restored; do not leave the probe row
+  begin
+    insert into public.permission_settings(id, env, config, updated_by)
+    values (gen_random_uuid(), 'test', '{}'::jsonb, v_pm);
+    raise exception 'unique(env) should block duplicate after recreate';
+  exception
+    when unique_violation then
+      null;
+  end;
 
   raise notice 'p0_case_field_acl_check PASS';
 end $$;
