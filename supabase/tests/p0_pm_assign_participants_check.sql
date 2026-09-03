@@ -82,6 +82,9 @@ begin
     raise exception 'different config should fail closed';
   exception
     when sqlstate '22023' then
+      if sqlerrm <> 'permission_settings_test_config_conflict' then
+        raise exception 'expected permission_settings_test_config_conflict, got %', sqlerrm;
+      end if;
       v_dup_ok := true;
   end;
   if not v_dup_ok then
