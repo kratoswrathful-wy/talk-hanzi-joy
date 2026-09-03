@@ -1,90 +1,103 @@
-狀態：第五次 Micro 全綠；**待 GitHub 第二關審核**（仍 not deployable 至 production）
+狀態：P0-D 最終隔離 **未全綠停止**（2026-09-03）；等待測試修正後重新核准唯一一次 Micro
 
-# 第一關隔離驗收報告（2026-09-02）
+# 第一關／P0-D 隔離驗收報告（更新 2026-09-03）
 
-分支：`feat/isolation-replay-20260901`（worktree `C:\Homemade Apps\1UP-TMS-isolation-20260901`）  
-正式庫 `wshsmerltcakffllgyul`：**未修改**。
-
-GitHub 第二關計畫：[`ISOLATION_GATE2_PLAN_2026-09.md`](ISOLATION_GATE2_PLAN_2026-09.md)
-
----
-
-## 1. 臨時專案生命週期
-
-| 次序 | ref | 結果 | 處置 |
-|---|---|---|---|
-| 1–3 | （見前版） | 第三次 162/162；SQL 失敗 | 已刪 |
-| 4 | `vysyjvgkddjwdcwalbee` | 164/164；9/10 SQL（slack 測試 bug） | 已刪 |
-| **5（最終）** | `enexnghinsnyzmezxphk` | **全綠**（見 §2） | **已刪除** |
-
-**不得建立第六次 Micro。**
+分支：`feat/isolation-replay-20260901` @ **`4de7a195`**  
+正式庫 `wshsmerltcakffllgyul`：**未修改**。  
+PR #81：維持 Draft／DO NOT MERGE。
 
 ---
 
-## 2. 第五次 Micro 驗收（2026-09-02）
-
-| 步驟 | 結果 |
-|---|---|
-| 1. Migration 從零重放 | **164/164** 成功 |
-| 2. P0 SQL 契約（10 支） | **10/10** 通過（含 `p0_slack_edge_only_contract_check.sql` 函式 ACL 斷言） |
-| 3. 雙 authenticated client 競態 | `dual-client-collab-race.mjs` **PASS** |
-| 4. Data API definer 契約 | `micro3-definer-view-api-check.mjs` **PASS** |
-| 5. Slack service-role／RPC 隔離 | 含於 SQL #3（三表 grants、RPC A/B 隔離、service_role CRUD） |
-| 6. Live Advisors（security） | **2 件 ERROR**（受控例外）：`cases_visible`、`fees_visible` `security_definer_view` |
-| 7. Supabase types 重生 | MCP `generate_typescript_types` → `src/integrations/supabase/types.ts` |
-| 8. 本機品質閘門 | typecheck／test **492**／lint 0 error／encoding／forbidden-casts／build — **全綠** |
-
-**首次失敗紀錄**：無（第五次首次即全綠；第四次 slack SQL 測試 bug 已於本機修正後納入第五次）。
-
----
-
-## 3. 本 checkpoint 變更（`faa23f1e` 後）
-
-### Slack 狀態 hook
-
-- `useOwnSlackMetaStatus(enabled, userId)`：`userId` 變更重新查詢；disabled／空白不保留 connected
-- `fetchOwnSlackMeta` catch throw → error 狀態
-- `ProfileSlackCard`／詢案／註記對話框傳入實際 `user.id`
-- Vitest **11 項**（含 A→B、慢請求、reject、登出）
-
-### Slack SQL 測試
-
-- `has_function_privilege('public', …)` PUBLIC 不可執行 RPC
-- `authenticated` 可執行；無參數；固定 `search_path`；僅 `auth.uid()` 本人
-
-### Edge（G2-9 前）
-
-- `slack-oauth-callback`：原子 DELETE 消耗 state；meta 失敗還原既有 credentials（非無條件 delete）
-
-### Gate 2
-
-- 三個 **可執行 release unit**（Expand／Application switch／Contract-Harden）；禁止「db push 至版號」表述；P0 全批 14 支分類
-
----
-
-## 4. Migration 鏈
+## 1. 第五次 Micro（歷史；不含 P0-D）
 
 | 項目 | 值 |
 |---|---|
-| 總數 | **164** |
-| P0 Expand（2） | `20260830122353`、`20260901120300` |
-| P0 Harden（12） | 見 Gate 2 §3 |
+| ref | `enexnghinsnyzmezxphk`（已刪） |
+| migration | **164/164**（加入 P0-D **以前**） |
+| SQL | **10/10** |
+| 雙 client 競態 | PASS |
+| Data API | PASS |
+| types | PASS |
+| 說明 | 結果**不包含** `20260902054823` P0-D |
+
+**不得**將第五次結果寫成「0/10 SQL、0 race」。
 
 ---
 
-## 5. 本機閘門（checkpoint 提交前）
+## 2. P0-D 最終隔離 Micro（本次；已刪除）
 
-| 關卡 | 結果 |
+| 項目 | 值 |
 |---|---|
-| typecheck | 通過 |
-| test | **492** 通過 |
-| lint | 0 error |
-| encoding／forbidden-casts／build | 通過 |
+| 名稱 | `p0d-isolation-final-20260903` |
+| ref | `ixdpldfbgetcrgxkmgjd` |
+| 建立 | 2026-09-03T12:30:14Z |
+| 刪除 | 2026-09-03 ≈12:48Z（失敗規則：刪除並停止） |
+| Git SHA | **`4de7a195`** |
+| 預期／實際 migration | **165／165** 從零重放成功（含 P0-D） |
+| Preview Branch | **未建立** |
+| production | **未接觸** |
+| 專案清單收尾 | 僅剩 `wshsmerltcakffllgyul` |
+| 費用估算 | 存活 ≈18 分鐘；Micro Compute ≈ US$0.01 量級（硬頂 US$1 內） |
+
+### 2.1 已通過
+
+| 步驟 | 結果 |
+|---|---|
+| 165/165 migration replay | **PASS**（含 `20260902054823`） |
+| Advisors security ERROR | **僅 2**：`cases_visible`、`fees_visible` `security_definer_view`（既有核准例外）；無新 ERROR |
+| 診斷：P0-D 核心同名改派（postgres + JWT claims） | **PASS**（create → participant → reassign UUID → revoke prior） |
+
+### 2.2 未通過（阻擋）— P0 SQL 安全測試組 8／11
+
+| 檔名 | 結果 | 根因分類 |
+|---|---|---|
+| `p0_pm_assign_participants_check.sql` | **FAIL** | 測試在 `SET LOCAL ROLE authenticated` 後直接 `SELECT public.cases`；P0-C 已 `REVOKE SELECT ON cases FROM authenticated`（僅 `cases_visible`）。**測試裝配錯誤**，非 RPC 產品邏輯失敗。 |
+| `p0_admin_create_case_check.sql` | **FAIL** | T3 仍用姓名-only `reviewer`／`review_rows`；P0-D 正確回 `missing_reviewer_user_id`。**既有測試未對齊 P0-D UUID 契約**。 |
+| `p0_case_field_acl_check.sql` | **FAIL** | 測試欲再插入同 `env='test'` 列以觸發 55000；P0-D 已建 `UNIQUE(env)`，INSERT 先被 unique_violation 擋住。**既有測試未對齊 UNIQUE(env)**。 |
+| 其餘 8 支（見下） | **PASS** | — |
+
+通過的 8 支：
+
+1. `p0_apply_case_update_admin_only_check.sql`
+2. `p0_case_credentials_acl_check.sql`
+3. `p0_case_mutation_acl_check.sql`
+4. `p0_cat_workflow_acl_check.sql`
+5. `p0_definer_view_contract_check.sql`
+6. `p0_slack_edge_only_contract_check.sql`
+7. `p0b_acl_harden_check.sql`
+8. `p0c_translator_eligibility_check.sql`
+
+### 2.3 未執行（因 SQL 組失敗依規則停止）
+
+- 雙 client 競態
+- Data API／definer view 腳本
+- 隔離環境案件指派 RPC Playwright 冒煙
+- types 與 repo 比對（未跑，避免在失敗路徑宣稱通過）
 
 ---
 
-## 6. 部署判定
+## 3. Playwright
 
-**not deployable（至 production）** — 隔離驗收已全綠，但正式推出須依 Gate 2 **三 release unit** 執行，且 G2-9 Preview Slack OAuth 尚未完成。
+| Run | 結果 |
+|---|---|
+| [33632836928](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/33632836928) @ `daf31a58` | **success** — P2-L7 結案為非 P0-D 阻擋 |
 
-**未 push、未開 PR、未 merge、未部署正式庫。**
+---
+
+## 4. 最小修正建議（待重新核准後再建唯一一次 Micro）
+
+1. **`p0_pm_assign_participants_check.sql`**：在診斷用 `SELECT public.cases`／participant 計數前 `RESET ROLE`（或改讀 `cases_visible`／security definer），RPC 呼叫時再 `SET LOCAL ROLE authenticated` + JWT claims。
+2. **`p0_admin_create_case_check.sql`**：所有含 reviewer／translator／collab／review_rows 的建案案例改為帶可信 `*_user_id`／`translatorUserId`／`reviewerUserId`；姓名-only 改為獨立負向案例。
+3. **`p0_case_field_acl_check.sql`**：重複 `permission_settings` 段比照 P0-D 測試：交易內暫降 `UNIQUE(env)` → 插入衝突列 → 驗證 55000／fail-closed → 還原索引；不得假設可直接插入第二筆同 env。
+
+**不得**在失敗的 Micro 上修 DB 後重跑宣稱從零全綠。  
+**不得**自行再建下一個 Micro（需重新核准）。
+
+---
+
+## 5. 部署判定
+
+**not deployable** — P0-D 定性尚未達到  
+`isolated verification passed / ready for controlled maintenance-window review`。
+
+未 merge、未部署、未操作正式資料、未開始維護窗口。
