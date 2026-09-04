@@ -1,18 +1,16 @@
 -- STATUS: draft; NOT run against production; unverified
 --
--- P0-C: admin_create_case fixed allowlist INSERT — round-trip and negatives.
--- Aligns with: 20260901120000_p0c_security_convergence.sql (+ P0-D participant sync)
+-- P0-C／P0-D：admin_create_case 固定 allowlist INSERT — round-trip and negatives.
+-- Aligns with: 20260901120000 + 20260902054823 + 20260904004224 restore validation
 --
 -- Coverage:
---   - general create round-trip
---   - template create round-trip
---   - restore create round-trip with trusted UUIDs + server name normalize (T3)
---   - name-only assignment negatives (T3b)
---   - AI agent create round-trip
---   - unknown / forbidden / sensitive key reject
---   - non-admin / cross-env reject
---   - invalid status / type reject
---   - audit exists and stores no field values
+--   - general / template / restore（可信 UUID）／AI create round-trip
+--   - name-only assignment negatives
+--   - private validator 完整矩陣（postgres）
+--   - authenticated PM 經公開 RPC 代表性錯誤
+--   - 七種合法 status；非法 status；型別／長度／UUID
+--   - cases.status CHECK constraint
+--   - 失敗不得留下 case／participant／成功 audit
 --
 -- Run: isolated branch / local DB; wrap in BEGIN…ROLLBACK.
 
@@ -30,11 +28,15 @@ declare
   v_case_restore uuid := gen_random_uuid();
   v_case_ai uuid := gen_random_uuid();
   v_case_neg uuid := gen_random_uuid();
+  v_probe uuid;
   v_result jsonb;
   v_visible record;
   v_audit_count int;
   v_audit_cols text[];
   v_review_name text;
+  v_err text;
+  v_status text;
+  v_long text;
 begin
   insert into auth.users(id, email, raw_user_meta_data)
   values
@@ -60,6 +62,129 @@ begin
     (v_translator, 'member'),
     (v_reviewer, 'member');
 
+  -- ── private validator 完整矩陣（postgres；不經 RPC）────────────────────
+  reset role;
+
+  if private.p0_admin_create_validate_payload(null) is distinct from 'invalid_payload' then
+    raise exception 'V-null expected invalid_payload';
+  end if;
+  if private.p0_admin_create_validate_payload('"x"'::jsonb) is distinct from 'invalid_payload' then
+    raise exception 'V-nonobject expected invalid_payload';
+  end if;
+  if private.p0_admin_create_validate_payload('[]'::jsonb) is distinct from 'invalid_payload' then
+    raise exception 'V-array expected invalid_payload';
+  end if;
+  if private.p0_admin_create_validate_payload('{}'::jsonb) is distinct from 'empty_payload' then
+    raise exception 'V-empty expected empty_payload';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'login_password', 'pw')
+  ) is distinct from 'forbidden_payload_key' then
+    raise exception 'V-forbidden expected forbidden_payload_key';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'future_unknown_field', 1)
+  ) is distinct from 'unknown_payload_key' then
+    raise exception 'V-unknown expected unknown_payload_key';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 123)
+  ) is distinct from 'invalid_field_type' then
+    raise exception 'V-text-type expected invalid_field_type';
+  end if;
+  v_long := repeat('a', 501);
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', v_long)
+  ) is distinct from 'invalid_field_length' then
+    raise exception 'V-title-len expected invalid_field_length';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'status', 'not_a_real_status')
+  ) is distinct from 'invalid_status' then
+    raise exception 'V-bad-status expected invalid_status';
+  end if;
+  foreach v_status in array array[
+    'draft', 'inquiry', 'dispatched', 'task_completed', 'delivered', 'feedback',
+    'feedback_completed'
+  ] loop
+    v_err := private.p0_admin_create_validate_payload(
+      jsonb_build_object('title', 'ok', 'status', v_status)
+    );
+    if v_err is not null then
+      raise exception 'V-legal-status % unexpected err %', v_status, v_err;
+    end if;
+  end loop;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'multi_collab', 'yes')
+  ) is distinct from 'invalid_field_type' then
+    raise exception 'V-bool expected invalid_field_type';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'unit_count', '12')
+  ) is distinct from 'invalid_field_type' then
+    raise exception 'V-number expected invalid_field_type';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'translator', 'not-array')
+  ) is distinct from 'invalid_field_type' then
+    raise exception 'V-array expected invalid_field_type';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'body_content', true)
+  ) is distinct from 'invalid_field_type' then
+    raise exception 'V-nullable-json expected invalid_field_type';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'translation_deadline', 'not-a-timestamp')
+  ) is distinct from 'invalid_field_type' then
+    raise exception 'V-ts expected invalid_field_type';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'translator_user_id', 'not-a-uuid')
+  ) is distinct from 'invalid_translator_user_id' then
+    raise exception 'V-bad-translator-uuid';
+  end if;
+  if private.p0_admin_create_validate_payload(
+    jsonb_build_object('title', 'x', 'reviewer_user_id', 'zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz')
+  ) is distinct from 'invalid_reviewer_user_id' then
+    raise exception 'V-bad-reviewer-uuid';
+  end if;
+  v_err := private.p0_admin_create_validate_payload(
+    jsonb_build_object(
+      'title', 'ok',
+      'status', 'draft',
+      'translator_user_id', v_translator::text,
+      'reviewer_user_id', v_reviewer::text
+    )
+  );
+  if v_err is not null then
+    raise exception 'V-good-uuids unexpected %', v_err;
+  end if;
+
+  -- cases.status CHECK 存在且已 validated
+  if not exists (
+    select 1
+    from pg_constraint c
+    join pg_class rel on rel.oid = c.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'cases'
+      and c.conname = 'cases_status_allowed_check'
+      and c.convalidated
+  ) then
+    raise exception 'CHK cases_status_allowed_check missing or not validated';
+  end if;
+
+  begin
+    insert into public.cases(id, env, created_by, title, status)
+    values (gen_random_uuid(), 'test', v_pm, 'illegal status row', 'not_a_real_status');
+    raise exception 'CHK privileged illegal status insert should fail';
+  exception
+    when check_violation then
+      null;
+  end;
+
+  -- ── authenticated PM 經公開 RPC ───────────────────────────────────────
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
@@ -166,7 +291,6 @@ begin
     raise exception 'T3 restore create failed: %', v_result;
   end if;
 
-  -- Inspect as manager: authenticated may lack base-table SELECT
   reset role;
 
   select status, reviewer, translator, review_rows
@@ -180,7 +304,6 @@ begin
      or (v_visible.translator->>0) <> '譯者 B' then
     raise exception 'T3 translator should be server-normalized to 譯者 B, got %', v_visible.translator;
   end if;
-  -- P0-D: when review_rows present, cases.reviewer is cleared
   if coalesce(nullif(trim(v_visible.reviewer), ''), '') <> '' then
     raise exception 'T3 cases.reviewer should be empty when review_rows present, got %', v_visible.reviewer;
   end if;
@@ -216,7 +339,6 @@ begin
     raise exception 'T3 missing active pm_assign reviewer participant from review_rows';
   end if;
 
-  -- Restore authenticated role for remaining RPC calls
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
@@ -224,9 +346,10 @@ begin
   );
   set local role authenticated;
 
-  -- T3b name-only negatives (no trusted UUID)
+  -- T3b name-only negatives
+  v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
-    gen_random_uuid(),
+    v_probe,
     jsonb_build_object(
       'title', '[P0-C] name-only translator',
       'status', 'draft',
@@ -234,15 +357,16 @@ begin
       'translator', jsonb_build_array('譯者 B')
     )
   );
-  if coalesce(v_result->>'ok', 'false') = 'true' then
-    raise exception 'T3b name-only translator should not succeed';
-  end if;
   if coalesce(v_result->>'error', '') <> 'missing_translator_user_id' then
     raise exception 'T3b expected missing_translator_user_id, got %', v_result;
   end if;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T3b left a case row';
+  end if;
 
+  v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
-    gen_random_uuid(),
+    v_probe,
     jsonb_build_object(
       'title', '[P0-C] name-only reviewer',
       'status', 'draft',
@@ -250,11 +374,11 @@ begin
       'reviewer', '審稿者 A'
     )
   );
-  if coalesce(v_result->>'ok', 'false') = 'true' then
-    raise exception 'T3b name-only reviewer should not succeed';
-  end if;
   if coalesce(v_result->>'error', '') <> 'missing_reviewer_user_id' then
     raise exception 'T3b expected missing_reviewer_user_id, got %', v_result;
+  end if;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T3b reviewer left a case row';
   end if;
 
   -- T4 AI agent create round-trip
@@ -279,7 +403,7 @@ begin
     raise exception 'T4 AI round-trip mismatch';
   end if;
 
-  -- T5 unknown key full reject (P0-D unified error code: unknown_payload_key)
+  -- T5 unknown key
   v_result := public.admin_create_case(
     v_case_neg,
     jsonb_build_object('title', 'x', 'future_unknown_field', 'secret')
@@ -287,40 +411,111 @@ begin
   if coalesce(v_result->>'error', '') <> 'unknown_payload_key' then
     raise exception 'T5 expected unknown_payload_key got: %', v_result;
   end if;
+  if exists (select 1 from public.cases where id = v_case_neg) then
+    raise exception 'T5 left a case';
+  end if;
 
-  -- T6 forbidden / sensitive key reject (P0-D unified error code: forbidden_payload_key)
+  -- T6 forbidden
+  v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
-    gen_random_uuid(),
+    v_probe,
     jsonb_build_object('title', 'x', 'login_password', 'pw')
   );
   if coalesce(v_result->>'error', '') <> 'forbidden_payload_key' then
     raise exception 'T6a expected forbidden_payload_key got: %', v_result;
   end if;
+  v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
-    gen_random_uuid(),
+    v_probe,
     jsonb_build_object('title', 'x', 'tools', '[]'::jsonb)
   );
   if coalesce(v_result->>'error', '') <> 'forbidden_payload_key' then
     raise exception 'T6b expected forbidden_payload_key got: %', v_result;
   end if;
 
-  -- T7 invalid status
+  -- T7 invalid status（公開 RPC）
+  v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
-    gen_random_uuid(),
+    v_probe,
     jsonb_build_object('title', 'x', 'status', 'not_a_real_status')
   );
   if coalesce(v_result->>'error', '') <> 'invalid_status' then
     raise exception 'T7 expected invalid_status got: %', v_result;
   end if;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T7 left a case';
+  end if;
 
-  -- T8 invalid type
+  -- T8 invalid boolean type
+  v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
-    gen_random_uuid(),
+    v_probe,
     jsonb_build_object('title', 'x', 'multi_collab', 'yes')
   );
   if coalesce(v_result->>'error', '') <> 'invalid_field_type' then
     raise exception 'T8 expected invalid_field_type got: %', v_result;
   end if;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T8 left a case';
+  end if;
+
+  -- T8b–T8e：RPC 代表性型別／長度／UUID／空 payload
+  v_probe := gen_random_uuid();
+  v_result := public.admin_create_case(
+    v_probe,
+    jsonb_build_object('title', 'x', 'unit_count', 'bad')
+  );
+  if coalesce(v_result->>'error', '') <> 'invalid_field_type' then
+    raise exception 'T8b number type got: %', v_result;
+  end if;
+
+  v_probe := gen_random_uuid();
+  v_result := public.admin_create_case(
+    v_probe,
+    jsonb_build_object('title', repeat('b', 501))
+  );
+  if coalesce(v_result->>'error', '') <> 'invalid_field_length' then
+    raise exception 'T8c title length got: %', v_result;
+  end if;
+
+  v_probe := gen_random_uuid();
+  v_result := public.admin_create_case(
+    v_probe,
+    jsonb_build_object('title', 'x', 'translator_user_id', 'nope')
+  );
+  if coalesce(v_result->>'error', '') <> 'invalid_translator_user_id' then
+    raise exception 'T8d translator uuid got: %', v_result;
+  end if;
+
+  v_probe := gen_random_uuid();
+  v_result := public.admin_create_case(
+    v_probe,
+    jsonb_build_object('title', 'x', 'reviewer_user_id', 'nope')
+  );
+  if coalesce(v_result->>'error', '') <> 'invalid_reviewer_user_id' then
+    raise exception 'T8e reviewer uuid got: %', v_result;
+  end if;
+
+  v_probe := gen_random_uuid();
+  v_result := public.admin_create_case(v_probe, '{}'::jsonb);
+  if coalesce(v_result->>'error', '') <> 'empty_payload' then
+    raise exception 'T8f empty payload got: %', v_result;
+  end if;
+
+  -- 七種合法 status 經 RPC（各建一筆後不要求 UI round-trip）
+  foreach v_status in array array[
+    'draft', 'inquiry', 'dispatched', 'task_completed', 'delivered', 'feedback',
+    'feedback_completed'
+  ] loop
+    v_probe := gen_random_uuid();
+    v_result := public.admin_create_case(
+      v_probe,
+      jsonb_build_object('title', '[P0] status ' || v_status, 'status', v_status)
+    );
+    if coalesce(v_result->>'ok', '') <> 'true' then
+      raise exception 'T-legal-status % failed: %', v_status, v_result;
+    end if;
+  end loop;
 
   -- T9 non-admin reject
   reset role;
@@ -330,15 +525,16 @@ begin
     true
   );
   set local role authenticated;
+  v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
-    gen_random_uuid(),
+    v_probe,
     jsonb_build_object('title', 'x', 'status', 'draft')
   );
   if coalesce(v_result->>'error', '') <> 'not_authorized' then
     raise exception 'T9 expected not_authorized got: %', v_result;
   end if;
 
-  -- T10 audit exists and stores no field values (inspect after reset role)
+  -- T10 audit
   reset role;
   select count(*) into v_audit_count
   from public.case_mutation_audit
@@ -355,7 +551,15 @@ begin
     raise exception 'T10 audit table must not store field values';
   end if;
 
-  -- T11 cross-env: production PM lands in production env
+  -- 失敗路徑不得淨增加成功 audit（允許成功建立的合法案例）
+  -- 確認否定案例 id 皆不存在於 cases／participants
+  if exists (
+    select 1 from public.cases where id = v_case_neg
+  ) then
+    raise exception 'neg case id must not persist';
+  end if;
+
+  -- T11 cross-env
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_other_env_pm::text, 'role', 'authenticated')::text,
