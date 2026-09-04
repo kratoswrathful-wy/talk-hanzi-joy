@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 真正雙 authenticated client 競態驗收（第三次 Micro 專用）。
+ * 雙 authenticated client 競態驗收（隔離環境：本機 Supabase／臨時 Micro）。
  *
  * 憑證來源（二擇一，不得讀 .env）：
  *   1) stdin 單行 JSON（由 orchestrator 管道送入，含即時刪除）

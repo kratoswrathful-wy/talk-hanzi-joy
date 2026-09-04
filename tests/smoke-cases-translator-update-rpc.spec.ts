@@ -9,12 +9,12 @@ import {
  *（accept_public_inquiry_case／accept_inquiry_collab_row／
  *  decline_public_inquiry_case／complete_case_translation）。
  *
- * 預設 skip：正式庫尚未套用 P0-A migration，RPC 不存在。
- * 僅在隔離 DB（已套用 20260830122351～20260830122401）+ 測試模式假人下啟用：
+ * 預設 skip：正式庫尚未套用 P0-A／P0-D migration，RPC 不存在。
+ * 僅在隔離 DB（已套用 P0-A～P0-D）+ 測試模式假人下啟用：
  *   PLAYWRIGHT_P0A_CASE_RPC_SMOKE=1
  *
- * 改寫自舊 apply_case_update 冒煙；禁止盲拷，RPC 名稱對齊 recovery migrations。
- * 不依賴正式 production 資料。
+ * 協作承接案例驗證「公開詢案空白協作列」由譯者承接（translator／translatorUserId 留空；
+ * 禁止 label→UUID 反查）。不依賴正式 production 資料。
  */
 
 const P0A_RPC_SMOKE_ENABLED = process.env.PLAYWRIGHT_P0A_CASE_RPC_SMOKE === "1";
@@ -28,7 +28,7 @@ async function waitAgent(page: Page) {
   });
 }
 
-async function currentAuthEmail(page: Page): Promise<string | null> {
+function readAuthJwtClaims(page: Page): Promise<{ email: string | null; sub: string | null; accessToken: string | null }> {
   return page.evaluate(() => {
     function b64urlDecode(s: string): string {
       let t = s.replace(/-/g, "+").replace(/_/g, "/");
@@ -40,15 +40,27 @@ async function currentAuthEmail(page: Page): Promise<string | null> {
       const k = localStorage.key(i);
       if (k && /sb-.*-auth-token(\.\d+)?$/.test(k)) keys.push(k);
     }
-    if (!keys.length) return null;
+    if (!keys.length) return { email: null, sub: null, accessToken: null };
     keys.sort();
     let raw = keys.map((k) => localStorage.getItem(k) ?? "").join("");
     if (raw.startsWith("base64-")) raw = b64urlDecode(raw.slice(7));
     const parsed = JSON.parse(raw) as { access_token?: string };
     const token = parsed?.access_token;
-    if (!token) return null;
-    return (JSON.parse(b64urlDecode(token.split(".")[1])) as { email?: string })?.email ?? null;
+    if (!token) return { email: null, sub: null, accessToken: null };
+    const claims = JSON.parse(b64urlDecode(token.split(".")[1])) as {
+      email?: string;
+      sub?: string;
+    };
+    return {
+      email: claims.email ?? null,
+      sub: claims.sub ?? null,
+      accessToken: token,
+    };
   });
+}
+
+async function currentAuthEmail(page: Page): Promise<string | null> {
+  return (await readAuthJwtClaims(page)).email;
 }
 
 /** 追蹤 P0-A 動作 RPC（非舊 apply_case_update）。 */
@@ -182,6 +194,8 @@ describeP0a("P0-A case action RPC smoke（隔離 DB + 測試模式）", () => {
     }
     await waitAgent(page);
 
+    // 公開詢案空白協作列：translator 與 translatorUserId 留空，
+    // 任一合格 member 可承接。不使用 label→UUID 反查。
     const created = await page.evaluate(async (t) => {
       const agent = (window as unknown as {
         __lmsAgent: {
@@ -199,7 +213,7 @@ describeP0a("P0-A case action RPC smoke（隔離 DB + 測試模式）", () => {
         collabCount: 2,
         collabRows: [
           {
-            translator: "譯者一（測試）",
+            translator: "",
             segment: "段A",
             unitCount: 0,
             accepted: false,
@@ -210,7 +224,7 @@ describeP0a("P0-A case action RPC smoke（隔離 DB + 測試模式）", () => {
             delivered: false,
           },
           {
-            translator: "譯者二（測試）",
+            translator: "",
             segment: "段B",
             unitCount: 0,
             accepted: false,
@@ -221,7 +235,7 @@ describeP0a("P0-A case action RPC smoke（隔離 DB + 測試模式）", () => {
             delivered: false,
           },
         ],
-        translator: ["譯者一（測試）", "譯者二（測試）"],
+        translator: [],
       });
       if (!u.ok) return { ok: false as const, error: u.error || "setup failed", id: c.data.id };
       return { ok: true as const, id: c.data.id };
@@ -242,23 +256,110 @@ describeP0a("P0-A case action RPC smoke（隔離 DB + 測試模式）", () => {
     expect(hit.name).toBe("accept_inquiry_collab_row");
     expect(hit.ok, `協作承接 RPC HTTP ${hit.status}: ${hit.body}`).toBe(true);
 
+    const authAfter = await readAuthJwtClaims(page);
+    expect(authAfter.sub, "承接後必須有登入者 UUID").toBeTruthy();
+    expect(authAfter.email).toBe("test-t1@test.local");
+    const actorUserId = authAfter.sub!;
+
+    // server 必須寫入 translatorUserId = 實際登入者（不得用姓名反查）
     await expect.poll(async () => {
       return page.evaluate((id) => {
         const agent = (window as unknown as {
           __lmsAgent: {
             case: {
               get: (cid: string) => AgentResult<{
-                collabRows: { id: string; accepted: boolean; translator: string }[];
+                collabRows: {
+                  id: string;
+                  accepted: boolean;
+                  translator: string;
+                  translatorUserId?: string | null;
+                }[];
               }> | null;
             };
           };
         }).__lmsAgent;
         const g = agent.case.get(id);
         if (!g || !("ok" in g) || !g.ok || !g.data) return null;
-        const row = (g.data.collabRows || []).find((r) => (r.translator || "").includes("譯者一"));
-        return row?.accepted ?? null;
+        const row = (g.data.collabRows || []).find((r) => r.accepted);
+        return row
+          ? {
+              accepted: row.accepted,
+              translatorUserId: row.translatorUserId ?? null,
+              acceptedCount: (g.data.collabRows || []).filter((r) => r.accepted).length,
+            }
+          : null;
       }, created.id!);
-    }, { timeout: 20_000 }).toBe(true);
+    }, { timeout: 20_000 }).toEqual({
+      accepted: true,
+      translatorUserId: actorUserId,
+      acceptedCount: 1,
+    });
+
+    // 直查 case_participants：恰一筆 active translator，且為登入者
+    const apiUrl = process.env.VITE_SUPABASE_URL;
+    const anonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    expect(apiUrl, "VITE_SUPABASE_URL 必須指向本機隔離環境").toBeTruthy();
+    expect(anonKey, "VITE_SUPABASE_PUBLISHABLE_KEY 必須存在").toBeTruthy();
+    expect(
+      /wshsmerltcakffllgyul/i.test(apiUrl || ""),
+      "禁止 fallback 到 production ref",
+    ).toBe(false);
+    expect(
+      /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/i.test(apiUrl || ""),
+      "冒煙必須指向本機 Supabase URL",
+    ).toBe(true);
+
+    const participantCheck = await page.evaluate(
+      async ({ caseId, userId, url, anon, token }) => {
+        const res = await fetch(
+          `${url}/rest/v1/case_participants?case_id=eq.${caseId}&role=eq.translator&work_status=eq.active&select=user_id,role,source,access_revoked_at`,
+          {
+            headers: {
+              apikey: anon,
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          },
+        );
+        if (!res.ok) {
+          return { ok: false as const, status: res.status, text: await res.text() };
+        }
+        const rows = (await res.json()) as {
+          user_id: string;
+          role: string;
+          source: string;
+          access_revoked_at: string | null;
+        }[];
+        const active = rows.filter((r) => r.access_revoked_at == null);
+        return {
+          ok: true as const,
+          count: active.length,
+          userId: active[0]?.user_id ?? null,
+          source: active[0]?.source ?? null,
+          matchesActor: active.length === 1 && active[0]?.user_id === userId,
+        };
+      },
+      {
+        caseId: created.id!,
+        userId: actorUserId,
+        url: apiUrl!,
+        anon: anonKey!,
+        token: authAfter.accessToken!,
+      },
+    );
+    expect(participantCheck.ok, `case_participants 查詢失敗: ${JSON.stringify(participantCheck)}`).toBe(
+      true,
+    );
+    if (participantCheck.ok) {
+      expect(participantCheck).toEqual(
+        expect.objectContaining({
+          count: 1,
+          userId: actorUserId,
+          matchesActor: true,
+          source: "collab_accept",
+        }),
+      );
+    }
   });
 
   test("譯者無法承接走 P0-A 專用 RPC", async ({ page }) => {

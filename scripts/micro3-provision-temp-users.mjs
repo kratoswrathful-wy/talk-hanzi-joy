@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * 第三次 Micro：建立專用 PM + 2 member（隨機密碼），寫入單次暫存 creds 檔（0600）。
+ * 隔離環境：建立專用 PM + 2 member（隨機密碼），寫入單次暫存 creds 檔（0600）。
  * 僅接受 stdin JSON：{ url, serviceRoleKey, anonKey }
  * stdout：creds 檔絕對路徑（供 orchestrator 讀後刪除）
  * 不輸出 email／password／token。
+ *
+ * 環境變數命名 MICRO3_* 為歷史相容；行為適用本機 Supabase／臨時隔離庫。
  */
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * P0-V：以 Data API 確認 private helper 不可經 PostgREST 直呼（第三次 Micro）。
+ * P0-V：以 Data API 確認 private helper 不可經 PostgREST 直呼（隔離環境）。
  * 憑證：stdin 單行 JSON 或 MICRO3_API_CREDS_FILE（同 dual-client 規範；不讀 .env）。
  *
  * { "url","anonKey","member":{email,password} }

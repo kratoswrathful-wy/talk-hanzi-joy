@@ -279,29 +279,29 @@ begin
     raise exception 'T4 AI round-trip mismatch';
   end if;
 
-  -- T5 unknown key full reject
+  -- T5 unknown key full reject (P0-D unified error code: unknown_payload_key)
   v_result := public.admin_create_case(
     v_case_neg,
     jsonb_build_object('title', 'x', 'future_unknown_field', 'secret')
   );
-  if coalesce(v_result->>'error', '') <> 'unknown_create_key' then
-    raise exception 'T5 expected unknown_create_key got: %', v_result;
+  if coalesce(v_result->>'error', '') <> 'unknown_payload_key' then
+    raise exception 'T5 expected unknown_payload_key got: %', v_result;
   end if;
 
-  -- T6 forbidden / sensitive key reject
+  -- T6 forbidden / sensitive key reject (P0-D unified error code: forbidden_payload_key)
   v_result := public.admin_create_case(
     gen_random_uuid(),
     jsonb_build_object('title', 'x', 'login_password', 'pw')
   );
-  if coalesce(v_result->>'error', '') <> 'forbidden_create_key' then
-    raise exception 'T6a expected forbidden_create_key got: %', v_result;
+  if coalesce(v_result->>'error', '') <> 'forbidden_payload_key' then
+    raise exception 'T6a expected forbidden_payload_key got: %', v_result;
   end if;
   v_result := public.admin_create_case(
     gen_random_uuid(),
     jsonb_build_object('title', 'x', 'tools', '[]'::jsonb)
   );
-  if coalesce(v_result->>'error', '') <> 'forbidden_create_key' then
-    raise exception 'T6b expected forbidden_create_key got: %', v_result;
+  if coalesce(v_result->>'error', '') <> 'forbidden_payload_key' then
+    raise exception 'T6b expected forbidden_payload_key got: %', v_result;
   end if;
 
   -- T7 invalid status
