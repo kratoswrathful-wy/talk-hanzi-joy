@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import { getFinalizeEligibility, resolveAssigneeEmail } from "./fee-finalize-eligibility";
 import { defaultClientInfo, type TranslatorFee } from "@/data/fee-mock-data";
 import type { SelectOption } from "@/stores/select-options-store";

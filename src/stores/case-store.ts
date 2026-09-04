@@ -29,6 +29,27 @@ import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import {
+  buildAdminCreateAssignmentMeta,
+  splitDbCasePatch,
+  wholeFileReviewerUserId,
+} from "@/lib/case-assignment-patch";
+import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
+import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
+import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
+import {
+  acceptPublicInquiryCase as acceptPublicInquiryCaseRpc,
+  acceptInquiryCollabRow as acceptInquiryCollabRowRpc,
+  completeCaseCollabRow as completeCaseCollabRowRpc,
+  completeCaseReviewRow as completeCaseReviewRowRpc,
+  completeCaseTranslation as completeCaseTranslationRpc,
+  declinePublicInquiryCase as declinePublicInquiryCaseRpc,
+  updateCaseCredentials as updateCaseCredentialsRpc,
+  updateCasePermittedFields,
+  type DeclineInquiryInput,
+} from "@/lib/case-action-rpc";
+import { caseCredentialAccess } from "@/lib/case-credential-store";
+import { mergeCasePublicSnapshot } from "@/lib/case-public-snapshot";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type DbCase = Database["public"]["Tables"]["cases"]["Row"];
@@ -261,73 +282,12 @@ function notify() {
   listeners.forEach((l) => l());
 }
 
-function parseTimestamp(value: string | null | undefined): number {
-  if (!value) return 0;
-  const ts = Date.parse(value);
-  return Number.isNaN(ts) ? 0 : ts;
-}
-
-function mergeToolEntriesPreferRicher(
-  current: ToolEntry[] | undefined,
-  incoming: ToolEntry[] | undefined,
-): ToolEntry[] | undefined {
-  if (!incoming?.length) return current?.length ? current : incoming;
-  if (!current?.length) return incoming;
-  return incoming.map((inc) => {
-    const cur = current.find((c) => c.id === inc.id) ?? current.find((c) => c.tool && c.tool === inc.tool);
-    if (!cur) return inc;
-    const fieldValues = { ...(cur.fieldValues || {}), ...(inc.fieldValues || {}) };
-    // 本地有值而 incoming 清空／缺該鍵時保留本地（realtime／replica 短板快照）
-    for (const [k, v] of Object.entries(cur.fieldValues || {})) {
-      if (v && (inc.fieldValues?.[k] == null || inc.fieldValues[k] === "")) {
-        fieldValues[k] = v;
-      }
-    }
-    return {
-      ...inc,
-      tool: inc.tool || cur.tool,
-      fieldValues,
-      ...(inc.fields?.length ? { fields: inc.fields } : cur.fields?.length ? { fields: cur.fields } : {}),
-      fileValues: { ...(cur.fileValues || {}), ...(inc.fileValues || {}) },
-    };
-  });
-}
-
+/**
+ * P0-A：公開 view 快照以較新者完整取代；禁止用本地「較豐富」tools／憑證補回遮罩空值。
+ * （PR #80 Auth 的 loadVersion／TOKEN_REFRESHED 短路另見 load／onAuthStateChange。）
+ */
 function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord): CaseRecord {
-  if (!current) return incoming;
-
-  const currentTs = parseTimestamp(current.updatedAt);
-  const incomingTs = parseTimestamp(incoming.updatedAt);
-
-  // Never let older snapshots overwrite newer local data.
-  if (incomingTs > 0 && currentTs > 0 && incomingTs < currentTs) {
-    return current;
-  }
-
-  // 防呆：舊快取或異常資料可能缺 tools／questionTools，避免讀 .length 拋錯導致整頁崩潰
-  const curToolsLen = current.tools?.length ?? 0;
-  const incToolsLen = incoming.tools?.length ?? 0;
-  const curQtLen = current.questionTools?.length ?? 0;
-  const incQtLen = incoming.questionTools?.length ?? 0;
-  const keepTools = curToolsLen > 0 && incToolsLen === 0;
-  const keepQuestionTools = curQtLen > 0 && incQtLen === 0;
-
-  const base: CaseRecord = keepTools || keepQuestionTools
-    ? {
-        ...incoming,
-        ...(keepTools ? { tools: current.tools ?? [] } : {}),
-        ...(keepQuestionTools ? { questionTools: current.questionTools ?? [] } : {}),
-      }
-    : incoming;
-
-  // 即時／poll 可能帶回同時間戳但 fieldValues 較空的 tools；與本地較完整者合併
-  const tools = mergeToolEntriesPreferRicher(current.tools, base.tools);
-  const questionTools = mergeToolEntriesPreferRicher(current.questionTools, base.questionTools);
-  return {
-    ...base,
-    ...(tools ? { tools } : {}),
-    ...(questionTools ? { questionTools } : {}),
-  };
+  return mergeCasePublicSnapshot(current, incoming);
 }
 
 // ── DB ↔ App mapping ──
@@ -354,8 +314,12 @@ function fromDb(row: DbCase): CaseRecord {
       ? { url: clientCaseLinkRaw.url, label: clientCaseLinkRaw.label }
       : { url: "", label: "" };
 
+  // revision：migration 驗證前 types 可能尚無此欄；暫以窄化讀取（R1-E 重生 types 後可改回 row.revision）
+  const rowRevision = (row as DbCase & { revision?: number | null }).revision;
+
   return {
     id: row.id,
+    revision: typeof rowRevision === "number" ? rowRevision : 0,
     title: row.title ?? "",
     status: (row.status || "draft") as CaseStatus,
     client: row.client ?? "",
@@ -460,10 +424,8 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   if (c.reviewDeadline !== undefined) map.review_deadline = c.reviewDeadline;
 
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
-  if (c.toolFieldValues !== undefined) map.tool_field_values = toJson(c.toolFieldValues);
+  // 敏感工具值／憑證：禁止經一般 toDb／apply_case_update 回寫；只走 updateCredentials RPC。
   if (c.catToolEnabled !== undefined) map.cat_tool_enabled = c.catToolEnabled;
-  if (c.tools !== undefined) map.tools = toJson(c.tools);
-  if (c.questionTools !== undefined) map.question_tools = toJson(c.questionTools);
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
   if (c.deliveryMethodFiles !== undefined) map.delivery_method_files = toJson(c.deliveryMethodFiles);
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
@@ -475,9 +437,7 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   if (c.internalNoteForm !== undefined) map.internal_note_form = c.internalNoteForm;
   if (c.clientQuestionForm !== undefined) map.client_question_form = c.clientQuestionForm;
   if (c.workingFiles !== undefined) map.working_files = toJson(c.workingFiles);
-  if (c.otherLoginInfo !== undefined) map.other_login_info = c.otherLoginInfo;
-  if (c.loginAccount !== undefined) map.login_account = c.loginAccount;
-  if (c.loginPassword !== undefined) map.login_password = c.loginPassword;
+  // loginAccount／loginPassword／otherLoginInfo：禁止經一般 patch 回寫
   if (c.onlineToolProject !== undefined) map.online_tool_project = c.onlineToolProject;
   if (c.onlineToolFilename !== undefined) map.online_tool_filename = c.onlineToolFilename;
   if (c.sourceFiles !== undefined) map.source_files = toJson(c.sourceFiles);
@@ -503,7 +463,7 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   }
   if (c.declineRecords !== undefined) map.decline_records = toJson(c.declineRecords);
   if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
-  if (c.createdBy !== undefined) map.created_by = c.createdBy;
+  // createdBy：僅供本地/UI；建案 RPC 由 server 依 session 寫入，不得經 p_payload 傳送。
   if (c.inquirySlackRecords !== undefined) map.inquiry_slack_records = toJson(c.inquirySlackRecords);
   if (c.edit_logs !== undefined) map.edit_logs = toJson(c.edit_logs);
   if (c.changeLogEnabledAt !== undefined) map.change_log_enabled_at = c.changeLogEnabledAt;
@@ -636,17 +596,41 @@ function getById(id: string): CaseRecord | undefined {
 }
 
 async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
-  const env = getEnvironment();
-  const { data: { user } } = await supabase.auth.getUser();
-  const payload: DbCaseInsert = { ...toDb(partial), env, created_by: user?.id || null };
-  const { data, error } = await supabase.from("cases").insert(payload).select().single();
-  if (error || !data) {
-    console.error("[case-store] create failed", errorMessage(error), { payloadKeys: Object.keys(payload || {}) });
+  const user = await getAuthenticatedUser().catch((e) => {
+    if (e instanceof AuthRecoverableError) return null;
+    throw e;
+  });
+  if (!user) return null;
+  const id = crypto.randomUUID();
+  const rpcPayload = buildAdminCreateRpcPayload(toDb(partial));
+  const createMeta = buildAdminCreateAssignmentMeta(partial as Record<string, unknown>);
+  if (createMeta.translatorUserId) {
+    rpcPayload.translator_user_id = createMeta.translatorUserId;
+  }
+  const reviewerUid =
+    createMeta.reviewerUserId ?? wholeFileReviewerUserId(partial.reviewRows);
+  if (reviewerUid) {
+    rpcPayload.reviewer_user_id = reviewerUid;
+  }
+  // P0-C：建案走 admin_create_case RPC；p_case_id 獨立參數，env/created_by 由 server 產生。
+  const { error: createError } = await adminCreateCase(supabase, id, rpcPayload);
+  if (createError) {
+    console.error("[case-store] create failed", errorMessage(createError), {
+      payloadKeys: Object.keys(rpcPayload),
+    });
     return null;
   }
-  const record = fromDb(data);
+  const { data, error } = await supabase
+    .from("cases_visible")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error || !data) {
+    console.error("[case-store] create readback failed", errorMessage(error), { id });
+    return null;
+  }
+  const record = fromDb(asDbCase(data));
   cases = [record, ...cases];
-  // 短窗保護：避免並行 poll load 整表覆寫時把剛 insert、尚未出現在 SELECT 的列沖掉
   pendingUpdates.set(record.id, { title: record.title, status: record.status });
   const existingTimer = pendingCleanupTimers.get(record.id);
   if (existingTimer) clearTimeout(existingTimer);
@@ -715,8 +699,91 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   notify();
 
-  // 工項 2：勿直寫 cases 基表 UPDATE（譯者無 SELECT → 靜默 0 列）；改 RPC
-  const { error } = await applyCaseUpdate(supabase, id, mapped as Record<string, unknown>);
+  const user = await getAuthenticatedUser().catch((e) => {
+    if (e instanceof AuthRecoverableError) return null;
+    throw e;
+  });
+  const { data: roleRows } = user
+    ? await supabase.from("user_roles").select("role").eq("user_id", user.id)
+    : { data: null };
+  const isAdmin = (roleRows ?? []).some(
+    (row) => row.role === "pm" || row.role === "executive",
+  );
+
+  let error: Error | { message: string } | null;
+  let nextRevision: number | undefined;
+  if (isAdmin) {
+    let revision = prev?.revision ?? 0;
+    const assignmentMeta = {
+      translatorUserId: (partial as { translatorUserId?: string | null }).translatorUserId,
+      reviewerUserId: (partial as { reviewerUserId?: string | null }).reviewerUserId,
+    };
+    const { assignment, general } = splitDbCasePatch(
+      mapped as Record<string, unknown>,
+      assignmentMeta,
+    );
+
+    if (Object.keys(assignment).length > 0) {
+      const assignResult = await pmUpdateCaseAssignments(
+        supabase,
+        id,
+        assignment,
+        revision,
+      );
+      error = assignResult.error;
+      if (!error && typeof assignResult.data?.revision === "number") {
+        revision = assignResult.data.revision;
+        nextRevision = revision;
+      }
+    }
+
+    if (!error && Object.keys(general).length > 0) {
+      const result = await applyCaseUpdate(
+        supabase,
+        id,
+        general,
+        revision,
+      );
+      error = result.error;
+      nextRevision = error
+        ? undefined
+        : (typeof result.data?.revision === "number"
+            ? result.data.revision
+            : revision + 1);
+    } else if (!error && Object.keys(assignment).length > 0 && nextRevision === undefined) {
+      nextRevision = revision;
+    }
+  } else {
+    const permittedKeys = new Set<keyof CaseRecord>([
+      "title", "bodyContent", "category", "workType", "workGroups",
+      "client", "contact", "keyword", "clientPoNumber", "clientCaseLink",
+      "dispatchRoute", "processNote", "billingUnit", "unitCount", "inquiryNote",
+      "deliveryMethod", "deliveryMethodFiles", "clientReceipt",
+      "clientReceiptFiles", "customGuidelinesUrl", "clientGuidelines",
+      "commonInfo", "commonLinks", "workingFiles", "sourceFiles",
+      "seriesReferenceMaterials", "caseReferenceMaterials", "referenceMaterials",
+      "questionForm", "translatorFinal", "internalReviewFinal", "trackChanges",
+      "internalComments",
+    ]);
+    const changes: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(merged)) {
+      if (permittedKeys.has(key as keyof CaseRecord) && value !== undefined) {
+        changes[key] = JSON.parse(JSON.stringify(value));
+      }
+    }
+    const result = await updateCasePermittedFields(
+      supabase,
+      id,
+      prev?.revision ?? -1,
+      changes,
+    );
+    error = result.error;
+    nextRevision = result.data?.revision;
+  }
+
+  if (!error && nextRevision !== undefined) {
+    cases = cases.map((c) => (c.id === id ? { ...c, revision: nextRevision } : c));
+  }
 
   const remaining = (inFlightCount.get(id) || 1) - 1;
   if (remaining <= 0) {
@@ -748,7 +815,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   if (!error && shouldSyncCatAssignments) {
     try {
-      await supabase.rpc("sync_cat_file_assignments_for_case", { p_case_id: id });
+      await supabase.rpc("lms_sync_cat_file_assignments_for_case", { p_case_id: id });
     } catch (e) {
       console.warn("[case-store] sync CAT assignments skipped:", e);
     }
@@ -766,10 +833,139 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   return error;
 }
 
+function applyActionResult(
+  id: string,
+  result: { revision: number; status?: string } | null | undefined,
+) {
+  if (!result) return;
+  cases = cases.map((c) =>
+    c.id === id
+      ? {
+          ...c,
+          revision: result.revision,
+          ...(result.status ? { status: result.status as CaseStatus } : {}),
+        }
+      : c,
+  );
+  notify();
+}
+
+async function refreshAfterCaseAction(id: string) {
+  loadPromise = null;
+  await load();
+  return getById(id);
+}
+
+async function acceptPublicInquiry(id: string) {
+  const current = getById(id);
+  const result = await acceptPublicInquiryCaseRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function declinePublicInquiry(id: string, decline: DeclineInquiryInput) {
+  const current = getById(id);
+  const result = await declinePublicInquiryCaseRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+    decline,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function acceptInquiryCollabRow(id: string, rowId: string) {
+  const current = getById(id);
+  const result = await acceptInquiryCollabRowRpc(
+    supabase,
+    id,
+    rowId,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function completeCaseCollabRow(id: string, rowId: string) {
+  const current = getById(id);
+  const result = await completeCaseCollabRowRpc(
+    supabase,
+    id,
+    rowId,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function completeCaseTranslation(id: string) {
+  const current = getById(id);
+  const result = await completeCaseTranslationRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function completeCaseReviewRow(id: string, rowId: string) {
+  const current = getById(id);
+  const result = await completeCaseReviewRowRpc(
+    supabase,
+    id,
+    rowId,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function updateCredentials(id: string, credentials: Record<string, unknown>) {
+  const current = getById(id);
+  const result = await updateCaseCredentialsRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+    credentials,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    caseCredentialAccess.clear(id);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
 async function remove(id: string) {
-  const { error } = await supabase.from("cases").delete().eq("id", id);
+  const current = getById(id);
+  const { error } = await adminDeleteCase(supabase, id, current?.revision ?? 0);
   if (!error) {
     cases = cases.filter((c) => c.id !== id);
+    caseCredentialAccess.clear(id);
     notify();
   }
   return error;
@@ -790,6 +986,7 @@ function reset() {
   inFlightCount.clear();
   pendingCleanupTimers.forEach((timer) => clearTimeout(timer));
   pendingCleanupTimers.clear();
+  caseCredentialAccess.clearAll();
 }
 
 // Listen for auth changes — only reload on sign-in to avoid race conditions
@@ -1043,6 +1240,18 @@ export const caseStore = {
   update,
   remove,
   duplicate,
+  acceptPublicInquiry,
+  declinePublicInquiry,
+  acceptInquiryCollabRow,
+  completeCaseCollabRow,
+  completeCaseTranslation,
+  completeCaseReviewRow,
+  updateCredentials,
   subscribe: subscribePoll,
   reset,
 };
+
+/** 供契約測試：partial → snake_case DB 欄位（不含 RPC 禁止鍵過濾）。 */
+export function mapPartialCaseToDb(c: Partial<CaseRecord>): DbCaseUpdate {
+  return toDb(c);
+}

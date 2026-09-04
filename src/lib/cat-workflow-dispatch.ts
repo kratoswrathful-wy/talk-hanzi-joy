@@ -18,7 +18,7 @@ export async function syncCatWorkflowAssignmentsForCase(
   if (!caseId) return null;
   try {
     const { data } = await (supabase as SupabaseClient).rpc(
-      "sync_cat_workflow_assignments_for_case" as never,
+      "lms_sync_cat_workflow_for_case" as never,
       { p_case_id: caseId } as never,
     );
     const r = (data ?? {}) as Record<string, unknown>;

@@ -37,16 +37,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    await supabase.from("user_slack_credentials").delete().eq("user_id", user.id);
-    await supabase.from("user_slack_meta").delete().eq("user_id", user.id);
+    const { error: credErr } = await supabase
+      .from("user_slack_credentials")
+      .delete()
+      .eq("user_id", user.id);
+    const { error: metaErr } = await supabase
+      .from("user_slack_meta")
+      .delete()
+      .eq("user_id", user.id);
+
+    if (credErr || metaErr) {
+      console.error("slack-disconnect delete failed", {
+        credentials: credErr ? { code: credErr.code, message: credErr.message } : null,
+        meta: metaErr ? { code: metaErr.code, message: metaErr.message } : null,
+      });
+      return new Response(JSON.stringify({ error: "disconnect_failed" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error(e);
-    return new Response(JSON.stringify({ error: String(e) }), {
+    console.error("slack-disconnect exception", e instanceof Error ? e.message : "unknown");
+    return new Response(JSON.stringify({ error: "internal_error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

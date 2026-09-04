@@ -19,10 +19,10 @@ import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
 import { CASE_TABLE_MANAGER_ONLY_KEYS } from "@/lib/case-table-field-visibility";
-import { resolveActorDisplayName } from "@/lib/actor-display-name";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
+import type { CaseAssignmentMeta } from "@/lib/case-assignment-patch";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { useState, useRef, useCallback, useEffect, useMemo, useDeferredValue } from "react";
@@ -176,7 +176,7 @@ interface ColumnDef {
   key: string;
   label: string;
   minWidth: number;
-  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean | string[]) => void }) => React.ReactNode;
+  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean | string[] | null, meta?: CaseAssignmentMeta) => void }) => React.ReactNode;
 }
 
 function CategoryLabel({ value }: { value: string }) {
@@ -243,12 +243,6 @@ function AssigneeLabelById({ id }: { id: string }) {
   if (!id) return <span className="text-sm text-muted-foreground">—</span>;
   const opt = options.find((o) => o.id === id);
   return <AssigneeTag label={opt?.label || id} avatarUrl={opt?.avatarUrl} />;
-}
-
-function TranslatorAvatarTag({ name }: { name: string }) {
-  const { options } = useSelectOptions("assignee");
-  const opt = options.find((o) => o.label === name);
-  return <AssigneeTag label={name} avatarUrl={opt?.avatarUrl} />;
 }
 
 function OpenButton({ caseId }: { caseId: string }) {
@@ -376,15 +370,18 @@ const allColumnDefs: ColumnDef[] = [
     label: "譯者",
     minWidth: 90,
     render: (c, { editable, onCommit }) => {
-      const translators = c.translator || [];
+      const translatorName = (c.translator || [])[0] || "";
       return (
-        <InlineEditCell value={translators} type="multiColorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("translator", v)}>
-          {translators.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {translators.map((name) => (
-                <TranslatorAvatarTag key={name} name={name} />
-              ))}
-            </div>
+        <InlineEditCell
+          value={translatorName}
+          type="colorSelect"
+          fieldKey="assignee"
+          editable={editable}
+          assigneeRole="translator"
+          onCommit={(v, meta) => onCommit("translator", v ? [String(v)] : [], meta)}
+        >
+          {translatorName ? (
+            <AssigneeLabel value={translatorName} />
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
           )}
@@ -420,7 +417,7 @@ const allColumnDefs: ColumnDef[] = [
     label: "審稿人員",
     minWidth: 90,
     render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("reviewer", v)}>
+      <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" assigneeRole="reviewer" editable={editable} onCommit={(v, meta) => onCommit("reviewer", v, meta)}>
         <AssigneeLabel value={c.reviewer} />
       </InlineEditCell>
     ),
@@ -725,25 +722,13 @@ export default function CasesPage() {
     toast({ title: "已退回處理" });
   }, [selectedSingleCase]);
 
-  const handleFlowAcceptCase = useCallback(() => {
+  const handleFlowAcceptCase = useCallback(async () => {
     if (!selectedSingleCase) return;
-    const displayName = resolveActorDisplayName({
-      displayName: profile?.display_name,
-      email: profile?.email,
-      userMetadataDisplayName:
-        typeof user?.user_metadata?.display_name === "string"
-          ? user.user_metadata.display_name
-          : null,
-    });
-    if (!displayName) {
-      toast({ title: "無法承接", description: "找不到目前登入者的顯示名稱，請重新整理後再試。", variant: "destructive" });
+    const error = await caseStore.acceptPublicInquiry(selectedSingleCase.id);
+    if (error) {
+      toast({ title: "無法承接", description: error.message, variant: "destructive" });
       return;
     }
-    const currentTranslators = selectedSingleCase.translator || [];
-    const updatedTranslators = currentTranslators.includes(displayName)
-      ? currentTranslators
-      : [...currentTranslators, displayName];
-    caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus, translator: updatedTranslators });
     toast({ title: "已承接本案" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -762,9 +747,13 @@ export default function CasesPage() {
     toast({ title: "已確定指派" });
   }, [selectedSingleCase]);
 
-  const handleFlowTaskComplete = useCallback(() => {
+  const handleFlowTaskComplete = useCallback(async () => {
     if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "task_completed" as CaseStatus });
+    const error = await caseStore.completeCaseTranslation(selectedSingleCase.id);
+    if (error) {
+      toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "任務已完成" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -801,26 +790,20 @@ export default function CasesPage() {
     toast({ title: "處理回饋中" });
   }, [selectedSingleCase]);
 
-  const handleDeclineConfirm = useCallback(() => {
+  const handleDeclineConfirm = useCallback(async () => {
     if (!selectedSingleCase) return;
-    const displayName = profile?.display_name || profile?.email || "";
-    const record: import("@/data/case-types").DeclineRecord = {
-      id: crypto.randomUUID(),
-      translator: displayName,
+    const decline = {
       proposedDeadline: declineProposedDeadline || undefined,
       availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
       message: declineMessage.trim() || undefined,
-      createdAt: new Date().toISOString(),
     };
-    const existing = selectedSingleCase.declineRecords || [];
-    caseStore.update(selectedSingleCase.id, { declineRecords: [...existing, record] });
+    const error = await caseStore.declinePublicInquiry(selectedSingleCase.id, decline);
+    if (error) {
+      toast({ title: "無法記錄", description: error.message, variant: "destructive" });
+      return;
+    }
     const caseId = selectedSingleCase.id;
     const caseTitle = selectedSingleCase.title || "";
-    const slackDecline = {
-      proposedDeadline: declineProposedDeadline || undefined,
-      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
-      message: declineMessage.trim() || undefined,
-    };
     setDeclineOpen(false);
     setDeclineProposedDeadline(null);
     setDeclineAvailableCount("");
@@ -833,7 +816,7 @@ export default function CasesPage() {
         caseId,
         caseTitle,
         kind: "decline",
-        decline: slackDecline,
+        decline,
       });
     }
   }, [selectedSingleCase, profile, declineProposedDeadline, declineAvailableCount, declineMessage, user]);
@@ -939,7 +922,12 @@ export default function CasesPage() {
     delivered: "已交件", feedback: "處理回饋", feedback_completed: "回饋處理完畢",
   };
 
-  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[] | null) => {
+  const handleCellCommit = useCallback((
+    caseId: string,
+    field: string,
+    value: string | boolean | string[] | null,
+    meta?: CaseAssignmentMeta,
+  ) => {
     const isBatch = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1;
     const targetIds = isBatch ? Array.from(rowSelection.selectedIds) : [caseId];
 
@@ -953,7 +941,19 @@ export default function CasesPage() {
 
       const oldValue = (c as CaseRecord & Record<string, unknown>)[field] ?? "";
       undoEntries.push({ recordId: id, oldValue });
-      caseStore.update(id, { [field]: value });
+      if (field === "translator" && Array.isArray(value)) {
+        caseStore.update(id, {
+          translator: value,
+          translatorUserId: meta?.translatorUserId ?? null,
+        });
+      } else if (field === "reviewer" && typeof value === "string") {
+        caseStore.update(id, {
+          reviewer: value,
+          reviewerUserId: meta?.reviewerUserId ?? null,
+        });
+      } else {
+        caseStore.update(id, { [field]: value });
+      }
       editedCount++;
     }
 

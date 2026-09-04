@@ -40,8 +40,8 @@ import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, 
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions, getStatusLabelStyle, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment, CollabRow, DeclineRecord } from "@/data/case-types";
-import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
+import ColorSelect from "@/components/ColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField, { type FileItem } from "@/components/FileField";
@@ -88,7 +88,8 @@ import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
 import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
-import { resolveActorDisplayName } from "@/lib/actor-display-name";
+import { caseCredentialAccess } from "@/lib/case-credential-store";
+import type { CaseCredentials } from "@/lib/case-action-rpc";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -1096,6 +1097,7 @@ export default function CaseDetailPage() {
   const [declineAvailableCount, setDeclineAvailableCount] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
+  const [caseCredentials, setCaseCredentials] = useState<CaseCredentials | null>(null);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -1251,6 +1253,29 @@ export default function CaseDetailPage() {
   useEffect(() => {
     caseEditBurstRef.current = {};
   }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    setCaseCredentials(null);
+    if (!id) return;
+    void caseCredentialAccess.load(id)
+      .then((credentials) => {
+        if (active) setCaseCredentials(credentials);
+      })
+      .catch(() => {
+        if (active) setCaseCredentials(null);
+      });
+    return () => {
+      active = false;
+      caseCredentialAccess.clear(id);
+    };
+  }, [id, caseData?.revision]);
+
+  useEffect(() => caseCredentialAccess.subscribe((clearedCaseId) => {
+    if (clearedCaseId === null || clearedCaseId === id) {
+      setCaseCredentials(null);
+    }
+  }), [id]);
 
   const save = useCallback(
     (partial: Partial<CaseRecord>) => {
@@ -1459,28 +1484,21 @@ export default function CaseDetailPage() {
     [profile]
   );
 
-  /* ── Tool helpers ── */
+  /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
   const tools: ToolEntry[] = useMemo(() => {
+    if (Array.isArray(caseCredentials?.tools)) return caseCredentials.tools;
     if (Array.isArray(caseData?.tools)) return caseData.tools;
     return [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }];
-  }, [caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]);
+  }, [caseCredentials?.tools, caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]);
 
   const questionTools: ToolEntry[] = useMemo(() =>
-    caseData?.questionTools?.length
+    caseCredentials?.questionTools?.length
+      ? caseCredentials.questionTools
+      : caseData?.questionTools?.length
       ? caseData.questionTools
       : [{ id: "qt-default", tool: "", fieldValues: {} }],
-    [caseData?.questionTools]
+    [caseCredentials?.questionTools, caseData?.questionTools]
   );
-
-  const getEffectiveTools = (record: CaseRecord): ToolEntry[] =>
-    Array.isArray(record.tools)
-      ? record.tools
-      : [{ id: "te-default", tool: record.executionTool || "", fieldValues: record.toolFieldValues || {} }];
-
-  const getEffectiveQuestionTools = (record: CaseRecord): ToolEntry[] =>
-    record.questionTools?.length
-      ? record.questionTools
-      : [{ id: "qt-default", tool: "", fieldValues: {} }];
 
   const mergeToolEntryUpdates = (entry: ToolEntry, updates: Partial<ToolEntry>): ToolEntry => {
     const next: ToolEntry = { ...entry, ...updates };
@@ -1501,36 +1519,33 @@ export default function CaseDetailPage() {
   };
 
   const patchTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
-    setCaseData((prev) => {
-      if (!prev) return prev;
-      const current = getEffectiveTools(prev);
-      const next = updater(current);
-      save({ tools: next });
-      return { ...prev, tools: next };
+    if (!caseData) return;
+    const next = updater(tools);
+    setCaseCredentials((prev) => prev ? { ...prev, tools: next } : prev);
+    void caseStore.updateCredentials(caseData.id, { tools: next }).then((error) => {
+      if (error) {
+        toast({ title: "工具資料儲存失敗", description: error.message, variant: "destructive" });
+      }
     });
-  }, [save]);
+  }, [caseData, tools]);
 
   const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
     patchTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
   };
 
   const removeTool = (idx: number) => {
-    setCaseData((prev) => {
-      if (!prev) return prev;
-      const current = getEffectiveTools(prev);
-      const next = current.filter((_, i) => i !== idx);
-      const hypothetical = { ...prev, tools: next };
-      if (countCaseTools(hypothetical) < 1) {
-        toast({
-          title: "無法移除",
-          description: "至少需保留一種工具（含 1UP CAT）。",
-          variant: "destructive",
-        });
-        return prev;
-      }
-      save({ tools: next });
-      return { ...prev, tools: next };
-    });
+    if (!caseData) return;
+    const next = tools.filter((_, i) => i !== idx);
+    const hypothetical = { ...caseData, tools: next };
+    if (countCaseTools(hypothetical) < 1) {
+      toast({
+        title: "無法移除",
+        description: "至少需保留一種工具（含 1UP CAT）。",
+        variant: "destructive",
+      });
+      return;
+    }
+    patchTools(() => next);
   };
 
   const enableCatTool = useCallback(() => {
@@ -1547,15 +1562,19 @@ export default function CaseDetailPage() {
     patchTools((current) => [...current, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
   };
 
+  // P0-A recovery TODO: 本頁無 loginAccount／loginPassword／otherLoginInfo 獨立表單；
+  // 若日後加回 UI，須走 caseStore.updateCredentials，禁止 save()／caseStore.update。
+
   const patchQuestionTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
-    setCaseData((prev) => {
-      if (!prev) return prev;
-      const current = getEffectiveQuestionTools(prev);
-      const next = updater(current);
-      save({ questionTools: next });
-      return { ...prev, questionTools: next };
+    if (!caseData) return;
+    const next = updater(questionTools);
+    setCaseCredentials((prev) => prev ? { ...prev, questionTools: next } : prev);
+    void caseStore.updateCredentials(caseData.id, { questionTools: next }).then((error) => {
+      if (error) {
+        toast({ title: "提問工具儲存失敗", description: error.message, variant: "destructive" });
+      }
     });
-  }, [save]);
+  }, [caseData, questionTools]);
 
   const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
     patchQuestionTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
@@ -1703,25 +1722,19 @@ export default function CaseDetailPage() {
     reviewRows: caseData.reviewRows,
   });
 
-  const handleDecline = () => {
-    const displayName = profile?.display_name || profile?.email || "";
-    const record: import("@/data/case-types").DeclineRecord = {
-      id: crypto.randomUUID(),
-      translator: displayName,
+  const handleDecline = async () => {
+    const decline = {
       proposedDeadline: declineProposedDeadline || undefined,
       availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
       message: declineMessage.trim() || undefined,
-      createdAt: new Date().toISOString(),
     };
-    const existing = caseData.declineRecords || [];
-    save({ declineRecords: [...existing, record] });
+    const error = await caseStore.declinePublicInquiry(caseData.id, decline);
+    if (error) {
+      toast({ title: "無法記錄", description: error.message, variant: "destructive" });
+      return;
+    }
     const caseId = caseData.id;
     const caseTitle = caseData.title || "";
-    const slackDecline = {
-      proposedDeadline: declineProposedDeadline || undefined,
-      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
-      message: declineMessage.trim() || undefined,
-    };
     setDeclineOpen(false);
     setDeclineProposedDeadline(null);
     setDeclineAvailableCount("");
@@ -1734,7 +1747,7 @@ export default function CaseDetailPage() {
         caseId,
         caseTitle,
         kind: "decline",
-        decline: slackDecline,
+        decline,
       });
     }
   };
@@ -1805,24 +1818,12 @@ export default function CaseDetailPage() {
     toast({ title: "已收回為草稿" });
   };
 
-  const handleAcceptCase = () => {
-    const displayName = resolveActorDisplayName({
-      displayName: profile?.display_name,
-      email: profile?.email,
-      userMetadataDisplayName:
-        typeof user?.user_metadata?.display_name === "string"
-          ? user.user_metadata.display_name
-          : null,
-    });
-    if (!displayName) {
-      toast({ title: "無法承接", description: "找不到目前登入者的顯示名稱，請重新整理後再試。", variant: "destructive" });
+  const handleAcceptCase = async () => {
+    const error = await caseStore.acceptPublicInquiry(caseData.id);
+    if (error) {
+      toast({ title: "無法承接", description: error.message, variant: "destructive" });
       return;
     }
-    const currentTranslators = caseData.translator || [];
-    const updatedTranslators = currentTranslators.includes(displayName)
-      ? currentTranslators
-      : [...currentTranslators, displayName];
-    save({ status: "dispatched" as CaseStatus, translator: updatedTranslators });
     toast({ title: "已承接本案" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -1843,8 +1844,12 @@ export default function CaseDetailPage() {
     warnUnresolvedTranslatorsIfNeeded(caseData.id, toast);
   };
 
-  const handleTaskComplete = () => {
-    save({ status: "task_completed" as CaseStatus });
+  const handleTaskComplete = async () => {
+    const error = await caseStore.completeCaseTranslation(caseData.id);
+    if (error) {
+      toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "任務已完成" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -2432,7 +2437,17 @@ export default function CaseDetailPage() {
                     : <span className="text-sm text-muted-foreground">—</span>}
                 </div>
               ) : (
-                <ColorSelect fieldKey="assignee" value={(caseData.translator || [])[0] || ""} onValueChange={(v) => save({ translator: v ? [v] : [] })} />
+                <ColorSelect
+                  fieldKey="assignee"
+                  value={(caseData.translator || [])[0] || ""}
+                  onValueChange={() => {}}
+                  onAssigneeSelect={(selection) => {
+                    save({
+                      translator: selection ? [selection.label] : [],
+                      translatorUserId: selection?.userId ?? null,
+                    });
+                  }}
+                />
               )}
             </Field>
             <Field label="審稿人員">
@@ -2448,11 +2463,16 @@ export default function CaseDetailPage() {
                   value={deriveReviewerSummary(caseData.reviewRows) || caseData.reviewer}
                   onValueChange={(v) => {
                     const name = (v || "").trim();
-                    const uid = selectOptionsStore.getField("assignee").options.find((o) => o.label === name)?.id ?? null;
+                    if (!name) {
+                      save({ reviewRows: [], reviewer: "" });
+                    }
+                  }}
+                  onAssigneeSelect={(selection) => {
+                    const name = (selection?.label || "").trim();
                     const next = writeThroughWholeFileReviewer(
                       caseData.reviewRows,
                       name,
-                      uid ? String(uid) : null,
+                      selection?.userId ? String(selection.userId) : null,
                       caseData.reviewDeadline,
                     );
                     save({ reviewRows: next, reviewer: name });
@@ -2512,6 +2532,31 @@ export default function CaseDetailPage() {
             rows={caseData.collabRows}
             caseId={caseData.id}
             onChange={(newRows) => {
+              if (isMember) {
+                const previousRows = caseData.collabRows || [];
+                const acceptedRow = newRows.find((row) => {
+                  const previous = previousRows.find((item) => item.id === row.id);
+                  return row.accepted && !previous?.accepted;
+                });
+                if (acceptedRow) {
+                  void caseStore.acceptInquiryCollabRow(caseData.id, acceptedRow.id)
+                    .then((error) => {
+                      if (error) toast({ title: "無法承接", description: error.message, variant: "destructive" });
+                    });
+                  return;
+                }
+                const completedRow = newRows.find((row) => {
+                  const previous = previousRows.find((item) => item.id === row.id);
+                  return row.taskCompleted && !previous?.taskCompleted;
+                });
+                if (completedRow) {
+                  void caseStore.completeCaseCollabRow(caseData.id, completedRow.id)
+                    .then((error) => {
+                      if (error) toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+                    });
+                }
+                return;
+              }
               const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
               const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
               const allDelivered = newRows.length > 0 && newRows.every((r) => r.delivered);
@@ -2581,6 +2626,20 @@ export default function CaseDetailPage() {
               caseId={caseData.id}
               caseStatus={caseData.status}
               onChange={(newRows) => {
+                if (isMember) {
+                  const previousRows = caseData.reviewRows || [];
+                  const completedRow = newRows.find((row) => {
+                    const previous = previousRows.find((item) => item.id === row.id);
+                    return row.taskCompleted && !previous?.taskCompleted;
+                  });
+                  if (completedRow) {
+                    void caseStore.completeCaseReviewRow(caseData.id, completedRow.id)
+                      .then((error) => {
+                        if (error) toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
+                      });
+                  }
+                  return;
+                }
                 save({
                   reviewRows: newRows,
                   reviewer: deriveReviewerSummary(newRows),

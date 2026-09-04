@@ -14,6 +14,7 @@ import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSidebar } from "@/components/ui/sidebar";
+import { isTrustedCatIframeMessage } from "@/lib/cat-iframe-message-guard";
 
 type InternalNoteInsert = Database["public"]["Tables"]["internal_notes"]["Insert"];
 
@@ -762,7 +763,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      if (!isTrustedCatIframeMessage(event, iframeRef.current?.contentWindow)) return;
       if (event.data?.type !== "CAT_NAVIGATE") return;
       const modeValue = mode === "team" ? "team" : "offline";
       const nextPath = buildCatPath(modeValue, event.data?.payload ?? {});
@@ -806,7 +807,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
   // CAT iframe：列出綁定案件之既有內部註記（離線／團隊共用 iframe 皆可請求）
   useEffect(() => {
     const handler = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      if (!isTrustedCatIframeMessage(event, iframeRef.current?.contentWindow)) return;
       if (event.data?.type !== "CAT_FETCH_NOTES") return;
 
       const p = event.data?.payload ?? {};
@@ -866,63 +867,39 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     if (mode !== "team") return;
 
     const handler = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      if (!isTrustedCatIframeMessage(event, iframeRef.current?.contentWindow)) return;
 
       if (event.data?.type === "CAT_ASSIGNMENT_STATUS") {
         const { assignmentId, status } = event.data.payload ?? {};
         if (!assignmentId || !status) return;
 
-        await supabase
-          .from("cat_file_assignments")
-          .update({ status, updated_at: new Date().toISOString() })
-          .eq("id", assignmentId);
+        await supabase.rpc("cat_update_file_assignment_status", {
+          p_assignment_id: assignmentId,
+          p_status: status,
+        });
       } else if (event.data?.type === "CAT_VIEW_ASSIGNMENT_STATUS") {
         const { assignmentId, status } = event.data.payload ?? {};
         if (!assignmentId || !status) return;
 
-        await supabase
-          .from("cat_view_assignments")
-          .update({ status, updated_at: new Date().toISOString() })
-          .eq("id", assignmentId);
+        await supabase.rpc("cat_update_view_assignment_status", {
+          p_assignment_id: assignmentId,
+          p_status: status,
+        });
       } else if (event.data?.type === "CAT_ASSIGN_FILE") {
         if (!isPmOrAbove) return;
         const { fileId, assigneeUserIds } = event.data.payload ?? {};
         if (!fileId || !Array.isArray(assigneeUserIds)) return;
         const uniqueUserIds = [...new Set(assigneeUserIds.map((x: string) => String(x)).filter(Boolean))];
         if (uniqueUserIds.length === 0) return;
-        const rows = uniqueUserIds.map((uid) => ({
-          file_id: fileId,
-          assignee_user_id: uid,
-          assigned_by: user?.id ?? null,
-          status: "assigned",
-          assigned_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
-        const { error } = await supabase.from("cat_file_assignments").upsert(rows, { onConflict: "file_id,assignee_user_id" });
-        let stageSyncError: string | null = null;
-        if (!error) {
-          for (const uid of uniqueUserIds) {
-            const { error: rpcErr } = await supabase.rpc("cat_upsert_translate_stage_assignment", {
-              p_file_id: fileId,
-              p_assignee_user_id: uid,
-              p_collab_row_id: null,
-              p_view_id: null,
-              p_scope_label: null,
-              p_line_start: null,
-              p_line_end: null,
-              p_workflow_status: "assigned",
-            });
-            if (rpcErr) {
-              stageSyncError = rpcErr.message;
-              break;
-            }
-          }
-        }
-        const ok = !error && !stageSyncError;
+        const { error } = await supabase.rpc("cat_pm_assign_file", {
+          p_file_id: fileId,
+          p_assignee_user_ids: uniqueUserIds,
+        });
+        const ok = !error;
         iframeRef.current?.contentWindow?.postMessage(
           {
             type: "TMS_ASSIGN_FILE_RESULT",
-            payload: { ok, fileId, error: stageSyncError ?? error?.message ?? null },
+            payload: { ok, fileId, error: error?.message ?? null },
           },
           window.location.origin
         );
@@ -930,38 +907,15 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         if (!isPmOrAbove) return;
         const { fileId, assigneeUserId } = event.data.payload ?? {};
         if (!fileId || !assigneeUserId) return;
-        const { error } = await supabase
-          .from("cat_file_assignments")
-          .delete()
-          .eq("file_id", fileId)
-          .eq("assignee_user_id", assigneeUserId);
-        let stageDeleteError: string | null = null;
-        if (!error) {
-          const { data: stageRow } = await supabase
-            .from("cat_file_workflow_stages")
-            .select("id")
-            .eq("file_id", fileId)
-            .eq("stage_kind", "translate")
-            .maybeSingle();
-          const stageId = (stageRow as { id?: string } | null)?.id;
-          if (stageId) {
-            const { error: delErr } = await supabase
-              .from("cat_stage_assignments")
-              .delete()
-              .eq("file_id", fileId)
-              .eq("file_workflow_stage_id", stageId)
-              .eq("assignee_user_id", assigneeUserId)
-              .is("line_start", null)
-              .is("line_end", null)
-              .is("view_id", null);
-            if (delErr) stageDeleteError = delErr.message;
-          }
-        }
-        const ok = !error && !stageDeleteError;
+        const { error } = await supabase.rpc("cat_pm_unassign_file", {
+          p_file_id: fileId,
+          p_assignee_user_id: assigneeUserId,
+        });
+        const ok = !error;
         iframeRef.current?.contentWindow?.postMessage(
           {
             type: "TMS_UNASSIGN_FILE_RESULT",
-            payload: { ok, fileId, assigneeUserId, error: stageDeleteError ?? error?.message ?? null },
+            payload: { ok, fileId, assigneeUserId, error: error?.message ?? null },
           },
           window.location.origin
         );
