@@ -14,7 +14,7 @@
     "build": "node scripts/build-maintenance.mjs",
     "build:dev": "node scripts/build-maintenance.mjs",
     "lint": "eslint .",
-    "preview": "npx --yes serve dist -l 4173",
+    "preview": "node scripts/preview-maintenance.mjs",
     "test": "vitest run",
     "test:cat": "vitest run cat-tool/js",
     "test:cat-sf": "node scripts/test-cat-sf-row-range.mjs",
