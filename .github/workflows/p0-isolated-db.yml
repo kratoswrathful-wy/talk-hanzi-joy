@@ -197,17 +197,8 @@ jobs:
           fi
           npx playwright test tests/smoke-cases-translator-update-rpc.spec.ts --project=chromium
 
-      - name: Types regenerate vs repo
-        run: |
-          set -euo pipefail
-          supabase gen types typescript --local > "$RUNNER_TEMP/types.gen.ts"
-          if ! diff -u src/integrations/supabase/types.ts "$RUNNER_TEMP/types.gen.ts" > "$RUNNER_TEMP/types.diff"; then
-            echo "::error::generated types differ from repo"
-            head -n 100 "$RUNNER_TEMP/types.diff" || true
-            exit 1
-          fi
-          echo "types_match=PASS"
-
+      # Advisors + quality gates before types so format-only generator drift
+      # cannot hide advisor / lint / unit results (types contract still fail-closes).
       - name: Local Advisors (controlled ERROR only)
         run: node scripts/isolation-assert-advisors-local.mjs
 
@@ -225,6 +216,17 @@ jobs:
             src/lib/assignee-select.test.ts \
             src/lib/case-create-payload.test.ts \
             src/components/CollaborationTable.assignee.test.tsx
+          node --test scripts/check-public-schema-types-contract.test.mjs
+
+      - name: Public schema types contract (Database["public"] only)
+        run: |
+          set -euo pipefail
+          # Limit generation to public; still compare structurally (not text diff).
+          # Out of scope: __InternalSupabase, graphql_public, declaration order.
+          supabase gen types typescript --local --schema public > "$RUNNER_TEMP/types.gen.ts"
+          node scripts/check-public-schema-types-contract.mjs \
+            src/integrations/supabase/types.ts \
+            "$RUNNER_TEMP/types.gen.ts"
 
       - name: Cleanup local Supabase / Docker
         if: always()
@@ -234,5 +236,5 @@ jobs:
           docker ps -aq --filter "label=com.supabase.cli.project" | xargs -r docker rm -f || true
           rm -rf "$RUNNER_TEMP/iso-keys" "$RUNNER_TEMP/supabase.env" \
             "$RUNNER_TEMP/playwright-password.txt" "$RUNNER_TEMP/playwright-email.txt" \
-            "$RUNNER_TEMP/types.gen.ts" "$RUNNER_TEMP/types.diff" || true
+            "$RUNNER_TEMP/types.gen.ts" || true
           echo "cleanup_done=1"
