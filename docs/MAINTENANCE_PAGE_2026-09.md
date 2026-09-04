@@ -7,7 +7,7 @@
 ## 行為
 
 - 所有路徑（含 `/`、`/cases`、`/cat/team`、任意 404 路徑）經 `vercel.json` rewrite 顯示同一靜態頁。
-- **不**載入 React、LMS、CAT、Auth、Supabase client；`build` 只複製 `index.html`。
+- **不**載入 React、LMS、CAT、Auth、Supabase client；`build` 只複製 `index.html`（無 app bundle、無 `<script>`）。
 - 預計恢復時間：建置時以環境變數 `MAINTENANCE_ETA`（非敏感字串）取代 `__MAINTENANCE_ETA__`。
 
 ## 明確限制
@@ -15,7 +15,14 @@
 1. **不能**遠端關閉使用者先前已開啟的舊 LMS／CAT 分頁。
 2. 資料庫安全更新套用後，舊分頁的不相容寫入應由**新權限規則**拒絕。
 3. 本部署僅供維護窗口期間臨時使用；窗口結束後由 PR #81 候選版本取代。
+4. 可獨立於 `main`／PR #81 部署與下架。
 
-## 驗證
+## 驗證（Gate 2C）
 
-Preview 上以瀏覽器確認上述路徑皆顯示維護文案，且 Network／console **無** Supabase REST／Auth／Realtime 請求。
+| 項目 | 結果 |
+|---|---|
+| Draft PR | [#82](https://github.com/kratoswrathful-wy/talk-hanzi-joy/pull/82)（`fb620f51`） |
+| Vercel Preview | `https://talk-hanzi-joy-git-ops-p0-maint-bcbcc2-1-up-localization-studio.vercel.app`（Vercel Authentication／SSO 保護；自動化瀏覽器會進登入頁，非正式公開證據） |
+| 本機 SPA 預覽 | `npm run preview`（`scripts/preview-maintenance.mjs`）對 `/`、`/cases`、`/cat/team`、不存在路徑皆回同一 HTML |
+| 無 Supabase | HTML 無 script／無 `@supabase`；Network 不應出現 `supabase.co` REST／Auth／Realtime |
+| production | **未**部署 |
