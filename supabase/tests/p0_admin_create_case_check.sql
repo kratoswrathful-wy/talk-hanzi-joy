@@ -346,7 +346,7 @@ begin
   );
   set local role authenticated;
 
-  -- T3b name-only negatives
+  -- T3b name-only negatives（RPC 後 RESET ROLE 再查底層 cases）
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
     v_probe,
@@ -360,9 +360,21 @@ begin
   if coalesce(v_result->>'error', '') <> 'missing_translator_user_id' then
     raise exception 'T3b expected missing_translator_user_id, got %', v_result;
   end if;
-  if exists (select 1 from public.cases where id = v_probe) then
-    raise exception 'T3b left a case row';
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe)
+     or exists (select 1 from public.case_participants where case_id = v_probe)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_probe and action = 'admin_create_case'
+     ) then
+    raise exception 'T3b left case/participant/success audit';
   end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
@@ -377,9 +389,21 @@ begin
   if coalesce(v_result->>'error', '') <> 'missing_reviewer_user_id' then
     raise exception 'T3b expected missing_reviewer_user_id, got %', v_result;
   end if;
-  if exists (select 1 from public.cases where id = v_probe) then
-    raise exception 'T3b reviewer left a case row';
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe)
+     or exists (select 1 from public.case_participants where case_id = v_probe)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_probe and action = 'admin_create_case'
+     ) then
+    raise exception 'T3b reviewer left case/participant/success audit';
   end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   -- T4 AI agent create round-trip
   v_result := public.admin_create_case(
@@ -411,9 +435,21 @@ begin
   if coalesce(v_result->>'error', '') <> 'unknown_payload_key' then
     raise exception 'T5 expected unknown_payload_key got: %', v_result;
   end if;
-  if exists (select 1 from public.cases where id = v_case_neg) then
-    raise exception 'T5 left a case';
+  reset role;
+  if exists (select 1 from public.cases where id = v_case_neg)
+     or exists (select 1 from public.case_participants where case_id = v_case_neg)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_case_neg and action = 'admin_create_case'
+     ) then
+    raise exception 'T5 left case/participant/success audit';
   end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   -- T6 forbidden
   v_probe := gen_random_uuid();
@@ -424,6 +460,22 @@ begin
   if coalesce(v_result->>'error', '') <> 'forbidden_payload_key' then
     raise exception 'T6a expected forbidden_payload_key got: %', v_result;
   end if;
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe)
+     or exists (select 1 from public.case_participants where case_id = v_probe)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_probe and action = 'admin_create_case'
+     ) then
+    raise exception 'T6a left case/participant/success audit';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
     v_probe,
@@ -432,6 +484,21 @@ begin
   if coalesce(v_result->>'error', '') <> 'forbidden_payload_key' then
     raise exception 'T6b expected forbidden_payload_key got: %', v_result;
   end if;
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe)
+     or exists (select 1 from public.case_participants where case_id = v_probe)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_probe and action = 'admin_create_case'
+     ) then
+    raise exception 'T6b left case/participant/success audit';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   -- T7 invalid status（公開 RPC）
   v_probe := gen_random_uuid();
@@ -442,9 +509,21 @@ begin
   if coalesce(v_result->>'error', '') <> 'invalid_status' then
     raise exception 'T7 expected invalid_status got: %', v_result;
   end if;
-  if exists (select 1 from public.cases where id = v_probe) then
-    raise exception 'T7 left a case';
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe)
+     or exists (select 1 from public.case_participants where case_id = v_probe)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_probe and action = 'admin_create_case'
+     ) then
+    raise exception 'T7 left case/participant/success audit';
   end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   -- T8 invalid boolean type
   v_probe := gen_random_uuid();
@@ -455,11 +534,23 @@ begin
   if coalesce(v_result->>'error', '') <> 'invalid_field_type' then
     raise exception 'T8 expected invalid_field_type got: %', v_result;
   end if;
-  if exists (select 1 from public.cases where id = v_probe) then
-    raise exception 'T8 left a case';
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe)
+     or exists (select 1 from public.case_participants where case_id = v_probe)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_probe and action = 'admin_create_case'
+     ) then
+    raise exception 'T8 left case/participant/success audit';
   end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
-  -- T8b–T8e：RPC 代表性型別／長度／UUID／空 payload
+  -- T8b–T8f：RPC 代表性型別／長度／UUID／空 payload
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
     v_probe,
@@ -468,6 +559,16 @@ begin
   if coalesce(v_result->>'error', '') <> 'invalid_field_type' then
     raise exception 'T8b number type got: %', v_result;
   end if;
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T8b left a case';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
@@ -477,6 +578,16 @@ begin
   if coalesce(v_result->>'error', '') <> 'invalid_field_length' then
     raise exception 'T8c title length got: %', v_result;
   end if;
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T8c left a case';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
@@ -486,6 +597,16 @@ begin
   if coalesce(v_result->>'error', '') <> 'invalid_translator_user_id' then
     raise exception 'T8d translator uuid got: %', v_result;
   end if;
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T8d left a case';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(
@@ -495,12 +616,32 @@ begin
   if coalesce(v_result->>'error', '') <> 'invalid_reviewer_user_id' then
     raise exception 'T8e reviewer uuid got: %', v_result;
   end if;
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T8e left a case';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   v_probe := gen_random_uuid();
   v_result := public.admin_create_case(v_probe, '{}'::jsonb);
   if coalesce(v_result->>'error', '') <> 'empty_payload' then
     raise exception 'T8f empty payload got: %', v_result;
   end if;
+  reset role;
+  if exists (select 1 from public.cases where id = v_probe) then
+    raise exception 'T8f left a case';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
 
   -- 七種合法 status 經 RPC（各建一筆後不要求 UI round-trip）
   foreach v_status in array array[
@@ -533,9 +674,17 @@ begin
   if coalesce(v_result->>'error', '') <> 'not_authorized' then
     raise exception 'T9 expected not_authorized got: %', v_result;
   end if;
-
-  -- T10 audit
   reset role;
+  if exists (select 1 from public.cases where id = v_probe)
+     or exists (select 1 from public.case_participants where case_id = v_probe)
+     or exists (
+       select 1 from public.case_mutation_audit
+       where case_id = v_probe and action = 'admin_create_case'
+     ) then
+    raise exception 'T9 left case/participant/success audit';
+  end if;
+
+  -- T10 audit（管理身分讀底層）
   select count(*) into v_audit_count
   from public.case_mutation_audit
   where case_id = v_case_general and action = 'admin_create_case';
@@ -551,11 +700,8 @@ begin
     raise exception 'T10 audit table must not store field values';
   end if;
 
-  -- 失敗路徑不得淨增加成功 audit（允許成功建立的合法案例）
-  -- 確認否定案例 id 皆不存在於 cases／participants
-  if exists (
-    select 1 from public.cases where id = v_case_neg
-  ) then
+  -- 否定案例 id 不得殘留於底層 cases
+  if exists (select 1 from public.cases where id = v_case_neg) then
     raise exception 'neg case id must not persist';
   end if;
 
