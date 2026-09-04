@@ -91,6 +91,13 @@ jobs:
           grep -q 'major_version = 17' supabase/config.toml
           echo "postgres_major_version_config=17"
 
+      - name: Install psql client (multi-statement SQL tests)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          psql --version
+
       - name: Start local Supabase (PostgreSQL 17)
         id: start
         run: |
