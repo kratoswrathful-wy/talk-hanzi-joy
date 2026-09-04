@@ -1,108 +1,74 @@
-狀態：P0-D 封頂驗證 **停止於 Codex**（2026-09-04）；遠端 Micro 證據＋GitHub 本機 PG17 部分通過；發現 P0-D 產品回歸
+狀態：P0-D 驗證還原 **已推送**；GitHub PG17 隔離 **一次執行失敗（測試裝配）**；停止等 Codex（不得自動第二次 workflow）
 
-# 第一關／P0-D 隔離驗收報告（更新 2026-09-04 封頂）
+# 第一關／P0-D 隔離驗收報告（更新 2026-09-04）
 
-分支：`feat/isolation-replay-20260901` @ **`54268e39`**  
-正式庫 `wshsmerltcakffllgyul`：**未修改**。  
-PR #81：維持 Draft／DO NOT MERGE。  
-**未**建立第七次 Micro／Preview Branch。
-
----
-
-## 合併證據架構
-
-本輪採「遠端 Micro 歷史證據 ＋ GitHub 本機 PostgreSQL 17」；**因本機安全 SQL 暴露產品回歸，不得宣稱全綠。**
-
-### A. 遠端 Micro（歷史；已刪）
-
-| 項目 | 結果 |
-|---|---|
-| final2 `knbnftjrsshfhfyqxlgo` @ `99ef5b0b` | 165/165 PASS；Advisors 僅既有 2 ERROR；SQL **10/11**（當時 T5 舊錯誤碼） |
-| T5 實際回傳 | `unknown_payload_key`（已用於對齊測試） |
-
-### B. GitHub 本機 PostgreSQL 17
-
-| Run | SHA | 結果 |
-|---|---|---|
-| [33820012349](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/33820012349) | `a2236cda` | **環境失敗**：`db query --local -f` 無法多語句 → 0/11 |
-| [33821223966](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/33821223966) | `54268e39` | PG17 start＋165/165 reset **PASS**；SQL **10/11**（T7 產品失敗） |
-
-環境修正次數：**1／2**（改 `psql` 執行多語句）。第二次失敗**非**環境問題。
+分支：`feat/isolation-replay-20260901` @ **`28638c15`**  
+正式庫：**未修改**（僅唯讀 status 統計）。  
+PR #81：Draft／DO NOT MERGE。  
+Micro／Preview：**未建立**。
 
 ---
 
-## 本機 PG17 已通過
+## 1. 修正內容（產品）
 
-| 步驟 | 結果 |
+| 項目 | 值 |
 |---|---|
-| Guard（無 production token／ref） | PASS |
-| CLI 2.116.0 + `major_version = 17` | PASS |
-| PostgreSQL major | **17** |
-| 165/165 migration；max=`20260902054823` | PASS |
-| SQL（除 T7） | 見下 |
+| Migration | `supabase/migrations/20260904004224_p0d_restore_admin_create_payload_validation.sql` |
+| Commit | **`28638c15`** |
+| 預期鏈 | **166／166**；max=`20260904004224` |
 
-### SQL 逐檔（run 33821223966）
+還原 `private.p0_admin_create_validate_payload`：P0-C 完整欄位／status／型別／長度／timestamp ＋ P0-D UUID／`*_payload_key` 錯誤碼；`REVOKE`；`IMMUTABLE`＋`search_path=pg_catalog`。
+
+## 2. Production status 唯讀統計
+
+| status | n |
+|---|---|
+| draft | 1885 |
+| delivered | 953 |
+| inquiry | 144 |
+| task_completed | 88 |
+| dispatched | 16 |
+| feedback／feedback_completed | 0 |
+| **非法（七態外）** | **0** |
+
+→ 已在同一 migration 加入 `cases_status_allowed_check`（NOT VALID → VALIDATE）。  
+統計細節：`scripts/.cache/prod-cases-status-readonly-20260904.txt`（gitignore）。
+
+## 3. 本機品質閘門（推送前）
+
+encoding／sql-identifiers／forbidden-casts／typecheck／lint／vitest 513／build：**全過**。
+
+## 4. GitHub PG17 一次隔離
+
+| Run | 結果 |
+|---|---|
+| [33823340304](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/33823340304) @ `28638c15` | **FAIL** 於 P0 SQL |
+| 166/166 replay | **PASS**（步驟成功後才進 SQL） |
+| SQL | **10／11** |
+
+### SQL 逐檔
 
 | 檔名 | 結果 |
 |---|---|
 | `p0_pm_assign_participants_check.sql` | PASS |
-| `p0_admin_create_case_check.sql` | **FAIL（T7）** |
-| `p0_apply_case_update_admin_only_check.sql` | PASS |
-| `p0_case_credentials_acl_check.sql` | PASS |
-| `p0_case_field_acl_check.sql` | PASS |
-| `p0_case_mutation_acl_check.sql` | PASS |
-| `p0_cat_workflow_acl_check.sql` | PASS |
-| `p0_definer_view_contract_check.sql` | PASS |
-| `p0_slack_edge_only_contract_check.sql` | PASS |
-| `p0b_acl_harden_check.sql` | PASS |
-| `p0c_translator_eligibility_check.sql` | PASS |
-| **合計** | **10／11** |
+| `p0_admin_create_case_check.sql` | **FAIL** |
+| 其餘 9 支 | PASS |
 
-T5／T6（`unknown_payload_key`／`forbidden_payload_key`）在本輪 **已通過**。
-
-### 未執行（因 SQL 失敗停止）
-
-競態、Data API、Playwright 冒煙、types、Advisors、品質閘門。
-
----
-
-## 阻擋項：T7 `invalid_status`（產品／migration）
+### 失敗分類：**2. 測試裝配錯誤**（非產品／migration）
 
 | 欄位 | 值 |
 |---|---|
 | 檔案 | `supabase/tests/p0_admin_create_case_check.sql` |
-| 行號 | ≈307–313（T7） |
-| 呼叫 | `admin_create_case(..., { title, status: 'not_a_real_status' })` |
-| 預期 | `error = invalid_status` |
-| 實際 | `{"ok": true, "revision": 0, "id": ...}` |
-| SQLSTATE | `P0001`（測試 `raise exception`） |
-| 分類 | **1. 產品／migration 真錯誤** |
+| 錯誤 | `permission denied for table cases` |
+| 根因 | 在 `SET LOCAL ROLE authenticated` 下以 `EXISTS (SELECT … FROM public.cases …)` 斷言失敗路徑未落庫；P0-C 已 `REVOKE SELECT ON cases FROM authenticated` |
+| 產品驗證 | private validator／T7 invalid_status／CHECK 等在失敗前路徑未證明失敗；**不得**據此宣稱產品仍壞 |
+| 最小修正（待 Codex 核准後再推） | 凡直查 `cases`／`case_participants`／audit 細節一律先 `RESET ROLE`；RPC 呼叫再切回 `authenticated`。**不自動啟動第二次 workflow** |
 
-**根因（程式證據）**
+未執行：競態、Data API、Playwright、types、Advisors（SQL 失敗即停）。
 
-- P0-C `private.p0_admin_create_validate_payload`（`20260901120000`）含 status 白名單 → `invalid_status`，並含型別檢查。
-- P0-D `20260902054823` **重寫**同一函式時，只保留 forbidden／unknown key 與 user_id UUID 檢查，**未移植** `invalid_status`／`invalid_field_type` 等。
-- `admin_create_case` 直接 `coalesce(nullif(trim(status),''),'draft')` 寫入；`cases.status` 無 CHECK 約束 → 非法字串可入庫。
-
-**依規則**：不得弱化 T7；不得為配合測試改測試期望；停止交 Codex（是否補 additive migration 還原驗證）。
-
----
-
-## 本輪已落地的測試／基礎設施（非產品）
-
-| Commit | 內容 |
-|---|---|
-| `a2236cda` | T5／T6 錯誤碼對齊；空白協作 Playwright；`.github/workflows/p0-isolated-db.yml`；本機 helpers |
-| `54268e39` | SQL 改 `psql`（環境修正 #1） |
-
-Playwright 空白協作：產品 RPC 明確允許空白 `translatorUserId` 承接（P0-C）；測試已改為空白列＋承接後比對 UUID／`case_participants`（本輪尚未跑到該步）。
-
----
-
-## 部署判定
+## 5. 部署判定
 
 **not deployable** — **尚未**達到  
 `combined isolated verification passed / ready for controlled maintenance-window review`。
 
-未 merge、未部署、未操作正式資料、未開維護窗口。  
-**停止等待 Codex。**
+**明確停止點**：等待 Codex 核准「僅測裝配 RESET ROLE 修正」後，才允許再推一次並**另行核准**第二次 workflow（本輪已用掉「只執行一次」配額）。
