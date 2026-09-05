@@ -34,6 +34,7 @@ begin
   update public.profiles set is_test = true, display_name = 'Maint PM' where id = v_pm;
   update public.profiles set is_test = true, display_name = 'Maint Member' where id = v_member;
 
+  delete from public.user_roles where user_id in (v_pm, v_member);
   insert into public.user_roles(user_id, role) values
     (v_pm, 'pm'),
     (v_member, 'member');
