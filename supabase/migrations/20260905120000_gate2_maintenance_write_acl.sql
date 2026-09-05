@@ -226,19 +226,9 @@ begin
     raise exception 'install_maintenance_write_wrapper: invalid name/identity';
   end if;
 
-  select p.oid into v_impl_oid
-  from pg_proc p
-  join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'private'
-    and p.proname = v_impl_name
-    and pg_get_function_identity_arguments(p.oid) = p_identity_args;
-
-  select p.oid into v_public_oid
-  from pg_proc p
-  join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'public'
-    and p.proname = p_name
-    and pg_get_function_identity_arguments(p.oid) = p_identity_args;
+  -- 以型別簽章定位（to_regprocedure）；勿用「名稱 + ORDER BY oid」任選 overload
+  v_public_oid := to_regprocedure(format('public.%I(%s)', p_name, p_identity_args));
+  v_impl_oid := to_regprocedure(format('private.%I(%s)', v_impl_name, p_identity_args));
 
   if v_impl_oid is null then
     if v_public_oid is null then
@@ -252,34 +242,29 @@ begin
     v_grant_authenticated := has_function_privilege('authenticated', v_public_oid, 'EXECUTE');
     v_grant_service_role := has_function_privilege('service_role', v_public_oid, 'EXECUTE');
 
+    v_identity := pg_get_function_identity_arguments(v_public_oid);
     execute format(
       'alter function public.%I(%s) set schema private',
       p_name,
-      p_identity_args
+      v_identity
     );
     execute format(
       'alter function private.%I(%s) rename to %I',
       p_name,
-      p_identity_args,
+      v_identity,
       v_impl_name
     );
 
-    select p.oid into v_impl_oid
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'private'
-      and p.proname = v_impl_name
-      and pg_get_function_identity_arguments(p.oid) = p_identity_args;
+    v_impl_oid := to_regprocedure(format('private.%I(%s)', v_impl_name, p_identity_args));
   else
-    -- 已包裝：以現有 public wrapper（若在）的 ACL 為準；否則保留「authenticated 無、service_role 有」的安全預設僅當無法讀取時失敗
-    if v_public_oid is not null then
-      v_acl_source := v_public_oid;
-    else
+    -- 已包裝：以現有 public wrapper 的 ACL 為準
+    if v_public_oid is null then
       raise exception
         'install_maintenance_write_wrapper: impl exists but public.% (%) missing — refuse silent recreate',
         p_name,
         p_identity_args;
     end if;
+    v_acl_source := v_public_oid;
     v_grant_authenticated := has_function_privilege('authenticated', v_acl_source, 'EXECUTE');
     v_grant_service_role := has_function_privilege('service_role', v_acl_source, 'EXECUTE');
   end if;
@@ -304,11 +289,6 @@ begin
          v_prokind, v_prosecdef, v_proretset
   from pg_proc p
   where p.oid = v_impl_oid;
-
-  if v_identity is distinct from p_identity_args then
-    raise exception 'identity mismatch for %: expected %, got %',
-      p_name, p_identity_args, v_identity;
-  end if;
 
   v_args := '';
   for v_i in 1..coalesce(v_nargs, 0) loop
