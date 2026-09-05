@@ -1,4 +1,4 @@
-狀態：維護 ACL 已結案（`99bc4d20`／CI `33942782337`）；**未**取得集中正式授權；不排施工時段
+狀態：維護 ACL 已結案（`99bc4d20`／CI `33942782337`）；平台備份畫面已核實；**未**取得集中正式授權；不排施工時段
 
 # Gate 2 — 上線準備（唯一權威清單）
 
@@ -8,109 +8,120 @@
 |---|---|---|
 | `main` 凍結基準 | 已部署線 | `724eb886` |
 | **P0 安全候選（原 Gate1／PR #81）** | 前端／既有 17 支 pending 之程式基準 | commit **`28f80509`**（PR #81）；Gate1 文件標記 `724d691c` |
-| **維護寫入 ACL（已定向驗證結案）** | migration `20260905120000`＋Edge 閘門＋types | 分支 `ops/gate2-maint-write-acl-20260905` 頂端 **`99bc4d20`**；CI run **`33942782337`** |
+| **維護寫入 ACL（已定向驗證結案）** | migration `20260905120000`＋Edge 閘門＋types | 分支 `ops/gate2-maint-write-acl-20260905` 驗證基準 **`99bc4d20`**；CI run **`33942782337`** |
 | 靜態維護頁 | Draft PR #82 | 可 promote／指定 deployment；**不必**永久 merge 進 `main` |
 | 正式專案 | — | `wshsmerltcakffllgyul` |
 
 **集中授權與開窗部署的「完整候選」＝ P0 `28f80509` 所含內容 ＋ 維護控制 `99bc4d20`（含其 migration／Edge）。**  
 禁止授權文或操作單只寫 `28f80509`／`724d691c` 而漏掉維護控制。  
-候選整合進可部署線時：避免意外觸發正式 Vercel／production；**本次仍不 merge、不改正式設定**。
+候選整合進可部署線時：避免意外觸發正式 Vercel／production；**未授權前仍不 merge、不改正式設定**。
 
 不重跑完整 Gate1；不擴大改善；破壞性 restore／付費加值／擴大修改不在範圍。  
-**不排施工日期**；備份核實＋Slack 測試帳＋下方集中授權齊備後即可接續（開始影響網站前簡短告知即可）。
+**不排施工日期**；Slack 測試帳備妥＋下方集中授權齊備後即可接續（開始影響網站前簡短告知即可）。
 
 ### 0.1 Migration 數量（預期 vs 執行前核對）
 
 | 項目 | 預期（本候選） | 注意 |
 |---|---|---|
-| 完整候選 repo migration 總數 | **167**（最高版號 `20260905120000`） | 定向 CI 已驗；含 ACL 第 167 支 |
-| 正式庫相對本候選**待套用** | **18** 支＝原 dry-run 17 ＋ `20260905120000_gate2_maintenance_write_acl.sql` | 原 17 支清單見下；**執行前須 dry-run 核對實際檔名與順序，不得只比數量** |
-| 舊 Gate 2B dry-run | 恰好 17（至 `20260904004224`） | **已過時為「完整候選」數字**；僅作歷史證據 |
+| 完整候選 repo migration 總數 | **167**（最高版號 `20260905120000`） | 定向 CI 已驗 |
+| 正式庫相對本候選**待套用** | **18** 支＝原 17 ＋ `20260905120000` | **執行前 dry-run 核對檔名與順序，不得只比數量**；**不得提前單獨套用第 18 支**（須接在前 17 支之後依序套用） |
+| 舊 Gate 2B dry-run | 恰好 17（至 `20260904004224`） | 歷史證據；完整候選已含第 18 支 |
 
-原 17 支（順序不得改用「只高於 production 最大版號」推算）：
-
-1. `20260610135900_cat_workflow_phase_b_prereq.sql`  
-2. `20260830122351_p0a_case_participants_revision_audit.sql`  
-3. `20260830122353_p0a_case_participant_backfill_safe.sql`  
-4. `20260830122356_p0a_case_action_rpcs.sql`  
-5. `20260830122359_p0a_case_field_acl.sql`  
-6. `20260830122401_p0a_case_credentials.sql`  
-7. `20260831043141_p0b_apply_case_update_admin_only.sql`  
-8. `20260831043143_p0b_workflow_rpc_acl.sql`  
-9. `20260831043145_p0b_assignment_rls.sql`  
-10. `20260831151322_p0b_acl_harden.sql`  
-11. `20260901120000_p0c_security_convergence.sql`  
-12. `20260901120100_p0c_view_helper_grants_and_display_name.sql`  
-13. `20260901120200_p0c_privileged_function_hardening.sql`  
-14. `20260901120300_p0c_slack_meta_rpc_expand.sql`  
-15. `20260901120400_p0c_slack_edge_revoke.sql`  
-16. `20260902054823_p0d_pm_assign_participants_sync.sql`  
-17. `20260904004224_p0d_restore_admin_create_payload_validation.sql`  
-18. **`20260905120000_gate2_maintenance_write_acl.sql`**（Gate1 **未**涵蓋；已另以 `99bc4d20`／`33942782337` 定向驗證）
+原 1–17 支見既有 Gate 2B 清單；第 **18** 支＝`20260905120000_gate2_maintenance_write_acl.sql`（Gate1 未涵蓋；已另驗證）。
 
 ### 0.2 已完成證據（不重複要求）
 
 - Gate1／原 17 支 dry-run／PR #81／維護頁 Preview（#82）  
-- **PM 指派 34 案／65 位置確認結案**（執行前只核對相對確認檔之新增／實質變更，**不重選人、不重跑確認**）  
-- 維護寫入 ACL：**結案** `99bc4d20`／workflow `33942782337`
+- **PM 指派 34 案／65 位置確認結案**（執行前只核對相對確認檔之新增／實質變更）  
+- 維護寫入 ACL：**結案** `99bc4d20`／workflow `33942782337`  
+- **平台備份畫面核對：已完成**（PM 提供、Codex 核實；**勿再要求 PM 重複核對**）  
+  - 時間：`2026-09-04 16:25:45 UTC`（台北 `2026-09-05 00:25:45`）  
+  - 類型：**PHYSICAL**；畫面有 **Restore** 入口  
+  - **未**做還原演練（「平台顯示可回復」≠「已驗證能回復」）
+
+### 0.3 開窗前仍須備妥
+
+- 專用 Slack 測試帳（§2）；實際連結測試僅在授權後、且順序到達驗收步驟時執行
 
 ---
 
-## 1. 寫入隔離（工程定案摘要）
+## 1. 寫入隔離與發布順序（定案）
 
-1. 靜態維護部署（#82）擋新進站／重整後 UI。  
-2. 維護寫入 ACL（預設關；開窗啟用＋allowlist UUID）：擋一般使用者（含舊分頁）受保護寫入；不取代角色／env／participant／revision。  
-3. Data API 驗收期可開；**不**以「短窗＋請關分頁」當已解決。  
-4. 關 Data API **不**假定取消已開始交易；最終 dump 前確認寫入已結束。  
-5. 直連指派：真實 PM UUID＋`set_config(request.jwt.claims)`＋`SET LOCAL ROLE authenticated`＋驗證 audit；禁止裸 `UPDATE`／偽造簽章。  
-6. 驗收失敗：維持 ACL＋維護頁；不得只留維護頁而關 ACL。
+### 1.1 原則
 
-細節仍以本檔先前 §1 定案與 `99bc4d20` 程式為準。
+- 維護頁擋新進站／重整後 UI。  
+- **第 18 支 ACL migration 必須隨完整 18 支依序套用**，不得單獨提前套用。  
+- **ACL 尚未安裝並啟用前**：以維護頁＋**暫時停用 Data API**（及既定已核對之停寫措施）阻止相關寫入。  
+- **不得在 ACL 尚未生效時全面恢復 Data API**。  
+- ACL 生效後：Data API 可開給 allowlist 驗收；一般使用者（含舊分頁）受保護寫入仍被拒。  
+- 關 Data API **不**假定取消已開始交易；dump 前確認寫入已結束。  
+- 直連指派：真實 PM UUID＋JWT claims＋`SET LOCAL ROLE authenticated`＋驗證 audit。
+
+### 1.2 授權後操作順序（必須依此；集中授權同文）
+
+| 步 | 動作 |
+|---|---|
+| **a** | 控制自動部署，顯示靜態維護頁（正式網域）。 |
+| **b** | 暫時停用 Data API 等已核對停寫措施，阻止相關寫入；**確認既有寫入已結束**（不假定關 API 會取消已開始交易）。 |
+| **c** | 保存最終 logical dump 及 hash（庫外）。 |
+| **d** | dry-run **核對完整 18 支檔名與順序**後，依序 `db push` 套用（含第 18 支；不得只推 ACL）。 |
+| **e** | 維護 ACL **已安裝**後：將指定操作／測試帳 UUID 寫入 allowlist 並**啟用** ACL；部署對齊 `99bc4d20` 之 Edge（含閘門）與對齊 `28f80509` 之前端（維護頁仍可保留）。 |
+| **f** | **確認維護控制已生效後**，才恢復 Data API；**維護頁仍保留**。驗證：非放行帳號寫入被拒；放行帳號可依原有角色／env／revision 等授權操作。 |
+| **g** | 套用已確認 34 案／65 位置指派；完成前端冒煙及 Slack G2-9（專用測試帳、不暫換 secrets）。 |
+| **h** | **全部通過後**才關閉／解除維護 ACL，並下架維護頁、恢復正式頁面。 |
+
+### 1.3 失敗分支（依階段，不得一律寫「維持 ACL」）
+
+| 失敗時機 | 保持狀態 |
+|---|---|
+| **ACL 尚未安裝或尚未啟用**（約步 a–d，或 e 完成前） | 維持**初始停寫措施**（含 Data API 停用等）**＋維護頁**；不全面開 API；不宣稱 ACL 已擋寫 |
+| **ACL 已生效之後**（約步 e 完成後起，含 f–g） | 維持 **ACL 啟用＋維護頁**；不得只留維護頁而關閉 ACL 並全面開站 |
+
+任一步失敗即停，不擅自擴大修復；回復需另授權。
 
 ---
 
-## 2. 開窗前你需完成的兩項準備
+## 2. 專用 Slack 測試帳（開窗前備妥；開窗內步 g 才測）
 
-### 2.1 備份畫面核對（唯讀）
+**定案：不暫換正式 `SLACK_CLIENT_ID`／`SLACK_CLIENT_SECRET`。**
 
-入口：https://supabase.com/dashboard/project/wshsmerltcakffllgyul/database/backups  
+最短準備：
 
-請記下（勿貼密文）：最近成功備份**時間**、**COMPLETED／成功**、**類型**、畫面上**可回復／PITR 相關說明**。  
-分開：「平台顯示可回復」≠「已做回復演練」（後者本次不要求）。`ACTIVE_HEALTHY` ≠ 備份證據。
+1. 一組**專用測試** TMS 登入（非日常譯者工作帳）。  
+2. 同一人在**正式 Slack workspace**有對應成員。  
+3. Edge Secrets **只確認名稱存在**：`SLACK_CLIENT_ID`、`SLACK_CLIENT_SECRET`、`SLACK_REDIRECT_URI`、`SITE_URL`（勿把值貼到對話）。  
 
-### 2.2 Slack 測試帳（開窗前備妥；開窗內才測）
-
-不暫換正式 Slack secrets。準備一組**專用測試** TMS 帳＋正式 Slack workspace 對應成員；確認 Edge secrets **名稱存在**即可。  
-開窗內（授權後、測試帳在 allowlist）：該帳連結→已連結→解除；只動該使用者列。
-
----
-
-## 3. 建議順序（取得 §4 授權後）
-
-維護頁 → 啟用 ACL＋驗證非放行被拒 → 寫入靜止後最終 dump → dry-run **核對 18 支檔名順序** → `db push` → 部署含 `99bc4d20` 閘門之 Edge＋P0 前端 → 指派／G2-9 → 關 ACL → 下架維護頁。
+開窗內（步 e 已將該帳 UUID 放入 allowlist；步 f 已恢復 Data API 且 ACL 生效後）：該帳 → 個人檔案 → 連結 Slack → 確認已連結 → 解除連結。  
+預期只動該使用者憑證列；不影響他人連結／不解除 workspace 安裝。
 
 ---
 
-## 4. 集中授權文字（請一次核准）
+## 3. 集中授權文字（請一次核准）
 
-> **我授權執行 Gate 2 正式發布整包**（完整候選＝P0 **`28f80509`**＋維護寫入 ACL **`99bc4d20`**／專案 `wshsmerltcakffllgyul`）：  
-> （1）啟用寫入隔離：靜態維護部署＋維護寫入 ACL（allowlist 僅指定操作／測試帳 UUID），並完成非放行舊 session 寫入被拒、放行帳可依既有授權操作之驗證；  
-> （2）確認相關寫入結束後建立最終 logical dump 並記錄 hash（不假定關 Data API 會取消已開始交易）；  
-> （3）dry-run **核對實際待套用清單（預期 18 支，含 `20260905120000`；須核對檔名與順序，不得只比數量）**後執行 `db push`；  
-> （4）部署對應 Edge（含維護閘門，對齊 `99bc4d20`）與前端（對齊 P0 `28f80509`；維護頁可不永久 merge）；避免雙發與意外正式部署；  
-> （5）依已確認之 34 案／65 位置，經 `pm_update_case_assignments`（JWT claims＋`authenticated`、真實 PM UUID、重讀 revision、驗證 audit actor）套用；僅對新增／實質變更暫停回報；  
-> （6）專用測試帳對既有正式 Slack App 做連結→已連結→解除（測試帳在 allowlist；不暫換 secrets）；並完成約定冒煙；  
-> （7）通過後關閉 ACL、下架維護頁、恢復一般存取並短監看。失敗則維持 ACL＋維護頁。  
-> **開始影響網站前可先簡短告知；無需再等施工時段／日期確認。**
+> **我授權執行 Gate 2 正式發布整包**（完整候選＝P0 **`28f80509`**＋維護寫入 ACL **`99bc4d20`**／CI `33942782337`；專案 `wshsmerltcakffllgyul`），並依下列順序執行：  
+> **（a）** 控制自動部署，顯示靜態維護頁；  
+> **（b）** 暫時停用 Data API 等已核對停寫措施，阻止相關寫入，並確認既有寫入已結束；  
+> **（c）** 保存最終 logical dump 及 hash；  
+> **（d）** dry-run 核對完整 **18** 支清單（檔名與順序，不得只比數量；不得單獨提前套用第 18 支）後依序 `db push`；  
+> **（e）** ACL 安裝完成後，設定指定操作／測試帳 allowlist 並啟用 ACL；部署對齊 `99bc4d20` 之 Edge 與對齊 `28f80509` 之前端；  
+> **（f）** 確認維護控制已生效後，才恢復 Data API（維護頁仍保留）；驗證非放行帳號被拒、放行帳號可依原授權操作；**不得在 ACL 未生效時全面恢復 API**；  
+> **（g）** 依已確認 34 案／65 位置經 `pm_update_case_assignments`（真實 PM UUID、JWT claims＋`authenticated`、重讀 revision、驗證 audit）套用指派；完成前端冒煙及專用測試帳 Slack 連結→已連結→解除（不暫換 secrets）；  
+> **（h）** 全部通過後才解除維護 ACL 並下架維護頁、恢復正式頁面。  
+> **開始影響網站前可先簡短告知；無需再等施工時段／日期確認。**  
+> 平台備份畫面核對已完成（PHYSICAL，`2026-09-04 16:25:45 UTC`；未做還原演練），不納入本次重複核對。
 
 **不含：** restore／PITR 演練、付費加值、擴大修改、重跑完整 Gate1、暫換 Slack secrets、依姓名重猜指派、直接改表、偽造 JWT。
 
-**失敗即停：** 停寫驗證失敗；閘門不可用卻當可開站；dump／hash 失敗；dry-run 清單不符或 `db push` 錯誤；指派 revision／audit 異常；Slack 影響他人；冒煙 P0 無法在固定候選短修。
+**失敗即停：**
+
+- **ACL 尚未安裝或尚未啟用前失敗** → 維持初始停寫措施（含 Data API 停用等）＋維護頁。  
+- **ACL 已生效後失敗** → 維持 ACL＋維護頁。  
+- 另含：停寫未確認寫入已結束、dump／hash 失敗、dry-run 清單不符或 `db push` 錯誤、在 ACL 未生效時恢復 API、指派 revision／audit 異常、Slack 影響他人、冒煙 P0 無法在固定候選短修。
 
 回復需**另**授權。
 
 ---
 
-## 5. 停止點（現在）
+## 4. 停止點（現在）
 
-未取得 §4 全文授權前：**不** merge、**不** dump、**不** db push、**不**部署、**不**改正式設定、**不**建立付費資源、**不**執行正式 Slack 連結測試。
+未取得 §3 全文授權前：**不** merge、**不** dump、**不** db push、**不**部署、**不**改正式設定、**不**建立付費資源、**不**執行正式 Slack 連結測試。
