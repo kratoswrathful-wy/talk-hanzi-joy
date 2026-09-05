@@ -49,6 +49,18 @@ Deno.serve(async (req) => {
       return Response.redirect(`${siteUrl}/profile?slack_error=invalid_or_expired_state`);
     }
 
+    const { data: actorAllowed, error: gateErr } = await supabase.rpc(
+      "maintenance_actor_allowed_for_service",
+      { p_user_id: consumed.user_id },
+    );
+    if (gateErr) {
+      console.error("maintenance_actor_allowed_for_service failed", gateErr.message);
+      return Response.redirect(`${siteUrl}/profile?slack_error=maintenance_gate_unavailable`);
+    }
+    if (actorAllowed !== true) {
+      return Response.redirect(`${siteUrl}/profile?slack_error=maintenance_write_denied`);
+    }
+
     const clientId = Deno.env.get("SLACK_CLIENT_ID");
     const clientSecret = Deno.env.get("SLACK_CLIENT_SECRET");
     const redirectUri = Deno.env.get("SLACK_REDIRECT_URI");
