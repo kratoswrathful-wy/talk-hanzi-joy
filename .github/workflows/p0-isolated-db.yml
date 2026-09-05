@@ -1,13 +1,21 @@
-# P0-D 封頂：GitHub runner 本機 Supabase PostgreSQL 17（不得連 production／不得建 Micro）
-# 僅本隔離分支／PR 執行。
+# Gate2 / P0：GitHub runner 本機 Supabase PostgreSQL 17（不得連 production／不得建 Micro）
+# - feat/isolation-replay-20260901：完整 Gate1 隔離套件（既有）
+# - ops/gate2-maint-write-acl-20260905：定向維護 ACL（不重跑完整 Gate1／全 Playwright）
 name: P0 isolated DB (local PG17)
 
 on:
   pull_request:
     branches: [main]
   push:
-    branches: [feat/isolation-replay-20260901]
+    branches:
+      - feat/isolation-replay-20260901
+      - ops/gate2-maint-write-acl-20260905
   workflow_dispatch:
+    inputs:
+      suite:
+        description: "full | maint-acl（預設依分支）"
+        required: false
+        default: ""
 
 concurrency:
   group: p0-isolated-db-${{ github.ref }}
@@ -21,21 +29,49 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.ref_name == 'feat/isolation-replay-20260901' ||
-      github.head_ref == 'feat/isolation-replay-20260901'
+      github.ref_name == 'ops/gate2-maint-write-acl-20260905' ||
+      github.head_ref == 'feat/isolation-replay-20260901' ||
+      github.head_ref == 'ops/gate2-maint-write-acl-20260905'
     env:
       PRODUCTION_REF: wshsmerltcakffllgyul
-      EXPECTED_MIGRATION_COUNT: "166"
-      EXPECTED_MAX_VERSION: "20260904004224"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve suite + expected migrations
+        id: meta
+        run: |
+          set -euo pipefail
+          REF="${GITHUB_REF_NAME}"
+          HEAD_REF="${GITHUB_HEAD_REF:-}"
+          INPUT_SUITE="${{ github.event.inputs.suite || '' }}"
+          SUITE=""
+          if [ -n "${INPUT_SUITE}" ]; then
+            SUITE="${INPUT_SUITE}"
+          elif [ "${REF}" = "ops/gate2-maint-write-acl-20260905" ] || [ "${HEAD_REF}" = "ops/gate2-maint-write-acl-20260905" ]; then
+            SUITE="maint-acl"
+          else
+            SUITE="full"
+          fi
+          if [ "${SUITE}" = "maint-acl" ]; then
+            echo "suite=maint-acl" >> "$GITHUB_OUTPUT"
+            echo "expected_count=167" >> "$GITHUB_OUTPUT"
+            echo "expected_max=20260905120000" >> "$GITHUB_OUTPUT"
+          else
+            echo "suite=full" >> "$GITHUB_OUTPUT"
+            echo "expected_count=166" >> "$GITHUB_OUTPUT"
+            echo "expected_max=20260904004224" >> "$GITHUB_OUTPUT"
+          fi
+          echo "resolved_suite=${SUITE}"
+          echo "ref_name=${REF}"
 
       - name: Guard — refuse production credentials / refs
         run: |
           set -euo pipefail
           echo "git_sha=${GITHUB_SHA}"
-          echo "expected_migrations=${EXPECTED_MIGRATION_COUNT}"
-          echo "expected_max_version=${EXPECTED_MAX_VERSION}"
+          echo "suite=${{ steps.meta.outputs.suite }}"
+          echo "expected_migrations=${{ steps.meta.outputs.expected_count }}"
+          echo "expected_max_version=${{ steps.meta.outputs.expected_max }}"
           echo "remote Supabase access disabled"
           if [ -n "${SUPABASE_ACCESS_TOKEN:-}" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN must not be set"
@@ -119,13 +155,19 @@ jobs:
           MAXV=$(supabase db query --local "select max(version) from supabase_migrations.schema_migrations;" -o csv | tail -n 1 | tr -d '"')
           echo "migration_count=${COUNT}"
           echo "migration_max=${MAXV}"
-          test "${COUNT}" = "${EXPECTED_MIGRATION_COUNT}"
-          test "${MAXV}" = "${EXPECTED_MAX_VERSION}"
+          test "${COUNT}" = "${{ steps.meta.outputs.expected_count }}"
+          test "${MAXV}" = "${{ steps.meta.outputs.expected_max }}"
 
-      - name: P0 SQL suite 11/11
+      - name: P0 SQL suite 11/11 (full only)
+        if: steps.meta.outputs.suite == 'full'
         run: node scripts/isolation-run-p0-sql.mjs
 
+      - name: Gate2 maint ACL directional SQL + affected ACL regression
+        if: steps.meta.outputs.suite == 'maint-acl'
+        run: node scripts/isolation-run-gate2-maint-acl.mjs
+
       - name: Capture local API endpoints (masked)
+        if: steps.meta.outputs.suite == 'full'
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/iso-keys"
@@ -133,6 +175,7 @@ jobs:
           node scripts/isolation-read-local-status.mjs "$RUNNER_TEMP/supabase.env" "$RUNNER_TEMP/iso-keys"
 
       - name: Provision race users + dual-client race
+        if: steps.meta.outputs.suite == 'full'
         run: |
           set -euo pipefail
           CREDS=$(node scripts/isolation-pipe-provision.mjs micro3 "$RUNNER_TEMP/iso-keys")
@@ -142,6 +185,7 @@ jobs:
           rm -f "$CREDS" || true
 
       - name: Data API / definer helper contract
+        if: steps.meta.outputs.suite == 'full'
         run: |
           set -euo pipefail
           CREDS=$(node scripts/isolation-pipe-provision.mjs micro3 "$RUNNER_TEMP/iso-keys")
@@ -160,6 +204,7 @@ jobs:
           rm -f "$API_CREDS" || true
 
       - name: Provision Playwright test personas
+        if: steps.meta.outputs.suite == 'full'
         run: |
           set -euo pipefail
           CREDS=$(node scripts/isolation-pipe-provision.mjs personas "$RUNNER_TEMP/iso-keys")
@@ -173,9 +218,11 @@ jobs:
           chmod 600 "$RUNNER_TEMP/playwright-password.txt"
 
       - name: Install Playwright Chromium
+        if: steps.meta.outputs.suite == 'full'
         run: npx playwright install --with-deps chromium
 
       - name: Case-assign Playwright smoke (local only)
+        if: steps.meta.outputs.suite == 'full'
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
@@ -197,12 +244,12 @@ jobs:
           fi
           npx playwright test tests/smoke-cases-translator-update-rpc.spec.ts --project=chromium
 
-      # Advisors + quality gates before types so format-only generator drift
-      # cannot hide advisor / lint / unit results (types contract still fail-closes).
       - name: Local Advisors (controlled ERROR only)
+        if: steps.meta.outputs.suite == 'full'
         run: node scripts/isolation-assert-advisors-local.mjs
 
-      - name: Quality gates + related unit tests
+      - name: Quality gates + related unit tests (full)
+        if: steps.meta.outputs.suite == 'full'
         run: |
           set -euo pipefail
           export VITE_SUPABASE_URL="$(cat "$RUNNER_TEMP/iso-keys/url.txt")"
@@ -216,6 +263,17 @@ jobs:
             src/lib/assignee-select.test.ts \
             src/lib/case-create-payload.test.ts \
             src/components/CollaborationTable.assignee.test.tsx
+          node --test scripts/check-public-schema-types-contract.test.mjs
+
+      - name: Maint-acl quality gates + Edge gate policy tests
+        if: steps.meta.outputs.suite == 'maint-acl'
+        run: |
+          set -euo pipefail
+          npm run check:encoding
+          npm run check:sql-identifiers
+          npm run check:forbidden-casts
+          npm run typecheck
+          npx vitest run supabase/functions/_shared/maintenance-gate-policy.test.ts
           node --test scripts/check-public-schema-types-contract.test.mjs
 
       - name: Public schema types contract (Database["public"] only)

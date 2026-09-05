@@ -4,13 +4,13 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { corsHeaders } from "./cors.ts";
+import {
+  decideEnforceMaintenanceWriteGate,
+  decideRejectWhenMaintenanceEnabled,
+  type MaintenanceGateResult,
+} from "./maintenance-gate-policy.ts";
 
-export type MaintenanceGateResult = {
-  ok: boolean;
-  enabled: boolean;
-  allowed: boolean;
-  error?: string | null;
-};
+export type { MaintenanceGateResult };
 
 async function readMaintenanceGate(
   jwt: string,
@@ -34,6 +34,27 @@ async function readMaintenanceGate(
   return { gate: data as MaintenanceGateResult, rpcError: null };
 }
 
+function decisionToResponse(
+  decision: ReturnType<typeof decideEnforceMaintenanceWriteGate>,
+  denyMessage: string,
+): Response | null {
+  if (decision.action === "allow") return null;
+  const body =
+    decision.action === "deny"
+      ? { error: decision.error, message: denyMessage }
+      : {
+          error: decision.error,
+          message:
+            decision.action === "misconfigured"
+              ? "server_misconfigured"
+              : "無法確認維護寫入閘門，拒絕繼續",
+        };
+  return new Response(JSON.stringify(body), {
+    status: decision.status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 /**
  * G2-9 必要路徑（oauth start／callback／disconnect）：
  * 維護關閉→放行；維護開啟→僅 allowlist。
@@ -43,37 +64,10 @@ export async function enforceMaintenanceWriteGate(
   jwt: string,
 ): Promise<Response | null> {
   const { gate, rpcError } = await readMaintenanceGate(jwt);
-  if (rpcError === "server_misconfigured") {
-    return new Response(JSON.stringify({ error: "server_misconfigured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  if (rpcError || !gate) {
-    return new Response(
-      JSON.stringify({
-        error: "maintenance_gate_unavailable",
-        message: "無法確認維護寫入閘門，拒絕繼續",
-      }),
-      {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-  if (gate.enabled === true && gate.allowed !== true) {
-    return new Response(
-      JSON.stringify({
-        error: "maintenance_write_denied",
-        message: "維護驗收中，僅允許指定操作／測試帳號",
-      }),
-      {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-  return null;
+  return decisionToResponse(
+    decideEnforceMaintenanceWriteGate(gate, rpcError),
+    "維護驗收中，僅允許指定操作／測試帳號",
+  );
 }
 
 /**
@@ -83,35 +77,8 @@ export async function rejectWhenMaintenanceEnabled(
   jwt: string,
 ): Promise<Response | null> {
   const { gate, rpcError } = await readMaintenanceGate(jwt);
-  if (rpcError === "server_misconfigured") {
-    return new Response(JSON.stringify({ error: "server_misconfigured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  if (rpcError || !gate) {
-    return new Response(
-      JSON.stringify({
-        error: "maintenance_gate_unavailable",
-        message: "無法確認維護寫入閘門，拒絕繼續",
-      }),
-      {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-  if (gate.enabled === true) {
-    return new Response(
-      JSON.stringify({
-        error: "maintenance_path_blocked",
-        message: "維護期間停用此 Edge 路徑",
-      }),
-      {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-  return null;
+  return decisionToResponse(
+    decideRejectWhenMaintenanceEnabled(gate, rpcError),
+    "維護期間停用此 Edge 路徑",
+  );
 }

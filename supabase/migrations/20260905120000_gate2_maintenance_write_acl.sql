@@ -5,8 +5,7 @@
 
 create schema if not exists private;
 
--- INVOKER 包裝函式需能呼叫 private.*_impl；表權限仍個別 revoke（見下）
-grant usage on schema private to authenticated, service_role, postgres;
+-- 不在此一律 GRANT USAGE／EXECUTE 給 authenticated；由 install wrapper 依原 ACL 與 INVOKER 需求處理。
 
 create table if not exists private.maintenance_access_control (
   id int primary key default 1 check (id = 1),
@@ -189,21 +188,26 @@ grant execute on function public.maintenance_actor_allowed_for_service(uuid) to 
 comment on function public.maintenance_actor_allowed_for_service(uuid) is
   '僅 service_role：維護啟用時檢查指定 user_id 是否在 allowlist（供 Slack OAuth callback）。';
 
--- 動態包裝：rename public.fn → private.fn_impl，再建 wrapper 先 assert 再轉呼叫
-create or replace function private.install_maintenance_write_wrapper(p_name text)
+-- 動態包裝：以完整 identity args 定位；保留原 EXECUTE 受眾；缺入口則失敗。
+-- p_identity_args 須與 pg_get_function_identity_arguments 完全一致（例如 'uuid, bigint, jsonb'）。
+create or replace function private.install_maintenance_write_wrapper(
+  p_name text,
+  p_identity_args text
+)
 returns void
 language plpgsql
 security definer
 set search_path = pg_catalog
 as $$
 declare
+  v_public_oid oid;
+  v_impl_oid oid;
   v_oid oid;
   v_identity text;
   v_ret text;
   v_prokind "char";
   v_nargs int;
   v_argnames text[];
-  v_argtype_oids oid[];
   v_i int;
   v_params text := '';
   v_args text := '';
@@ -214,29 +218,73 @@ declare
   v_proretset boolean;
   v_security text;
   v_body text;
+  v_grant_authenticated boolean := false;
+  v_grant_service_role boolean := false;
+  v_acl_source oid;
 begin
-  if exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'private' and p.proname = v_impl_name
-  ) then
-    null;
-  else
-    select p.oid into v_oid
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = p_name
-    order by p.oid
-    limit 1;
+  if p_name is null or length(trim(p_name)) = 0 or p_identity_args is null then
+    raise exception 'install_maintenance_write_wrapper: invalid name/identity';
+  end if;
 
-    if v_oid is null then
-      raise notice 'install_maintenance_write_wrapper: skip missing public.%', p_name;
-      return;
+  select p.oid into v_impl_oid
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'private'
+    and p.proname = v_impl_name
+    and pg_get_function_identity_arguments(p.oid) = p_identity_args;
+
+  select p.oid into v_public_oid
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = p_name
+    and pg_get_function_identity_arguments(p.oid) = p_identity_args;
+
+  if v_impl_oid is null then
+    if v_public_oid is null then
+      raise exception
+        'install_maintenance_write_wrapper: required function public.%(%) missing',
+        p_name, p_identity_args;
     end if;
 
-    v_identity := pg_get_function_identity_arguments(v_oid);
-    execute format('alter function public.%I(%s) set schema private', p_name, v_identity);
-    execute format('alter function private.%I(%s) rename to %I', p_name, v_identity, v_impl_name);
+    -- 在 rename 前快照 public 入口的 EXECUTE 受眾（不得事後一律重開）
+    v_grant_authenticated := has_function_privilege('authenticated', v_public_oid, 'EXECUTE');
+    v_grant_service_role := has_function_privilege('service_role', v_public_oid, 'EXECUTE');
+
+    execute format(
+      'alter function public.%I(%s) set schema private',
+      p_name,
+      p_identity_args
+    );
+    execute format(
+      'alter function private.%I(%s) rename to %I',
+      p_name,
+      p_identity_args,
+      v_impl_name
+    );
+
+    select p.oid into v_impl_oid
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'private'
+      and p.proname = v_impl_name
+      and pg_get_function_identity_arguments(p.oid) = p_identity_args;
+  else
+    -- 已包裝：以現有 public wrapper（若在）的 ACL 為準；否則保留「authenticated 無、service_role 有」的安全預設僅當無法讀取時失敗
+    if v_public_oid is not null then
+      v_acl_source := v_public_oid;
+    else
+      raise exception
+        'install_maintenance_write_wrapper: impl exists but public.%(%) missing — refuse silent recreate',
+        p_name, p_identity_args;
+    end if;
+    v_grant_authenticated := has_function_privilege('authenticated', v_acl_source, 'EXECUTE');
+    v_grant_service_role := has_function_privilege('service_role', v_acl_source, 'EXECUTE');
+  end if;
+
+  if v_impl_oid is null then
+    raise exception 'install_maintenance_write_wrapper: impl missing for %.%(%)',
+      p_name, p_identity_args;
   end if;
 
   select p.oid,
@@ -245,20 +293,17 @@ begin
          pg_get_function_arguments(p.oid),
          p.pronargs,
          p.proargnames,
-         p.proargtypes::oid[],
          p.prokind,
          p.prosecdef,
          p.proretset
-    into v_oid, v_identity, v_ret, v_params, v_nargs, v_argnames, v_argtype_oids,
+    into v_oid, v_identity, v_ret, v_params, v_nargs, v_argnames,
          v_prokind, v_prosecdef, v_proretset
   from pg_proc p
-  join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'private' and p.proname = v_impl_name
-  order by p.oid
-  limit 1;
+  where p.oid = v_impl_oid;
 
-  if v_oid is null then
-    raise exception 'impl missing for %', p_name;
+  if v_identity is distinct from p_identity_args then
+    raise exception 'identity mismatch for %: expected %, got %',
+      p_name, p_identity_args, v_identity;
   end if;
 
   v_args := '';
@@ -357,44 +402,128 @@ begin
 
   execute v_sql;
 
-  execute format('revoke all on function public.%I(%s) from public, anon', p_name, v_identity);
+  -- 還原 public wrapper 的呼叫權限（不一律開放 authenticated）
   execute format(
-    'grant execute on function public.%I(%s) to authenticated, service_role',
+    'revoke all on function public.%I(%s) from public, anon, authenticated, service_role',
     p_name,
     v_identity
   );
-  -- rename 後 grants 通常隨函式移動；再明示一次，避免 INVOKER 路徑缺權
+  if v_grant_authenticated then
+    execute format(
+      'grant execute on function public.%I(%s) to authenticated',
+      p_name,
+      v_identity
+    );
+  end if;
+  if v_grant_service_role then
+    execute format(
+      'grant execute on function public.%I(%s) to service_role',
+      p_name,
+      v_identity
+    );
+  end if;
+
+  -- private.*_impl：撤銷一般角色直呼，避免繞過 wrapper 的維護 assert
   execute format(
-    'grant execute on function private.%I(%s) to authenticated, service_role',
+    'revoke all on function private.%I(%s) from public, anon, authenticated, service_role',
     v_impl_name,
     v_identity
   );
+  if not v_prosecdef then
+    -- INVOKER wrapper 以呼叫者身分執行 impl，需對原有 EXECUTE 受眾授權 + schema USAGE
+    execute 'grant usage on schema private to service_role';
+    if v_grant_authenticated then
+      execute 'grant usage on schema private to authenticated';
+      execute format(
+        'grant execute on function private.%I(%s) to authenticated',
+        v_impl_name,
+        v_identity
+      );
+    end if;
+    if v_grant_service_role then
+      execute format(
+        'grant execute on function private.%I(%s) to service_role',
+        v_impl_name,
+        v_identity
+      );
+    end if;
+  end if;
+  -- SECURITY DEFINER wrapper：僅函式擁有者可呼叫 impl（不授予 authenticated／service_role）
 end;
 $$;
 
-revoke all on function private.install_maintenance_write_wrapper(text) from public, anon, authenticated;
-grant execute on function private.install_maintenance_write_wrapper(text) to service_role;
+revoke all on function private.install_maintenance_write_wrapper(text, text)
+  from public, anon, authenticated;
+grant execute on function private.install_maintenance_write_wrapper(text, text)
+  to service_role;
 
-select private.install_maintenance_write_wrapper('pm_update_case_assignments');
-select private.install_maintenance_write_wrapper('apply_case_update');
-select private.install_maintenance_write_wrapper('update_case_permitted_fields');
-select private.install_maintenance_write_wrapper('update_case_credentials');
-select private.install_maintenance_write_wrapper('accept_public_inquiry_case');
-select private.install_maintenance_write_wrapper('decline_public_inquiry_case');
-select private.install_maintenance_write_wrapper('accept_inquiry_collab_row');
-select private.install_maintenance_write_wrapper('complete_case_collab_row');
-select private.install_maintenance_write_wrapper('complete_case_translation');
-select private.install_maintenance_write_wrapper('complete_case_review_row');
-select private.install_maintenance_write_wrapper('admin_create_case');
-select private.install_maintenance_write_wrapper('admin_delete_case');
-select private.install_maintenance_write_wrapper('lms_sync_cat_file_assignments_for_case');
-select private.install_maintenance_write_wrapper('lms_sync_cat_workflow_for_case');
-select private.install_maintenance_write_wrapper('sync_cat_file_assignments_for_case');
-select private.install_maintenance_write_wrapper('sync_cat_workflow_assignments_for_case');
-select private.install_maintenance_write_wrapper('apply_cat_segment_target_update');
-select private.install_maintenance_write_wrapper('apply_cat_segments_patch_batch');
-select private.install_maintenance_write_wrapper('cat_pm_assign_file');
-select private.install_maintenance_write_wrapper('cat_pm_unassign_file');
-select private.install_maintenance_write_wrapper('cat_pm_assign_view');
-select private.install_maintenance_write_wrapper('cat_pm_unassign_view');
-select private.install_maintenance_write_wrapper('revoke_case_participant_access');
+-- 必要入口：缺一即失敗（完整 identity args）
+select private.install_maintenance_write_wrapper(
+  'pm_update_case_assignments', 'uuid, bigint, jsonb'
+);
+select private.install_maintenance_write_wrapper(
+  'apply_case_update', 'uuid, jsonb, bigint'
+);
+select private.install_maintenance_write_wrapper(
+  'update_case_permitted_fields', 'uuid, bigint, jsonb'
+);
+select private.install_maintenance_write_wrapper(
+  'update_case_credentials', 'uuid, bigint, jsonb'
+);
+select private.install_maintenance_write_wrapper(
+  'accept_public_inquiry_case', 'uuid, bigint'
+);
+select private.install_maintenance_write_wrapper(
+  'decline_public_inquiry_case', 'uuid, bigint, jsonb'
+);
+select private.install_maintenance_write_wrapper(
+  'accept_inquiry_collab_row', 'uuid, text, bigint'
+);
+select private.install_maintenance_write_wrapper(
+  'complete_case_collab_row', 'uuid, text, bigint'
+);
+select private.install_maintenance_write_wrapper(
+  'complete_case_translation', 'uuid, bigint'
+);
+select private.install_maintenance_write_wrapper(
+  'complete_case_review_row', 'uuid, text, bigint'
+);
+select private.install_maintenance_write_wrapper(
+  'admin_create_case', 'uuid, jsonb'
+);
+select private.install_maintenance_write_wrapper(
+  'admin_delete_case', 'uuid, bigint'
+);
+select private.install_maintenance_write_wrapper(
+  'lms_sync_cat_file_assignments_for_case', 'uuid'
+);
+select private.install_maintenance_write_wrapper(
+  'lms_sync_cat_workflow_for_case', 'uuid'
+);
+select private.install_maintenance_write_wrapper(
+  'sync_cat_file_assignments_for_case', 'uuid'
+);
+select private.install_maintenance_write_wrapper(
+  'sync_cat_workflow_assignments_for_case', 'uuid'
+);
+select private.install_maintenance_write_wrapper(
+  'apply_cat_segment_target_update', 'uuid, text, bigint, jsonb'
+);
+select private.install_maintenance_write_wrapper(
+  'apply_cat_segments_patch_batch', 'jsonb'
+);
+select private.install_maintenance_write_wrapper(
+  'cat_pm_assign_file', 'uuid, uuid[]'
+);
+select private.install_maintenance_write_wrapper(
+  'cat_pm_unassign_file', 'uuid, uuid'
+);
+select private.install_maintenance_write_wrapper(
+  'cat_pm_assign_view', 'uuid, uuid[]'
+);
+select private.install_maintenance_write_wrapper(
+  'cat_pm_unassign_view', 'uuid, uuid'
+);
+select private.install_maintenance_write_wrapper(
+  'revoke_case_participant_access', 'uuid, uuid, text, bigint'
+);

@@ -3921,6 +3921,11 @@ export type Database = {
         Args: { p_case_id: string }
         Returns: Json
       }
+      maintenance_actor_allowed_for_service: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
+      maintenance_write_gate: { Args: never; Returns: Json }
       release_cat_segment_edit_lease: {
         Args: { p_segment_id: string; p_session_id: string }
         Returns: boolean
