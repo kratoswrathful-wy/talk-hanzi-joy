@@ -243,8 +243,9 @@ begin
   if v_impl_oid is null then
     if v_public_oid is null then
       raise exception
-        'install_maintenance_write_wrapper: required function public.%(%) missing',
-        p_name, p_identity_args;
+        'install_maintenance_write_wrapper: required function public.% (%) missing',
+        p_name,
+        p_identity_args;
     end if;
 
     -- 在 rename 前快照 public 入口的 EXECUTE 受眾（不得事後一律重開）
@@ -275,16 +276,19 @@ begin
       v_acl_source := v_public_oid;
     else
       raise exception
-        'install_maintenance_write_wrapper: impl exists but public.%(%) missing — refuse silent recreate',
-        p_name, p_identity_args;
+        'install_maintenance_write_wrapper: impl exists but public.% (%) missing — refuse silent recreate',
+        p_name,
+        p_identity_args;
     end if;
     v_grant_authenticated := has_function_privilege('authenticated', v_acl_source, 'EXECUTE');
     v_grant_service_role := has_function_privilege('service_role', v_acl_source, 'EXECUTE');
   end if;
 
   if v_impl_oid is null then
-    raise exception 'install_maintenance_write_wrapper: impl missing for %.%(%)',
-      p_name, p_identity_args;
+    raise exception
+      'install_maintenance_write_wrapper: impl missing for %.%',
+      p_name,
+      p_identity_args;
   end if;
 
   select p.oid,
