@@ -5,6 +5,9 @@
 
 create schema if not exists private;
 
+-- INVOKER 包裝函式需能呼叫 private.*_impl；表權限仍個別 revoke（見下）
+grant usage on schema private to authenticated, service_role, postgres;
+
 create table if not exists private.maintenance_access_control (
   id int primary key default 1 check (id = 1),
   enabled boolean not null default false,
@@ -358,6 +361,12 @@ begin
   execute format(
     'grant execute on function public.%I(%s) to authenticated, service_role',
     p_name,
+    v_identity
+  );
+  -- rename 後 grants 通常隨函式移動；再明示一次，避免 INVOKER 路徑缺權
+  execute format(
+    'grant execute on function private.%I(%s) to authenticated, service_role',
+    v_impl_name,
     v_identity
   );
 end;

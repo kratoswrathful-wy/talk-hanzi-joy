@@ -210,6 +210,29 @@ begin
     raise exception 'member after disable should hit role auth, got %', v_result;
   end if;
 
+  -- 啟用狀態必須可觀測：enabled=true 且非 allowlist allowed=false（不可把「查不到」當已停寫完成）
+  perform private.maintenance_set_enabled(true, v_pm);
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_member::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_gate := public.maintenance_write_gate();
+  reset role;
+  if (v_gate->>'enabled')::boolean is not true then
+    raise exception 'ops must observe enabled=true before declaring write-stop';
+  end if;
+  if (v_gate->>'allowed')::boolean is not false then
+    raise exception 'ops must not treat non-allowlist as allowed';
+  end if;
+  -- 模擬「閘門不可用」語意：Edge 見 rpcError 須 503；此處以 enabled 觀測契約對齊
+  if v_gate ? 'ok' and (v_gate->>'ok')::boolean is true and (v_gate->>'allowed')::boolean is true
+     and (v_gate->>'enabled')::boolean is true then
+    raise exception 'contradictory gate payload';
+  end if;
+  perform private.maintenance_set_enabled(false, v_pm);
+
   -- PM 在停用後仍可寫（合法流程恢復）
   perform set_config(
     'request.jwt.claims',
