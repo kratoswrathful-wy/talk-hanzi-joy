@@ -9,12 +9,19 @@
 - **功能對照**：[`docs/CODEMAP.md`](CODEMAP.md)。
 - **環境變數（`.env`）**：複製 [`.env.example`](../.env.example) 為 `.env` 自行填入；`.env` 已不再進版控（2026-07-07 起，先前誤加入曾導致本機憑證被 Git 操作清空）。Playwright 本機測試帳密建議另放 `.env.playwright.local`。**禁止整檔覆寫使用者本機 `.env`**，規則見 [`AGENTS.md`](../AGENTS.md)「本機 `.env`」章節與 [`.cursor/rules/architecture.mdc`](../.cursor/rules/architecture.mdc) §9。
 
-## 目前狀態（2026-05-05；句段順序／紀錄 2026-05-07 補充）
+## 目前狀態（2026-09-06 Gate 2 開站後）
 
-### TMS 本體
+- **正式 deployment**：`dpl_4Zc3teyF23yWZ4cPhd5yvatdNGMz`（來源 commit `bbfa5cb39743ae3f71fdce02930bfed2502d76d8`）。
+- **權威結案清單**：[`docs/GATE2_FINAL_WINDOW_CHECKLIST_2026-09.md`](GATE2_FINAL_WINDOW_CHECKLIST_2026-09.md)。
+- **`origin/main` 仍為** `724eb886`（未含本次正式 P0／ACL）；後續小修自正式來源開分支，main 收斂另案。
+- **下一功能（進行中）**：案件總表「工作類型」選單鍵修正（選項 `taskType`；值仍 `workType`）。功能計畫見 [`docs/plans/2026-07-18_table-interaction-filter-perm-plan.md`](plans/2026-07-18_table-interaction-filter-perm-plan.md) §0。
+
+### TMS 本體（既有）
 
 - 案件／客戶／發票／內部註記等既有流程持續維運。
 - **CAT 內嵌頁** [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)：與 iframe 之 `postMessage`（指派、`TMS_ASSIGNMENTS`、句段集指派 `viewAssignments`、`CAT_VIEW_ASSIGNMENT_STATUS` 等）。
+
+## 目前狀態（歷史摘要 2026-05；細節仍有效）
 
 ### CAT 工具（團隊線上模式）
 
@@ -27,15 +34,18 @@
 
 ## 待實作（建議優先序）
 
-1. **離線句段集**：[`docs/CAT_VIEW_SPEC.md`](CAT_VIEW_SPEC.md) §2.2 — Dexie `views`、本機建立／開啟／同步。
-2. **協作房間（句段集）**：同檔 §14 — `roomType` + `roomId`、`CAT_COLLAB_*` payload、`viewId` 房。
-3. **建立句段集精靈步驟二／可選預覽**：§5.2 — 進階篩選列 + 唯讀格線預覽；**可選預覽**與分階段順序見 [`CAT_VIEW_CREATE_ROADMAP.md`](CAT_VIEW_CREATE_ROADMAP.md)。
-4. **§10 檢查清單**：逐項對齊程式後勾選；與程式分歧時以 PR 說明為準。
+1. **案件總表工作類型選單鍵**（進行中）：選項來源 `taskType`；值仍 `workType`。見 [`plans/2026-07-18_table-interaction-filter-perm-plan.md`](plans/2026-07-18_table-interaction-filter-perm-plan.md) §0。
+2. **離線句段集**：[`docs/CAT_VIEW_SPEC.md`](CAT_VIEW_SPEC.md) §2.2 — Dexie `views`、本機建立／開啟／同步。
+3. **協作房間（句段集）**：同檔 §14 — `roomType` + `roomId`、`CAT_COLLAB_*` payload、`viewId` 房。
+4. **建立句段集精靈步驟二／可選預覽**：§5.2 — 進階篩選列 + 唯讀格線預覽；**可選預覽**與分階段順序見 [`CAT_VIEW_CREATE_ROADMAP.md`](CAT_VIEW_CREATE_ROADMAP.md)。
+5. **§10 檢查清單**：逐項對齊程式後勾選；與程式分歧時以 PR 說明為準。
 
 ## 關鍵文件對照
 
 | 主題 | 規格／索引 | 開發記錄 |
 |------|------------|----------|
+| Gate 2 開站結案 | [`GATE2_FINAL_WINDOW_CHECKLIST_2026-09.md`](GATE2_FINAL_WINDOW_CHECKLIST_2026-09.md) | — |
+| 表格互動／工作類型選單 | [`plans/2026-07-18_table-interaction-filter-perm-plan.md`](plans/2026-07-18_table-interaction-filter-perm-plan.md) | — |
 | 句段集 | [`CAT_VIEW_SPEC.md`](CAT_VIEW_SPEC.md)（§4 涉及檔案折疊；§5.2.1 可選預覽） | [`CAT第四波主記錄.md`](CAT第四波主記錄.md) §八、**§八點六**；建立／預覽 roadmap：[`CAT_VIEW_CREATE_ROADMAP.md`](CAT_VIEW_CREATE_ROADMAP.md) |
 | CAT 第四波（TM 游標、協作鎖等） | 主計畫鏡像 `docs/mirror/…` | [`CAT第四波主記錄.md`](CAT第四波主記錄.md) §一～§七；**§九點五**（匯入後語言對提示、mqxliff `default_mq_role` 與專案清單） |
 | 路徑與檔案 | [`CODEMAP.md`](CODEMAP.md) | — |

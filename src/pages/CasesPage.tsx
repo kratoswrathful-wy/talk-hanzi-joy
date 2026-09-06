@@ -54,6 +54,7 @@ import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSing
 import { toast } from "@/hooks/use-toast";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
+import { caseTableSelectFieldKey } from "@/lib/case-table-select-field-keys";
 
 function getTodayYYMMDD(): string {
   const now = new Date();
@@ -339,7 +340,7 @@ const allColumnDefs: ColumnDef[] = [
     label: "工作類型",
     minWidth: 120,
     render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={c.workType} type="multiColorSelect" fieldKey="workType" editable={editable} onCommit={(v) => onCommit("workType", v)}>
+      <InlineEditCell value={c.workType} type="multiColorSelect" fieldKey={caseTableSelectFieldKey("workType")} editable={editable} onCommit={(v) => onCommit("workType", v)}>
         <WorkTypeLabels values={c.workType} />
       </InlineEditCell>
     ),
