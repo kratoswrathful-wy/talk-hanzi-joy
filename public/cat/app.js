@@ -3385,13 +3385,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const byFile = {};
         await Promise.all(ids.map(async (fid) => {
             try {
-                let stages = await DBService.getFileWorkflowStages(fid);
-                if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                const existing = await DBService.getFileWorkflowStages(fid);
+                const plan = (window.CatWorkflowContextLoad && window.CatWorkflowContextLoad.resolveWorkflowStagesLoadPlan)
+                    ? window.CatWorkflowContextLoad.resolveWorkflowStagesLoadPlan({
+                        isTeamMode: isTeamMode(),
+                        existingStages: existing,
+                    })
+                    : { action: (existing && existing.length) ? 'use_existing' : (isTeamMode() ? 'empty_ok' : 'ensure_local'), stages: existing || [] };
+                let stages = [];
+                if (plan.action === 'use_existing') stages = plan.stages || existing || [];
+                else if (plan.action === 'ensure_local') stages = await DBService.ensureFileWorkflowStages(fid);
                 const assignments = await DBService.listStageAssignmentsForFile(fid);
                 byFile[fid] = { stages: stages || [], assignments: assignments || [] };
             } catch (e) {
                 console.warn('[workflow] meta', fid, e);
-                byFile[fid] = { stages: [], assignments: [] };
+                byFile[fid] = { stages: [], assignments: [], loadError: true };
             }
         }));
         return byFile;
@@ -5971,50 +5979,129 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function _loadFileWorkflowContext(fileId, opts) {
         _fullListLineNoBySegId = {};
         window._currentFileWorkflowStagesByFileId = {};
+        window._currentFileWorkflowLoadState = 'loading';
+        window._currentFileWorkflowLoadedFileId = null;
+        const requestFileId = fileId != null ? String(fileId) : null;
+        window._wfFileContextLoadSeq = (window._wfFileContextLoadSeq || 0) + 1;
+        const mySeq = window._wfFileContextLoadSeq;
         let stages = [];
         let assignments = [];
         const loadLineNoCache = !opts || opts.loadLineNoCache !== false;
+        const helper = window.CatWorkflowContextLoad;
         try {
-            stages = await DBService.ensureFileWorkflowStages(fileId);
+            const existing = await DBService.getFileWorkflowStages(fileId);
+            const plan = (helper && helper.resolveWorkflowStagesLoadPlan)
+                ? helper.resolveWorkflowStagesLoadPlan({
+                    isTeamMode: isTeamMode(),
+                    existingStages: existing,
+                })
+                : { action: (existing && existing.length) ? 'use_existing' : (isTeamMode() ? 'empty_ok' : 'ensure_local'), stages: existing || [] };
+            if (plan.action === 'use_existing') {
+                stages = plan.stages || existing || [];
+            } else if (plan.action === 'ensure_local') {
+                stages = await DBService.ensureFileWorkflowStages(fileId);
+            } else {
+                stages = [];
+            }
             assignments = await DBService.listStageAssignmentsForFile(fileId);
             if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fileId);
+            const applyOk = !helper || !helper.shouldApplyWorkflowLoadResult
+                || helper.shouldApplyWorkflowLoadResult({
+                    requestSeq: mySeq,
+                    latestSeq: window._wfFileContextLoadSeq,
+                    expectedFileId: requestFileId,
+                    resultFileId: requestFileId,
+                });
+            if (!applyOk) {
+                return { stages: [], assignments: [], loadState: 'loading', stale: true };
+            }
+            window._currentFileWorkflowLoadState =
+                (helper && helper.classifyWorkflowLoadState)
+                    ? helper.classifyWorkflowLoadState({ stages })
+                    : ((stages && stages.length) ? 'ready' : 'empty');
+            window._currentFileWorkflowLoadedFileId = requestFileId;
         } catch (wfErr) {
             console.warn('[workflow] loadFileWorkflowContext', wfErr);
+            const applyOk = !helper || !helper.shouldApplyWorkflowLoadResult
+                || helper.shouldApplyWorkflowLoadResult({
+                    requestSeq: mySeq,
+                    latestSeq: window._wfFileContextLoadSeq,
+                    expectedFileId: requestFileId,
+                    resultFileId: requestFileId,
+                });
+            if (!applyOk) {
+                return { stages: [], assignments: [], loadState: 'loading', stale: true };
+            }
+            window._currentFileWorkflowLoadState = 'error';
+            window._currentFileWorkflowLoadedFileId = requestFileId;
+            stages = [];
+            assignments = [];
         }
         window._currentFileWorkflowStages = stages;
         window._currentFileStageAssignments = assignments;
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
         if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
-        return { stages, assignments };
+        return { stages, assignments, loadState: window._currentFileWorkflowLoadState };
     }
 
     async function _loadViewWorkflowContext(fileIds, viewSegmentIds) {
         _fullListLineNoBySegId = {};
+        window._currentViewWorkflowLoadState = 'loading';
+        window._wfViewContextLoadSeq = (window._wfViewContextLoadSeq || 0) + 1;
+        const mySeq = window._wfViewContextLoadSeq;
         const ids = [...new Set((fileIds || []).map(String).filter(Boolean))];
         const stagesByFile = {};
         const allAssigns = [];
+        const helper = window.CatWorkflowContextLoad;
+        let hadError = false;
         await Promise.all(ids.map(async (fid) => {
             try {
-                let stages = await DBService.getFileWorkflowStages(fid);
-                if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                const existing = await DBService.getFileWorkflowStages(fid);
+                const plan = (helper && helper.resolveWorkflowStagesLoadPlan)
+                    ? helper.resolveWorkflowStagesLoadPlan({
+                        isTeamMode: isTeamMode(),
+                        existingStages: existing,
+                    })
+                    : { action: (existing && existing.length) ? 'use_existing' : (isTeamMode() ? 'empty_ok' : 'ensure_local'), stages: existing || [] };
+                let stages = [];
+                if (plan.action === 'use_existing') stages = plan.stages || existing || [];
+                else if (plan.action === 'ensure_local') stages = await DBService.ensureFileWorkflowStages(fid);
                 stagesByFile[fid] = stages || [];
                 const assigns = await DBService.listStageAssignmentsForFile(fid);
                 allAssigns.push(...(assigns || []));
             } catch (e) {
                 console.warn('[workflow] loadViewWorkflowContext', fid, e);
                 stagesByFile[fid] = [];
+                hadError = true;
             }
         }));
+        const applyOk = !helper || !helper.shouldApplyWorkflowLoadResult
+            || helper.shouldApplyWorkflowLoadResult({
+                requestSeq: mySeq,
+                latestSeq: window._wfViewContextLoadSeq,
+                expectedFileId: null,
+                resultFileId: null,
+            });
+        if (!applyOk) {
+            return { stale: true, loadState: 'loading' };
+        }
         if (_currentViewId && Array.isArray(viewSegmentIds) && viewSegmentIds.length) {
             _buildFullListLineNoCacheForView(viewSegmentIds);
         } else {
             await Promise.all(ids.map((fid) => _buildFullListLineNoCacheForFile(fid)));
         }
+        // view context 自管狀態，不沿用單檔 _currentFileWorkflowStages
         window._currentFileWorkflowStagesByFileId = stagesByFile;
         window._currentFileStageAssignments = allAssigns;
         window._currentFileWorkflowStages = [];
+        window._currentFileWorkflowLoadedFileId = null;
+        const anyStages = Object.values(stagesByFile).some((s) => Array.isArray(s) && s.length > 0);
+        window._currentViewWorkflowLoadState = hadError
+            ? 'error'
+            : (anyStages ? 'ready' : 'empty');
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
         if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
+        return { loadState: window._currentViewWorkflowLoadState, stagesByFile };
     }
 
     function _getStagesForAssignment(a) {
@@ -6658,10 +6745,46 @@ document.addEventListener('DOMContentLoaded', async () => {
             + `</select>`;
     }
 
+    function _renderWfAdjustStatusModalBody(loadState) {
+        const modal = document.getElementById('wfAdjustStatusModal');
+        const list = document.getElementById('wfAdjustStatusList');
+        const bulk = document.getElementById('wfAdjustBulkBar');
+        const confirmBtn = document.getElementById('btnWfAdjustStatusConfirm');
+        if (!modal || !list) return;
+        const helper = window.CatWorkflowContextLoad;
+        const state = loadState || window._currentFileWorkflowLoadState || 'loading';
+        const canOperate = helper && helper.canOperateWorkflowContext
+            ? helper.canOperateWorkflowContext({
+                loadState: state,
+                expectedFileId: currentFileId != null ? String(currentFileId) : null,
+                loadedFileId: window._currentFileWorkflowLoadedFileId,
+            })
+            : (state === 'ready' || state === 'empty');
+        if (confirmBtn) confirmBtn.disabled = !canOperate || state === 'empty' || state === 'error' || state === 'loading';
+        if (bulk) bulk.innerHTML = '';
+        if (state === 'loading') {
+            list.innerHTML = '<div style="padding:0.5rem;color:#64748b;font-size:0.84rem;">載入工作階段中…</div>';
+            return;
+        }
+        if (state === 'error') {
+            list.innerHTML = '<div style="padding:0.5rem;color:#b91c1c;font-size:0.84rem;">載入工作階段失敗。請關閉後重試；載入失敗時不可套用舊檔狀態。</div>';
+            return;
+        }
+        if (state === 'empty') {
+            const msg = (helper && helper.emptyWorkflowStagesUserMessage)
+                ? helper.emptyWorkflowStagesUserMessage({ isTeamMode: isTeamMode() })
+                : '目前沒有工作階段。';
+            list.innerHTML = `<div style="padding:0.5rem;color:#64748b;font-size:0.84rem;">${String(msg).replace(/</g, '&lt;')}</div>`;
+            return;
+        }
+        _openWfAdjustStatusModal();
+    }
+
     function _openWfAdjustStatusModal() {
         const modal = document.getElementById('wfAdjustStatusModal');
         const list = document.getElementById('wfAdjustStatusList');
         const bulk = document.getElementById('wfAdjustBulkBar');
+        const confirmBtn = document.getElementById('btnWfAdjustStatusConfirm');
         if (!modal || !list) return;
         const stages = window._currentFileWorkflowStages || [];
         const hasTranslateStage = stages.some((s) => s.stageKind === 'translate');
@@ -6741,6 +6864,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         list.innerHTML = parts.join('')
             || '<div style="padding:0.5rem;color:#64748b;font-size:0.84rem;">目前沒有可調整的段落</div>';
+        if (confirmBtn) confirmBtn.disabled = false;
         modal.classList.remove('hidden');
     }
 
@@ -6919,9 +7043,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _pmApplySplitAdjustStatus() {
         if (_pmAdjustApplyInFlight) return;
+        const helper = window.CatWorkflowContextLoad;
+        const loadState = window._currentFileWorkflowLoadState || window._currentViewWorkflowLoadState;
+        if (helper && helper.canOperateWorkflowContext
+            && !helper.canOperateWorkflowContext({
+                loadState,
+                expectedFileId: currentFileId != null ? String(currentFileId) : null,
+                loadedFileId: window._currentFileWorkflowLoadedFileId,
+            })) {
+            if (loadState === 'loading') {
+                showCatToast('工作階段載入中，請稍候再套用', 'info');
+            } else {
+                showCatToast('工作階段載入失敗或已切換檔案，無法套用舊狀態', 'error');
+            }
+            return;
+        }
+        if (loadState === 'loading') {
+            showCatToast('工作階段載入中，請稍候再套用', 'info');
+            return;
+        }
+        if (loadState === 'error') {
+            showCatToast('工作階段載入失敗，請重新整理後再試', 'error');
+            return;
+        }
         const selects = [...document.querySelectorAll('#wfAdjustStatusList .wf-adjust-row-status')];
         if (!selects.length) {
-            showCatToast('目前沒有可調整的段落', 'info');
+            if (loadState === 'empty') {
+                const msg = (helper && helper.emptyWorkflowStagesUserMessage)
+                    ? helper.emptyWorkflowStagesUserMessage({ isTeamMode: isTeamMode() })
+                    : '目前沒有工作階段資料（非載入失敗時才可建立）';
+                showCatToast(msg, 'info');
+            } else {
+                showCatToast('目前沒有可調整的段落', 'info');
+            }
             return;
         }
         const fileId = currentFileId != null ? String(currentFileId) : null;
@@ -7156,7 +7310,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         closeWfTaskCompleteDropdown();
-        _openWfAdjustStatusModal();
+        const modal = document.getElementById('wfAdjustStatusModal');
+        if (modal) modal.classList.remove('hidden');
+        _renderWfAdjustStatusModalBody('loading');
+        const fileId = currentFileId;
+        if (fileId != null) {
+            const result = await _loadFileWorkflowContext(fileId, { loadLineNoCache: false });
+            if (result && result.stale) return;
+            if (currentFileId != null && String(currentFileId) !== String(fileId)) return;
+            _renderWfAdjustStatusModalBody(result?.loadState || window._currentFileWorkflowLoadState);
+            return;
+        }
+        _renderWfAdjustStatusModalBody(window._currentViewWorkflowLoadState || 'empty');
     }
 
     function _bindWfTaskCompleteUiOnce() {
