@@ -502,8 +502,7 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     }, { timeout: 60_000 });
     const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
     await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
-    const dismiss = page.getByRole("button", { name: "確定" });
-    if (await dismiss.isVisible().catch(() => false)) await dismiss.click();
+    await page.keyboard.press("Escape");
 
     await page.unroute("**/rest/v1/rpc/update_case_credentials");
     const filled = await page.evaluate(async ({ cid, toolEntry, toolLabel }) => {
@@ -536,7 +535,7 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     });
 
     await page.getByTestId("retry-duplicate-tools").click();
-    await expect(page.getByTestId("duplicate-tools-conflict")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("新案工具已與待補寫內容不同")).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY)).toMatchObject({
       "f-server": "user-filled.local",
     });
