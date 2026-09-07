@@ -3,7 +3,7 @@
 -- 維護寫入閘門：新 RPC 以 install_maintenance_write_wrapper 包裝；
 -- private.*_impl 不對 authenticated 開放。
 
--- ── 1) 單檔派出閘門：inquiry/其他 → dispatched 須已有 active translator participant ──
+-- ── 1) 單檔派出閘門（交易結束時檢查，允許同交易內先 UPDATE status 再 INSERT participant）──
 create or replace function private.assert_single_dispatch_has_translator()
 returns trigger
 language plpgsql
@@ -12,16 +12,17 @@ set search_path = pg_catalog
 as $$
 begin
   if tg_op <> 'UPDATE' then
-    return new;
+    return null;
   end if;
   if new.status is distinct from 'dispatched' then
-    return new;
+    return null;
   end if;
+  -- 僅在「進入 dispatched」時檢查；已在 dispatched 的後續更新不重驗。
   if old.status is not distinct from 'dispatched' then
-    return new;
+    return null;
   end if;
   if coalesce(new.multi_collab, false) then
-    return new;
+    return null;
   end if;
   if not exists (
     select 1
@@ -35,7 +36,7 @@ begin
       errcode = '22023',
       message = 'dispatch_requires_active_translator_participant';
   end if;
-  return new;
+  return null;
 end;
 $$;
 
@@ -43,13 +44,15 @@ revoke all on function private.assert_single_dispatch_has_translator()
   from public, anon, authenticated;
 
 drop trigger if exists trg_assert_single_dispatch_has_translator on public.cases;
-create trigger trg_assert_single_dispatch_has_translator
-  before update of status on public.cases
+-- CONSTRAINT + DEFERRABLE：在交易 commit 前檢查，不擋同交易中間態。
+create constraint trigger trg_assert_single_dispatch_has_translator
+  after update of status on public.cases
+  deferrable initially deferred
   for each row
   execute function private.assert_single_dispatch_has_translator();
 
 comment on function private.assert_single_dispatch_has_translator() is
-  '單檔案件轉 dispatched 前必須已有 active translator participant；禁止僅顯示名派出。';
+  '單檔案件轉 dispatched 時（交易結束）必須已有 active translator participant；禁止僅顯示名派出。';
 
 -- ── 2) PM／executive 代完成（不插入假 translator participant）──
 create or replace function public.pm_complete_case_translation(
@@ -140,14 +143,17 @@ grant execute on function public.pm_complete_case_translation(uuid, bigint)
 comment on function public.pm_complete_case_translation(uuid, bigint) is
   'PM／executive 代完成單檔翻譯任務；audit actor 為管理者；不建立假 translator participant。';
 
--- 包裝進維護寫入閘門（若環境尚未安裝 wrapper 函式則略過，待 Gate2 ACL migration 後再裝）
+-- 包裝進維護寫入閘門：缺少前置時必須失敗，不可靜默略過卻標示已保護
 do $$
 begin
-  if to_regprocedure('private.install_maintenance_write_wrapper(text, text)') is not null then
-    perform private.install_maintenance_write_wrapper(
-      'pm_complete_case_translation',
-      'uuid, bigint'
-    );
+  if to_regprocedure('private.install_maintenance_write_wrapper(text, text)') is null then
+    raise exception using
+      errcode = 'P0001',
+      message = 'maintenance_wrapper_missing: install_maintenance_write_wrapper required before pm_complete_case_translation';
   end if;
+  perform private.install_maintenance_write_wrapper(
+    'pm_complete_case_translation',
+    'uuid, bigint'
+  );
 end;
 $$;
