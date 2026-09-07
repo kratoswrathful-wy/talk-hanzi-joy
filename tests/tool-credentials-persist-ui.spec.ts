@@ -275,28 +275,6 @@ async function typeAndBlur(page: Page, testId: string, value: string) {
 }
 
 /**
- * 確認窗蓋住欄位時，仍對實際 textarea 送 input／blur，讓 IMESafeInput 走 onSave。
- * 不用固定 sleep；回傳值是該 DOM 欄位當下的 value。
- */
-async function commitFieldBehindDialog(page: Page, testId: string, value: string) {
-  const written = await page.evaluate(({ id, v }) => {
-    const el = document.querySelector(`[data-testid="${id}"]`);
-    if (!(el instanceof HTMLTextAreaElement) && !(el instanceof HTMLInputElement)) return "";
-    const proto = el instanceof HTMLTextAreaElement
-      ? HTMLTextAreaElement.prototype
-      : HTMLInputElement.prototype;
-    const desc = Object.getOwnPropertyDescriptor(proto, "value");
-    if (!desc?.set) return el.value;
-    desc.set.call(el, v);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
-    return el.value;
-  }, { id: testId, v: value });
-  expect(written, `確認窗開啟後必須改到實際欄位 ${testId}`).toBe(value);
-}
-
-/**
  * 攔住 `update_case_credentials`：第一筆請求先掛住，回傳 release()。
  * 用來確定性重現「前一筆保存仍在進行時修改下一欄」，不使用固定 sleep。
  */
@@ -616,7 +594,14 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     await expect(page.getByRole("heading", { name: "套用範本確定" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("模板附註")).toBeVisible();
 
-    await commitFieldBehindDialog(page, "tool-project", "project-after-dialog");
+    // 遮罩擋住點擊，但不關確認窗：讓實際專案欄走 fill＋blur＋onSave
+    const overlay = page.locator("[data-radix-alert-dialog-overlay]");
+    if (await overlay.count()) {
+      await overlay.evaluate((el) => {
+        (el as HTMLElement).style.pointerEvents = "none";
+      });
+    }
+    await typeAndBlur(page, "tool-project", "project-after-dialog");
     await page.getByRole("button", { name: "確定套用" }).click();
 
     gate.release();
