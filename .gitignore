@@ -43,6 +43,9 @@ supabase/.temp/
 # 遷移用個資 CSV（若不需要版本控制可保留此行）
 scripts/profiles-migrate-users.csv
 
+# P0-A0 唯讀盤點完整報告（含案件／使用者 UUID，禁止進 Git）
+scripts/.cache/
+
 # 本機預覽／臨時 HTML（勿進 Git）
 downloads/
 

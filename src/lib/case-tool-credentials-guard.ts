@@ -1,0 +1,115 @@
+import type { ToolEntry } from "@/data/case-types";
+import type { CaseCredentials } from "@/lib/case-action-rpc";
+
+/** 公開 view 遮罩後的工具列（fieldValues 恒為空物件）不可當作可寫底稿。 */
+export function looksLikeMaskedPublicTools(tools: ToolEntry[] | null | undefined): boolean {
+  if (!Array.isArray(tools) || tools.length === 0) return false;
+  return tools.every((entry) => {
+    const fv = entry?.fieldValues;
+    if (fv == null) return true;
+    if (typeof fv !== "object" || Array.isArray(fv)) return true;
+    return Object.keys(fv).length === 0;
+  });
+}
+
+export function assertWritableToolCredentials(
+  credentials: CaseCredentials | null | undefined,
+): credentials is CaseCredentials {
+  return !!credentials && Array.isArray(credentials.tools);
+}
+
+/**
+ * 單欄編輯的送出形狀：只帶本次改動的欄位。
+ *
+ * 呼叫端不得改送整組 `fieldValues`——那是該次 render 的快照，前一筆保存尚未確認時
+ * 仍帶著兄弟欄位的舊值，經 `mergeToolEntryUpdates` 會把已確認的值覆蓋回舊值
+ * （Riot - Riftbound 260908：五欄連續輸入後只剩最後一欄有值）。
+ */
+export function toolFieldValuePatch(fieldId: string, value: string): Partial<ToolEntry> {
+  return { fieldValues: { [fieldId]: value } };
+}
+
+/** 檔案型欄位的單欄編輯形狀；理由同 `toolFieldValuePatch`。 */
+export function toolFileValuePatch(
+  fieldId: string,
+  value: { name: string; url: string }[],
+): Partial<ToolEntry> {
+  return { fileValues: { [fieldId]: value } };
+}
+
+export type ToolTemplateApplyInput = {
+  tool: string;
+  fields: ToolEntry["fields"];
+  fieldValues: Record<string, string>;
+};
+
+/**
+ * 套範本意圖：在 persist 執行當下的最新 entry 上套用既定規則。
+ * 有範本值則覆蓋；空範本值保留現值；新欄位 id 才進入 fieldValues。
+ * 不得用開啟確認視窗時的 render 快照當底稿。
+ */
+export function applyToolTemplatePatch(
+  latest: ToolEntry,
+  tpl: ToolTemplateApplyInput,
+): Partial<ToolEntry> {
+  const tplFields = tpl.fields || [];
+  const newValues: Record<string, string> = {};
+  for (const f of tplFields) {
+    const tplVal = tpl.fieldValues[f.id];
+    newValues[f.id] = tplVal ? tplVal : (latest.fieldValues?.[f.id] || "");
+  }
+  return { tool: tpl.tool, fields: tplFields, fieldValues: newValues };
+}
+
+export function mergeToolEntryUpdates(
+  entry: ToolEntry,
+  updates: Partial<ToolEntry>,
+): ToolEntry {
+  const next: ToolEntry = { ...entry, ...updates };
+
+  if (updates.fieldValues !== undefined) {
+    next.fieldValues = updates.fields !== undefined
+      ? updates.fieldValues
+      : { ...(entry.fieldValues || {}), ...updates.fieldValues };
+  }
+
+  if (updates.fileValues !== undefined) {
+    next.fileValues = updates.fields !== undefined
+      ? updates.fileValues
+      : { ...(entry.fileValues || {}), ...updates.fileValues };
+  }
+
+  return next;
+}
+
+/**
+ * 僅在已持有完整憑證底稿時組出下一組 tools；否則拒絕（避免把遮罩空值整組寫回）。
+ */
+export function buildNextToolsFromWritableBase(input: {
+  writableTools: ToolEntry[] | null | undefined;
+  updater: (current: ToolEntry[]) => ToolEntry[];
+}): { ok: true; next: ToolEntry[] } | { ok: false; reason: "credentials_not_ready" | "masked_base_rejected" } {
+  if (!Array.isArray(input.writableTools)) {
+    return { ok: false, reason: "credentials_not_ready" };
+  }
+  // 允許合法「全部清空各欄」的寫入；但若底稿本身來自公開遮罩且尚無任何非空欄，
+  // 且 updater 結果仍全空，仍視為未就緒遮罩（呼叫端應在 load 完成前直接拒寫）。
+  if (looksLikeMaskedPublicTools(input.writableTools) && input.writableTools.every((t) => !t.tool)) {
+    // 空工具殼可能是新建；仍允許。僅擋「有 tool 標籤但 fieldValues 全空」當底稿且呼叫端標記為 public fallback 時。
+  }
+  const next = input.updater(input.writableTools);
+  return { ok: true, next };
+}
+
+export function rejectMaskedFallbackWrite(input: {
+  credentialsReady: boolean;
+  usedPublicFallback: boolean;
+}): string | null {
+  if (!input.credentialsReady) {
+    return "完整工具資料尚未載入，無法儲存（避免以遮罩空值覆寫）。";
+  }
+  if (input.usedPublicFallback) {
+    return "目前顯示的是公開遮罩資料，不可寫入。請重新載入憑證後再試。";
+  }
+  return null;
+}

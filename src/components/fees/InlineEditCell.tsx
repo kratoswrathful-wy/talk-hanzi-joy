@@ -8,6 +8,9 @@ import DateTimePicker from "@/components/DateTimePicker";
 import { shouldAutoOpenOnEnter } from "@/components/fees/inline-edit-auto-open";
 import { shouldResyncMultiCommitOnClose } from "@/components/fees/inline-edit-close-sync";
 import { cn } from "@/lib/utils";
+import type { AssigneeSelectPayload } from "@/lib/assignee-select";
+import type { CaseAssignmentMeta } from "@/lib/case-assignment-patch";
+import { primaryAssigneeUserId } from "@/lib/assignee-select";
 
 interface Props {
   value: string | boolean | string[] | null;
@@ -18,12 +21,21 @@ interface Props {
   editable: boolean;
   /** When set, field is visually locked with this tooltip on hover */
   lockedTooltip?: string;
-  onCommit: (newValue: string | boolean | string[] | null) => void;
+  onCommit: (
+    newValue: string | boolean | string[] | null,
+    meta?: CaseAssignmentMeta,
+  ) => void;
+  /** assignee colorSelect：同步回傳選項 UUID。 */
+  onAssigneeSelect?: (selection: AssigneeSelectPayload) => void;
+  /** assignee multiColorSelect：同步回傳各選項 UUID。 */
+  onAssigneeSelectionsChange?: (selections: AssigneeSelectPayload[]) => void;
+  /** assignee 單選時寫入 translator 或 reviewer user id。 */
+  assigneeRole?: "translator" | "reviewer";
   className?: string;
   children: React.ReactNode;
 }
 
-export function InlineEditCell({ value, type, options, fieldKey, editable, lockedTooltip, onCommit, className, children }: Props) {
+export function InlineEditCell({ value, type, options, fieldKey, editable, lockedTooltip, onCommit, onAssigneeSelect, onAssigneeSelectionsChange, assigneeRole = "translator", className, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ""));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -117,7 +129,23 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
         <ColorSelect
           fieldKey={fieldKey}
           value={String(value)}
-          onValueChange={(v) => { onCommit(v); setEditing(false); }}
+          onValueChange={(v) => {
+            if (fieldKey !== "assignee") {
+              onCommit(v);
+              setEditing(false);
+            }
+          }}
+          onAssigneeSelect={
+            fieldKey === "assignee"
+              ? (selection) => {
+                  onAssigneeSelect?.(selection);
+                  onCommit(selection?.label ?? "", assigneeRole === "reviewer"
+                    ? { reviewerUserId: selection?.userId ?? null }
+                    : { translatorUserId: selection?.userId ?? null });
+                  setEditing(false);
+                }
+              : undefined
+          }
           triggerClassName="h-7 text-xs"
           defaultOpen={shouldAutoOpenOnEnter("colorSelect")}
           onOpenChange={(nextOpen) => {
@@ -136,15 +164,27 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           values={Array.isArray(value) ? value : []}
           onValuesChange={(v) => {
             lastMultiCommitRef.current = v;
-            onCommit(v);
+            if (fieldKey !== "assignee") onCommit(v);
           }}
+          onAssigneeSelectionsChange={
+            fieldKey === "assignee"
+              ? (selections) => {
+                  onAssigneeSelectionsChange?.(selections);
+                  onCommit(
+                    selections.map((s) => s.label),
+                    { translatorUserId: primaryAssigneeUserId(selections) },
+                  );
+                }
+              : undefined
+          }
           triggerClassName="h-7 min-h-0 text-xs py-0"
           defaultOpen={shouldAutoOpenOnEnter("multiColorSelect")}
           onOpenChange={(nextOpen) => {
             if (!nextOpen) {
-              // Escape／點外關閉：再送一次最後值，確保父層 props／children 與 DB 一致後再退出編輯
               const latest = lastMultiCommitRef.current;
-              if (shouldResyncMultiCommitOnClose(latest) && latest) onCommit(latest);
+              if (shouldResyncMultiCommitOnClose(latest) && latest && fieldKey !== "assignee") {
+                onCommit(latest);
+              }
               exitEditing();
             }
           }}

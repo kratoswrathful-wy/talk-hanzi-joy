@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import { getEnvironment } from "@/lib/environment";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
 import { fetchEnabledCatAiModelOptions } from "@/lib/cat-ai-model-registry/list-registry-options";
 import { mapEnabledModelOptionsToRpc } from "@/lib/cat-ai-model-registry/rpc-enabled-models";
@@ -2449,28 +2450,20 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.assignView": {
       const { viewId, assigneeUserIds } = payload;
       if (!Array.isArray(assigneeUserIds) || assigneeUserIds.length === 0) return [];
-      const rows = assigneeUserIds.map((uid: string) => ({
-        view_id: viewId,
-        assignee_user_id: uid,
-        status: "assigned",
-        assigned_by: userId,
-        assigned_at: nowIso(),
-        updated_at: nowIso(),
-      }));
-      const { data, error } = await supabase
-        .from("cat_view_assignments" as any)
-        .upsert(rows as any, { onConflict: "view_id,assignee_user_id" })
-        .select("id");
+      const { data, error } = await supabase.rpc("cat_pm_assign_view" as never, {
+        p_view_id: viewId,
+        p_assignee_user_ids: assigneeUserIds,
+      } as never);
       if (error) throw error;
-      return (data ?? []).map((r: any) => r.id);
+      const ids = (data as { ids?: string[] } | null)?.ids;
+      return Array.isArray(ids) ? ids : [];
     }
     case "db.unassignView": {
       const { viewId, assigneeUserId } = payload;
-      const { error } = await supabase
-        .from("cat_view_assignments" as any)
-        .update({ status: "cancelled", updated_at: nowIso() } as any)
-        .eq("view_id", viewId)
-        .eq("assignee_user_id", assigneeUserId);
+      const { error } = await supabase.rpc("cat_pm_unassign_view" as never, {
+        p_view_id: viewId,
+        p_assignee_user_id: assigneeUserId,
+      } as never);
       if (error) throw error;
       return true;
     }
@@ -2503,11 +2496,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.updateViewAssignmentStatus": {
       const { assignmentId, status } = payload;
-      const { error } = await supabase
-        .from("cat_view_assignments" as any)
-        .update({ status, updated_at: nowIso() } as any)
-        .eq("id", assignmentId)
-        .eq("assignee_user_id", userId);
+      const { error } = await supabase.rpc("cat_update_view_assignment_status" as never, {
+        p_assignment_id: assignmentId,
+        p_status: status,
+      } as never);
       if (error) throw error;
       return true;
     }
@@ -2552,7 +2544,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     }
     case "db.upsertTranslateStageAssignment": {
       const p = payload.payload || {};
-      const { error } = await supabase.rpc("cat_upsert_translate_stage_assignment" as any, {
+      const { error } = await supabase.rpc("cat_pm_upsert_translate_stage_assignment" as never, {
         p_file_id: payload.fileId,
         p_assignee_user_id: p.assigneeUserId,
         p_collab_row_id: p.collabRowId ?? null,
@@ -2561,36 +2553,14 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         p_line_start: p.lineStart ?? null,
         p_line_end: p.lineEnd ?? null,
         p_workflow_status: p.workflowStatus ?? "assigned",
-      } as any);
+        p_assigned_by: p.assignedBy ?? null,
+      } as never);
       if (error) throw error;
-      if (p.assignedBy) {
-        const { data: stageRow } = await supabase
-          .from("cat_file_workflow_stages" as any)
-          .select("id")
-          .eq("file_id", payload.fileId)
-          .eq("stage_kind", "translate")
-          .maybeSingle();
-        const stageId = (stageRow as { id?: string } | null)?.id;
-        if (stageId) {
-          let q = supabase
-            .from("cat_stage_assignments" as any)
-            .update({ assigned_by: p.assignedBy, updated_at: new Date().toISOString() })
-            .eq("file_id", payload.fileId)
-            .eq("file_workflow_stage_id", stageId)
-            .eq("assignee_user_id", p.assigneeUserId);
-          if (p.lineStart == null) q = q.is("line_start", null);
-          else q = q.eq("line_start", p.lineStart);
-          if (p.lineEnd == null) q = q.is("line_end", null);
-          else q = q.eq("line_end", p.lineEnd);
-          const { error: abErr } = await q;
-          if (abErr) console.warn("[cat-cloud-rpc] translate assigned_by", abErr);
-        }
-      }
       return { ok: true };
     }
     case "db.upsertReviewStageAssignment": {
       const p = payload.payload || {};
-      const { error } = await supabase.rpc("cat_upsert_review_stage_assignment" as any, {
+      const { error } = await supabase.rpc("cat_pm_upsert_review_stage_assignment" as never, {
         p_file_id: payload.fileId,
         p_assignee_user_id: p.assigneeUserId,
         p_collab_row_id: p.collabRowId ?? null,
@@ -2599,43 +2569,19 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         p_line_start: p.lineStart ?? null,
         p_line_end: p.lineEnd ?? null,
         p_workflow_status: p.workflowStatus ?? "assigned",
-      } as any);
+        p_assigned_by: p.assignedBy ?? null,
+      } as never);
       if (error) throw error;
-      if (p.assignedBy) {
-        const { data: stageRow } = await supabase
-          .from("cat_file_workflow_stages" as any)
-          .select("id")
-          .eq("file_id", payload.fileId)
-          .eq("stage_kind", "review")
-          .maybeSingle();
-        const stageId = (stageRow as { id?: string } | null)?.id;
-        if (stageId) {
-          let q = supabase
-            .from("cat_stage_assignments" as any)
-            .update({ assigned_by: p.assignedBy, updated_at: new Date().toISOString() })
-            .eq("file_id", payload.fileId)
-            .eq("file_workflow_stage_id", stageId)
-            .eq("assignee_user_id", p.assigneeUserId);
-          if (p.lineStart == null) q = q.is("line_start", null);
-          else q = q.eq("line_start", p.lineStart);
-          if (p.lineEnd == null) q = q.is("line_end", null);
-          else q = q.eq("line_end", p.lineEnd);
-          const { error: abErr } = await q;
-          if (abErr) console.warn("[cat-cloud-rpc] review assigned_by", abErr);
-        }
-      }
       return { ok: true };
     }
     case "db.updateStageAssignmentWorkflowStatus": {
-      const { data, error } = await supabase
-        .from("cat_stage_assignments" as any)
-        .update({
-          workflow_status: payload.workflowStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", payload.assignmentId)
-        .select("*")
-        .single();
+      const { data, error } = await supabase.rpc(
+        "cat_update_stage_assignment_workflow_status" as never,
+        {
+          p_assignment_id: payload.assignmentId,
+          p_workflow_status: payload.workflowStatus,
+        } as never,
+      );
       if (error) throw error;
       return mapStageAssignmentRow(data);
     }
@@ -2650,15 +2596,13 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return mapStageAssignmentRow(row);
     }
     case "db.updateFileWorkflowStageStatus": {
-      const { data, error } = await supabase
-        .from("cat_file_workflow_stages" as any)
-        .update({
-          status: payload.status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", payload.stageId)
-        .select("*")
-        .single();
+      const { data, error } = await supabase.rpc(
+        "cat_pm_update_file_workflow_stage_status" as never,
+        {
+          p_stage_id: payload.stageId,
+          p_status: payload.status,
+        } as never,
+      );
       if (error) throw error;
       return mapFileWorkflowStageRow(data);
     }
@@ -2917,6 +2861,19 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const collabRows = Array.isArray(payload.collabRows) ? payload.collabRows : null;
       const reviewRows = Array.isArray(payload.reviewRows) ? payload.reviewRows : null;
       if (!caseId || !collabRows) return { ok: false, error: "missing caseId or collabRows" };
+      const env = getEnvironment();
+      const { data: caseRow, error: caseFetchErr } = await supabase
+        .from("cases_visible")
+        .select("revision")
+        .eq("id", caseId)
+        .eq("env", env)
+        .maybeSingle();
+      if (caseFetchErr) return { ok: false, error: caseFetchErr.message };
+      if (!caseRow) return { ok: false, error: "case not found" };
+      const expectedRevision =
+        typeof (caseRow as { revision?: number }).revision === "number"
+          ? (caseRow as { revision: number }).revision
+          : 0;
       const casePatch: Record<string, unknown> = { collab_rows: collabRows, updated_at: nowIso() };
       if (reviewRows) {
         casePatch.review_rows = reviewRows;
@@ -2929,7 +2886,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ];
         casePatch.reviewer = names.join("、");
       }
-      const { error: updErr } = await applyCaseUpdate(supabase, caseId, casePatch);
+      const { error: updErr } = await pmUpdateCaseAssignments(
+        supabase,
+        caseId,
+        casePatch,
+        expectedRevision,
+      );
       if (updErr) return { ok: false, error: updErr.message };
       const report = await syncCatWorkflowAssignmentsForCase(supabase, caseId);
       return {

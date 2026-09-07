@@ -27,8 +27,9 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
-import { caseStore } from "@/hooks/use-case-store";
-import type { CaseDuplicateSort } from "@/stores/case-store";
+import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
+import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
+import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
   DEFAULT_DUPLICATE_SORT,
@@ -40,8 +41,8 @@ import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, 
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions, getStatusLabelStyle, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment, CollabRow, DeclineRecord } from "@/data/case-types";
-import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
+import ColorSelect from "@/components/ColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField, { type FileItem } from "@/components/FileField";
@@ -88,7 +89,16 @@ import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
 import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
-import { resolveActorDisplayName } from "@/lib/actor-display-name";
+import { caseCredentialAccess } from "@/lib/case-credential-store";
+import type { CaseCredentials } from "@/lib/case-action-rpc";
+import { CredentialLoadStaleError } from "@/lib/case-credential-access";
+import {
+  applyToolEntryFieldPatch,
+  applyToolEntryFieldPatchById,
+  isPersistResultCurrent,
+  persistToolBlockPatch,
+} from "@/lib/case-tool-credentials-persist";
+import { applyToolTemplatePatch, toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -287,18 +297,27 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
 }) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
+  const localRef = useRef(value);
+  localRef.current = local;
 
   useEffect(() => {
-    if (!focused) setLocal(value);
+    if (!focused) {
+      localRef.current = value;
+      setLocal(value);
+    }
   }, [value, focused]);
 
   return (
     <MultilineInput
       value={local}
-      onChange={(e) => setLocal(e.target.value)}
+      onChange={(e) => {
+        localRef.current = e.target.value;
+        setLocal(e.target.value);
+      }}
       onBlur={() => {
         setFocused(false);
-        if (local !== value) onSave(local);
+        const next = localRef.current;
+        if (next !== value) onSave(next);
       }}
       onFocus={() => setFocused(true)}
       className={className || "max-w-md"}
@@ -383,9 +402,9 @@ function FileFieldRow({ label, value, onChange }: { label: string; value: FileIt
 }
 
 /** Wrapper for tool file fields: + button in label, delete button beside content */
-function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField, testId }: {
+function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField, testId, disabled }: {
   fieldId: string; label: string; value: FileItem[]; onChange: (v: FileItem[]) => void;
-  canRemoveField: boolean; onDeleteField: () => void; testId?: string;
+  canRemoveField: boolean; onDeleteField: () => void; testId?: string; disabled?: boolean;
 }) {
   const addRef = useRef<(() => void) | null>(null);
   return (
@@ -395,8 +414,9 @@ function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onD
       action={
         <button
           type="button"
-          onClick={() => addRef.current?.()}
-          className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          disabled={disabled}
+          onClick={() => { if (!disabled) addRef.current?.(); }}
+          className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -470,10 +490,11 @@ function ToolInstance({
   canAddField = true,
   canRemoveField = true,
   canUseTemplate = true,
+  structurePersistEnabled = false,
 }: {
   entry: ToolEntry;
   index: number;
-  onUpdate: (updates: Partial<ToolEntry>) => void;
+  onUpdate: (updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>)) => void;
   onRemove: () => void;
   showRemove: boolean;
   toolFieldKey?: string;
@@ -483,6 +504,8 @@ function ToolInstance({
   canAddField?: boolean;
   canRemoveField?: boolean;
   canUseTemplate?: boolean;
+  /** 須已載入完整憑證才可結構 persist／套範本（避免公開遮罩誤寫） */
+  structurePersistEnabled?: boolean;
 }) {
   const { options: toolOptions } = useSelectOptions(toolFieldKey);
   const allTemplates = useToolTemplates();
@@ -523,12 +546,14 @@ function ToolInstance({
   const resolvedFieldsRef = useRef(resolvedFields);
   resolvedFieldsRef.current = resolvedFields;
   useEffect(() => {
+    if (!structurePersistEnabled) return;
     if (!entry.fields && resolvedFieldsRef.current.length > 0) {
       onUpdateRef.current({ fields: resolvedFieldsRef.current });
     }
     // resolvedFields 每次 render 重算為新陣列參考，故意只用 .length 當觸發條件（避免
     // 每次 render 都重跑）；透過 ref 讀最新內容，不需（也不應）把整個陣列列入 deps。
-  }, [entry.fields, resolvedFields.length]);
+    // 公開遮罩／未就緒時不得觸發整組寫憑證。
+  }, [entry.fields, resolvedFields.length, structurePersistEnabled]);
 
   const fields = resolvedFields;
   const hasToolSelected = !!entry.tool;
@@ -536,6 +561,14 @@ function ToolInstance({
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
 
   const tryApplyTemplate = (tpl: ToolTemplate) => {
+    if (!structurePersistEnabled) {
+      toast({
+        title: "無法套用範本",
+        description: "完整工具資料尚未載入，請稍候再試（避免以遮罩空值覆寫）。",
+        variant: "destructive",
+      });
+      return;
+    }
     const tplFields = tpl.fields || [];
     const currentFieldIds = fields.map((f) => f.id);
     const tplFieldIds = tplFields.map((f) => f.id);
@@ -552,13 +585,14 @@ function ToolInstance({
     const hasFieldChanges = addedFields.length > 0 || removedFields.length > 0 || renamedFields.length > 0
       || tplFieldIds.join(",") !== currentFieldIds.join(",");
 
+    // 差異比對一律依欄位 id，不依同名猜
     const conflicts: { id: string; label: string; current: string; incoming: string }[] = [];
-    for (const [key, val] of Object.entries(tpl.fieldValues)) {
-      if (!val) continue;
-      const current = values[key];
-      if (current && current !== val) {
-        const fieldDef = tplFields.find((f) => f.id === key) || fields.find((f) => f.id === key);
-        conflicts.push({ id: key, label: fieldDef?.label || key, current, incoming: val });
+    for (const f of tplFields) {
+      const tplVal = tpl.fieldValues[f.id];
+      if (!tplVal) continue;
+      const current = values[f.id];
+      if (current && current !== tplVal) {
+        conflicts.push({ id: f.id, label: f.label || f.id, current, incoming: tplVal });
       }
     }
 
@@ -572,14 +606,21 @@ function ToolInstance({
   };
 
   const applyTemplate = (tpl: ToolTemplate) => {
-    const tplFields = tpl.fields || [];
-    const newValues: Record<string, string> = {};
-    for (const f of tplFields) {
-      const tplVal = tpl.fieldValues[f.id];
-      const currentVal = values[f.id];
-      newValues[f.id] = tplVal || currentVal || "";
+    if (!structurePersistEnabled) {
+      toast({
+        title: "無法套用範本",
+        description: "完整工具資料尚未載入，請稍候再試（避免以遮罩空值覆寫）。",
+        variant: "destructive",
+      });
+      return;
     }
-    onUpdate({ tool: tpl.tool, fields: tplFields, fieldValues: newValues });
+    const tplFields = tpl.fields || [];
+    // 在 persist 執行當下的最新 entry 套用，不用確認視窗開啟時的 render 快照
+    onUpdate((latest) => applyToolTemplatePatch(latest, {
+      tool: tpl.tool,
+      fields: tplFields,
+      fieldValues: tpl.fieldValues || {},
+    }));
     setTplOpen(false);
     setPendingTpl(null);
     setWarningDetails(null);
@@ -658,7 +699,7 @@ function ToolInstance({
                           variant="outline"
                           size="sm"
                           className="h-8 text-xs shrink-0"
-                          disabled={!hasToolSelected}
+                          disabled={!hasToolSelected || !structurePersistEnabled}
                         >
                           範本
                         </Button>
@@ -707,10 +748,11 @@ function ToolInstance({
                 fieldId={f.id}
                 label={f.label}
                 value={fileValues[f.id] || []}
-                onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
+                onChange={(v) => onUpdate(toolFileValuePatch(f.id, v))}
                 canRemoveField={canRemoveField}
                 onDeleteField={() => setDeleteFieldId(f.id)}
                 testId={toolFieldTestId(f.label, f.id)}
+                disabled={!structurePersistEnabled}
               />
             );
           }
@@ -719,9 +761,8 @@ function ToolInstance({
               <div className="flex items-start gap-1.5">
                 <IMESafeInput
                   value={values[f.id] || ""}
-                  onSave={(v) =>
-                    onUpdate({ fieldValues: { ...values, [f.id]: v } })
-                  }
+                  onSave={(v) => onUpdate(toolFieldValuePatch(f.id, v))}
+                  disabled={!structurePersistEnabled}
                   className="flex-1 min-h-0 h-auto !py-px !leading-snug"
                   minRows={1}
                   maxRows={undefined}
@@ -1086,16 +1127,23 @@ export default function CaseDetailPage() {
   const [duplicateSortOpen, setDuplicateSortOpen] = useState(false);
   const [dupInfo, setDupInfo] = useState<{
     newTitle: string;
+    newCaseId: string;
     renames: { oldTitle: string; newTitle: string }[];
     feePatchCount: number;
     translatorInvoicePatchCount: number;
     clientInvoicePatchCount: number;
+    toolsPending: boolean;
+    toolsMessage?: string;
   } | null>(null);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
   const [declineAvailableCount, setDeclineAvailableCount] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
+  const [caseCredentials, setCaseCredentials] = useState<CaseCredentials | null>(null);
+  const [credentialsStatus, setCredentialsStatus] = useState<
+    "idle" | "loading" | "ready" | "refreshing" | "error"
+  >("idle");
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -1249,8 +1297,89 @@ export default function CaseDetailPage() {
   }, [caseData?.createdBy]);
 
   useEffect(() => {
+    caseCredentialAccess.setActiveUser(user?.id ?? null);
+  }, [user?.id]);
+
+  useEffect(() => {
     caseEditBurstRef.current = {};
   }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!id) {
+      setCaseCredentials(null);
+      setCredentialsStatus("idle");
+      return;
+    }
+    // 切換案件／revision：保留既有畫面直到新 load 成功；勿先清空造成工具欄閃空。
+    const viewingId = id;
+    const uid = user?.id ?? null;
+    setCredentialsStatus((prev) => (prev === "ready" || prev === "refreshing" ? "refreshing" : "loading"));
+    void caseCredentialAccess.load(viewingId)
+      .then((credentials) => {
+        if (!active) return;
+        if ((user?.id ?? null) !== uid) return;
+        if (id !== viewingId) return;
+        setCaseCredentials(credentials);
+        setCredentialsStatus("ready");
+      })
+      .catch((err) => {
+        if (!active) return;
+        if (err instanceof CredentialLoadStaleError) return;
+        if (id !== viewingId) return;
+        // 讀取失敗：同案保留上一份畫面並標 error，勿把拒絕讀取轉成可保存空值
+        setCredentialsStatus("error");
+        if (!caseCredentialAccess.peekConfirmed(viewingId)) {
+          // 僅在完全無 confirmed 時才清空畫面
+          setCaseCredentials((prev) => (prev?.caseId === viewingId ? prev : null));
+        }
+        toast({
+          title: "工具憑證載入失敗",
+          description: err instanceof Error ? err.message : "請稍後重試，系統不會以空值覆寫。",
+          variant: "destructive",
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, caseData?.revision, user?.id]);
+
+  useEffect(() => {
+    if (!id) return;
+    return () => {
+      caseCredentialAccess.clear(id);
+    };
+  }, [id]);
+
+  useEffect(() => caseCredentialAccess.subscribe((clearedCaseId) => {
+    if (clearedCaseId === null) {
+      setCaseCredentials(null);
+      setCredentialsStatus("idle");
+      return;
+    }
+    if (clearedCaseId !== id) return;
+    // 改派等觸發 invalidation：進入 refreshing，保留畫面內容直到 reload
+    setCredentialsStatus("refreshing");
+    const viewingId = id;
+    const uid = user?.id ?? null;
+    void caseCredentialAccess.load(viewingId)
+      .then((credentials) => {
+        if ((user?.id ?? null) !== uid) return;
+        if (id !== viewingId) return;
+        setCaseCredentials(credentials);
+        setCredentialsStatus("ready");
+      })
+      .catch((err) => {
+        if (err instanceof CredentialLoadStaleError) return;
+        if (id !== viewingId) return;
+        setCredentialsStatus("error");
+        toast({
+          title: "工具憑證重新載入失敗",
+          description: err instanceof Error ? err.message : "請手動重新整理。已保留畫面資料，不會自動寫空。",
+          variant: "destructive",
+        });
+      });
+  }), [id, user?.id]);
 
   const save = useCallback(
     (partial: Partial<CaseRecord>) => {
@@ -1459,78 +1588,150 @@ export default function CaseDetailPage() {
     [profile]
   );
 
-  /* ── Tool helpers ── */
+  /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
+  // credentialsStatus：loading／refreshing／error 與 confirmed 分離；寫入仍以 peekConfirmed 為準
+  const credentialsReady =
+    !!caseCredentials
+    && caseCredentials.caseId === caseData?.id
+    && Array.isArray(caseCredentials.tools)
+    && !!caseCredentialAccess.peekConfirmed(caseData?.id ?? "");
+  const usedPublicToolsFallback =
+    !credentialsReady
+    && credentialsStatus !== "refreshing"
+    && credentialsStatus !== "loading"
+    && Array.isArray(caseData?.tools);
+
   const tools: ToolEntry[] = useMemo(() => {
+    if (
+      caseCredentials
+      && caseCredentials.caseId === caseData?.id
+      && Array.isArray(caseCredentials.tools)
+    ) {
+      return caseCredentials.tools;
+    }
+    // 僅供顯示結構；寫入路徑禁止以此為底稿。
     if (Array.isArray(caseData?.tools)) return caseData.tools;
-    return [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }];
-  }, [caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]);
+    return [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: {} }];
+  }, [caseCredentials, caseData?.id, caseData?.tools, caseData?.executionTool]);
 
-  const questionTools: ToolEntry[] = useMemo(() =>
-    caseData?.questionTools?.length
+  const usedPublicQuestionToolsFallback =
+    !(caseCredentials && caseCredentials.caseId === caseData?.id && Array.isArray(caseCredentials.questionTools))
+    && Array.isArray(caseData?.questionTools)
+    && caseData.questionTools.length > 0;
+
+  const questionTools: ToolEntry[] = useMemo(() => {
+    if (caseCredentials && caseCredentials.caseId === caseData?.id && Array.isArray(caseCredentials.questionTools)) {
+      return caseCredentials.questionTools.length
+        ? caseCredentials.questionTools
+        : [{ id: "qt-default", tool: "", fieldValues: {} }];
+    }
+    return caseData?.questionTools?.length
       ? caseData.questionTools
-      : [{ id: "qt-default", tool: "", fieldValues: {} }],
-    [caseData?.questionTools]
-  );
-
-  const getEffectiveTools = (record: CaseRecord): ToolEntry[] =>
-    Array.isArray(record.tools)
-      ? record.tools
-      : [{ id: "te-default", tool: record.executionTool || "", fieldValues: record.toolFieldValues || {} }];
-
-  const getEffectiveQuestionTools = (record: CaseRecord): ToolEntry[] =>
-    record.questionTools?.length
-      ? record.questionTools
       : [{ id: "qt-default", tool: "", fieldValues: {} }];
+  }, [caseCredentials, caseData?.id, caseData?.questionTools]);
 
-  const mergeToolEntryUpdates = (entry: ToolEntry, updates: Partial<ToolEntry>): ToolEntry => {
-    const next: ToolEntry = { ...entry, ...updates };
+  const toolPersistDeps = useMemo(() => ({
+    getActiveUserId: () => caseCredentialAccess.getActiveUserId(),
+    scope: (caseId: string) => caseCredentialAccess.scope(caseId),
+    peekConfirmed: (caseId: string) => caseCredentialAccess.peekConfirmed(caseId),
+    putConfirmed: (caseId: string, credentials: CaseCredentials, expectedGeneration?: number) =>
+      caseCredentialAccess.putConfirmed(caseId, credentials, expectedGeneration),
+    putDraft: (caseId: string, credentials: CaseCredentials) =>
+      caseCredentialAccess.putDraft(caseId, credentials),
+    peekDraft: (caseId: string) => caseCredentialAccess.peekDraft(caseId),
+    load: (caseId: string) => caseCredentialAccess.load(caseId),
+    updateCredentials: (caseId: string, patch: Partial<Pick<CaseCredentials, "tools" | "questionTools">>) =>
+      caseStore.updateCredentials(caseId, patch),
+  }), []);
 
-    if (updates.fieldValues !== undefined) {
-      next.fieldValues = updates.fields !== undefined
-        ? updates.fieldValues
-        : { ...(entry.fieldValues || {}), ...updates.fieldValues };
+  const applyPersistResultToUi = useCallback((result: Awaited<ReturnType<typeof persistToolBlockPatch>>) => {
+    const gen = caseData?.id ? caseCredentialAccess.generation(caseData.id) : null;
+    if (!isPersistResultCurrent({
+      result,
+      viewingCaseId: caseData?.id,
+      activeUserId: user?.id ?? null,
+      generation: gen,
+    })) {
+      return;
     }
-
-    if (updates.fileValues !== undefined) {
-      next.fileValues = updates.fields !== undefined
-        ? updates.fileValues
-        : { ...(entry.fileValues || {}), ...updates.fileValues };
+    if (result.status === "ok" && result.confirmedCredentials) {
+      setCaseCredentials(result.confirmedCredentials);
+      return;
     }
-
-    return next;
-  };
+    if (result.draftCredentials) {
+      setCaseCredentials(result.draftCredentials);
+    }
+    if (result.status === "write_ok_readback_pending") {
+      toast({
+        title: "工具已寫入、尚未確認讀回",
+        description: result.error?.message ?? "請稍後重新整理核對，系統不會自動整組重送。",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (result.error) {
+      toast({
+        title: "工具資料儲存失敗",
+        description: result.error.message,
+        variant: "destructive",
+      });
+    }
+  }, [caseData?.id, user?.id]);
 
   const patchTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
-    setCaseData((prev) => {
-      if (!prev) return prev;
-      const current = getEffectiveTools(prev);
-      const next = updater(current);
-      save({ tools: next });
-      return { ...prev, tools: next };
-    });
-  }, [save]);
+    if (!caseData) return;
+    const draft =
+      caseCredentials && caseCredentials.caseId === caseData.id
+        ? caseCredentials
+        : null;
+    if (draft) caseCredentialAccess.putDraft(caseData.id, draft);
+    void persistToolBlockPatch({
+      caseId: caseData.id,
+      userId: user?.id ?? null,
+      generation: caseCredentialAccess.generation(caseData.id),
+      block: "tools",
+      updater,
+      draftCredentials: draft,
+      credentialsReady,
+      usedPublicFallback: usedPublicToolsFallback,
+      deps: toolPersistDeps,
+    }).then(applyPersistResultToUi);
+  }, [
+    caseData,
+    caseCredentials,
+    credentialsReady,
+    usedPublicToolsFallback,
+    toolPersistDeps,
+    user?.id,
+    applyPersistResultToUi,
+  ]);
 
-  const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
-    patchTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
+  const updateTool = (
+    entryId: string,
+    updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+  ) => {
+    patchTools((current) => {
+      const entry = current.find((t) => t.id === entryId);
+      const patch = typeof updates === "function"
+        ? updates(entry ?? { id: entryId, tool: "", fieldValues: {} })
+        : updates;
+      return applyToolEntryFieldPatchById(current, entryId, patch);
+    });
   };
 
   const removeTool = (idx: number) => {
-    setCaseData((prev) => {
-      if (!prev) return prev;
-      const current = getEffectiveTools(prev);
-      const next = current.filter((_, i) => i !== idx);
-      const hypothetical = { ...prev, tools: next };
-      if (countCaseTools(hypothetical) < 1) {
-        toast({
-          title: "無法移除",
-          description: "至少需保留一種工具（含 1UP CAT）。",
-          variant: "destructive",
-        });
-        return prev;
-      }
-      save({ tools: next });
-      return { ...prev, tools: next };
-    });
+    if (!caseData) return;
+    const next = tools.filter((_, i) => i !== idx);
+    const hypothetical = { ...caseData, tools: next };
+    if (countCaseTools(hypothetical) < 1) {
+      toast({
+        title: "無法移除",
+        description: "至少需保留一種工具（含 1UP CAT）。",
+        variant: "destructive",
+      });
+      return;
+    }
+    patchTools(() => next);
   };
 
   const enableCatTool = useCallback(() => {
@@ -1547,18 +1748,50 @@ export default function CaseDetailPage() {
     patchTools((current) => [...current, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
   };
 
-  const patchQuestionTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
-    setCaseData((prev) => {
-      if (!prev) return prev;
-      const current = getEffectiveQuestionTools(prev);
-      const next = updater(current);
-      save({ questionTools: next });
-      return { ...prev, questionTools: next };
-    });
-  }, [save]);
+  // P0-A recovery TODO: 本頁無 loginAccount／loginPassword／otherLoginInfo 獨立表單；
+  // 若日後加回 UI，須走 caseStore.updateCredentials，禁止 save()／caseStore.update。
 
-  const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
-    patchQuestionTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
+  const patchQuestionTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
+    if (!caseData) return;
+    const draft =
+      caseCredentials && caseCredentials.caseId === caseData.id
+        ? caseCredentials
+        : null;
+    if (draft) caseCredentialAccess.putDraft(caseData.id, draft);
+    void persistToolBlockPatch({
+      caseId: caseData.id,
+      userId: user?.id ?? null,
+      generation: caseCredentialAccess.generation(caseData.id),
+      block: "questionTools",
+      updater,
+      draftCredentials: draft,
+      credentialsReady:
+        !!draft
+        && Array.isArray(draft.questionTools)
+        && !!caseCredentialAccess.peekConfirmed(caseData.id),
+      usedPublicFallback: usedPublicQuestionToolsFallback,
+      deps: toolPersistDeps,
+    }).then(applyPersistResultToUi);
+  }, [
+    caseData,
+    caseCredentials,
+    usedPublicQuestionToolsFallback,
+    toolPersistDeps,
+    user?.id,
+    applyPersistResultToUi,
+  ]);
+
+  const updateQuestionTool = (
+    entryId: string,
+    updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+  ) => {
+    patchQuestionTools((current) => {
+      const entry = current.find((t) => t.id === entryId);
+      const patch = typeof updates === "function"
+        ? updates(entry ?? { id: entryId, tool: "", fieldValues: {} })
+        : updates;
+      return applyToolEntryFieldPatchById(current, entryId, patch);
+    });
   };
 
   const removeQuestionTool = (idx: number) => {
@@ -1659,6 +1892,7 @@ export default function CaseDetailPage() {
     if (!Array.isArray(b)) return [];
     return b;
   }, [caseData?.bodyContent]);
+  const pendingDuplicateTools = usePendingDuplicateTools(caseData?.id);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
@@ -1703,25 +1937,19 @@ export default function CaseDetailPage() {
     reviewRows: caseData.reviewRows,
   });
 
-  const handleDecline = () => {
-    const displayName = profile?.display_name || profile?.email || "";
-    const record: import("@/data/case-types").DeclineRecord = {
-      id: crypto.randomUUID(),
-      translator: displayName,
+  const handleDecline = async () => {
+    const decline = {
       proposedDeadline: declineProposedDeadline || undefined,
       availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
       message: declineMessage.trim() || undefined,
-      createdAt: new Date().toISOString(),
     };
-    const existing = caseData.declineRecords || [];
-    save({ declineRecords: [...existing, record] });
+    const error = await caseStore.declinePublicInquiry(caseData.id, decline);
+    if (error) {
+      toast({ title: "無法記錄", description: error.message, variant: "destructive" });
+      return;
+    }
     const caseId = caseData.id;
     const caseTitle = caseData.title || "";
-    const slackDecline = {
-      proposedDeadline: declineProposedDeadline || undefined,
-      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
-      message: declineMessage.trim() || undefined,
-    };
     setDeclineOpen(false);
     setDeclineProposedDeadline(null);
     setDeclineAvailableCount("");
@@ -1734,7 +1962,7 @@ export default function CaseDetailPage() {
         caseId,
         caseTitle,
         kind: "decline",
-        decline: slackDecline,
+        decline,
       });
     }
   };
@@ -1753,26 +1981,44 @@ export default function CaseDetailPage() {
     return false;
   };
 
-  const applyDuplicateResult = (
-    result: NonNullable<Awaited<ReturnType<typeof caseStore.duplicate>>>
-  ) => {
+  const applyDuplicateOutcome = (result: CaseDuplicateOutcome) => {
+    if (result.created === false) {
+      toast({
+        title: result.reason === "create_unknown" ? "建案結果未知" : "無法複製",
+        description: result.message,
+        variant: "destructive",
+      });
+      return;
+    }
     setDupInfo({
       newTitle: result.newCase.title,
+      newCaseId: result.newCase.id,
       renames: result.renames,
       feePatchCount: result.feePatches.length,
       translatorInvoicePatchCount: result.translatorInvoicePatches.length,
       clientInvoicePatchCount: result.clientInvoicePatches.length,
+      toolsPending: result.ok === false,
+      toolsMessage: result.ok === false ? result.message : undefined,
     });
     setDupDialogOpen(true);
-    navigate(`/cases/${result.newCase.id}`, {
-      state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
-    });
+    // 新案資料還讀不回來時留在原頁：避免跳到讀不到的案件頁而看不見新案識別與未完成說明。
+    if (caseStore.getById(result.newCase.id)) {
+      navigate(`/cases/${result.newCase.id}`, {
+        state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
+      });
+    }
+    if (result.ok === false) {
+      toast({
+        title: "案件已建立，工具未完成",
+        description: result.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const runDuplicateWithSort = async (sort: CaseDuplicateSort) => {
     if (!caseData) return;
-    const result = await caseStore.duplicate(caseData.id, sort);
-    if (result) applyDuplicateResult(result);
+    applyDuplicateOutcome(await caseStore.duplicate(caseData.id, sort));
   };
 
   const handleDuplicate = async () => {
@@ -1805,24 +2051,12 @@ export default function CaseDetailPage() {
     toast({ title: "已收回為草稿" });
   };
 
-  const handleAcceptCase = () => {
-    const displayName = resolveActorDisplayName({
-      displayName: profile?.display_name,
-      email: profile?.email,
-      userMetadataDisplayName:
-        typeof user?.user_metadata?.display_name === "string"
-          ? user.user_metadata.display_name
-          : null,
-    });
-    if (!displayName) {
-      toast({ title: "無法承接", description: "找不到目前登入者的顯示名稱，請重新整理後再試。", variant: "destructive" });
+  const handleAcceptCase = async () => {
+    const error = await caseStore.acceptPublicInquiry(caseData.id);
+    if (error) {
+      toast({ title: "無法承接", description: error.message, variant: "destructive" });
       return;
     }
-    const currentTranslators = caseData.translator || [];
-    const updatedTranslators = currentTranslators.includes(displayName)
-      ? currentTranslators
-      : [...currentTranslators, displayName];
-    save({ status: "dispatched" as CaseStatus, translator: updatedTranslators });
     toast({ title: "已承接本案" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -1843,8 +2077,12 @@ export default function CaseDetailPage() {
     warnUnresolvedTranslatorsIfNeeded(caseData.id, toast);
   };
 
-  const handleTaskComplete = () => {
-    save({ status: "task_completed" as CaseStatus });
+  const handleTaskComplete = async () => {
+    const error = await caseStore.completeCaseTranslation(caseData.id);
+    if (error) {
+      toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "任務已完成" });
     if (user?.id) {
       void maybeSendTranslatorCaseReplySlack({
@@ -1914,6 +2152,38 @@ export default function CaseDetailPage() {
   return (
     <div className="space-y-1 max-w-3xl overflow-hidden">
       <div className="space-y-1">
+        {pendingDuplicateTools && !dupDialogOpen && (
+          <div
+            className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm space-y-2"
+            data-testid="duplicate-tools-pending"
+          >
+            <p className="font-medium">案件已複製，工具未完成</p>
+            <p data-testid={pendingDuplicateToolsMessageTestId(pendingDuplicateTools.message)}>
+              {pendingDuplicateTools.message}
+            </p>
+            <p className="text-muted-foreground">新案識別：{caseData.id}。未刪除本筆，重試不會再建一筆。</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="retry-duplicate-tools"
+              onClick={async () => {
+                const retried = await caseStore.retryDuplicateTools(caseData.id);
+                if (retried.status === "already_complete") {
+                  toast({ title: "工具已核實完成" });
+                } else if (retried.ok) {
+                  toast({ title: "工具已寫入既有新案" });
+                } else if (retried.status === "target_conflict" || retried.status === "source_changed") {
+                  toast({ title: "工具重試已停止", description: retried.message, variant: "destructive" });
+                } else {
+                  toast({ title: "工具重試未完成", description: retried.message, variant: "destructive" });
+                }
+              }}
+            >
+              重試複製工具
+            </Button>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
@@ -2432,7 +2702,17 @@ export default function CaseDetailPage() {
                     : <span className="text-sm text-muted-foreground">—</span>}
                 </div>
               ) : (
-                <ColorSelect fieldKey="assignee" value={(caseData.translator || [])[0] || ""} onValueChange={(v) => save({ translator: v ? [v] : [] })} />
+                <ColorSelect
+                  fieldKey="assignee"
+                  value={(caseData.translator || [])[0] || ""}
+                  onValueChange={() => {}}
+                  onAssigneeSelect={(selection) => {
+                    save({
+                      translator: selection ? [selection.label] : [],
+                      translatorUserId: selection?.userId ?? null,
+                    });
+                  }}
+                />
               )}
             </Field>
             <Field label="審稿人員">
@@ -2448,11 +2728,16 @@ export default function CaseDetailPage() {
                   value={deriveReviewerSummary(caseData.reviewRows) || caseData.reviewer}
                   onValueChange={(v) => {
                     const name = (v || "").trim();
-                    const uid = selectOptionsStore.getField("assignee").options.find((o) => o.label === name)?.id ?? null;
+                    if (!name) {
+                      save({ reviewRows: [], reviewer: "" });
+                    }
+                  }}
+                  onAssigneeSelect={(selection) => {
+                    const name = (selection?.label || "").trim();
                     const next = writeThroughWholeFileReviewer(
                       caseData.reviewRows,
                       name,
-                      uid ? String(uid) : null,
+                      selection?.userId ? String(selection.userId) : null,
                       caseData.reviewDeadline,
                     );
                     save({ reviewRows: next, reviewer: name });
@@ -2512,6 +2797,31 @@ export default function CaseDetailPage() {
             rows={caseData.collabRows}
             caseId={caseData.id}
             onChange={(newRows) => {
+              if (isMember) {
+                const previousRows = caseData.collabRows || [];
+                const acceptedRow = newRows.find((row) => {
+                  const previous = previousRows.find((item) => item.id === row.id);
+                  return row.accepted && !previous?.accepted;
+                });
+                if (acceptedRow) {
+                  void caseStore.acceptInquiryCollabRow(caseData.id, acceptedRow.id)
+                    .then((error) => {
+                      if (error) toast({ title: "無法承接", description: error.message, variant: "destructive" });
+                    });
+                  return;
+                }
+                const completedRow = newRows.find((row) => {
+                  const previous = previousRows.find((item) => item.id === row.id);
+                  return row.taskCompleted && !previous?.taskCompleted;
+                });
+                if (completedRow) {
+                  void caseStore.completeCaseCollabRow(caseData.id, completedRow.id)
+                    .then((error) => {
+                      if (error) toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+                    });
+                }
+                return;
+              }
               const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
               const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
               const allDelivered = newRows.length > 0 && newRows.every((r) => r.delivered);
@@ -2581,6 +2891,20 @@ export default function CaseDetailPage() {
               caseId={caseData.id}
               caseStatus={caseData.status}
               onChange={(newRows) => {
+                if (isMember) {
+                  const previousRows = caseData.reviewRows || [];
+                  const completedRow = newRows.find((row) => {
+                    const previous = previousRows.find((item) => item.id === row.id);
+                    return row.taskCompleted && !previous?.taskCompleted;
+                  });
+                  if (completedRow) {
+                    void caseStore.completeCaseReviewRow(caseData.id, completedRow.id)
+                      .then((error) => {
+                        if (error) toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
+                      });
+                  }
+                  return;
+                }
                 save({
                   reviewRows: newRows,
                   reviewer: deriveReviewerSummary(newRows),
@@ -2948,7 +3272,13 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      <h2 className="text-base font-semibold">工具</h2>
+      <h2
+        className="text-base font-semibold"
+        data-testid="tool-section"
+        data-credentials-status={credentialsStatus}
+      >
+        工具
+      </h2>
       {caseData && caseData.catToolEnabled && (
         <CaseCatToolsPanel
           caseId={caseData.id}
@@ -2964,10 +3294,11 @@ export default function CaseDetailPage() {
             key={entry.id}
             entry={entry}
             index={idx}
-            onUpdate={(u) => updateTool(idx, u)}
+            onUpdate={(u) => updateTool(entry.id, u)}
             onRemove={() => removeTool(idx)}
             showRemove={caseData ? canRemoveCaseTool(caseData) : false}
             canEditTool={canEditToolSelect}
+            structurePersistEnabled={credentialsReady}
             canRemoveTool={canRemoveTool}
             canAddField={canAddToolField}
             canRemoveField={canRemoveToolField}
@@ -3056,7 +3387,7 @@ export default function CaseDetailPage() {
               key={entry.id}
               entry={entry}
               index={idx}
-              onUpdate={(u) => updateQuestionTool(idx, u)}
+              onUpdate={(u) => updateQuestionTool(entry.id, u)}
               onRemove={() => removeQuestionTool(idx)}
               showRemove={questionTools.length > 1}
               toolFieldKey="executionTool"
@@ -3066,6 +3397,7 @@ export default function CaseDetailPage() {
               canAddField={canAddToolField}
               canRemoveField={canRemoveToolField}
               canUseTemplate={canUseToolTemplate}
+              structurePersistEnabled={credentialsReady}
             />
           ))}
           {canAddTool && (
@@ -3587,11 +3919,18 @@ export default function CaseDetailPage() {
       <AlertDialog open={dupDialogOpen} onOpenChange={setDupDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>已複製頁面</AlertDialogTitle>
+            <AlertDialogTitle>{dupInfo?.toolsPending ? "案件已複製，工具未完成" : "已複製頁面"}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>已複製頁面並切換至新頁面。</p>
+                <p>{dupInfo?.toolsPending ? "新案件已建立，工具尚未確認寫入。未刪除新案，也不會自動再建立一筆。" : "已複製頁面並切換至新頁面。"}</p>
                 <p>新頁面名稱：<span className="font-medium text-foreground">{dupInfo?.newTitle}</span></p>
+                {dupInfo?.toolsPending && (
+                  <p className="text-sm" data-testid="duplicate-tools-pending">
+                    <span data-testid={pendingDuplicateToolsMessageTestId(dupInfo.toolsMessage ?? "")}>
+                      {dupInfo.toolsMessage}
+                    </span>
+                  </p>
+                )}
                 {dupInfo?.renames && dupInfo.renames.length > 0 && (
                   <div>
                     <p className="font-medium text-foreground">以下更名的案件：</p>
@@ -3615,6 +3954,31 @@ export default function CaseDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
+            {dupInfo?.toolsPending && dupInfo.newCaseId && (
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="retry-duplicate-tools"
+                onClick={async () => {
+                  const retried = await caseStore.retryDuplicateTools(dupInfo.newCaseId);
+                  if (retried.status === "already_complete" || retried.ok) {
+                    setDupInfo((prev) => (prev ? { ...prev, toolsPending: false, toolsMessage: undefined } : prev));
+                    toast({ title: retried.status === "already_complete" ? "工具已核實完成" : "工具已寫入既有新案" });
+                  } else {
+                    setDupInfo((prev) => (prev ? { ...prev, toolsMessage: retried.message } : prev));
+                    toast({
+                      title: retried.status === "target_conflict" || retried.status === "source_changed"
+                        ? "工具重試已停止"
+                        : "工具重試未完成",
+                      description: retried.message,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                重試複製工具
+              </Button>
+            )}
             <AlertDialogAction onClick={() => setDupDialogOpen(false)}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

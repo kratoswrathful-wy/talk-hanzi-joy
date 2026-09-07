@@ -1,5 +1,9 @@
 project_id = "wshsmerltcakffllgyul"
 
+# GitHub／本機隔離驗證強制 PostgreSQL 17（不得降成 15）
+[db]
+major_version = 17
+
 [functions.fetch-notion-page]
 verify_jwt = false
 
