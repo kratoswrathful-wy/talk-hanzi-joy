@@ -1983,11 +1983,7 @@ export default function CaseDetailPage() {
 
   const applyDuplicateOutcome = (result: CaseDuplicateOutcome) => {
     if (result.created === false) {
-      toast({
-        title: result.reason === "create_unknown" ? "建案結果未知" : "無法複製",
-        description: result.message,
-        variant: "destructive",
-      });
+      toast({ title: "無法複製", description: result.message, variant: "destructive" });
       return;
     }
     setDupInfo({
@@ -2001,12 +1997,9 @@ export default function CaseDetailPage() {
       toolsMessage: result.ok === false ? result.message : undefined,
     });
     setDupDialogOpen(true);
-    // 新案資料還讀不回來時留在原頁：避免跳到讀不到的案件頁而看不見新案識別與未完成說明。
-    if (caseStore.getById(result.newCase.id)) {
-      navigate(`/cases/${result.newCase.id}`, {
-        state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
-      });
-    }
+    navigate(`/cases/${result.newCase.id}`, {
+      state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
+    });
     if (result.ok === false) {
       toast({
         title: "案件已建立，工具未完成",

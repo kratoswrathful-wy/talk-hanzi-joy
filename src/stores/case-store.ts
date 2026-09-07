@@ -56,8 +56,6 @@ import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
   buildDuplicateCredentialPatch,
   buildPendingDuplicateToolsRecord,
-  createdReadbackFailedMessage,
-  createUnknownMessage,
   credentialsMatchCopied,
   DUP_TOOLS_PENDING_STORAGE_KEY,
   duplicateAbortMessage,
@@ -619,60 +617,12 @@ function getById(id: string): CaseRecord | undefined {
   return cases.find((c) => c.id === id);
 }
 
-/** 建案後的本地登錄（樂觀顯示 + 短期保護，避免整表刷新把剛建的案蓋掉）。 */
-function adoptCreatedCase(record: CaseRecord) {
-  cases = [record, ...cases];
-  pendingUpdates.set(record.id, { title: record.title, status: record.status });
-  const existingTimer = pendingCleanupTimers.get(record.id);
-  if (existingTimer) clearTimeout(existingTimer);
-  pendingCleanupTimers.set(
-    record.id,
-    setTimeout(() => {
-      pendingUpdates.delete(record.id);
-      pendingCleanupTimers.delete(record.id);
-    }, PENDING_CLEANUP_DELAY_MS),
-  );
-  notify();
-}
-
-/** 以同一識別查證該案是否真的存在；讀取本身失敗時回 unknown，不當成「未建立」。 */
-async function probeCaseById(
-  id: string,
-): Promise<{ found: true; record: CaseRecord } | { found: false } | { found: "unknown" }> {
-  const { data, error } = await supabase
-    .from("cases_visible")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) return { found: "unknown" };
-  if (!data) return { found: false };
-  return { found: true, record: fromDb(asDbCase(data)) };
-}
-
-/** 伺服器有回應並拒絕才算「確定未建立」；連線中斷／逾時一律視為結果不明。 */
-function createErrorIsDefinite(error: unknown): boolean {
-  const code = (error as { code?: unknown } | null)?.code;
-  if (typeof code === "string" && code) return true;
-  return !/fetch|network|abort|timeout|load failed|failed to send/i.test(errorMessage(error));
-}
-
-export type CaseCreateOutcome =
-  | { kind: "created"; id: string; record: CaseRecord }
-  | { kind: "created_readback_failed"; id: string }
-  | { kind: "create_failed"; id: string }
-  | { kind: "create_unknown"; id: string }
-  | { kind: "no_session" };
-
-/**
- * 建案並回報「確定未建立／已建立但讀不回／結果不明」。
- * 目標 UUID 在送出前就固定，遺失回應時只用同一識別查證，絕不換新識別再建一筆。
- */
-async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCreateOutcome> {
+async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
   const user = await getAuthenticatedUser().catch((e) => {
     if (e instanceof AuthRecoverableError) return null;
     throw e;
   });
-  if (!user) return { kind: "no_session" };
+  if (!user) return null;
   const id = crypto.randomUUID();
   const rpcPayload = buildAdminCreateRpcPayload(toDb(partial));
   const createMeta = buildAdminCreateAssignmentMeta(partial as Record<string, unknown>);
@@ -690,41 +640,31 @@ async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCrea
     console.error("[case-store] create failed", errorMessage(createError), {
       payloadKeys: Object.keys(rpcPayload),
     });
-    const probe = await probeCaseById(id);
-    if (probe.found === true) {
-      adoptCreatedCase(probe.record);
-      return { kind: "created", id, record: probe.record };
-    }
-    if (probe.found === false && createErrorIsDefinite(createError)) {
-      return { kind: "create_failed", id };
-    }
-    return { kind: "create_unknown", id };
+    return null;
   }
-
   const { data, error } = await supabase
     .from("cases_visible")
     .select("*")
     .eq("id", id)
     .single();
-  if (!error && data) {
-    const record = fromDb(asDbCase(data));
-    adoptCreatedCase(record);
-    return { kind: "created", id, record };
+  if (error || !data) {
+    console.error("[case-store] create readback failed", errorMessage(error), { id });
+    return null;
   }
-  console.error("[case-store] create readback failed", errorMessage(error), { id });
-  const probe = await probeCaseById(id);
-  if (probe.found === true) {
-    adoptCreatedCase(probe.record);
-    return { kind: "created", id, record: probe.record };
-  }
-  // RPC 已成功，案件必然存在，只是讀不回來：保留識別，不得回報建案失敗。
-  return { kind: "created_readback_failed", id };
-}
-
-/** 既有建案入口契約不變：只有確定拿到案件資料才回傳紀錄，其餘一律 null。 */
-async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
-  const outcome = await createWithOutcome(partial);
-  return outcome.kind === "created" ? outcome.record : null;
+  const record = fromDb(asDbCase(data));
+  cases = [record, ...cases];
+  pendingUpdates.set(record.id, { title: record.title, status: record.status });
+  const existingTimer = pendingCleanupTimers.get(record.id);
+  if (existingTimer) clearTimeout(existingTimer);
+  pendingCleanupTimers.set(
+    record.id,
+    setTimeout(() => {
+      pendingUpdates.delete(record.id);
+      pendingCleanupTimers.delete(record.id);
+    }, PENDING_CLEANUP_DELAY_MS),
+  );
+  notify();
+  return record;
 }
 
 async function update(id: string, partial: Partial<CaseRecord>) {
@@ -1161,8 +1101,7 @@ supabase
 export type CaseDuplicateSort = { key: DuplicateSortKey; dir: DuplicateSortDir };
 
 export interface CaseDuplicateShared {
-  /** 只保證識別與標題；建案讀回失敗時仍必須帶得出新案識別。 */
-  newCase: Pick<CaseRecord, "id" | "title">;
+  newCase: CaseRecord;
   sourceCaseId: string;
   renames: { oldTitle: string; newTitle: string }[];
   feePatches: FeeTitlePatch[];
@@ -1176,8 +1115,6 @@ export type CaseDuplicateOutcome =
       created: false;
       reason: DuplicateToolsAbortReason;
       message: string;
-      /** 結果不明時仍保留該次保留的目標識別，供使用者查證，不換新識別再建。 */
-      targetCaseId?: string;
     }
   | ({
       ok: true;
@@ -1428,25 +1365,11 @@ async function duplicate(
   }
 
     const cleaned = clearDuplicateFields(rest);
-    const created = await createWithOutcome({ ...cleaned, title: plan.newTitle });
-    if (created.kind === "no_session") return abortDuplicate("session_mismatch");
-    if (created.kind === "create_failed") return abortDuplicate("create_failed");
-    if (created.kind === "create_unknown") {
-      return {
-        ok: false,
-        created: false,
-        reason: "create_unknown",
-        message: createUnknownMessage(created.id),
-        targetCaseId: created.id,
-      };
-    }
-
-    const targetId = created.id;
-    // 建案當下的版本；讀回失敗時為 undefined，代表無法確認原始狀態。
-    const createdRevision = created.kind === "created" ? created.record.revision : undefined;
+    const newCase = await create({ ...cleaned, title: plan.newTitle });
+    if (!newCase) return abortDuplicate("create_failed");
 
     const shared: CaseDuplicateShared = {
-      newCase: { id: targetId, title: plan.newTitle },
+      newCase,
       sourceCaseId: id,
       renames: plan.renames,
       feePatches: allFeePatches,
@@ -1454,19 +1377,15 @@ async function duplicate(
       clientInvoicePatches,
     };
 
-    /**
-     * 只有目標仍停在「建案當下的版本 + 預期初始空白」時才留下可自動補寫的基準。
-     * 版本已前進、讀不到或結果不明一律不留基準，避免把等待期間的新修改當成原始狀態。
-     */
+    /** 記下部分完成當下的新案基準；讀不到就不留基準，重試改走保守停止。 */
     const readTargetBaseline = async () => {
-      if (typeof createdRevision !== "number" || !Number.isSafeInteger(createdRevision)) return undefined;
       try {
-        const { data, error } = await getCaseCredentials(supabase, targetId);
-        if (error || !data || typeof data.revision !== "number") return undefined;
-        if (data.revision !== createdRevision) return undefined;
-        const patch = buildDuplicateCredentialPatch({ ...data, caseId: targetId });
-        if (shouldWriteCredentialPatch(patch)) return undefined;
-        return { revision: createdRevision, patch };
+        const { data } = await getCaseCredentials(supabase, newCase.id);
+        if (!data || typeof data.revision !== "number") return undefined;
+        return {
+          revision: data.revision,
+          patch: buildDuplicateCredentialPatch({ ...data, caseId: newCase.id }),
+        };
       } catch {
         return undefined;
       }
@@ -1474,7 +1393,7 @@ async function duplicate(
 
     const rememberPending = async (message: string) => {
       setPendingToolCopy(buildPendingDuplicateToolsRecord({
-        targetCaseId: targetId,
+        targetCaseId: newCase.id,
         sourceCaseId: id,
         userId: user.id,
         env: getEnvironment(),
@@ -1485,32 +1404,19 @@ async function duplicate(
       }));
     };
 
-    if (created.kind === "created_readback_failed") {
-      // 新案確實存在，只是案件資料讀不回：保留識別、不寫工具、不再建一筆。
-      const readbackMessage = createdReadbackFailedMessage(targetId);
-      await rememberPending(readbackMessage);
-      return {
-        ok: false,
-        created: true,
-        toolsStatus: "pending",
-        message: readbackMessage,
-        ...shared,
-      };
-    }
-
     try {
       if (!needsToolWrite) {
-        setPendingToolCopy(null, targetId);
+        setPendingToolCopy(null, newCase.id);
         return { ok: true, created: true, toolsStatus: "skipped_empty", ...shared };
       }
 
       const written = await writeCopiedCredentials(
-        targetId,
+        newCase.id,
         credentialPatch,
-        createdRevision ?? 0,
+        newCase.revision ?? 0,
       );
       if (written.status === "ok" || written.status === "already_present") {
-        setPendingToolCopy(null, targetId);
+        setPendingToolCopy(null, newCase.id);
         return { ok: true, created: true, toolsStatus: "copied", ...shared };
       }
 
@@ -1526,9 +1432,9 @@ async function duplicate(
     } catch (e) {
       console.error("[case-store] duplicate tools step failed", e);
       try {
-        const { data } = await getCaseCredentials(supabase, targetId);
-        if (data && credentialsMatchCopied(credentialPatch, { ...data, caseId: targetId })) {
-          setPendingToolCopy(null, targetId);
+        const { data } = await getCaseCredentials(supabase, newCase.id);
+        if (data && credentialsMatchCopied(credentialPatch, { ...data, caseId: newCase.id })) {
+          setPendingToolCopy(null, newCase.id);
           return { ok: true, created: true, toolsStatus: "copied", ...shared };
         }
       } catch {

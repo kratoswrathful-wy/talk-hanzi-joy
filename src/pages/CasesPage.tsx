@@ -840,11 +840,7 @@ export default function CasesPage() {
     async (id: string, sort: CaseDuplicateSort) => {
       const result: CaseDuplicateOutcome = await caseStore.duplicate(id, sort);
       if (result.created === false) {
-        toast({
-          title: result.reason === "create_unknown" ? "建案結果未知" : "無法複製",
-          description: result.message,
-          variant: "destructive",
-        });
+        toast({ title: "無法複製", description: result.message, variant: "destructive" });
         return;
       }
       setCasesDupInfo({
@@ -858,12 +854,9 @@ export default function CasesPage() {
         toolsMessage: result.ok === false ? result.message : undefined,
       });
       setCasesDupDialogOpen(true);
-      // 新案資料還讀不回來時留在清單頁：避免跳到讀不到的案件頁而看不見新案識別與未完成說明。
-      if (caseStore.getById(result.newCase.id)) {
-        navigate(`/cases/${result.newCase.id}`, {
-          state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
-        });
-      }
+      navigate(`/cases/${result.newCase.id}`, {
+        state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
+      });
       if (result.ok === false) {
         toast({
           title: "案件已建立，工具未完成",
