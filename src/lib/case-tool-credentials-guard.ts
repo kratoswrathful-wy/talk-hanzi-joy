@@ -18,6 +18,25 @@ export function assertWritableToolCredentials(
   return !!credentials && Array.isArray(credentials.tools);
 }
 
+/**
+ * 單欄編輯的送出形狀：只帶本次改動的欄位。
+ *
+ * 呼叫端不得改送整組 `fieldValues`——那是該次 render 的快照，前一筆保存尚未確認時
+ * 仍帶著兄弟欄位的舊值，經 `mergeToolEntryUpdates` 會把已確認的值覆蓋回舊值
+ * （Riot - Riftbound 260908：五欄連續輸入後只剩最後一欄有值）。
+ */
+export function toolFieldValuePatch(fieldId: string, value: string): Partial<ToolEntry> {
+  return { fieldValues: { [fieldId]: value } };
+}
+
+/** 檔案型欄位的單欄編輯形狀；理由同 `toolFieldValuePatch`。 */
+export function toolFileValuePatch(
+  fieldId: string,
+  value: { name: string; url: string }[],
+): Partial<ToolEntry> {
+  return { fileValues: { [fieldId]: value } };
+}
+
 export function mergeToolEntryUpdates(
   entry: ToolEntry,
   updates: Partial<ToolEntry>,

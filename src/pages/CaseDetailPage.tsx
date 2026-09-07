@@ -97,6 +97,7 @@ import {
   isPersistResultCurrent,
   persistToolBlockPatch,
 } from "@/lib/case-tool-credentials-persist";
+import { toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -738,7 +739,7 @@ function ToolInstance({
                 fieldId={f.id}
                 label={f.label}
                 value={fileValues[f.id] || []}
-                onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
+                onChange={(v) => onUpdate(toolFileValuePatch(f.id, v))}
                 canRemoveField={canRemoveField}
                 onDeleteField={() => setDeleteFieldId(f.id)}
                 testId={toolFieldTestId(f.label, f.id)}
@@ -750,9 +751,7 @@ function ToolInstance({
               <div className="flex items-start gap-1.5">
                 <IMESafeInput
                   value={values[f.id] || ""}
-                  onSave={(v) =>
-                    onUpdate({ fieldValues: { ...values, [f.id]: v } })
-                  }
+                  onSave={(v) => onUpdate(toolFieldValuePatch(f.id, v))}
                   className="flex-1 min-h-0 h-auto !py-px !leading-snug"
                   minRows={1}
                   maxRows={undefined}
