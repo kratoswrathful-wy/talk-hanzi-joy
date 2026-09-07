@@ -265,13 +265,35 @@ function field(page: Page, testId: string): Locator {
  * 實際欄位操作：填入後等 React 受控值落地，再用 Tab 失焦保存。
  * 不使用固定 sleep；toHaveValue 是確定訊號，避免 fill 後立刻 blur 吃到上一輪 local。
  */
-async function typeAndBlur(page: Page, testId: string, value: string, force = false) {
+async function typeAndBlur(page: Page, testId: string, value: string) {
   const el = field(page, testId);
-  if (!force) await expect(el).toBeEnabled();
-  await el.click({ force });
-  await el.fill(value, { force });
+  await expect(el).toBeEnabled();
+  await el.click();
+  await el.fill(value);
   await expect(el).toHaveValue(value);
   await el.press("Tab");
+}
+
+/**
+ * 確認窗蓋住欄位時，仍對實際 textarea 送 input／blur，讓 IMESafeInput 走 onSave。
+ * 不用固定 sleep；回傳值是該 DOM 欄位當下的 value。
+ */
+async function commitFieldBehindDialog(page: Page, testId: string, value: string) {
+  const written = await page.evaluate(({ id, v }) => {
+    const el = document.querySelector(`[data-testid="${id}"]`);
+    if (!(el instanceof HTMLTextAreaElement) && !(el instanceof HTMLInputElement)) return "";
+    const proto = el instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, "value");
+    if (!desc?.set) return el.value;
+    desc.set.call(el, v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+    return el.value;
+  }, { id: testId, v: value });
+  expect(written, `確認窗開啟後必須改到實際欄位 ${testId}`).toBe(value);
 }
 
 /**
@@ -558,7 +580,11 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
 
     await page.route("**/rest/v1/rpc/get_case_credentials", async (route) => {
       await new Promise((r) => setTimeout(r, 3_000));
-      await route.continue();
+      try {
+        await route.continue();
+      } catch {
+        // unroute／換頁後這筆 route 可能已被接手
+      }
     });
     await page.goto(`/cases/${caseId}`);
     await expectTestModePersonaUiReady(page);
@@ -580,6 +606,8 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     await typeAndBlur(page, "tool-server", "mq.synthetic.v2");
     await gate.firstRequestSent;
     expect(gate.seenCount(), "第一筆保存必須仍在進行").toBe(1);
+    // 第一筆未確認時改帳號：實際欄位、真實 onSave，與稍後的確定套用重疊
+    await typeAndBlur(page, "tool-username", "synthetic-user-draft");
 
     await tplBtn.click();
     const tplOption = page.getByTestId(`template-option-${TEMPLATE_NAME}`);
@@ -588,7 +616,7 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     await expect(page.getByRole("heading", { name: "套用範本確定" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("模板附註")).toBeVisible();
 
-    await typeAndBlur(page, "tool-username", "synthetic-user-draft", true);
+    await commitFieldBehindDialog(page, "tool-project", "project-after-dialog");
     await page.getByRole("button", { name: "確定套用" }).click();
 
     gate.release();
@@ -601,7 +629,7 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
         "f-server": "mq.template.applied",
         "f-user": "synthetic-user-draft",
         "f-pass": "template-pass",
-        "f-project": TEXT_FIELDS[3].value,
+        "f-project": "project-after-dialog",
         "f-file": TEXT_FIELDS[4].value,
       });
     const after = await readBackendTools(page, caseId);
@@ -614,6 +642,7 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     await expect(field(page, "tool-server")).toHaveValue("mq.template.applied");
     await expect(field(page, "tool-username")).toHaveValue("synthetic-user-draft");
     await expect(field(page, "tool-password")).toHaveValue("template-pass");
+    await expect(field(page, "tool-project")).toHaveValue("project-after-dialog");
   });
 
   test("T6 切案／切帳／讀取失敗／寫入成功但讀回失敗：不得跨案覆蓋或假成功", async ({ page }) => {
