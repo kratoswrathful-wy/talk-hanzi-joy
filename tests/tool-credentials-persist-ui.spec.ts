@@ -594,17 +594,54 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     await expect(page.getByRole("heading", { name: "套用範本確定" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("模板附註")).toBeVisible();
 
-    // 遮罩擋住點擊，但不關確認窗：讓實際專案欄走 fill＋blur＋onSave
-    const overlay = page.locator("[data-radix-alert-dialog-overlay]");
-    if (await overlay.count()) {
-      await overlay.evaluate((el) => {
-        (el as HTMLElement).style.pointerEvents = "none";
-      });
-    }
-    await typeAndBlur(page, "tool-project", "project-after-dialog");
+    // 確認窗開啟後改專案底稿：走與欄位 onSave 同一條 persist。
+    // 不能點穿透 modal——overlay／alertdialog 會擋住，真人也無法在確認窗後面改欄。
+    const afterDialogWrite = page.evaluate(
+      async ({ cid, entryId, fieldId, value }) => {
+        const w = window as unknown as {
+          __t5AfterDialogQueued?: boolean;
+          __lmsAgent?: {
+            tool: {
+              setField: (i: {
+                caseId: string;
+                toolEntryId: string;
+                toolLabel: string;
+                fieldKey: string;
+                value: string;
+              }) => Promise<AgentResult<{ verified?: boolean }>>;
+            };
+          };
+        };
+        w.__t5AfterDialogQueued = false;
+        const agent = w.__lmsAgent;
+        if (!agent?.tool?.setField) return { ok: false as const, error: "無 __lmsAgent.tool.setField" };
+        const pending = agent.tool.setField({
+          caseId: cid,
+          toolEntryId: entryId,
+          toolLabel: "memoQ",
+          fieldKey: fieldId,
+          value,
+        });
+        w.__t5AfterDialogQueued = true;
+        return pending;
+      },
+      { cid: caseId, entryId: ENTRY_ID, fieldId: "f-project", value: "project-after-dialog" },
+    );
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => !!(window as unknown as { __t5AfterDialogQueued?: boolean }).__t5AfterDialogQueued,
+          ),
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+    await expect(page.getByRole("heading", { name: "套用範本確定" }), "確認窗必須仍開著再按確定套用").toBeVisible();
     await page.getByRole("button", { name: "確定套用" }).click();
 
     gate.release();
+    const afterDialog = await afterDialogWrite;
+    expect(afterDialog.ok, afterDialog.ok ? "" : afterDialog.error).toBe(true);
     await expect.poll(() => gate.seenCount(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
     await gate.stop();
 
