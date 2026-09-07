@@ -23,6 +23,10 @@ import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import type { CaseAssignmentMeta } from "@/lib/case-assignment-patch";
+import {
+  deriveReviewerSummary,
+  writeThroughWholeFileReviewer,
+} from "@/lib/review-rows";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { useState, useRef, useCallback, useEffect, useMemo, useDeferredValue } from "react";
@@ -416,11 +420,14 @@ const allColumnDefs: ColumnDef[] = [
     key: "reviewer",
     label: "審稿人員",
     minWidth: 90,
-    render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" assigneeRole="reviewer" editable={editable} onCommit={(v, meta) => onCommit("reviewer", v, meta)}>
-        <AssigneeLabel value={c.reviewer} />
+    render: (c, { editable, onCommit }) => {
+      const reviewerDisplay = deriveReviewerSummary(c.reviewRows) || c.reviewer || "";
+      return (
+      <InlineEditCell value={reviewerDisplay} type="colorSelect" fieldKey="assignee" assigneeRole="reviewer" editable={editable} onCommit={(v, meta) => onCommit("reviewer", v, meta)}>
+        <AssigneeLabel value={reviewerDisplay} />
       </InlineEditCell>
-    ),
+      );
+    },
   },
   {
     key: "reviewDeadline",
@@ -947,10 +954,22 @@ export default function CasesPage() {
           translatorUserId: meta?.translatorUserId ?? null,
         });
       } else if (field === "reviewer" && typeof value === "string") {
-        caseStore.update(id, {
-          reviewer: value,
-          reviewerUserId: meta?.reviewerUserId ?? null,
-        });
+        const name = value.trim();
+        if (!name) {
+          caseStore.update(id, { reviewRows: [], reviewer: "" });
+        } else {
+          const nextRows = writeThroughWholeFileReviewer(
+            c.reviewRows,
+            name,
+            meta?.reviewerUserId ?? null,
+            c.reviewDeadline,
+          );
+          caseStore.update(id, {
+            reviewRows: nextRows,
+            reviewer: deriveReviewerSummary(nextRows) || name,
+            reviewerUserId: meta?.reviewerUserId ?? null,
+          });
+        }
       } else {
         caseStore.update(id, { [field]: value });
       }

@@ -49,6 +49,7 @@ import {
   type DeclineInquiryInput,
 } from "@/lib/case-action-rpc";
 import { caseCredentialAccess } from "@/lib/case-credential-store";
+import { applyPendingCaseOverlay } from "@/lib/case-pending-overlay";
 import { mergeCasePublicSnapshot } from "@/lib/case-public-snapshot";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -558,14 +559,14 @@ async function load() {
       if (pendingUpdates.size > 0) {
         fetched = fetched.map((c) => {
           const pending = pendingUpdates.get(c.id);
-          return pending ? { ...c, ...pending } : c;
+          return applyPendingCaseOverlay(c, pending);
         });
         // 剛 create、尚未進本次 SELECT 的列：保留本地，避免整表覆寫「找不到案件」
         for (const [id, pending] of pendingUpdates) {
           if (fetched.some((c) => c.id === id)) continue;
           const local = currentById.get(id);
           if (local) {
-            fetched = [{ ...local, ...pending }, ...fetched];
+            fetched = [applyPendingCaseOverlay(local, pending), ...fetched];
           }
         }
       }
