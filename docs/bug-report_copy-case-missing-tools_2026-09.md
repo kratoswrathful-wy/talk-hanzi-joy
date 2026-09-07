@@ -18,3 +18,13 @@
 
 不改 DB／Edge／權限。不補正式案件資料。
 
+## 隔離證據（非正式環境）
+
+程式驗收 SHA：`116933d156de46f15cc98e212214c562d587c17f`  
+相對正式基準 `#85` `4c151695`。未 merge `main`。未部署正式站。
+
+- 一般 CI：https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/34164885278
+- 隔離 `suite=copy-tools`：https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/34164889097  
+  Playwright T1–T11＋T5 共 12 項一次通過；單元 `case-duplicate-tools.test.ts` 19 項通過。
+- 既有 T1–T6 不得代替 T7–T11。本輪重試保全以 T7–T11 為準。
+
