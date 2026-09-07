@@ -1526,11 +1526,18 @@ export default function CasesPage() {
                 data-testid="retry-duplicate-tools"
                 onClick={async () => {
                   const retried = await caseStore.retryDuplicateTools(casesDupInfo.newCaseId);
-                  if (retried.ok) {
+                  if (retried.status === "already_complete" || retried.ok) {
                     setCasesDupInfo((prev) => (prev ? { ...prev, toolsPending: false, toolsMessage: undefined } : prev));
-                    toast({ title: "工具已寫入既有新案" });
+                    toast({ title: retried.status === "already_complete" ? "工具已核實完成" : "工具已寫入既有新案" });
                   } else {
-                    toast({ title: "工具重試未完成", description: retried.message, variant: "destructive" });
+                    setCasesDupInfo((prev) => (prev ? { ...prev, toolsMessage: retried.message } : prev));
+                    toast({
+                      title: retried.status === "target_conflict" || retried.status === "source_changed"
+                        ? "工具重試已停止"
+                        : "工具重試未完成",
+                      description: retried.message,
+                      variant: "destructive",
+                    });
                   }
                 }}
               >

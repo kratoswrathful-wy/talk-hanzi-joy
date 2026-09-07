@@ -2151,7 +2151,14 @@ export default function CaseDetailPage() {
             data-testid="duplicate-tools-pending"
           >
             <p className="font-medium">案件已複製，工具未完成</p>
-            <p>{pendingDuplicateTools.message}</p>
+            <p data-testid={
+              pendingDuplicateTools.message.includes("未覆寫")
+                ? "duplicate-tools-conflict"
+                : undefined
+            }
+            >
+              {pendingDuplicateTools.message}
+            </p>
             <p className="text-muted-foreground">新案識別：{caseData.id}。未刪除本筆，重試不會再建一筆。</p>
             <Button
               type="button"
@@ -2160,8 +2167,12 @@ export default function CaseDetailPage() {
               data-testid="retry-duplicate-tools"
               onClick={async () => {
                 const retried = await caseStore.retryDuplicateTools(caseData.id);
-                if (retried.ok) {
+                if (retried.status === "already_complete") {
+                  toast({ title: "工具已核實完成" });
+                } else if (retried.ok) {
                   toast({ title: "工具已寫入既有新案" });
+                } else if (retried.status === "target_conflict" || retried.status === "source_changed") {
+                  toast({ title: "工具重試已停止", description: retried.message, variant: "destructive" });
                 } else {
                   toast({ title: "工具重試未完成", description: retried.message, variant: "destructive" });
                 }
@@ -3946,11 +3957,18 @@ export default function CaseDetailPage() {
                 data-testid="retry-duplicate-tools"
                 onClick={async () => {
                   const retried = await caseStore.retryDuplicateTools(dupInfo.newCaseId);
-                  if (retried.ok) {
+                  if (retried.status === "already_complete" || retried.ok) {
                     setDupInfo((prev) => (prev ? { ...prev, toolsPending: false, toolsMessage: undefined } : prev));
-                    toast({ title: "工具已寫入既有新案" });
+                    toast({ title: retried.status === "already_complete" ? "工具已核實完成" : "工具已寫入既有新案" });
                   } else {
-                    toast({ title: "工具重試未完成", description: retried.message, variant: "destructive" });
+                    setDupInfo((prev) => (prev ? { ...prev, toolsMessage: retried.message } : prev));
+                    toast({
+                      title: retried.status === "target_conflict" || retried.status === "source_changed"
+                        ? "工具重試已停止"
+                        : "工具重試未完成",
+                      description: retried.message,
+                      variant: "destructive",
+                    });
                   }
                 }}
               >

@@ -55,12 +55,21 @@ import { caseCredentialAccess } from "@/lib/case-credential-store";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
   buildDuplicateCredentialPatch,
+  buildPendingDuplicateToolsRecord,
   credentialsMatchCopied,
+  DUP_TOOLS_PENDING_STORAGE_KEY,
   duplicateAbortMessage,
+  evaluateRetryDecision,
   evaluateSourceCredentials,
+  filterPendingRecordsForScope,
+  parsePendingDuplicateToolsRecords,
+  RETRY_MESSAGES,
+  serializePendingDuplicateToolsRecords,
   shouldWriteCredentialPatch,
   type DuplicateCredentialPatch,
   type DuplicateToolsAbortReason,
+  type DuplicateToolsRetryStatus,
+  type PendingDuplicateToolsRecord,
 } from "@/lib/case-duplicate-tools";
 import { mergeCasePublicSnapshot } from "@/lib/case-public-snapshot";
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -1122,9 +1131,26 @@ export type CaseDuplicateOutcome =
 /** @deprecated 使用 CaseDuplicateOutcome */
 export type CaseDuplicateResult = CaseDuplicateOutcome;
 
-type PendingToolCopy = { sourceCaseId: string; message: string };
+const pendingToolCopies = new Map<string, PendingDuplicateToolsRecord>();
+const retryInFlight = new Set<string>();
 
-const pendingToolCopies = new Map<string, PendingToolCopy>();
+function readPendingStorage(): PendingDuplicateToolsRecord[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    return parsePendingDuplicateToolsRecords(localStorage.getItem(DUP_TOOLS_PENDING_STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function writePendingStorage(records: PendingDuplicateToolsRecord[]) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(DUP_TOOLS_PENDING_STORAGE_KEY, serializePendingDuplicateToolsRecords(records));
+  } catch {
+    // 封鎖或超額時略過；記憶體仍保留本次工作階段狀態
+  }
+}
 
 export type SourceCredentialsLoadResult =
   | { ok: true; credentials: CaseCredentials }
@@ -1134,13 +1160,30 @@ function abortDuplicate(reason: DuplicateToolsAbortReason): CaseDuplicateOutcome
   return { ok: false, created: false, reason, message: duplicateAbortMessage(reason) };
 }
 
-function peekPendingDuplicateTools(caseId: string): PendingToolCopy | undefined {
-  return pendingToolCopies.get(caseId);
+function peekPendingDuplicateTools(caseId: string): PendingDuplicateToolsRecord | undefined {
+  const userId = currentUserId;
+  if (!userId) return undefined;
+  const env = getEnvironment();
+  const mem = pendingToolCopies.get(caseId);
+  if (mem && mem.userId === userId && mem.env === env) return mem;
+  const stored = filterPendingRecordsForScope(readPendingStorage(), userId, env)
+    .find((rec) => rec.targetCaseId === caseId);
+  if (stored) pendingToolCopies.set(caseId, stored);
+  return stored;
 }
 
-function setPendingToolCopy(caseId: string, pending: PendingToolCopy | null) {
-  if (pending) pendingToolCopies.set(caseId, pending);
-  else pendingToolCopies.delete(caseId);
+function setPendingToolCopy(record: PendingDuplicateToolsRecord | null, targetCaseId?: string) {
+  const id = record?.targetCaseId ?? targetCaseId;
+  if (!id) return;
+  if (record) {
+    const next = readPendingStorage().filter((rec) => rec.targetCaseId !== id);
+    next.push(record);
+    writePendingStorage(next);
+    pendingToolCopies.set(id, record);
+  } else {
+    writePendingStorage(readPendingStorage().filter((rec) => rec.targetCaseId !== id));
+    pendingToolCopies.delete(id);
+  }
   notify();
 }
 
@@ -1328,74 +1371,145 @@ async function duplicate(
       clientInvoicePatches,
     };
 
-    if (!needsToolWrite) {
-      setPendingToolCopy(newCase.id, null);
-      return { ok: true, created: true, toolsStatus: "skipped_empty", ...shared };
-    }
-
-    const written = await writeCopiedCredentials(
-      newCase.id,
-      credentialPatch,
-      newCase.revision ?? 0,
-    );
-    if (written.status === "ok" || written.status === "already_present") {
-      setPendingToolCopy(newCase.id, null);
-      return { ok: true, created: true, toolsStatus: "copied", ...shared };
-    }
-
-    const pendingMessage = written.message ?? "新案件已建立，工具尚未確認寫入。";
-    setPendingToolCopy(newCase.id, { sourceCaseId: id, message: pendingMessage });
-    return {
-      ok: false,
-      created: true,
-      toolsStatus: "pending",
-      message: pendingMessage,
-      ...shared,
+    const rememberPending = (message: string) => {
+      setPendingToolCopy(buildPendingDuplicateToolsRecord({
+        targetCaseId: newCase.id,
+        sourceCaseId: id,
+        userId: user.id,
+        env: getEnvironment(),
+        sourceRevision: sourceReady.credentials.revision,
+        expected: credentialPatch,
+        message,
+      }));
     };
+
+    try {
+      if (!needsToolWrite) {
+        setPendingToolCopy(null, newCase.id);
+        return { ok: true, created: true, toolsStatus: "skipped_empty", ...shared };
+      }
+
+      const written = await writeCopiedCredentials(
+        newCase.id,
+        credentialPatch,
+        newCase.revision ?? 0,
+      );
+      if (written.status === "ok" || written.status === "already_present") {
+        setPendingToolCopy(null, newCase.id);
+        return { ok: true, created: true, toolsStatus: "copied", ...shared };
+      }
+
+      const pendingMessage = written.message ?? "新案件已建立，工具尚未確認寫入。";
+      rememberPending(pendingMessage);
+      return {
+        ok: false,
+        created: true,
+        toolsStatus: "pending",
+        message: pendingMessage,
+        ...shared,
+      };
+    } catch (e) {
+      console.error("[case-store] duplicate tools step failed", e);
+      try {
+        const { data } = await getCaseCredentials(supabase, newCase.id);
+        if (data && credentialsMatchCopied(credentialPatch, { ...data, caseId: newCase.id })) {
+          setPendingToolCopy(null, newCase.id);
+          return { ok: true, created: true, toolsStatus: "copied", ...shared };
+        }
+      } catch {
+        // 結果未知：不盲目重送、不引導再複製
+      }
+      rememberPending(RETRY_MESSAGES.created_unknown);
+      return {
+        ok: false,
+        created: true,
+        toolsStatus: "pending",
+        message: RETRY_MESSAGES.created_unknown,
+        ...shared,
+      };
+    }
   } catch (e) {
     console.error("[case-store] duplicate failed", e);
     return abortDuplicate("create_failed");
   }
 }
 
-async function retryDuplicateTools(newCaseId: string): Promise<{
+export type DuplicateToolsRetryResult = {
   ok: boolean;
   created: false;
+  status: DuplicateToolsRetryStatus;
   message: string;
-}> {
-  const pending = pendingToolCopies.get(newCaseId);
-  if (!pending) {
-    return { ok: false, created: false, message: "沒有可重試的部分完成複製；不會再建新案。" };
+};
+
+async function retryDuplicateTools(newCaseId: string): Promise<DuplicateToolsRetryResult> {
+  if (retryInFlight.has(newCaseId)) {
+    return { ok: false, created: false, status: "in_flight", message: RETRY_MESSAGES.in_flight };
   }
-  if (!getById(newCaseId)) {
-    return { ok: false, created: false, message: "找不到已建立的新案，未重送、未再建案。" };
+  retryInFlight.add(newCaseId);
+  try {
+    const user = await getAuthenticatedUser().catch((e) => {
+      if (e instanceof AuthRecoverableError) return null;
+      throw e;
+    });
+    if (!user) {
+      return { ok: false, created: false, status: "session_mismatch", message: RETRY_MESSAGES.session_mismatch };
+    }
+    const pending = peekPendingDuplicateTools(newCaseId);
+    if (!pending) {
+      return { ok: false, created: false, status: "failed", message: "沒有可重試的部分完成複製；不會再建新案。" };
+    }
+    if (pending.userId !== user.id || pending.env !== getEnvironment()) {
+      return { ok: false, created: false, status: "session_mismatch", message: RETRY_MESSAGES.session_mismatch };
+    }
+    if (!getById(newCaseId)) {
+      return { ok: false, created: false, status: "failed", message: "找不到已建立的新案，未重送、未再建案。" };
+    }
+
+    const sourceReady = await loadSourceCredentialsForCopy(pending.sourceCaseId, user.id);
+    if (sourceReady.ok === false) {
+      return { ok: false, created: false, status: "failed", message: sourceReady.message };
+    }
+    const { data: target, error: targetError } = await getCaseCredentials(supabase, newCaseId);
+    if (targetError || !target) {
+      return {
+        ok: false,
+        created: false,
+        status: "failed",
+        message: "無法核實新案工具狀態，未重送、未覆寫。",
+      };
+    }
+
+    const decision = evaluateRetryDecision({
+      pending,
+      source: sourceReady.credentials,
+      target: { ...target, caseId: newCaseId },
+      activeUserId: user.id,
+      activeEnv: getEnvironment(),
+    });
+
+    if (decision.action === "already_complete") {
+      setPendingToolCopy(null, newCaseId);
+      return { ok: true, created: false, status: "already_complete", message: decision.message };
+    }
+    if (decision.action !== "write") {
+      setPendingToolCopy({ ...pending, message: decision.message });
+      return { ok: false, created: false, status: decision.status, message: decision.message };
+    }
+
+    const written = await writeCopiedCredentials(
+      newCaseId,
+      decision.patch,
+      decision.expectedRevision,
+    );
+    if (written.status === "ok" || written.status === "already_present") {
+      setPendingToolCopy(null, newCaseId);
+      return { ok: true, created: false, status: "written", message: RETRY_MESSAGES.written };
+    }
+    setPendingToolCopy({ ...pending, message: written.message ?? "工具重試仍未確認，未再建案。" });
+    return { ok: false, created: false, status: "failed", message: written.message ?? "工具重試仍未確認，未再建案。" };
+  } finally {
+    retryInFlight.delete(newCaseId);
   }
-  const user = await getAuthenticatedUser().catch((e) => {
-    if (e instanceof AuthRecoverableError) return null;
-    throw e;
-  });
-  if (!user) {
-    return { ok: false, created: false, message: duplicateAbortMessage("session_mismatch") };
-  }
-  const sourceReady = await loadSourceCredentialsForCopy(pending.sourceCaseId, user.id);
-  if (sourceReady.ok === false) {
-    return { ok: false, created: false, message: sourceReady.message };
-  }
-  const patch = buildDuplicateCredentialPatch(sourceReady.credentials);
-  const written = await writeCopiedCredentials(
-    newCaseId,
-    patch,
-    getById(newCaseId)?.revision ?? 0,
-  );
-  if (written.status === "ok" || written.status === "already_present") {
-    setPendingToolCopy(newCaseId, null);
-    return { ok: true, created: false, message: "工具已寫入既有新案。" };
-  }
-  setPendingToolCopy(newCaseId, {
-    sourceCaseId: pending.sourceCaseId,
-    message: written.message ?? "工具重試仍未確認，未再建案。",
-  });
-  return { ok: false, created: false, message: written.message ?? "工具重試仍未確認，未再建案。" };
 }
 
 /** Fields to clear when duplicating a case */

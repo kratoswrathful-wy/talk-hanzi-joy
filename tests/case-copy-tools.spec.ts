@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectTestModePersonaUiReady } from "./helpers/test-mode-persona";
+import { expectTestModePersonaUiReady, switchToTestPersona } from "./helpers/test-mode-persona";
 
 /**
  * 複製案件工具（#85 之後）：實際 UI 複製 + 後端讀回。
@@ -429,6 +429,229 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
       "f-server": "mq.copy.local",
       "f-pass": "copy-pass",
     });
+  });
+
+  test("T7 寫入成功但回應／讀回失敗後重試：目標已完整則零次額外寫入", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T7 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+
+    let credentialWrites = 0;
+    let blockTargetReads = true;
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      credentialWrites += 1;
+      if (credentialWrites === 1) {
+        await route.fetch();
+        await route.abort("failed");
+        return;
+      }
+      await route.continue();
+    });
+    await page.route("**/rest/v1/rpc/get_case_credentials", async (route) => {
+      const body = route.request().postDataJSON() as { p_case_id?: string };
+      if (blockTargetReads && body.p_case_id && body.p_case_id !== sourceId) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "unavailable" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    expect(credentialWrites).toBe(1);
+
+    blockTargetReads = false;
+    await page.getByTestId("retry-duplicate-tools").click();
+    await expect(page.getByText("工具已核實完成")).toBeVisible({ timeout: 30_000 });
+    expect(credentialWrites).toBe(1);
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+    await page.unroute("**/rest/v1/rpc/get_case_credentials");
+    await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY)).toMatchObject({
+      "f-server": "mq.copy.local",
+      "f-pass": "copy-pass",
+    });
+  });
+
+  test("T8 部分完成後手動補填再重試：不覆寫並報衝突", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T8 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "invalid_credentials", code: "22023" }),
+      });
+    });
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    const dismiss = page.getByRole("button", { name: "確定" });
+    if (await dismiss.isVisible().catch(() => false)) await dismiss.click();
+
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+    const filled = await page.evaluate(async ({ cid, toolEntry, toolLabel }) => {
+      const agent = (window as unknown as {
+        __lmsAgent: {
+          tool: {
+            ensureEntry: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
+            setField: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
+          };
+        };
+      }).__lmsAgent;
+      const ensured = await agent.tool.ensureEntry({
+        caseId: cid,
+        toolEntryId: toolEntry,
+        toolLabel,
+        fields: [{ id: "f-server", label: "伺服器", type: "text" }],
+      });
+      if (!ensured.ok) return ensured;
+      return agent.tool.setField({
+        caseId: cid,
+        toolEntryId: toolEntry,
+        toolLabel,
+        fieldKey: "f-server",
+        value: "user-filled.local",
+      });
+    }, { cid: newId, toolEntry: TOOL_ENTRY, toolLabel: TOOL_LABEL });
+    expect(filled.ok, filled.ok ? "" : filled.error).toBe(true);
+    await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY)).toMatchObject({
+      "f-server": "user-filled.local",
+    });
+
+    await page.getByTestId("retry-duplicate-tools").click();
+    await expect(page.getByTestId("duplicate-tools-conflict")).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY)).toMatchObject({
+      "f-server": "user-filled.local",
+    });
+    expect((await backendFieldValues(page, newId, TOOL_ENTRY))["f-pass"]).not.toBe("copy-pass");
+  });
+
+  test("T9 部分完成後來源變更：不默默改用新來源", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T9 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      const body = route.request().postDataJSON() as { p_case_id?: string };
+      if (body.p_case_id && body.p_case_id !== sourceId) {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "invalid_credentials", code: "22023" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+
+    const sourceChanged = await page.evaluate(async ({ cid, toolEntry, toolLabel }) => {
+      const agent = (window as unknown as {
+        __lmsAgent: {
+          tool: { setField: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }> };
+        };
+      }).__lmsAgent;
+      return agent.tool.setField({
+        caseId: cid,
+        toolEntryId: toolEntry,
+        toolLabel,
+        fieldKey: "f-server",
+        value: "source-changed.local",
+      });
+    }, { cid: sourceId, toolEntry: TOOL_ENTRY, toolLabel: TOOL_LABEL });
+    expect(sourceChanged.ok, sourceChanged.ok ? "" : sourceChanged.error).toBe(true);
+
+    await page.getByTestId("retry-duplicate-tools").click();
+    await expect(page.getByText("來源工具已變更")).toBeVisible({ timeout: 30_000 });
+    const targetValues = await backendFieldValues(page, newId, TOOL_ENTRY);
+    expect(targetValues["f-server"]).not.toBe("source-changed.local");
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+  });
+
+  test("T10 刷新後仍能辨認部分完成；切換假人不得沿用", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T10 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "invalid_credentials", code: "22023" }),
+      });
+    });
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+
+    await page.reload({ waitUntil: "load" });
+    await openCase(page, newId);
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(newId)).toBeVisible();
+
+    const stored = await page.evaluate((key) => window.localStorage.getItem(key), "tms.dupToolsPending.v1");
+    expect(stored).toBeTruthy();
+    expect(stored).not.toContain("copy-pass");
+    expect(stored).not.toContain("mq.copy.local");
+
+    await switchToTestPersona(page, "譯者一");
+    await page.goto(`/cases/${newId}`);
+    await expectTestModePersonaUiReady(page);
+    await expect(page.getByTestId("retry-duplicate-tools")).toHaveCount(0);
+  });
+
+  test("T11 新案建立後例外仍回報新案識別、不重複建案", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T11 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+    const before = await listCaseIdsByTitlePrefix(page, prefix);
+
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      await route.abort("failed");
+    });
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    await expect(page.getByText("新案件建立失敗")).toHaveCount(0);
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(newId)).toBeVisible();
+    const after = await listCaseIdsByTitlePrefix(page, prefix);
+    expect(after.length).toBe(before.length + 1);
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
   });
 
   test("T5 複製後連續編輯仍走 #85 單欄保全", async ({ page }) => {
