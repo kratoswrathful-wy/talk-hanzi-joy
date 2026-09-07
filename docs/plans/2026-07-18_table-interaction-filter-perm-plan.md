@@ -24,7 +24,7 @@
 | 項目 | 已寫程式 | 已測試 | 已上線 | 備註 |
 |---|---|---|---|---|
 | 工項 A：譯者／工作類型單擊即開 | 是（`feat/table-inline-edit-a` 等） | 曾驗 | **視 main／正式線是否含該 commit** | 與「選單空桶」是不同缺陷 |
-| **案件總表工作類型選單鍵**（`fieldKey`→`taskType`） | **是**：沿用 `7ebfb567` 最小修正，重植於 `fix/cases-worktype-on-gate2-prod`（基準 `bbfa5cb3`） | **是**：`case-table-select-field-keys` 回歸＋全量 vitest／typecheck／lint／encoding／forbidden-casts／build | **否**（正式仍為 `bbfa5cb3`；待審核合併／部署） | 選項鍵 `taskType`；案件值 `workType`／DB `work_type` 不改名 |
+| **案件總表工作類型選單鍵**（`fieldKey`→`taskType`） | **是**：`ea9440c6` 沿用 `7ebfb567` 最小修正（基準 `bbfa5cb3`） | **接線／mock 已補**：`CasesPage.worktype-fieldkey.test.tsx`（改回字面 `workType` 會失敗）＋helper 測試；涵蓋選項出現、既有多選勾選、提交鍵 `workType`、重新開啟、唯讀。**真實後端保存／重新整理讀回：未完成**（正式站仍為舊前端；`PLAYWRIGHT_BASE_URL` 指向正式網域不適合驗本修；本輪未另建付費 Preview／未對真實案件寫入） | **否**（正式仍為 `bbfa5cb3`；待審核合併／部署） | 選項鍵 `taskType`；案件值 `workType`／DB `work_type` 不改名 |
 | 工項 B／C 其餘 | 見原章節 | — | — | **不**混入本輪 |
 
 ### 0.2 後續保留（不刪、不偷改規則、不全部混進本輪）
@@ -36,6 +36,18 @@
 - 私人檢視等需求
 
 權威發布結案：[`docs/GATE2_FINAL_WINDOW_CHECKLIST_2026-09.md`](../GATE2_FINAL_WINDOW_CHECKLIST_2026-09.md)。
+
+### 0.3 本輪收尾審核（2026-09-07）
+
+本檔為本輪功能權威計畫。Codex 先前另寫的 `FUNCTION_FIX_RESUMPTION_PLAN_2026-09.md` 為交接參考，不形成第二份待執行清單；不整份覆蓋 Cursor 已提交的文件。
+
+- `ea9440c6` 程式 diff 方向正確；**已補** `CasesPage.worktype-fieldkey.test.tsx`：讀取實際 CasesPage 工作類型欄位原始碼（改回 `fieldKey="workType"` 必須失敗）＋與頁面相同接線的 InlineEditCell mock 互動（不重構表格框架）。
+- 操作驗收（**mock 已過**）：選項來自 `taskType`、既有多選勾選、提交欄位鍵仍為 `workType`、重新開啟勾選保留、`editable=false` 唯讀；對照組字面 `workType` 時選項桶為空。
+- **真實保存／重新整理讀回：未完成、不混稱通過。** 缺口：正式前端仍無本修；預設 Playwright base 為正式網域（舊程式）；未用未確認隔離的 Preview 寫入、未改真實案件。若日後要補，須本機 Preview＋已確認測試模式隔離資料。
+- 已有單元／品質閘門結果保留；補丁後跑相關測試及既有 PR 必要檢查，不重跑完整 Gate1／資料庫重建／Slack。
+- PR #83 以 `ops/gate2-maint-write-acl-20260905` 為 base，屬堆疊的小修審閱；合入此 base 不等於 main 已收斂，也不等於正式已部署。不得直接改 base 到舊 main 導致整批安全變更混入本 PR。
+- 本輪停止點仍為可審核候選，不自動 merge／production 部署／停機。下一批表格一致性另行交辦，不因本輪小修擴大權限稽核。
+- 下方 2026-07 原計畫保留歷史語意；其中譯者多選、舊角色規則不得凌駕已發布的 P0 UUID 指派／現行權限。本輪不照舊文恢復已關閉入口。
 
 ---
 

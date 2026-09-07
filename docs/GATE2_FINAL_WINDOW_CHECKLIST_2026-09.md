@@ -26,7 +26,7 @@
 | ACL allowlist＋啟用→驗收→關閉 | 非放行拒寫／放行可寫；開站後關閉 |
 | 34 案／65 位置指派 | `pm_update_case_assignments` 套用 **34/34**；顯示名＋ active `case_participants` 覆核通過 |
 | 前端冒煙 | 候選前端：案件列表／明細／CAT 進入＋重整／個人檔案 Slack 已連結 |
-| Slack unlink／relink | 主測 alexandria → `U09MNFL5GLW`／`T01RWGQ921W` 恢復；另一方 valodja→`U01R3K96VEH` **未變** |
+| Slack unlink／relink | 主測既有連結已恢復；指定另一方日常連結未變。帳號與工作區識別碼只保留於庫外驗收紀錄，不納入本文件／PR |
 | 測試私訊 | **使用者手動發送成功**（系統提示）；**不**寫成代理自動發送成功 |
 | 短監看 | **無獨立長時監看紀錄**；開站後以正式 `/`、`/cases`、`/cat/team` 抽查確認非維護頁、案件列表可登入使用 |
 
