@@ -37,6 +37,30 @@ export function toolFileValuePatch(
   return { fileValues: { [fieldId]: value } };
 }
 
+export type ToolTemplateApplyInput = {
+  tool: string;
+  fields: ToolEntry["fields"];
+  fieldValues: Record<string, string>;
+};
+
+/**
+ * 套範本意圖：在 persist 執行當下的最新 entry 上套用既定規則。
+ * 有範本值則覆蓋；空範本值保留現值；新欄位 id 才進入 fieldValues。
+ * 不得用開啟確認視窗時的 render 快照當底稿。
+ */
+export function applyToolTemplatePatch(
+  latest: ToolEntry,
+  tpl: ToolTemplateApplyInput,
+): Partial<ToolEntry> {
+  const tplFields = tpl.fields || [];
+  const newValues: Record<string, string> = {};
+  for (const f of tplFields) {
+    const tplVal = tpl.fieldValues[f.id];
+    newValues[f.id] = tplVal ? tplVal : (latest.fieldValues?.[f.id] || "");
+  }
+  return { tool: tpl.tool, fields: tplFields, fieldValues: newValues };
+}
+
 export function mergeToolEntryUpdates(
   entry: ToolEntry,
   updates: Partial<ToolEntry>,

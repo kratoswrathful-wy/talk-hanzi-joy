@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyToolTemplatePatch,
   buildNextToolsFromWritableBase,
   looksLikeMaskedPublicTools,
   mergeToolEntryUpdates,
@@ -63,6 +64,27 @@ describe("case-tool-credentials-guard", () => {
         updater: (c) => c,
       }),
     ).toEqual({ ok: false, reason: "credentials_not_ready" });
+  });
+
+  it("applyToolTemplatePatch uses latest entry, not a stale snapshot", () => {
+    const patch = applyToolTemplatePatch(
+      { id: "te-default", tool: "memoQ", fieldValues: { a: "draft-a", b: "keep-b", c: "old-c" } },
+      {
+        tool: "memoQ",
+        fields: [
+          { id: "a", label: "A", type: "text" },
+          { id: "b", label: "B", type: "text" },
+          { id: "d", label: "D", type: "text" },
+        ],
+        fieldValues: { a: "from-template", b: "", d: "" },
+      },
+    );
+    expect(patch.fieldValues).toEqual({
+      a: "from-template",
+      b: "keep-b",
+      d: "",
+    });
+    expect(patch.fieldValues).not.toHaveProperty("c");
   });
 
   it("rejectMaskedFallbackWrite blocks public fallback and unreadiness", () => {

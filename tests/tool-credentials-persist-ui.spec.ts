@@ -76,6 +76,7 @@ async function accessToken(page: Page): Promise<string> {
 type BackendEntry = {
   id: string;
   tool: string;
+  fields?: { id: string }[];
   fieldValues?: Record<string, string>;
   fileValues?: Record<string, { name: string; url: string }[]>;
 };
@@ -125,6 +126,82 @@ async function backendFieldValues(page: Page, caseId: string): Promise<Record<st
   expect(entry, `後端找不到工具 entry ${ENTRY_ID}（實際：${JSON.stringify(tools.map((t) => t.id))}）`)
     .toBeTruthy();
   return entry!.fieldValues ?? {};
+}
+
+async function restJson(
+  page: Page,
+  path: string,
+  init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
+): Promise<{ ok: boolean; status: number; body: string }> {
+  const { url, anonKey } = localApi();
+  const token = await accessToken(page);
+  return page.evaluate(
+    async ({ apiUrl, anon, jwt, restPath, method, body, extraHeaders }) => {
+      const r = await fetch(`${apiUrl}${restPath}`, {
+        method,
+        headers: {
+          apikey: anon,
+          Authorization: `Bearer ${jwt}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...extraHeaders,
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      return { ok: r.ok, status: r.status, body: await r.text() };
+    },
+    {
+      apiUrl: url,
+      anon: anonKey,
+      jwt: token,
+      restPath: path,
+      method: init.method ?? "GET",
+      body: init.body,
+      extraHeaders: init.headers ?? {},
+    },
+  );
+}
+
+/** 後端案件譯者：走 cases_visible，不是畫面假設。 */
+async function readBackendTranslator(page: Page, caseId: string): Promise<string[]> {
+  const res = await restJson(page, `/rest/v1/cases_visible?id=eq.${caseId}&select=id,translator`);
+  expect(res.ok, `cases_visible translator HTTP ${res.status}: ${res.body}`).toBe(true);
+  const rows = JSON.parse(res.body) as { translator?: unknown }[];
+  const raw = rows[0]?.translator;
+  if (Array.isArray(raw)) return raw.map(String);
+  if (typeof raw === "string" && raw) return [raw];
+  return [];
+}
+
+const TEMPLATE_NAME = "合成memoQ範本";
+const TRANSLATOR_ONE = "譯者一（測試）";
+const TRANSLATOR_TWO = "譯者二（測試）";
+
+async function seedMemoqTemplate(page: Page) {
+  const template = {
+    id: "tpl-toolui-synthetic",
+    name: TEMPLATE_NAME,
+    tool: TOOL_LABEL,
+    fields: [
+      ...TEXT_FIELDS.map((f) => ({ id: f.id, label: f.label, type: "text" as const })),
+      { id: "f-ref", label: "參考檔", type: "file" as const },
+      { id: "f-note", label: "模板附註", type: "text" as const },
+    ],
+    fieldValues: {
+      "f-server": "mq.template.applied",
+      "f-pass": "template-pass",
+    },
+  };
+  const res = await restJson(page, "/rest/v1/app_settings", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: { key: "test:tool_templates", value: [template] },
+  });
+  expect(res.ok, `寫入合成範本 HTTP ${res.status}: ${res.body}`).toBe(true);
+}
+
+function translatorRow(page: Page): Locator {
+  return page.locator("div.grid").filter({ has: page.locator("span", { hasText: /^譯者$/ }) }).first();
 }
 
 /** 以執行長身分建案並播下工具結構（走憑證路徑，禁止 case.update 寫 tools）。 */
@@ -188,11 +265,11 @@ function field(page: Page, testId: string): Locator {
  * 實際欄位操作：填入後等 React 受控值落地，再用 Tab 失焦保存。
  * 不使用固定 sleep；toHaveValue 是確定訊號，避免 fill 後立刻 blur 吃到上一輪 local。
  */
-async function typeAndBlur(page: Page, testId: string, value: string) {
+async function typeAndBlur(page: Page, testId: string, value: string, force = false) {
   const el = field(page, testId);
-  await expect(el).toBeEnabled();
-  await el.click();
-  await el.fill(value);
+  if (!force) await expect(el).toBeEnabled();
+  await el.click({ force });
+  await el.fill(value, { force });
   await expect(el).toHaveValue(value);
   await el.press("Tab");
 }
@@ -403,7 +480,7 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     expect(afterQuestionTools).toEqual(beforeQuestionTools);
   });
 
-  test("T4 改指派與一般欄位：工具不得被清空，且不送出憑證寫入", async ({ page }) => {
+  test("T4 實際更換指派者：指派保存且工具全部保留", async ({ page }) => {
     const caseId = await createCaseWithTool(page, "T4");
     await openCase(page, caseId);
 
@@ -420,7 +497,6 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
       if (r.url().includes("/rpc/update_case_credentials")) credentialWrites += 1;
     });
 
-    // 一般欄位：標題與關鍵字走 case 寫入，不得夾帶工具憑證
     const titleInput = page.getByTestId("case-title-input");
     await titleInput.click();
     await titleInput.fill(`${await titleInput.inputValue()} 改標題`);
@@ -432,28 +508,42 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     await expect(keyword).toHaveValue("synthetic-keyword");
     await keyword.press("Tab");
 
-    // 指派：實際譯者選單，不用 agent.case.update（避免測試自己製造 stale_revision）
-    const translatorCombo = page.locator("label", { hasText: /^譯者$/ }).locator("..").getByRole("combobox");
-    if (await translatorCombo.count()) {
-      await translatorCombo.first().click();
-      const persona = page.getByRole("option", { name: /譯者一/ });
-      if (await persona.count()) {
-        await persona.first().click();
-      } else {
-        await page.keyboard.press("Escape");
-      }
-    }
+    const trigger = translatorRow(page).getByRole("button").first();
+    await expect(trigger, "譯者指派入口必須可操作，不得略過").toBeVisible({ timeout: 30_000 });
+    await trigger.click();
+    const popover = page.locator("[data-radix-popper-content-wrapper]");
+    const first = popover.getByText(TRANSLATOR_ONE, { exact: true });
+    await expect(first, `譯者選單必須有隔離假人「${TRANSLATOR_ONE}」`).toBeVisible({ timeout: 30_000 });
+    await first.click();
+    await expect
+      .poll(() => readBackendTranslator(page, caseId), { timeout: 60_000 })
+      .toEqual([TRANSLATOR_ONE]);
 
-    await page.reload({ waitUntil: "load" });
-    await openCase(page, caseId);
+    await trigger.click();
+    const second = popover.getByText(TRANSLATOR_TWO, { exact: true });
+    await expect(second, `必須能改派到「${TRANSLATOR_TWO}」`).toBeVisible({ timeout: 30_000 });
+    await second.click();
+    await expect
+      .poll(() => readBackendTranslator(page, caseId), { timeout: 60_000 })
+      .toEqual([TRANSLATOR_TWO]);
 
     await expect
       .poll(() => backendFieldValues(page, caseId), { timeout: 60_000 })
       .toMatchObject(expected);
-    expect(credentialWrites, "一般欄位／指派操作不得送出工具憑證更新").toBe(0);
+    expect(credentialWrites, "改標題／關鍵字／指派不得送出工具憑證更新").toBe(0);
+
+    await page.reload({ waitUntil: "load" });
+    await openCase(page, caseId);
+    await expect
+      .poll(() => readBackendTranslator(page, caseId), { timeout: 30_000 })
+      .toEqual([TRANSLATOR_TWO]);
+    await expect
+      .poll(() => backendFieldValues(page, caseId), { timeout: 30_000 })
+      .toMatchObject(expected);
+    await expect(translatorRow(page).getByText(TRANSLATOR_TWO)).toBeVisible();
   });
 
-  test("T5 套範本：未確認前底稿變動不得照舊差異覆蓋", async ({ page }) => {
+  test("T5 確定套用範本：有意替換、與未確認編輯重疊、確認窗後底稿變動", async ({ page }) => {
     const caseId = await createCaseWithTool(page, "T5");
     await openCase(page, caseId);
 
@@ -464,24 +554,66 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
       .poll(() => backendFieldValues(page, caseId), { timeout: 60_000 })
       .toMatchObject(Object.fromEntries(TEXT_FIELDS.map((f) => [f.id, f.value])));
 
-    // 憑證尚未就緒時不得套用可寫範本：重載後在 load 未完成前嘗試開範本
+    await seedMemoqTemplate(page);
+
     await page.route("**/rest/v1/rpc/get_case_credentials", async (route) => {
       await new Promise((r) => setTimeout(r, 3_000));
       await route.continue();
     });
     await page.goto(`/cases/${caseId}`);
     await expectTestModePersonaUiReady(page);
-    // 載入未完成 → 欄位與範本不可操作（不得顯示成可寫的空值）
     await expect(field(page, "tool-server")).toBeDisabled();
     await expect(page.getByRole("button", { name: "範本" }).first()).toBeDisabled();
     await page.unroute("**/rest/v1/rpc/get_case_credentials");
 
     await openCase(page, caseId);
-    // 載入完成後值必須回來，且未被空白底稿寫回
     await expect(field(page, "tool-server")).toHaveValue(TEXT_FIELDS[0].value);
     await expect
       .poll(() => backendFieldValues(page, caseId), { timeout: 30_000 })
       .toMatchObject(Object.fromEntries(TEXT_FIELDS.map((f) => [f.id, f.value])));
+
+    const tplBtn = page.getByRole("button", { name: "範本" }).first();
+    await expect(tplBtn, "載入完成後範本按鈕必須可按").toBeEnabled();
+    const beforeQuestionTools = await readBackendTools(page, caseId, "questionTools");
+
+    const gate = await holdFirstCredentialWrite(page);
+    await typeAndBlur(page, "tool-server", "mq.synthetic.v2");
+    await gate.firstRequestSent;
+    expect(gate.seenCount(), "第一筆保存必須仍在進行").toBe(1);
+
+    await tplBtn.click();
+    const tplOption = page.getByTestId(`template-option-${TEMPLATE_NAME}`);
+    await expect(tplOption, "合成範本必須出現在選單，不得略過").toBeVisible({ timeout: 30_000 });
+    await tplOption.click();
+    await expect(page.getByRole("heading", { name: "套用範本確定" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("模板附註")).toBeVisible();
+
+    await typeAndBlur(page, "tool-username", "synthetic-user-draft", true);
+    await page.getByRole("button", { name: "確定套用" }).click();
+
+    gate.release();
+    await expect.poll(() => gate.seenCount(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+    await gate.stop();
+
+    await expect
+      .poll(() => backendFieldValues(page, caseId), { timeout: 60_000 })
+      .toMatchObject({
+        "f-server": "mq.template.applied",
+        "f-user": "synthetic-user-draft",
+        "f-pass": "template-pass",
+        "f-project": TEXT_FIELDS[3].value,
+        "f-file": TEXT_FIELDS[4].value,
+      });
+    const after = await readBackendTools(page, caseId);
+    const entry = after.find((t) => t.id === ENTRY_ID);
+    expect(entry?.fields?.some((f) => f.id === "f-note"), "範本新增欄位必須寫入").toBe(true);
+    expect(await readBackendTools(page, caseId, "questionTools")).toEqual(beforeQuestionTools);
+
+    await page.reload({ waitUntil: "load" });
+    await openCase(page, caseId);
+    await expect(field(page, "tool-server")).toHaveValue("mq.template.applied");
+    await expect(field(page, "tool-username")).toHaveValue("synthetic-user-draft");
+    await expect(field(page, "tool-password")).toHaveValue("template-pass");
   });
 
   test("T6 切案／切帳／讀取失敗／寫入成功但讀回失敗：不得跨案覆蓋或假成功", async ({ page }) => {

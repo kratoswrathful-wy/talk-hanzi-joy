@@ -97,7 +97,7 @@ import {
   isPersistResultCurrent,
   persistToolBlockPatch,
 } from "@/lib/case-tool-credentials-persist";
-import { toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
+import { applyToolTemplatePatch, toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -493,7 +493,7 @@ function ToolInstance({
 }: {
   entry: ToolEntry;
   index: number;
-  onUpdate: (updates: Partial<ToolEntry>) => void;
+  onUpdate: (updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>)) => void;
   onRemove: () => void;
   showRemove: boolean;
   toolFieldKey?: string;
@@ -614,14 +614,12 @@ function ToolInstance({
       return;
     }
     const tplFields = tpl.fields || [];
-    const newValues: Record<string, string> = {};
-    for (const f of tplFields) {
-      const tplVal = tpl.fieldValues[f.id];
-      const currentVal = values[f.id];
-      // 空範本值保留現值；有值則覆蓋；被移除的欄位 id 不帶入
-      newValues[f.id] = tplVal ? tplVal : (currentVal || "");
-    }
-    onUpdate({ tool: tpl.tool, fields: tplFields, fieldValues: newValues });
+    // 在 persist 執行當下的最新 entry 套用，不用確認視窗開啟時的 render 快照
+    onUpdate((latest) => applyToolTemplatePatch(latest, {
+      tool: tpl.tool,
+      fields: tplFields,
+      fieldValues: tpl.fieldValues || {},
+    }));
     setTplOpen(false);
     setPendingTpl(null);
     setWarningDetails(null);
@@ -1704,8 +1702,17 @@ export default function CaseDetailPage() {
     applyPersistResultToUi,
   ]);
 
-  const updateTool = (entryId: string, updates: Partial<ToolEntry>) => {
-    patchTools((current) => applyToolEntryFieldPatchById(current, entryId, updates));
+  const updateTool = (
+    entryId: string,
+    updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+  ) => {
+    patchTools((current) => {
+      const entry = current.find((t) => t.id === entryId);
+      const patch = typeof updates === "function"
+        ? updates(entry ?? { id: entryId, tool: "", fieldValues: {} })
+        : updates;
+      return applyToolEntryFieldPatchById(current, entryId, patch);
+    });
   };
 
   const removeTool = (idx: number) => {
@@ -1770,8 +1777,17 @@ export default function CaseDetailPage() {
     applyPersistResultToUi,
   ]);
 
-  const updateQuestionTool = (entryId: string, updates: Partial<ToolEntry>) => {
-    patchQuestionTools((current) => applyToolEntryFieldPatchById(current, entryId, updates));
+  const updateQuestionTool = (
+    entryId: string,
+    updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+  ) => {
+    patchQuestionTools((current) => {
+      const entry = current.find((t) => t.id === entryId);
+      const patch = typeof updates === "function"
+        ? updates(entry ?? { id: entryId, tool: "", fieldValues: {} })
+        : updates;
+      return applyToolEntryFieldPatchById(current, entryId, patch);
+    });
   };
 
   const removeQuestionTool = (idx: number) => {
