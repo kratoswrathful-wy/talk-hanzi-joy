@@ -4,28 +4,50 @@ export type ApplyCaseUpdateResult = {
   ok: boolean;
   id?: string;
   updated_at?: string;
+  revision?: number;
   error?: string;
 };
 
+/** 客戶端先剝除 updated_at（伺服器亦會剝除並強制 now()）。 */
+export function stripCaseUpdateClientPatch(
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...patch };
+  delete next.updated_at;
+  return next;
+}
+
 /**
- * 案件寫入唯一入口（工項 2）：經 SECURITY DEFINER RPC `apply_case_update`。
- * 勿再對 `cases` 基表直呼 `.update()`——譯者無基表 SELECT 時會靜默 0 列。
+ * 案件寫入（P0-B）：經 SECURITY DEFINER RPC `apply_case_update`。
+ * 僅 PM／執行長；必須帶 expectedRevision（optimistic concurrency）。
+ * 勿再對 `cases` 基表直呼 `.update()`。
+ * 未知鍵／updated_at 竄改由 RPC 拒絕（unknown_patch_key／剝除後 empty）。
  */
 export async function applyCaseUpdate(
   supabase: SupabaseClient,
   caseId: string,
   patch: Record<string, unknown>,
+  expectedRevision: number,
 ): Promise<{ data: ApplyCaseUpdateResult | null; error: PostgrestError | Error | null }> {
   if (!caseId) {
     return { data: null, error: new Error("missing caseId") };
+  }
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    return { data: null, error: new Error("invalid expectedRevision") };
   }
   if (!patch || Object.keys(patch).length === 0) {
     return { data: null, error: new Error("empty_patch") };
   }
 
+  const p_patch = stripCaseUpdateClientPatch(patch);
+  if (Object.keys(p_patch).length === 0) {
+    return { data: null, error: new Error("empty_patch_after_filter") };
+  }
+
   const { data, error } = await supabase.rpc("apply_case_update", {
     p_case_id: caseId,
-    p_patch: patch,
+    p_patch,
+    p_expected_revision: expectedRevision,
   });
 
   if (error) {

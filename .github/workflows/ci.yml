@@ -25,6 +25,9 @@ jobs:
       - name: Encoding check (防中文編碼損壞)
         run: npm run check:encoding
 
+      - name: SQL migration identifier check
+        run: npm run check:sql-identifiers
+
       - name: Forbidden casts check (as unknown as / @ts-expect-error)
         run: npm run check:forbidden-casts
 

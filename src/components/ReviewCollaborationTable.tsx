@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import type { ReviewCollabRow } from "@/data/case-types";
 import { newReviewRowId } from "@/lib/review-rows";
-import { selectOptionsStore } from "@/stores/select-options-store";
+import { reviewRowFromSelection } from "@/lib/assignee-select";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
@@ -28,14 +28,6 @@ type CatBindOption = {
   id: string;
   label: string;
 };
-
-function resolveAssigneeUserId(name: string): string | null {
-  const n = (name || "").trim();
-  if (!n) return null;
-  const opts = selectOptionsStore.getField("assignee").options;
-  const hit = opts.find((o) => o.label === n);
-  return hit ? String(hit.id) : null;
-}
 
 export default function ReviewCollaborationTable({ rows, onChange, caseId, caseStatus }: Props) {
   const [catFiles, setCatFiles] = useState<CatBindOption[]>([]);
@@ -147,9 +139,10 @@ export default function ReviewCollaborationTable({ rows, onChange, caseId, caseS
                 <ColorSelect
                   fieldKey="assignee"
                   value={row.reviewer}
-                  onValueChange={(v) =>
-                    updateRow(idx, { reviewer: v, reviewerUserId: resolveAssigneeUserId(v) })
-                  }
+                  onValueChange={() => {}}
+                  onAssigneeSelect={(selection) => {
+                    updateRow(idx, reviewRowFromSelection(selection));
+                  }}
                 />
               </div>
               <div>

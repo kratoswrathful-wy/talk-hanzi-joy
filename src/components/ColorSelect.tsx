@@ -23,11 +23,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { pinSelectedAssigneesToTop } from "@/lib/assignee-option-order";
+import {
+  assigneeOptionToPayload,
+  type AssigneeSelectPayload,
+} from "@/lib/assignee-select";
 
 interface ColorSelectProps {
   fieldKey: string;
   value: string;
   onValueChange: (value: string) => void;
+  /** assignee 專用：點選時直接回傳 option UUID（不可依 label 反查）。 */
+  onAssigneeSelect?: (selection: AssigneeSelectPayload) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -47,6 +53,7 @@ export default function ColorSelect({
   triggerClassName,
   defaultOpen,
   onOpenChange,
+  onAssigneeSelect,
 }: ColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
   const labelStyles = useLabelStyles();
@@ -103,10 +110,22 @@ export default function ColorSelect({
   }, [fieldKey, options, filteredOptions, value]);
 
   const handleSelect = (opt: SelectOption) => {
-    onValueChange(opt.label);
+    if (fieldKey === "assignee") {
+      const payload = assigneeOptionToPayload(opt);
+      if (!payload) return;
+      onValueChange(opt.label);
+      onAssigneeSelect?.(payload);
+    } else {
+      onValueChange(opt.label);
+    }
     setOpen(false);
     setAddingNew(false);
     setSearchQuery("");
+  };
+
+  const handleAssigneeClear = () => {
+    onValueChange("");
+    onAssigneeSelect?.(null);
   };
 
   const handleAdd = () => {
@@ -125,7 +144,7 @@ export default function ColorSelect({
   const handleDelete = (optId: string) => {
     const opt = options.find((o) => o.id === optId);
     selectOptionsStore.deleteOption(fieldKey, optId);
-    if (opt && opt.label === value) onValueChange("");
+    if (opt && opt.label === value) handleAssigneeClear();
     setMenuOpenId(null);
     setDeleteConfirm(null);
   };
@@ -266,7 +285,7 @@ export default function ColorSelect({
                           <span
                             role="button"
                             className="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-destructive/20 transition-colors shrink-0"
-                            onClick={(e) => { e.stopPropagation(); onValueChange(""); setOpen(false); }}
+                            onClick={(e) => { e.stopPropagation(); handleAssigneeClear(); setOpen(false); }}
                             title="取消選取"
                           >
                             <X className="h-3 w-3 text-foreground/60 hover:text-destructive" />
