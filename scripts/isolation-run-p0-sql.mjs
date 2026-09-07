@@ -25,6 +25,7 @@ const TESTS = [
   "p0_slack_edge_only_contract_check.sql",
   "p0b_acl_harden_check.sql",
   "p0c_translator_eligibility_check.sql",
+  "pm_complete_case_translation_check.sql",
 ];
 
 function parseEnv(text) {
