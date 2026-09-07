@@ -65,8 +65,8 @@ export const RETRY_MESSAGES = {
 } as const;
 
 export function pendingDuplicateToolsMessageTestId(message: string): string | undefined {
-  if (message.includes("未覆寫")) return "duplicate-tools-conflict";
-  if (message.includes("來源工具已變更")) return "duplicate-tools-source-changed";
+  if (message === RETRY_MESSAGES.source_changed) return "duplicate-tools-source-changed";
+  if (message === RETRY_MESSAGES.target_conflict) return "duplicate-tools-conflict";
   return undefined;
 }
 
