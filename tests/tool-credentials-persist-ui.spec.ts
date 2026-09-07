@@ -199,19 +199,32 @@ async function typeAndBlur(page: Page, testId: string, value: string) {
 async function holdFirstCredentialWrite(page: Page) {
   let seen = 0;
   let release!: () => void;
+  let markSent!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
   const firstRequestSent = new Promise<void>((resolve) => {
-    void page.route(UPDATE_RPC, async (route) => {
-      seen += 1;
-      if (seen === 1) {
-        resolve();
-        await gate;
-      }
-      await route.continue();
-    });
+    markSent = resolve;
   });
+
+  await page.route(UPDATE_RPC, async (route) => {
+    seen += 1;
+    if (seen > 1) {
+      await route.continue();
+      return;
+    }
+    // 先把寫入送到後端，但延後把回應交還前端：
+    // 前端的 confirmed 快取直到 fulfill 才更新，正是舊呼叫端拿到過期快照的條件。
+    const response = await route.fetch();
+    markSent();
+    await gate;
+    try {
+      await route.fulfill({ response });
+    } catch {
+      // 測試收尾時 unroute／關頁可能已接手這筆 route，不影響斷言
+    }
+  });
+
   return {
     firstRequestSent,
     release,
@@ -221,7 +234,8 @@ async function holdFirstCredentialWrite(page: Page) {
 }
 
 describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () => {
-  test.describe.configure({ mode: "serial" });
+  // 六項各自建案，互不依賴：一項失敗仍要拿到其餘各項的 PASS／FAIL
+  test.describe.configure({ mode: "default" });
   // T2 需要真實貼上事件
   test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
