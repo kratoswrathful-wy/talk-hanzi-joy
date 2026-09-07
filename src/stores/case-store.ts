@@ -1377,7 +1377,21 @@ async function duplicate(
       clientInvoicePatches,
     };
 
-    const rememberPending = (message: string) => {
+    /** 記下部分完成當下的新案基準；讀不到就不留基準，重試改走保守停止。 */
+    const readTargetBaseline = async () => {
+      try {
+        const { data } = await getCaseCredentials(supabase, newCase.id);
+        if (!data || typeof data.revision !== "number") return undefined;
+        return {
+          revision: data.revision,
+          patch: buildDuplicateCredentialPatch({ ...data, caseId: newCase.id }),
+        };
+      } catch {
+        return undefined;
+      }
+    };
+
+    const rememberPending = async (message: string) => {
       setPendingToolCopy(buildPendingDuplicateToolsRecord({
         targetCaseId: newCase.id,
         sourceCaseId: id,
@@ -1386,6 +1400,7 @@ async function duplicate(
         sourceRevision: sourceReady.credentials.revision,
         expected: credentialPatch,
         message,
+        targetBaseline: await readTargetBaseline(),
       }));
     };
 
@@ -1406,7 +1421,7 @@ async function duplicate(
       }
 
       const pendingMessage = written.message ?? "新案件已建立，工具尚未確認寫入。";
-      rememberPending(pendingMessage);
+      await rememberPending(pendingMessage);
       return {
         ok: false,
         created: true,
@@ -1425,7 +1440,7 @@ async function duplicate(
       } catch {
         // 結果未知：不盲目重送、不引導再複製
       }
-      rememberPending(RETRY_MESSAGES.created_unknown);
+      await rememberPending(RETRY_MESSAGES.created_unknown);
       return {
         ok: false,
         created: true,

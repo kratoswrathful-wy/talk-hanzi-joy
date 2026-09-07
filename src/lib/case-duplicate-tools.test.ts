@@ -205,7 +205,22 @@ describe("case-duplicate-tools", () => {
 
 describe("duplicate-tools retry decision and pending records", () => {
   const expected = buildDuplicateCredentialPatch(cred({ caseId: SRC, tools: [memoq] }));
+  /** 部分完成當下的新案：全空、revision 4 */
+  const emptyTargetBaseline = {
+    revision: 4,
+    patch: buildDuplicateCredentialPatch(cred({ caseId: DST, revision: 4 })),
+  };
   const pending = buildPendingDuplicateToolsRecord({
+    targetCaseId: DST,
+    sourceCaseId: SRC,
+    userId: USER,
+    env: "test",
+    sourceRevision: 3,
+    expected,
+    message: "待補寫",
+    targetBaseline: emptyTargetBaseline,
+  });
+  const legacyPending = buildPendingDuplicateToolsRecord({
     targetCaseId: DST,
     sourceCaseId: SRC,
     userId: USER,
@@ -217,6 +232,8 @@ describe("duplicate-tools retry decision and pending records", () => {
 
   it("fingerprints expected content without putting values on the record", () => {
     expect(pending.expectedFingerprint).toMatch(/^[0-9a-f]+$/);
+    expect(pending.targetBaselineFingerprint).toMatch(/^[0-9a-f]+$/);
+    expect(pending.targetBaselineRevision).toBe(4);
     expect(JSON.stringify(pending)).not.toContain("mq.synthetic.local");
     expect(JSON.stringify(pending)).not.toContain("synthetic-user");
     expect(pendingRecordHasForbiddenKeys({ ...pending, loginPassword: "x" })).toBe(true);
@@ -264,6 +281,54 @@ describe("duplicate-tools retry decision and pending records", () => {
       expect(decision.expectedRevision).toBe(4);
       expect(decision.patch.tools[0]?.fieldValues?.["f-server"]).toBe("mq.synthetic.local");
     }
+  });
+
+  it("does not refill after the user added tools to the new case and then cleared them", () => {
+    // 使用者改過又清空：內容看起來與基準一樣空，但版本號已前進
+    const decision = evaluateRetryDecision({
+      pending,
+      source: cred({ caseId: SRC, revision: 9, tools: [memoq] }),
+      target: cred({ caseId: DST, revision: 6 }),
+      activeUserId: USER,
+      activeEnv: "test",
+    });
+    expect(decision.action).toBe("target_conflict");
+    expect(decision.message).toBe(RETRY_MESSAGES.target_cleared);
+  });
+
+  it("treats an empty target with no recorded baseline as unsafe to refill", () => {
+    expect(legacyPending.targetBaselineFingerprint).toBeUndefined();
+    const decision = evaluateRetryDecision({
+      pending: legacyPending,
+      source: cred({ caseId: SRC, revision: 9, tools: [memoq] }),
+      target: cred({ caseId: DST, revision: 4 }),
+      activeUserId: USER,
+      activeEnv: "test",
+    });
+    expect(decision.action).toBe("target_conflict");
+    expect(decision.message).toBe(RETRY_MESSAGES.target_baseline_unknown);
+  });
+
+  it("still verifies a complete target even without a recorded baseline", () => {
+    const decision = evaluateRetryDecision({
+      pending: legacyPending,
+      source: cred({ caseId: SRC, revision: 3, tools: [memoq] }),
+      target: cred({ caseId: DST, revision: 9, tools: [memoq] }),
+      activeUserId: USER,
+      activeEnv: "test",
+    });
+    expect(decision.action).toBe("already_complete");
+  });
+
+  it("drops a malformed stored baseline instead of trusting it", () => {
+    const raw = JSON.stringify([{
+      ...pending,
+      targetBaselineRevision: "not-a-number",
+    }]);
+    const parsed = parsePendingDuplicateToolsRecords(raw);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].targetBaselineRevision).toBeUndefined();
+    expect(parsed[0].targetBaselineFingerprint).toBeUndefined();
   });
 
   it("stops when the target already has different tool content", () => {

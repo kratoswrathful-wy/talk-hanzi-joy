@@ -40,6 +40,12 @@ export type PendingDuplicateToolsRecord = {
   sourceRevision: number;
   expectedFingerprint: string;
   message: string;
+  /**
+   * 部分完成當下的新案基準（版本號＋內容指紋，無底稿值）。
+   * 少了它就無法分辨「從未寫入的空白」與「使用者加了工具又全部刪掉」，重試必須保守停止。
+   */
+  targetBaselineRevision?: number;
+  targetBaselineFingerprint?: string;
 };
 
 export const DUP_TOOLS_PENDING_STORAGE_KEY = "tms.dupToolsPending.v1";
@@ -56,6 +62,10 @@ const ABORT_MESSAGES: Record<DuplicateToolsAbortReason, string> = {
 export const RETRY_MESSAGES = {
   already_complete: "工具已核實完成，未再寫入。",
   written: "工具已寫入既有新案。",
+  target_cleared:
+    "新案工具已被清空或改動，無法確認可安全補寫，未覆寫。請直接編輯本筆，不要再複製一次。",
+  target_baseline_unknown:
+    "缺少新案的初始基準，無法確認可安全補寫，未覆寫。請直接編輯本筆，不要再複製一次。",
   target_conflict: "新案工具已與待補寫內容不同，未覆寫。請直接編輯本筆，不要再複製一次。",
   source_changed: "來源工具已變更，未套用新來源、未覆寫新案。",
   session_mismatch: "目前身分或環境與部分完成紀錄不符，未重試。",
@@ -66,7 +76,13 @@ export const RETRY_MESSAGES = {
 
 export function pendingDuplicateToolsMessageTestId(message: string): string | undefined {
   if (message === RETRY_MESSAGES.source_changed) return "duplicate-tools-source-changed";
-  if (message === RETRY_MESSAGES.target_conflict) return "duplicate-tools-conflict";
+  if (
+    message === RETRY_MESSAGES.target_conflict
+    || message === RETRY_MESSAGES.target_cleared
+    || message === RETRY_MESSAGES.target_baseline_unknown
+  ) {
+    return "duplicate-tools-conflict";
+  }
   return undefined;
 }
 
@@ -79,6 +95,8 @@ const PENDING_RECORD_KEYS = [
   "sourceRevision",
   "expectedFingerprint",
   "message",
+  "targetBaselineRevision",
+  "targetBaselineFingerprint",
 ] as const;
 
 const SECRET_KEY_PATTERN =
@@ -335,7 +353,12 @@ export function buildPendingDuplicateToolsRecord(input: {
   sourceRevision: number;
   expected: DuplicateCredentialPatch;
   message: string;
+  targetBaseline?: { revision: number; patch: DuplicateCredentialPatch };
 }): PendingDuplicateToolsRecord {
+  const baseline = input.targetBaseline;
+  const baselineUsable = !!baseline
+    && Number.isSafeInteger(baseline.revision)
+    && baseline.revision >= 0;
   return {
     v: 1,
     targetCaseId: input.targetCaseId,
@@ -345,6 +368,12 @@ export function buildPendingDuplicateToolsRecord(input: {
     sourceRevision: input.sourceRevision,
     expectedFingerprint: fingerprintCredentialPatch(input.expected),
     message: input.message,
+    ...(baselineUsable
+      ? {
+        targetBaselineRevision: baseline!.revision,
+        targetBaselineFingerprint: fingerprintCredentialPatch(baseline!.patch),
+      }
+      : {}),
   };
 }
 
@@ -379,6 +408,12 @@ export function parsePendingDuplicateToolsRecords(raw: string | null | undefined
       if (!Number.isSafeInteger(sourceRevision) || sourceRevision < 0) continue;
       if (typeof rec.expectedFingerprint !== "string" || !rec.expectedFingerprint) continue;
       if (typeof rec.message !== "string") continue;
+      // 基準殘缺（舊版紀錄或被改壞）就視為沒有基準，重試改走保守停止
+      const baselineRevision = Number(rec.targetBaselineRevision);
+      const baselineUsable = typeof rec.targetBaselineFingerprint === "string"
+        && !!rec.targetBaselineFingerprint
+        && Number.isSafeInteger(baselineRevision)
+        && baselineRevision >= 0;
       out.push({
         v: 1,
         targetCaseId: rec.targetCaseId,
@@ -388,6 +423,12 @@ export function parsePendingDuplicateToolsRecords(raw: string | null | undefined
         sourceRevision,
         expectedFingerprint: rec.expectedFingerprint,
         message: rec.message,
+        ...(baselineUsable
+          ? {
+            targetBaselineRevision: baselineRevision,
+            targetBaselineFingerprint: rec.targetBaselineFingerprint as string,
+          }
+          : {}),
       });
     }
     return out;
@@ -406,6 +447,12 @@ export function serializePendingDuplicateToolsRecords(records: PendingDuplicateT
     sourceRevision: rec.sourceRevision,
     expectedFingerprint: rec.expectedFingerprint,
     message: rec.message,
+    ...(rec.targetBaselineFingerprint != null && rec.targetBaselineRevision != null
+      ? {
+        targetBaselineRevision: rec.targetBaselineRevision,
+        targetBaselineFingerprint: rec.targetBaselineFingerprint,
+      }
+      : {}),
   })));
 }
 
@@ -449,17 +496,41 @@ export function evaluateRetryDecision(input: {
   }
 
   const targetPatch = buildDuplicateCredentialPatch(input.target);
-  if (fingerprintCredentialPatch(targetPatch) === input.pending.expectedFingerprint) {
+  const targetFingerprint = fingerprintCredentialPatch(targetPatch);
+  if (targetFingerprint === input.pending.expectedFingerprint) {
     return { action: "already_complete", status: "already_complete", message: RETRY_MESSAGES.already_complete };
   }
   if (shouldWriteCredentialPatch(targetPatch)) {
     return { action: "target_conflict", status: "target_conflict", message: RETRY_MESSAGES.target_conflict };
   }
+
+  // 目標全空不代表可以回填：也可能是使用者加過工具後刻意清空。
+  // 只有「內容與版本號都還停在部分完成當下的基準」才算確定未被動過；
+  // 缺基準或版本號已前進一律停止，不以取得最新 revision 當作可覆寫。
+  const baselineFingerprint = input.pending.targetBaselineFingerprint;
+  const baselineRevision = input.pending.targetBaselineRevision;
+  if (
+    typeof baselineFingerprint !== "string"
+    || !baselineFingerprint
+    || typeof baselineRevision !== "number"
+    || !Number.isSafeInteger(baselineRevision)
+    || baselineRevision < 0
+  ) {
+    return {
+      action: "target_conflict",
+      status: "target_conflict",
+      message: RETRY_MESSAGES.target_baseline_unknown,
+    };
+  }
+  if (targetFingerprint !== baselineFingerprint || input.target.revision !== baselineRevision) {
+    return { action: "target_conflict", status: "target_conflict", message: RETRY_MESSAGES.target_cleared };
+  }
+
   return {
     action: "write",
     status: "write",
     patch: sourcePatch,
-    expectedRevision: input.target.revision,
+    expectedRevision: baselineRevision,
     message: RETRY_MESSAGES.written,
   };
 }

@@ -103,6 +103,34 @@ async function backendFieldValues(
   return entry?.fieldValues ?? {};
 }
 
+/** 模擬使用者在新案把工具全部刪掉（走與 UI 相同的憑證 RPC）。 */
+async function clearBackendTools(page: Page, caseId: string) {
+  const { url, anonKey } = localApi();
+  const token = await accessToken(page);
+  const res = await page.evaluate(
+    async ({ apiUrl, anon, jwt, cid }) => {
+      const call = async (fn: string, body: unknown) => {
+        const r = await fetch(`${apiUrl}/rest/v1/rpc/${fn}`, {
+          method: "POST",
+          headers: { apikey: anon, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        return { ok: r.ok, status: r.status, body: await r.text() };
+      };
+      const read = await call("get_case_credentials", { p_case_id: cid });
+      if (!read.ok) return read;
+      const revision = (JSON.parse(read.body) as { revision: number }).revision;
+      return call("update_case_credentials", {
+        p_case_id: cid,
+        p_expected_revision: revision,
+        p_credentials: { tools: [], questionTools: [], toolFieldValues: {} },
+      });
+    },
+    { apiUrl: url, anon: anonKey, jwt: token, cid: caseId },
+  );
+  expect(res.ok, `clear tools ${res.status}: ${res.body}`).toBe(true);
+}
+
 async function listCaseIdsByTitlePrefix(page: Page, prefix: string): Promise<string[]> {
   const { url, anonKey } = localApi();
   const token = await accessToken(page);
@@ -652,6 +680,77 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     const after = await listCaseIdsByTitlePrefix(page, prefix);
     expect(after.length).toBe(before.length + 1);
     await page.unroute("**/rest/v1/rpc/update_case_credentials");
+  });
+
+  test("T12 部分完成後使用者清空新案工具：重試零次寫入、保持清空、報衝突", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T12 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+    const before = await listCaseIdsByTitlePrefix(page, prefix);
+
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "invalid_credentials", code: "22023" }),
+      });
+    });
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    await page.keyboard.press("Escape");
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+
+    // 使用者先自己加了工具
+    const added = await page.evaluate(async ({ cid, toolEntry, toolLabel }) => {
+      const agent = (window as unknown as {
+        __lmsAgent: {
+          tool: {
+            ensureEntry: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
+            setField: (i: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
+          };
+        };
+      }).__lmsAgent;
+      const ensured = await agent.tool.ensureEntry({
+        caseId: cid,
+        toolEntryId: toolEntry,
+        toolLabel,
+        fields: [{ id: "f-server", label: "伺服器", type: "text" }],
+      });
+      if (!ensured.ok) return ensured;
+      return agent.tool.setField({
+        caseId: cid,
+        toolEntryId: toolEntry,
+        toolLabel,
+        fieldKey: "f-server",
+        value: "user-added.local",
+      });
+    }, { cid: newId, toolEntry: TOOL_ENTRY, toolLabel: TOOL_LABEL });
+    expect(added.ok, added.ok ? "" : added.error).toBe(true);
+
+    // 再全部刪掉：內容看起來與「從未寫入」一樣空
+    await clearBackendTools(page, newId);
+    await expect.poll(() => readBackendTools(page, newId)).toHaveLength(0);
+
+    let credentialWrites = 0;
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      credentialWrites += 1;
+      await route.continue();
+    });
+    await page.getByTestId("retry-duplicate-tools").click();
+    await expect(page.getByTestId("duplicate-tools-conflict")).toBeVisible({ timeout: 30_000 });
+    expect(credentialWrites).toBe(0);
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+
+    expect(await readBackendTools(page, newId)).toHaveLength(0);
+    expect(await readBackendTools(page, newId, "questionTools")).toHaveLength(0);
+    const after = await listCaseIdsByTitlePrefix(page, prefix);
+    expect(after.length).toBe(before.length + 1);
   });
 
   test("T5 複製後連續編輯仍走 #85 單欄保全", async ({ page }) => {
