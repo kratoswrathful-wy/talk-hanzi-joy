@@ -11,6 +11,7 @@ import {
   filterPendingRecordsForScope,
   fingerprintCredentialPatch,
   parsePendingDuplicateToolsRecords,
+  pendingDuplicateToolsMessageTestId,
   pendingRecordHasForbiddenKeys,
   RETRY_MESSAGES,
   serializePendingDuplicateToolsRecords,
@@ -312,6 +313,12 @@ describe("duplicate-tools retry decision and pending records", () => {
       activeUserId: USER,
       activeEnv: "production",
     }).action).toBe("session_mismatch");
+  });
+
+  it("maps conflict and source-changed messages to unique test ids", () => {
+    expect(pendingDuplicateToolsMessageTestId(RETRY_MESSAGES.target_conflict)).toBe("duplicate-tools-conflict");
+    expect(pendingDuplicateToolsMessageTestId(RETRY_MESSAGES.source_changed)).toBe("duplicate-tools-source-changed");
+    expect(pendingDuplicateToolsMessageTestId(RETRY_MESSAGES.already_complete)).toBeUndefined();
   });
 
   it("classifies post-create exceptions as pending, not create_failed", () => {

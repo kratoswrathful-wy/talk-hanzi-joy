@@ -52,6 +52,7 @@ import { DuplicateCaseSortDialog } from "@/components/DuplicateCaseSortDialog";
 import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inquiry-message";
 import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSingleCaseFlowButtons";
 import { toast } from "@/hooks/use-toast";
+import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
 
@@ -1493,7 +1494,9 @@ export default function CasesPage() {
                 <p>新頁面名稱：<span className="font-medium text-foreground">{casesDupInfo?.newTitle}</span></p>
                 {casesDupInfo?.toolsPending && (
                   <p className="text-sm" data-testid="duplicate-tools-pending">
-                    {casesDupInfo.toolsMessage}
+                    <span data-testid={pendingDuplicateToolsMessageTestId(casesDupInfo.toolsMessage ?? "")}>
+                      {casesDupInfo.toolsMessage}
+                    </span>
                   </p>
                 )}
                 {casesDupInfo?.renames && casesDupInfo.renames.length > 0 && (

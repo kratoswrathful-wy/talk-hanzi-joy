@@ -536,7 +536,7 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     });
 
     await page.getByTestId("retry-duplicate-tools").click();
-    await expect(page.getByText("新案工具已與待補寫內容不同")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("duplicate-tools-conflict")).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY)).toMatchObject({
       "f-server": "user-filled.local",
     });
@@ -586,7 +586,7 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     expect(sourceChanged.ok, sourceChanged.ok ? "" : sourceChanged.error).toBe(true);
 
     await page.getByTestId("retry-duplicate-tools").click();
-    await expect(page.getByText("來源工具已變更")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("duplicate-tools-source-changed")).toBeVisible({ timeout: 30_000 });
     const targetValues = await backendFieldValues(page, newId, TOOL_ENTRY);
     expect(targetValues["f-server"]).not.toBe("source-changed.local");
     await page.unroute("**/rest/v1/rpc/update_case_credentials");

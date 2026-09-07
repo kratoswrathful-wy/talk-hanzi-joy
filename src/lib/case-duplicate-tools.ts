@@ -64,6 +64,12 @@ export const RETRY_MESSAGES = {
     "新案件已建立，工具結果未知。已先查證、未重送。請用新案識別重試，不要再複製一次。",
 } as const;
 
+export function pendingDuplicateToolsMessageTestId(message: string): string | undefined {
+  if (message.includes("未覆寫")) return "duplicate-tools-conflict";
+  if (message.includes("來源工具已變更")) return "duplicate-tools-source-changed";
+  return undefined;
+}
+
 const PENDING_RECORD_KEYS = [
   "v",
   "targetCaseId",

@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
+import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
@@ -2150,12 +2151,7 @@ export default function CaseDetailPage() {
             data-testid="duplicate-tools-pending"
           >
             <p className="font-medium">案件已複製，工具未完成</p>
-            <p data-testid={
-              pendingDuplicateTools.message.includes("未覆寫")
-                ? "duplicate-tools-conflict"
-                : undefined
-            }
-            >
+            <p data-testid={pendingDuplicateToolsMessageTestId(pendingDuplicateTools.message)}>
               {pendingDuplicateTools.message}
             </p>
             <p className="text-muted-foreground">新案識別：{caseData.id}。未刪除本筆，重試不會再建一筆。</p>
@@ -3923,7 +3919,9 @@ export default function CaseDetailPage() {
                 <p>新頁面名稱：<span className="font-medium text-foreground">{dupInfo?.newTitle}</span></p>
                 {dupInfo?.toolsPending && (
                   <p className="text-sm" data-testid="duplicate-tools-pending">
-                    {dupInfo.toolsMessage}
+                    <span data-testid={pendingDuplicateToolsMessageTestId(dupInfo.toolsMessage ?? "")}>
+                      {dupInfo.toolsMessage}
+                    </span>
                   </p>
                 )}
                 {dupInfo?.renames && dupInfo.renames.length > 0 && (
