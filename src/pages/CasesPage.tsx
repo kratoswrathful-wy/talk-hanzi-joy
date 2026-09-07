@@ -47,7 +47,7 @@ import { undoStore } from "@/stores/undo-store";
 import { useTableContextMenu, TableContextMenuOverlay, type ContextMenuItem } from "@/components/TableContextMenu";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { needsDuplicateSortDialog, DEFAULT_DUPLICATE_SORT, findDuplicateTitleCase } from "@/lib/case-title-duplicate";
-import type { CaseDuplicateSort } from "@/stores/case-store";
+import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import { DuplicateCaseSortDialog } from "@/components/DuplicateCaseSortDialog";
 import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inquiry-message";
 import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSingleCaseFlowButtons";
@@ -649,10 +649,13 @@ export default function CasesPage() {
   const [pendingDuplicateId, setPendingDuplicateId] = useState<string | null>(null);
   const [casesDupInfo, setCasesDupInfo] = useState<{
     newTitle: string;
+    newCaseId: string;
     renames: { oldTitle: string; newTitle: string }[];
     feePatchCount: number;
     translatorInvoicePatchCount: number;
     clientInvoicePatchCount: number;
+    toolsPending: boolean;
+    toolsMessage?: string;
   } | null>(null);
   const handleDeleteSelected = useCallback(async () => {
     // Snapshot deleted records for undo
@@ -834,18 +837,30 @@ export default function CasesPage() {
 
   const runCasesDuplicate = useCallback(
     async (id: string, sort: CaseDuplicateSort) => {
-      const result = await caseStore.duplicate(id, sort);
-      if (result) {
-        setCasesDupInfo({
-          newTitle: result.newCase.title,
-          renames: result.renames,
-          feePatchCount: result.feePatches.length,
-          translatorInvoicePatchCount: result.translatorInvoicePatches.length,
-          clientInvoicePatchCount: result.clientInvoicePatches.length,
-        });
-        setCasesDupDialogOpen(true);
-        navigate(`/cases/${result.newCase.id}`, {
-          state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
+      const result: CaseDuplicateOutcome = await caseStore.duplicate(id, sort);
+      if (result.created === false) {
+        toast({ title: "無法複製", description: result.message, variant: "destructive" });
+        return;
+      }
+      setCasesDupInfo({
+        newTitle: result.newCase.title,
+        newCaseId: result.newCase.id,
+        renames: result.renames,
+        feePatchCount: result.feePatches.length,
+        translatorInvoicePatchCount: result.translatorInvoicePatches.length,
+        clientInvoicePatchCount: result.clientInvoicePatches.length,
+        toolsPending: result.ok === false,
+        toolsMessage: result.ok === false ? result.message : undefined,
+      });
+      setCasesDupDialogOpen(true);
+      navigate(`/cases/${result.newCase.id}`, {
+        state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
+      });
+      if (result.ok === false) {
+        toast({
+          title: "案件已建立，工具未完成",
+          description: result.message,
+          variant: "destructive",
         });
       }
     },
@@ -1471,11 +1486,16 @@ export default function CasesPage() {
       <AlertDialog open={casesDupDialogOpen} onOpenChange={setCasesDupDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>已複製頁面</AlertDialogTitle>
+            <AlertDialogTitle>{casesDupInfo?.toolsPending ? "案件已複製，工具未完成" : "已複製頁面"}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>已複製頁面並切換至新頁面。</p>
+                <p>{casesDupInfo?.toolsPending ? "新案件已建立，工具尚未確認寫入。未刪除新案，也不會自動再建立一筆。" : "已複製頁面並切換至新頁面。"}</p>
                 <p>新頁面名稱：<span className="font-medium text-foreground">{casesDupInfo?.newTitle}</span></p>
+                {casesDupInfo?.toolsPending && (
+                  <p className="text-sm" data-testid="duplicate-tools-pending">
+                    {casesDupInfo.toolsMessage}
+                  </p>
+                )}
                 {casesDupInfo?.renames && casesDupInfo.renames.length > 0 && (
                   <div>
                     <p className="font-medium text-foreground">以下更名的案件：</p>
@@ -1499,6 +1519,24 @@ export default function CasesPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
+            {casesDupInfo?.toolsPending && casesDupInfo.newCaseId && (
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="retry-duplicate-tools"
+                onClick={async () => {
+                  const retried = await caseStore.retryDuplicateTools(casesDupInfo.newCaseId);
+                  if (retried.ok) {
+                    setCasesDupInfo((prev) => (prev ? { ...prev, toolsPending: false, toolsMessage: undefined } : prev));
+                    toast({ title: "工具已寫入既有新案" });
+                  } else {
+                    toast({ title: "工具重試未完成", description: retried.message, variant: "destructive" });
+                  }
+                }}
+              >
+                重試複製工具
+              </Button>
+            )}
             <AlertDialogAction onClick={() => setCasesDupDialogOpen(false)}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

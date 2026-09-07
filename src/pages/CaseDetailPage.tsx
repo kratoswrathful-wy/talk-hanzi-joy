@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore } from "@/hooks/use-case-store";
-import type { CaseDuplicateSort } from "@/stores/case-store";
+import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
   DEFAULT_DUPLICATE_SORT,
@@ -1126,10 +1126,13 @@ export default function CaseDetailPage() {
   const [duplicateSortOpen, setDuplicateSortOpen] = useState(false);
   const [dupInfo, setDupInfo] = useState<{
     newTitle: string;
+    newCaseId: string;
     renames: { oldTitle: string; newTitle: string }[];
     feePatchCount: number;
     translatorInvoicePatchCount: number;
     clientInvoicePatchCount: number;
+    toolsPending: boolean;
+    toolsMessage?: string;
   } | null>(null);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
@@ -1976,26 +1979,37 @@ export default function CaseDetailPage() {
     return false;
   };
 
-  const applyDuplicateResult = (
-    result: NonNullable<Awaited<ReturnType<typeof caseStore.duplicate>>>
-  ) => {
+  const applyDuplicateOutcome = (result: CaseDuplicateOutcome) => {
+    if (result.created === false) {
+      toast({ title: "無法複製", description: result.message, variant: "destructive" });
+      return;
+    }
     setDupInfo({
       newTitle: result.newCase.title,
+      newCaseId: result.newCase.id,
       renames: result.renames,
       feePatchCount: result.feePatches.length,
       translatorInvoicePatchCount: result.translatorInvoicePatches.length,
       clientInvoicePatchCount: result.clientInvoicePatches.length,
+      toolsPending: result.ok === false,
+      toolsMessage: result.ok === false ? result.message : undefined,
     });
     setDupDialogOpen(true);
     navigate(`/cases/${result.newCase.id}`, {
       state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
     });
+    if (result.ok === false) {
+      toast({
+        title: "案件已建立，工具未完成",
+        description: result.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const runDuplicateWithSort = async (sort: CaseDuplicateSort) => {
     if (!caseData) return;
-    const result = await caseStore.duplicate(caseData.id, sort);
-    if (result) applyDuplicateResult(result);
+    applyDuplicateOutcome(await caseStore.duplicate(caseData.id, sort));
   };
 
   const handleDuplicate = async () => {
@@ -2126,9 +2140,37 @@ export default function CaseDetailPage() {
   const comments = caseData.comments || [];
   const internalComments = caseData.internalComments || [];
 
+  const pendingDuplicateTools = caseStore.peekPendingDuplicateTools(caseData.id);
+
   return (
     <div className="space-y-1 max-w-3xl overflow-hidden">
       <div className="space-y-1">
+        {pendingDuplicateTools && !dupDialogOpen && (
+          <div
+            className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm space-y-2"
+            data-testid="duplicate-tools-pending"
+          >
+            <p className="font-medium">案件已複製，工具未完成</p>
+            <p>{pendingDuplicateTools.message}</p>
+            <p className="text-muted-foreground">新案識別：{caseData.id}。未刪除本筆，重試不會再建一筆。</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="retry-duplicate-tools"
+              onClick={async () => {
+                const retried = await caseStore.retryDuplicateTools(caseData.id);
+                if (retried.ok) {
+                  toast({ title: "工具已寫入既有新案" });
+                } else {
+                  toast({ title: "工具重試未完成", description: retried.message, variant: "destructive" });
+                }
+              }}
+            >
+              重試複製工具
+            </Button>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
@@ -3864,11 +3906,16 @@ export default function CaseDetailPage() {
       <AlertDialog open={dupDialogOpen} onOpenChange={setDupDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>已複製頁面</AlertDialogTitle>
+            <AlertDialogTitle>{dupInfo?.toolsPending ? "案件已複製，工具未完成" : "已複製頁面"}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>已複製頁面並切換至新頁面。</p>
+                <p>{dupInfo?.toolsPending ? "新案件已建立，工具尚未確認寫入。未刪除新案，也不會自動再建立一筆。" : "已複製頁面並切換至新頁面。"}</p>
                 <p>新頁面名稱：<span className="font-medium text-foreground">{dupInfo?.newTitle}</span></p>
+                {dupInfo?.toolsPending && (
+                  <p className="text-sm" data-testid="duplicate-tools-pending">
+                    {dupInfo.toolsMessage}
+                  </p>
+                )}
                 {dupInfo?.renames && dupInfo.renames.length > 0 && (
                   <div>
                     <p className="font-medium text-foreground">以下更名的案件：</p>
@@ -3892,6 +3939,24 @@ export default function CaseDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
+            {dupInfo?.toolsPending && dupInfo.newCaseId && (
+              <Button
+                type="button"
+                variant="outline"
+                data-testid="retry-duplicate-tools"
+                onClick={async () => {
+                  const retried = await caseStore.retryDuplicateTools(dupInfo.newCaseId);
+                  if (retried.ok) {
+                    setDupInfo((prev) => (prev ? { ...prev, toolsPending: false, toolsMessage: undefined } : prev));
+                    toast({ title: "工具已寫入既有新案" });
+                  } else {
+                    toast({ title: "工具重試未完成", description: retried.message, variant: "destructive" });
+                  }
+                }}
+              >
+                重試複製工具
+              </Button>
+            )}
             <AlertDialogAction onClick={() => setDupDialogOpen(false)}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
