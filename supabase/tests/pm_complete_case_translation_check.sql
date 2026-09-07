@@ -151,10 +151,16 @@ begin
   begin
     update public.cases set status = 'dispatched' where id = v_case_empty;
     set constraints all immediate;
+    raise exception 'dispatch_guard_should_have_blocked';
   exception
     when sqlstate '22023' then
       v_blocked := true;
+      set constraints all deferred;
+    when others then
+      set constraints all deferred;
+      raise;
   end;
+  set constraints all deferred;
   if not v_blocked then
     raise exception 'dispatch without translator participant must be blocked';
   end if;
@@ -170,10 +176,72 @@ begin
       v_case_empty, v_t1, 'translator', 'active', 'test_same_txn', v_pm, v_pm
     );
     set constraints all immediate;
+    set constraints all deferred;
   exception
     when others then
+      set constraints all deferred;
       raise exception 'same-txn dispatch+participant must succeed: %', sqlerrm;
   end;
+  set constraints all deferred;
+
+  -- 真正指派譯者本人完成成功
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by, multi_collab
+  ) values (
+    gen_random_uuid(), '[ISO] translator self complete', 'dispatched', 'c',
+    jsonb_build_array('T1'), 'test', v_pm, false
+  ) returning id into v_case_empty;
+  insert into public.case_participants(
+    case_id, user_id, role, work_status, source, created_by, updated_by
+  ) values (
+    v_case_empty, v_t1, 'translator', 'active', 'pm_assign', v_pm, v_pm
+  );
+  select revision into v_revision from public.cases where id = v_case_empty;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_result := public.complete_case_translation(v_case_empty, v_revision);
+  reset role;
+  if v_result->>'status' <> 'task_completed' then
+    raise exception 'translator self complete failed: %', v_result;
+  end if;
+
+  -- 跨環境拒絕：假 env 列不可被當前 env 完成
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by, multi_collab
+  ) values (
+    gen_random_uuid(), '[ISO] cross env', 'dispatched', 'c',
+    jsonb_build_array('T1'), 'production', v_pm, false
+  ) returning id into v_case_empty;
+  insert into public.case_participants(
+    case_id, user_id, role, work_status, source, created_by, updated_by
+  ) values (
+    v_case_empty, v_t1, 'translator', 'active', 'pm_assign', v_pm, v_pm
+  );
+  select revision into v_revision from public.cases where id = v_case_empty;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_blocked := false;
+  begin
+    perform public.pm_complete_case_translation(v_case_empty, v_revision);
+  exception
+    when sqlstate 'P0002' or sqlstate '42501' then
+      v_blocked := true;
+  end;
+  reset role;
+  if not v_blocked then
+    raise exception 'cross-env pm_complete must be blocked';
+  end if;
+  if (select status from public.cases where id = v_case_empty) <> 'dispatched' then
+    raise exception 'cross-env reject must not mutate status';
+  end if;
 
   -- 公開承接：inquiry → accept（內部先 update 再 insert）須成功
   insert into public.cases (

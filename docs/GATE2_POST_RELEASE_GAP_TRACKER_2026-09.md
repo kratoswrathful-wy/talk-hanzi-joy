@@ -7,15 +7,9 @@
 
 | ID | 摘要 | 狀態 | 最小測例／證據 |
 |---|---|---|---|
-| F01 | 工具遮罩→整組 updateCredentials 清空 | **已修（本機分支）／尚未部署** | vitest：`case-tool-credentials-persist`（拒遮罩、單欄合併、失敗保留草稿、序列化連編）；正式案結構摘要已庫外存證 |
-| F09 | credentials load 在途舊請求回填 | **已修／尚未部署** | vitest：`case-credential-access` clearAll／clear 後 stale load 拋 `CredentialLoadStaleError` |
-| F10 | AI `tool.setField` 走 case.update | **已修／尚未部署** | bridge 改 `updateCredentials`；`case.update` 拒 tools／login* |
-| F11 | Slack OAuth 補償競態 | **待重現** | 故障注入 unread previousCred／並行 callback（未做） |
-| #84 trigger | BEFORE UPDATE 擋合法承接 | **已修／尚未部署** | migration 改 CONSTRAINT DEFERRED；SQL：`pm_complete_case_translation_check` 同交易 update+insert、accept、assign+dispatch |
-| #84 wrapper | 缺前置靜默略過 | **已修／尚未部署** | migration：`install_maintenance_write_wrapper` 缺則 raise |
-| #84 finalize | 確定指派未等保存 | **已修／尚未部署** | CaseDetailPage `await caseStore.update` 後才 toast |
-| #84 participant 查詢 | 未綁請求代次／未分失敗與無授權 | **已修／尚未部署** | requestGen＋loadState `error`/`empty` |
-| #84 completeness | helper 未接線；缺 UUID 略過 | **已修／尚未部署** | `deriveExpected` 保留 name-only；`scripts/check-assignment-position-completeness.mjs` |
+| F01／F09／F10 | 工具遮罩／在途／AI | **已修（本機）／尚未部署** | vitest 21；含跨案 draft 拒絕、草稿與確認分離、讀回未確認 |
+| #84 trigger | deferred 最終態＋SQL 約束還原 | **已修／尚未部署** | migration 重讀最終 status；SQL `SET CONSTRAINTS … DEFERRED` 還原；GH suite `pm-complete` |
+| CAT ensure | 無權 ensure→空階段 | **已修／尚未部署** | `getFileWorkflowStages` 優先；team 不 ensure；loadState 區分 |
 | F02 | 總表 onCommit 漏傳指派 meta | **已證實／尚未修** | CasesPage adapter 只傳 (id,field,value)；測：單格選人後 RPC patch 無 UUID |
 | F03 | member 留言被白名單排除 | **已證實／尚未修** | store 白名單無 comments；測：member `save({comments})` 被拒 |
 | F04 | 交稿附件錯綁 case_detail_keyword | **已證實／尚未修** | registry＋member edit=false；測：上傳後欄位 onChange 被 field_not_permitted |
@@ -30,6 +24,7 @@
 |---|---|---|
 | 工具保全 F01/F09/F10 | `fix/tool-credentials-masked-write` | `1UP-TMS-tool-wipe-20260907` |
 | PR #84 阻擋與接線 | `fix/task-complete-admin-rpc` | `1UP-TMS-task-complete-20260907` |
+| CAT 階段載入 | `fix/cat-workflow-stages-read-without-ensure` | `1UP-TMS-cat-wf-stages-20260907` |
 | PR #83 工作類型 | 暫停 | `1UP-TMS-worktype-20260906` |
 
 ## 未核准事項

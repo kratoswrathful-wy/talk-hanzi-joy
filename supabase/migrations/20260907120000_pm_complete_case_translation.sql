@@ -10,18 +10,31 @@ language plpgsql
 security definer
 set search_path = pg_catalog
 as $$
+declare
+  v_status text;
+  v_multi boolean;
 begin
   if tg_op <> 'UPDATE' then
     return null;
   end if;
-  if new.status is distinct from 'dispatched' then
+  -- 以交易最終列為準，避免同交易後續合法變更仍用事件當下 NEW 誤擋。
+  select c.status, coalesce(c.multi_collab, false)
+    into v_status, v_multi
+  from public.cases c
+  where c.id = new.id;
+
+  if not found then
     return null;
   end if;
-  -- 僅在「進入 dispatched」時檢查；已在 dispatched 的後續更新不重驗。
+
+  -- 僅在「最終仍為單檔 dispatched」且「本次事件曾自非 dispatched 進入」時檢查。
+  if v_status is distinct from 'dispatched' then
+    return null;
+  end if;
   if old.status is not distinct from 'dispatched' then
     return null;
   end if;
-  if coalesce(new.multi_collab, false) then
+  if v_multi then
     return null;
   end if;
   if not exists (
@@ -52,7 +65,9 @@ create constraint trigger trg_assert_single_dispatch_has_translator
   execute function private.assert_single_dispatch_has_translator();
 
 comment on function private.assert_single_dispatch_has_translator() is
-  '單檔案件轉 dispatched 時（交易結束）必須已有 active translator participant；禁止僅顯示名派出。';
+  '保護範圍：cases.status 自非 dispatched 進入 dispatched 的 UPDATE（交易最終仍為單檔 dispatched 時）。'
+  '不涵蓋：純 INSERT cases、已在 dispatched 的改派／撤銷、多人協作。'
+  '不得詮釋為全面防再發；既有問題案的合法修復路徑仍可用 PM 代完成等。';
 
 -- ── 2) PM／executive 代完成（不插入假 translator participant）──
 create or replace function public.pm_complete_case_translation(
