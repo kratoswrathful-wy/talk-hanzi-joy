@@ -2512,6 +2512,16 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return data;
     }
     case "db.ensureFileWorkflowStages": {
+      // 先讀既有階段；僅在空陣列時才呼叫 ensure（內層對 authenticated 無 EXECUTE）。
+      const { data: existing, error: readErr } = await supabase
+        .from("cat_file_workflow_stages" as any)
+        .select("*")
+        .eq("file_id", payload.fileId)
+        .order("stage_order", { ascending: true });
+      if (readErr) throw readErr;
+      if (existing && existing.length > 0) {
+        return existing.map(mapFileWorkflowStageRow);
+      }
       const { error: ensErr } = await supabase.rpc("ensure_cat_file_workflow_stages" as any, {
         p_file_id: payload.fileId,
       } as any);
