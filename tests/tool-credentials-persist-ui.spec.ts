@@ -248,36 +248,46 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     const caseId = await createCaseWithTool(page, "T1");
     await openCase(page, caseId);
 
-    const gate = await holdFirstCredentialWrite(page);
-
-    // 第一欄：保存請求會被掛住
-    await typeAndBlur(page, TEXT_FIELDS[0].testId, TEXT_FIELDS[0].value);
-    await gate.firstRequestSent;
-
-    // 第一筆確定仍在進行中時，接著改其餘四欄（render 快照此時仍為舊值）
-    for (const f of TEXT_FIELDS.slice(1)) {
+    // 先依序填滿並確認後端——空欄開始時舊呼叫端的「整組快照」與單欄修補等價，無法重現覆蓋。
+    for (const f of TEXT_FIELDS) {
       await typeAndBlur(page, f.testId, f.value);
     }
+    await expect
+      .poll(() => backendFieldValues(page, caseId), { timeout: 60_000 })
+      .toMatchObject(Object.fromEntries(TEXT_FIELDS.map((f) => [f.id, f.value])));
+
+    const gate = await holdFirstCredentialWrite(page);
+
+    // 已有確認值後再重疊改兩欄：舊呼叫端會把第一欄覆回填滿時的舊值
+    await typeAndBlur(page, TEXT_FIELDS[0].testId, "mq.synthetic.v2");
+    await gate.firstRequestSent;
+    await typeAndBlur(page, TEXT_FIELDS[1].testId, "synthetic-user-v2");
 
     // 第一筆回應尚未交還前端：後續四欄已失焦並排入同一佇列。
     // 不在此檢查畫面兄弟欄位——未確認的第一筆回應回來前，受控 value 仍可能是空字串。
     expect(gate.seenCount(), "第一筆保存必須仍在進行（尚未釋放回應）").toBe(1);
 
     gate.release();
-    await expect
-      .poll(() => gate.seenCount(), { timeout: 30_000 })
-      .toBeGreaterThanOrEqual(TEXT_FIELDS.length);
+    await expect.poll(() => gate.seenCount(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
     await gate.stop();
 
-    // 後端實際值：五欄都必須留下（舊候選只會留下最後一欄）
+    // 後端：兩次重疊修改都必須留下，其餘三欄不得被舊快照覆回
     await expect
       .poll(() => backendFieldValues(page, caseId), { timeout: 60_000 })
-      .toMatchObject(Object.fromEntries(TEXT_FIELDS.map((f) => [f.id, f.value])));
+      .toMatchObject({
+        "f-server": "mq.synthetic.v2",
+        "f-user": "synthetic-user-v2",
+        "f-pass": TEXT_FIELDS[2].value,
+        "f-project": TEXT_FIELDS[3].value,
+        "f-file": TEXT_FIELDS[4].value,
+      });
 
     // 畫面刷新後一致
     await page.reload({ waitUntil: "load" });
     await openCase(page, caseId);
-    for (const f of TEXT_FIELDS) {
+    await expect(field(page, "tool-server")).toHaveValue("mq.synthetic.v2");
+    await expect(field(page, "tool-username")).toHaveValue("synthetic-user-v2");
+    for (const f of TEXT_FIELDS.slice(2)) {
       await expect(field(page, f.testId)).toHaveValue(f.value);
     }
   });
