@@ -296,18 +296,27 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
 }) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
+  const localRef = useRef(value);
+  localRef.current = local;
 
   useEffect(() => {
-    if (!focused) setLocal(value);
+    if (!focused) {
+      localRef.current = value;
+      setLocal(value);
+    }
   }, [value, focused]);
 
   return (
     <MultilineInput
       value={local}
-      onChange={(e) => setLocal(e.target.value)}
+      onChange={(e) => {
+        localRef.current = e.target.value;
+        setLocal(e.target.value);
+      }}
       onBlur={() => {
         setFocused(false);
-        if (local !== value) onSave(local);
+        const next = localRef.current;
+        if (next !== value) onSave(next);
       }}
       onFocus={() => setFocused(true)}
       className={className || "max-w-md"}
@@ -392,9 +401,9 @@ function FileFieldRow({ label, value, onChange }: { label: string; value: FileIt
 }
 
 /** Wrapper for tool file fields: + button in label, delete button beside content */
-function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField, testId }: {
+function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField, testId, disabled }: {
   fieldId: string; label: string; value: FileItem[]; onChange: (v: FileItem[]) => void;
-  canRemoveField: boolean; onDeleteField: () => void; testId?: string;
+  canRemoveField: boolean; onDeleteField: () => void; testId?: string; disabled?: boolean;
 }) {
   const addRef = useRef<(() => void) | null>(null);
   return (
@@ -404,8 +413,9 @@ function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onD
       action={
         <button
           type="button"
-          onClick={() => addRef.current?.()}
-          className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          disabled={disabled}
+          onClick={() => { if (!disabled) addRef.current?.(); }}
+          className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -690,7 +700,7 @@ function ToolInstance({
                           variant="outline"
                           size="sm"
                           className="h-8 text-xs shrink-0"
-                          disabled={!hasToolSelected}
+                          disabled={!hasToolSelected || !structurePersistEnabled}
                         >
                           範本
                         </Button>
@@ -743,6 +753,7 @@ function ToolInstance({
                 canRemoveField={canRemoveField}
                 onDeleteField={() => setDeleteFieldId(f.id)}
                 testId={toolFieldTestId(f.label, f.id)}
+                disabled={!structurePersistEnabled}
               />
             );
           }
@@ -752,6 +763,7 @@ function ToolInstance({
                 <IMESafeInput
                   value={values[f.id] || ""}
                   onSave={(v) => onUpdate(toolFieldValuePatch(f.id, v))}
+                  disabled={!structurePersistEnabled}
                   className="flex-1 min-h-0 h-auto !py-px !leading-snug"
                   minRows={1}
                   maxRows={undefined}
@@ -3189,7 +3201,13 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      <h2 className="text-base font-semibold">工具</h2>
+      <h2
+        className="text-base font-semibold"
+        data-testid="tool-section"
+        data-credentials-status={credentialsStatus}
+      >
+        工具
+      </h2>
       {caseData && caseData.catToolEnabled && (
         <CaseCatToolsPanel
           caseId={caseData.id}

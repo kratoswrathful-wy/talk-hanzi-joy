@@ -184,12 +184,17 @@ function field(page: Page, testId: string): Locator {
   return page.getByTestId(testId).first();
 }
 
-/** 實際失焦保存：填值後把焦點移出該欄位。 */
+/**
+ * 實際欄位操作：填入後等 React 受控值落地，再用 Tab 失焦保存。
+ * 不使用固定 sleep；toHaveValue 是確定訊號，避免 fill 後立刻 blur 吃到上一輪 local。
+ */
 async function typeAndBlur(page: Page, testId: string, value: string) {
   const el = field(page, testId);
+  await expect(el).toBeEnabled();
   await el.click();
   await el.fill(value);
-  await el.blur();
+  await expect(el).toHaveValue(value);
+  await el.press("Tab");
 }
 
 /**
@@ -254,7 +259,16 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
       await typeAndBlur(page, f.testId, f.value);
     }
 
+    // 第一筆回應尚未交還前端：後續四欄已在畫面失焦保存並排入同一佇列
+    expect(gate.seenCount(), "第一筆保存必須仍在進行（尚未釋放回應）").toBe(1);
+    for (const f of TEXT_FIELDS) {
+      await expect(field(page, f.testId)).toHaveValue(f.value);
+    }
+
     gate.release();
+    await expect
+      .poll(() => gate.seenCount(), { timeout: 30_000 })
+      .toBeGreaterThanOrEqual(TEXT_FIELDS.length);
     await gate.stop();
 
     // 後端實際值：五欄都必須留下（舊候選只會留下最後一欄）
@@ -326,7 +340,14 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     const server = field(page, "tool-server");
     await server.click();
     await server.blur();
-    await page.waitForTimeout(0);
+    await page
+      .waitForRequest((r) => r.url().includes("/rpc/update_case_credentials"), { timeout: 1_500 })
+      .then(
+        () => {
+          throw new Error("未改動的失焦不得送出憑證寫入");
+        },
+        () => undefined,
+      );
     expect(writes, "未改動的失焦不得送出憑證寫入").toBe(0);
   });
 
@@ -391,21 +412,29 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
       if (r.url().includes("/rpc/update_case_credentials")) credentialWrites += 1;
     });
 
-    // 一般欄位（標題）與指派（譯者）都走 case 寫入路徑，不得夾帶工具憑證
+    // 一般欄位：標題與關鍵字走 case 寫入，不得夾帶工具憑證
     const titleInput = page.getByTestId("case-title-input");
     await titleInput.click();
     await titleInput.fill(`${await titleInput.inputValue()} 改標題`);
     await titleInput.blur();
 
-    const assigned = await page.evaluate(async (id) => {
-      const agent = (window as unknown as {
-        __lmsAgent: {
-          case: { update: (cid: string, p: Record<string, unknown>) => Promise<AgentResult<unknown>> };
-        };
-      }).__lmsAgent;
-      return agent.case.update(id, { status: "inquiry" });
-    }, caseId);
-    expect(assigned.ok, assigned.error ?? "").toBe(true);
+    const keyword = page.getByTestId("case-keyword-input");
+    await keyword.click();
+    await keyword.fill("synthetic-keyword");
+    await expect(keyword).toHaveValue("synthetic-keyword");
+    await keyword.press("Tab");
+
+    // 指派：實際譯者選單，不用 agent.case.update（避免測試自己製造 stale_revision）
+    const translatorCombo = page.locator("label", { hasText: /^譯者$/ }).locator("..").getByRole("combobox");
+    if (await translatorCombo.count()) {
+      await translatorCombo.first().click();
+      const persona = page.getByRole("option", { name: /譯者一/ });
+      if (await persona.count()) {
+        await persona.first().click();
+      } else {
+        await page.keyboard.press("Escape");
+      }
+    }
 
     await page.reload({ waitUntil: "load" });
     await openCase(page, caseId);
@@ -434,8 +463,9 @@ describeTool("工具保存實際 UI + 後端讀回（#85 止損驗收）", () =>
     });
     await page.goto(`/cases/${caseId}`);
     await expectTestModePersonaUiReady(page);
-    // 載入未完成 → 欄位不可編輯（不得顯示成可寫的空值）
+    // 載入未完成 → 欄位與範本不可操作（不得顯示成可寫的空值）
     await expect(field(page, "tool-server")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "範本" }).first()).toBeDisabled();
     await page.unroute("**/rest/v1/rpc/get_case_credentials");
 
     await openCase(page, caseId);
