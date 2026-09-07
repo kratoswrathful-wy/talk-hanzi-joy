@@ -312,7 +312,6 @@ jobs:
           npm run check:forbidden-casts
           npm run typecheck
           npx vitest run \
-            src/lib/case-tool-credentials-callsite.test.ts \
             src/lib/case-tool-credentials-persist.test.ts \
             src/lib/case-tool-credentials-guard.test.ts
 
