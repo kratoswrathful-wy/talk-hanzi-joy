@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
-import { caseStore } from "@/hooks/use-case-store";
+import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
@@ -1891,6 +1891,7 @@ export default function CaseDetailPage() {
     if (!Array.isArray(b)) return [];
     return b;
   }, [caseData?.bodyContent]);
+  const pendingDuplicateTools = usePendingDuplicateTools(caseData?.id);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
@@ -2139,8 +2140,6 @@ export default function CaseDetailPage() {
 
   const comments = caseData.comments || [];
   const internalComments = caseData.internalComments || [];
-
-  const pendingDuplicateTools = caseStore.peekPendingDuplicateTools(caseData.id);
 
   return (
     <div className="space-y-1 max-w-3xl overflow-hidden">

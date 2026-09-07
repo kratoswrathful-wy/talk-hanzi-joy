@@ -1133,6 +1133,11 @@ export type CaseDuplicateResult = CaseDuplicateOutcome;
 
 const pendingToolCopies = new Map<string, PendingDuplicateToolsRecord>();
 const retryInFlight = new Set<string>();
+let pendingToolsVersion = 0;
+
+function getPendingToolsVersion(): number {
+  return pendingToolsVersion;
+}
 
 function readPendingStorage(): PendingDuplicateToolsRecord[] {
   if (typeof localStorage === "undefined") return [];
@@ -1184,6 +1189,7 @@ function setPendingToolCopy(record: PendingDuplicateToolsRecord | null, targetCa
     writePendingStorage(readPendingStorage().filter((rec) => rec.targetCaseId !== id));
     pendingToolCopies.delete(id);
   }
+  pendingToolsVersion += 1;
   notify();
 }
 
@@ -1577,6 +1583,7 @@ export const caseStore = {
   duplicate,
   retryDuplicateTools,
   peekPendingDuplicateTools,
+  getPendingToolsVersion,
   acceptPublicInquiry,
   declinePublicInquiry,
   acceptInquiryCollabRow,
