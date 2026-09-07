@@ -4,6 +4,10 @@
  */
 import { caseStore } from "@/stores/case-store";
 import { caseCredentialAccess } from "@/lib/case-credential-store";
+import {
+  applyToolEntryFieldPatch,
+  persistToolBlockPatch,
+} from "@/lib/case-tool-credentials-persist";
 import { feeStore } from "@/stores/fee-store";
 import { invoiceStore } from "@/stores/invoice-store";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
@@ -1513,7 +1517,9 @@ export function buildLmsAgentApi(): LmsAgentApi {
 
         let credentials;
         try {
-          credentials = caseCredentialAccess.peek(caseId) ?? await caseCredentialAccess.load(caseId);
+          credentials =
+            caseCredentialAccess.peekConfirmed(caseId)
+            ?? await caseCredentialAccess.load(caseId);
         } catch (e) {
           return fail(
             e instanceof Error ? e.message : "無法載入完整工具憑證，拒絕以遮罩資料寫入",
@@ -1540,19 +1546,44 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const built = buildToolFieldWritePatch(credentialSlice, { ...input, caseId }, toolFields);
         if (built.ok === false) return failFrom(built);
 
-        const patch = built.data.patch;
-        const writeError = await caseStore.updateCredentials(caseId, patch);
-        if (writeError) return failWriteFailed("案件工具憑證", describeStoreError(writeError));
+        const block = toolFieldKey === "questionTool" ? "questionTools" : "tools";
+        const fieldId = built.data.meta.fieldId;
+        const persist = await persistToolBlockPatch({
+          caseId,
+          userId: caseCredentialAccess.getActiveUserId(),
+          generation: caseCredentialAccess.generation(caseId),
+          block,
+          updater: (current) =>
+            applyToolEntryFieldPatch(current, idxResult.data, {
+              fieldValues: { [fieldId]: input.value },
+            }),
+          draftCredentials: credentials,
+          credentialsReady: true,
+          usedPublicFallback: false,
+          deps: {
+            getActiveUserId: () => caseCredentialAccess.getActiveUserId(),
+            scope: (id) => caseCredentialAccess.scope(id),
+            peekConfirmed: (id) => caseCredentialAccess.peekConfirmed(id),
+            putConfirmed: (id, c, g) => caseCredentialAccess.putConfirmed(id, c, g),
+            putDraft: (id, c) => caseCredentialAccess.putDraft(id, c),
+            peekDraft: (id) => caseCredentialAccess.peekDraft(id),
+            load: (id) => caseCredentialAccess.load(id),
+            updateCredentials: (id, patch) => caseStore.updateCredentials(id, patch),
+          },
+        });
 
-        const updatedCreds = caseCredentialAccess.peek(caseId);
-        if (!updatedCreds) {
-          return fail("寫入後無法回讀完整工具憑證");
+        if (persist.status === "write_ok_readback_pending") {
+          return fail(persist.error?.message ?? "已寫入、尚未確認讀回");
         }
+        if (persist.status !== "ok" || !persist.confirmedCredentials) {
+          return fail(persist.error?.message ?? "工具憑證寫入失敗");
+        }
+
         {
           const toolsAfter = getEffectiveToolEntries(
             toolFieldKey === "questionTool"
-              ? { questionTools: updatedCreds.questionTools }
-              : { tools: updatedCreds.tools },
+              ? { questionTools: persist.confirmedCredentials.questionTools }
+              : { tools: persist.confirmedCredentials.tools },
             toolFieldKey,
           );
           const entryAfter =

@@ -4,13 +4,9 @@ import { createCaseCredentialAccess } from "@/lib/case-credential-access";
 
 export const caseCredentialAccess = createCaseCredentialAccess(supabase);
 
-let activeUserId: string | null = null;
 supabase.auth.onAuthStateChange((_event, session) => {
   const nextUserId = session?.user?.id ?? null;
-  if (nextUserId !== activeUserId) {
-    caseCredentialAccess.clearAll();
-    activeUserId = nextUserId;
-  }
+  caseCredentialAccess.setActiveUser(nextUserId);
 });
 
 supabase

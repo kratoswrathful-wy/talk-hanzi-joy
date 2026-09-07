@@ -93,6 +93,7 @@ import type { CaseCredentials } from "@/lib/case-action-rpc";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
   applyToolEntryFieldPatch,
+  isPersistResultCurrent,
   persistToolBlockPatch,
 } from "@/lib/case-tool-credentials-persist";
 
@@ -1256,6 +1257,10 @@ export default function CaseDetailPage() {
   }, [caseData?.createdBy]);
 
   useEffect(() => {
+    caseCredentialAccess.setActiveUser(user?.id ?? null);
+  }, [user?.id]);
+
+  useEffect(() => {
     caseEditBurstRef.current = {};
   }, [id]);
 
@@ -1265,20 +1270,26 @@ export default function CaseDetailPage() {
       setCaseCredentials(null);
       return;
     }
-    // revision 變更時保留既有草稿直到新 load 成功，避免回退到公開遮罩空值。
-    void caseCredentialAccess.load(id)
+    // 切換案件時立即隔離；同案 revision 重載保留畫面草稿直到新 load 成功。
+    const viewingId = id;
+    const uid = user?.id ?? null;
+    void caseCredentialAccess.load(viewingId)
       .then((credentials) => {
-        if (active) setCaseCredentials(credentials);
+        if (!active) return;
+        if ((user?.id ?? null) !== uid) return;
+        if (id !== viewingId) return;
+        setCaseCredentials(credentials);
       })
       .catch((err) => {
         if (!active) return;
         if (err instanceof CredentialLoadStaleError) return;
+        if (id !== viewingId) return;
         setCaseCredentials(null);
       });
     return () => {
       active = false;
     };
-  }, [id, caseData?.revision]);
+  }, [id, caseData?.revision, user?.id]);
 
   useEffect(() => {
     if (!id) return;
@@ -1292,8 +1303,10 @@ export default function CaseDetailPage() {
       setCaseCredentials(null);
       return;
     }
-    if (clearedCaseId === id && !caseCredentialAccess.peek(id)) {
-      setCaseCredentials(null);
+    if (clearedCaseId === id && !caseCredentialAccess.peekConfirmed(id)) {
+      const draft = caseCredentialAccess.peekDraft(id);
+      // 清除確認快取時：若仍在同案且有未確認草稿可暫留畫面，否則清空
+      if (!draft || draft.caseId !== id) setCaseCredentials(null);
     }
   }), [id]);
 
@@ -1505,63 +1518,117 @@ export default function CaseDetailPage() {
   );
 
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
-  const credentialsReady = Array.isArray(caseCredentials?.tools);
+  const credentialsReady =
+    !!caseCredentials
+    && caseCredentials.caseId === caseData?.id
+    && Array.isArray(caseCredentials.tools)
+    && !!caseCredentialAccess.peekConfirmed(caseData?.id ?? "");
   const usedPublicToolsFallback = !credentialsReady && Array.isArray(caseData?.tools);
 
   const tools: ToolEntry[] = useMemo(() => {
-    if (Array.isArray(caseCredentials?.tools)) return caseCredentials.tools;
+    if (
+      caseCredentials
+      && caseCredentials.caseId === caseData?.id
+      && Array.isArray(caseCredentials.tools)
+    ) {
+      return caseCredentials.tools;
+    }
     // 僅供顯示結構；寫入路徑禁止以此為底稿。
     if (Array.isArray(caseData?.tools)) return caseData.tools;
     return [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: {} }];
-  }, [caseCredentials?.tools, caseData?.tools, caseData?.executionTool]);
+  }, [caseCredentials, caseData?.id, caseData?.tools, caseData?.executionTool]);
 
   const usedPublicQuestionToolsFallback =
-    !Array.isArray(caseCredentials?.questionTools)
+    !(caseCredentials && caseCredentials.caseId === caseData?.id && Array.isArray(caseCredentials.questionTools))
     && Array.isArray(caseData?.questionTools)
     && caseData.questionTools.length > 0;
 
-  const questionTools: ToolEntry[] = useMemo(() =>
-    Array.isArray(caseCredentials?.questionTools)
-      ? (caseCredentials.questionTools.length
+  const questionTools: ToolEntry[] = useMemo(() => {
+    if (caseCredentials && caseCredentials.caseId === caseData?.id && Array.isArray(caseCredentials.questionTools)) {
+      return caseCredentials.questionTools.length
         ? caseCredentials.questionTools
-        : [{ id: "qt-default", tool: "", fieldValues: {} }])
-      : caseData?.questionTools?.length
+        : [{ id: "qt-default", tool: "", fieldValues: {} }];
+    }
+    return caseData?.questionTools?.length
       ? caseData.questionTools
-      : [{ id: "qt-default", tool: "", fieldValues: {} }],
-    [caseCredentials?.questionTools, caseData?.questionTools]
-  );
+      : [{ id: "qt-default", tool: "", fieldValues: {} }];
+  }, [caseCredentials, caseData?.id, caseData?.questionTools]);
 
   const toolPersistDeps = useMemo(() => ({
-    peek: (caseId: string) => caseCredentialAccess.peek(caseId),
-    put: (caseId: string, credentials: CaseCredentials) => {
-      caseCredentialAccess.put(caseId, credentials);
-    },
+    getActiveUserId: () => caseCredentialAccess.getActiveUserId(),
+    scope: (caseId: string) => caseCredentialAccess.scope(caseId),
+    peekConfirmed: (caseId: string) => caseCredentialAccess.peekConfirmed(caseId),
+    putConfirmed: (caseId: string, credentials: CaseCredentials, expectedGeneration?: number) =>
+      caseCredentialAccess.putConfirmed(caseId, credentials, expectedGeneration),
+    putDraft: (caseId: string, credentials: CaseCredentials) =>
+      caseCredentialAccess.putDraft(caseId, credentials),
+    peekDraft: (caseId: string) => caseCredentialAccess.peekDraft(caseId),
     load: (caseId: string) => caseCredentialAccess.load(caseId),
     updateCredentials: (caseId: string, patch: Partial<Pick<CaseCredentials, "tools" | "questionTools">>) =>
       caseStore.updateCredentials(caseId, patch),
   }), []);
 
+  const applyPersistResultToUi = useCallback((result: Awaited<ReturnType<typeof persistToolBlockPatch>>) => {
+    const gen = caseData?.id ? caseCredentialAccess.generation(caseData.id) : null;
+    if (!isPersistResultCurrent({
+      result,
+      viewingCaseId: caseData?.id,
+      activeUserId: user?.id ?? null,
+      generation: gen,
+    })) {
+      return;
+    }
+    if (result.status === "ok" && result.confirmedCredentials) {
+      setCaseCredentials(result.confirmedCredentials);
+      return;
+    }
+    if (result.draftCredentials) {
+      setCaseCredentials(result.draftCredentials);
+    }
+    if (result.status === "write_ok_readback_pending") {
+      toast({
+        title: "工具已寫入、尚未確認讀回",
+        description: result.error?.message ?? "請稍後重新整理核對，系統不會自動整組重送。",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (result.error) {
+      toast({
+        title: "工具資料儲存失敗",
+        description: result.error.message,
+        variant: "destructive",
+      });
+    }
+  }, [caseData?.id, user?.id]);
+
   const patchTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
     if (!caseData) return;
+    const draft =
+      caseCredentials && caseCredentials.caseId === caseData.id
+        ? caseCredentials
+        : null;
+    if (draft) caseCredentialAccess.putDraft(caseData.id, draft);
     void persistToolBlockPatch({
       caseId: caseData.id,
+      userId: user?.id ?? null,
+      generation: caseCredentialAccess.generation(caseData.id),
       block: "tools",
       updater,
-      draftCredentials: caseCredentials,
+      draftCredentials: draft,
       credentialsReady,
       usedPublicFallback: usedPublicToolsFallback,
       deps: toolPersistDeps,
-    }).then(({ error, nextCredentials }) => {
-      if (nextCredentials) setCaseCredentials(nextCredentials);
-      if (error) {
-        toast({
-          title: "工具資料儲存失敗",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    });
-  }, [caseData, caseCredentials, credentialsReady, usedPublicToolsFallback, toolPersistDeps]);
+    }).then(applyPersistResultToUi);
+  }, [
+    caseData,
+    caseCredentials,
+    credentialsReady,
+    usedPublicToolsFallback,
+    toolPersistDeps,
+    user?.id,
+    applyPersistResultToUi,
+  ]);
 
   const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
     patchTools((current) => applyToolEntryFieldPatch(current, idx, updates));
@@ -1601,30 +1668,32 @@ export default function CaseDetailPage() {
 
   const patchQuestionTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
     if (!caseData) return;
+    const draft =
+      caseCredentials && caseCredentials.caseId === caseData.id
+        ? caseCredentials
+        : null;
+    if (draft) caseCredentialAccess.putDraft(caseData.id, draft);
     void persistToolBlockPatch({
       caseId: caseData.id,
+      userId: user?.id ?? null,
+      generation: caseCredentialAccess.generation(caseData.id),
       block: "questionTools",
       updater,
-      draftCredentials: caseCredentials,
-      credentialsReady: Array.isArray(caseCredentials?.questionTools) || credentialsReady,
+      draftCredentials: draft,
+      credentialsReady:
+        !!draft
+        && Array.isArray(draft.questionTools)
+        && !!caseCredentialAccess.peekConfirmed(caseData.id),
       usedPublicFallback: usedPublicQuestionToolsFallback,
       deps: toolPersistDeps,
-    }).then(({ error, nextCredentials }) => {
-      if (nextCredentials) setCaseCredentials(nextCredentials);
-      if (error) {
-        toast({
-          title: "提問工具儲存失敗",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    });
+    }).then(applyPersistResultToUi);
   }, [
     caseData,
     caseCredentials,
-    credentialsReady,
     usedPublicQuestionToolsFallback,
     toolPersistDeps,
+    user?.id,
+    applyPersistResultToUi,
   ]);
 
   const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {

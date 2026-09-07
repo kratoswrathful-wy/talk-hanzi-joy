@@ -1,0 +1,51 @@
+# 事故定向單元測試（工具憑證／CAT 階段載入）。不連正式庫、不部署。
+name: Incident directional unit tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - fix/tool-credentials-masked-write
+      - fix/cat-workflow-stages-read-without-ensure
+  workflow_dispatch:
+
+concurrency:
+  group: incident-unit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Tool credentials suite (when present)
+        run: |
+          set -euo pipefail
+          FILES=()
+          for f in \
+            src/lib/case-credential-access.test.ts \
+            src/lib/case-tool-credentials-guard.test.ts \
+            src/lib/case-tool-credentials-persist.test.ts
+          do
+            if [ -f "$f" ]; then FILES+=("$f"); fi
+          done
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "skip tool credentials tests (not on this branch)"
+            exit 0
+          fi
+          npx vitest run "${FILES[@]}"
+      - name: CAT workflow load suite (when present)
+        run: |
+          set -euo pipefail
+          if [ -f src/lib/cat-workflow-context-load.test.ts ]; then
+            npx vitest run src/lib/cat-workflow-context-load.test.ts
+          else
+            echo "skip cat workflow load tests (not on this branch)"
+          fi
