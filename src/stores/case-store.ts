@@ -954,7 +954,7 @@ async function updateCredentials(id: string, credentials: Record<string, unknown
   );
   if (!result.error) {
     applyActionResult(id, result.data);
-    caseCredentialAccess.clear(id);
+    // 讀回由 persist 層負責；此處只刷新公開 view，不 clear 憑證快取。
     await refreshAfterCaseAction(id);
   }
   return result.error;
