@@ -131,6 +131,54 @@ async function clearBackendTools(page: Page, caseId: string) {
   expect(res.ok, `clear tools ${res.status}: ${res.body}`).toBe(true);
 }
 
+/**
+ * 模擬「另一個操作」在等待期間先加工具再全部清空：
+ * 走 page.request（不受 page.route 攔截），讓新案版本前進、內容回到空白。
+ */
+async function bumpAndClearToolsOutOfBand(page: Page, caseId: string, token: string) {
+  const { url, anonKey } = localApi();
+  const headers = {
+    apikey: anonKey,
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  const call = async (fn: string, data: unknown) => {
+    const res = await page.request.post(`${url}/rest/v1/rpc/${fn}`, { headers, data });
+    expect(res.ok(), `${fn} ${res.status()}: ${await res.text()}`).toBe(true);
+    return res.text();
+  };
+  const readRevision = async () =>
+    (JSON.parse(await call("get_case_credentials", { p_case_id: caseId })) as { revision: number }).revision;
+
+  const r0 = await readRevision();
+  await call("update_case_credentials", {
+    p_case_id: caseId,
+    p_expected_revision: r0,
+    p_credentials: {
+      tools: [{ id: "te-other", tool: TOOL_LABEL, fields: [{ id: "f-other", label: "其他", type: "text" }], fieldValues: { "f-other": "other-op.local" } }],
+      questionTools: [],
+      toolFieldValues: {},
+    },
+  });
+  const r1 = await readRevision();
+  await call("update_case_credentials", {
+    p_case_id: caseId,
+    p_expected_revision: r1,
+    p_credentials: { tools: [], questionTools: [], toolFieldValues: {} },
+  });
+}
+
+/** 記錄每次 admin_create_case 送出的目標識別，用來證明沒有無聲換新 UUID 再建。 */
+function trackReservedCaseIds(page: Page): { ids: string[] } {
+  const ids: string[] = [];
+  page.on("request", (req) => {
+    if (!req.url().includes("/rest/v1/rpc/admin_create_case")) return;
+    const body = req.postDataJSON() as { p_case_id?: string } | null;
+    if (body?.p_case_id) ids.push(body.p_case_id);
+  });
+  return { ids };
+}
+
 async function listCaseIdsByTitlePrefix(page: Page, prefix: string): Promise<string[]> {
   const { url, anonKey } = localApi();
   const token = await accessToken(page);
@@ -357,19 +405,28 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     await openCase(page, sourceId);
     const before = await listCaseIdsByTitlePrefix(page, prefix);
 
+    // 「未建案」不靠提示文字：以建案請求與資料庫清單為確定訊號。
+    const reserved = trackReservedCaseIds(page);
+    let denied = 0;
     await page.route("**/rest/v1/rpc/get_case_credentials", async (route) => {
+      denied += 1;
       await route.fulfill({
         status: 403,
         contentType: "application/json",
         body: JSON.stringify({ message: "not_authorized", code: "42501" }),
       });
     });
+    const deniedBefore = denied;
     await page.getByRole("button", { name: "複製本頁" }).click();
-    await expect(page.getByText("來源案件的完整工具資料無法讀取")).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => denied, { timeout: 30_000 }).toBeGreaterThan(deniedBefore);
     await expect(page).toHaveURL(new RegExp(`/cases/${sourceId}`));
     await page.unroute("**/rest/v1/rpc/get_case_credentials");
     const after = await listCaseIdsByTitlePrefix(page, prefix);
     expect(after).toEqual(before);
+    expect(reserved.ids).toEqual([]);
+    await expect(page.getByTestId("duplicate-tools-pending")).toHaveCount(0);
+    // 提示文字最後才看；同一句同時出現在 toast 與螢幕閱讀器 live region，取第一個即可。
+    await expect(page.getByText("來源案件的完整工具資料無法讀取").first()).toBeVisible({ timeout: 30_000 });
   });
 
   test("T4 目標保存失敗為部分完成；重試不重複建案", async ({ page }) => {
@@ -751,6 +808,170 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     expect(await readBackendTools(page, newId, "questionTools")).toHaveLength(0);
     const after = await listCaseIdsByTitlePrefix(page, prefix);
     expect(after.length).toBe(before.length + 1);
+  });
+
+  test("T13 等待期間被別的操作改過又清空：重試零次寫入並報衝突", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T13 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+    const before = await listCaseIdsByTitlePrefix(page, prefix);
+    const token = await accessToken(page);
+
+    let targetWrites = 0;
+    let interferedCaseId = "";
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      const body = route.request().postDataJSON() as { p_case_id?: string } | null;
+      const cid = body?.p_case_id;
+      if (!cid || cid === sourceId) {
+        await route.continue();
+        return;
+      }
+      targetWrites += 1;
+      if (targetWrites === 1) {
+        // 工具寫入尚未完成／失敗處理尚未結束時，由另一操作修改並清空新案。
+        await bumpAndClearToolsOutOfBand(page, cid, token);
+        interferedCaseId = cid;
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "invalid_credentials", code: "22023" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    expect(interferedCaseId).toBe(newId);
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+    // 新案內容看起來與「從未寫入」一樣空，但版本已被別的操作推進。
+    await expect.poll(() => readBackendTools(page, newId)).toHaveLength(0);
+
+    let retryWrites = 0;
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      retryWrites += 1;
+      await route.continue();
+    });
+    await page.getByTestId("retry-duplicate-tools").click();
+    await expect(page.getByTestId("duplicate-tools-conflict")).toBeVisible({ timeout: 30_000 });
+    expect(retryWrites).toBe(0);
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+
+    expect(await readBackendTools(page, newId)).toHaveLength(0);
+    expect(await readBackendTools(page, newId, "questionTools")).toHaveLength(0);
+    const after = await listCaseIdsByTitlePrefix(page, prefix);
+    expect(after.length).toBe(before.length + 1);
+  });
+
+  test("T14 建案成功但首次讀回失敗：保留新案識別、不新增第二張案", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T14 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+    const before = await listCaseIdsByTitlePrefix(page, prefix);
+    const reserved = trackReservedCaseIds(page);
+
+    let blockNewCaseReads = true;
+    await page.route("**/rest/v1/cases_visible*", async (route) => {
+      const url = route.request().url();
+      if (blockNewCaseReads && url.includes("id=eq.") && !url.includes(sourceId)) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "readback_unavailable" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    let toolWrites = 0;
+    await page.route("**/rest/v1/rpc/update_case_credentials", async (route) => {
+      toolWrites += 1;
+      await route.continue();
+    });
+
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    const readbackPending = page.getByTestId("duplicate-tools-readback-pending");
+    await expect(readbackPending).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("新案件建立失敗")).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`/cases/${sourceId}`));
+    // 送出前就保留同一識別，且只送出一次建案。
+    expect(reserved.ids).toHaveLength(1);
+    const newId = reserved.ids[0];
+    await expect(readbackPending).toContainText(newId);
+    expect(toolWrites).toBe(0);
+
+    blockNewCaseReads = false;
+    const mid = await listCaseIdsByTitlePrefix(page, prefix);
+    expect(mid.length).toBe(before.length + 1);
+    expect(mid).toContain(newId);
+
+    // 對話框內直接重試：新案資料尚未讀回時明確停止，不再建一筆。
+    await page.getByTestId("retry-duplicate-tools").click();
+    await expect(page.getByTestId("duplicate-tools-pending")).toContainText(/未重送、未再建案|未覆寫/, {
+      timeout: 30_000,
+    });
+    expect(reserved.ids).toHaveLength(1);
+
+    // 刷新後仍認得同一新案（保守停止，不自動回填）。
+    await page.reload({ waitUntil: "load" });
+    await openCase(page, newId);
+    await expect(page.getByTestId("duplicate-tools-pending")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("retry-duplicate-tools").click();
+    await expect(page.getByTestId("duplicate-tools-conflict")).toBeVisible({ timeout: 30_000 });
+    await page.unroute("**/rest/v1/rpc/update_case_credentials");
+    await page.unroute("**/rest/v1/cases_visible*");
+    expect(reserved.ids).toHaveLength(1);
+    const after = await listCaseIdsByTitlePrefix(page, prefix);
+    expect(after.length).toBe(mid.length);
+  });
+
+  test("T15 建案回應遺失：以同一識別查證、不新增第二張案", async ({ page }) => {
+    const prefix = `[AI驗收] 複製工具 T15 ${Date.now().toString(36)}-t`;
+    const sourceId = await createDraft(page, prefix);
+    await seedTools(page, sourceId);
+    await openCase(page, sourceId);
+    const before = await listCaseIdsByTitlePrefix(page, prefix);
+    const reserved = trackReservedCaseIds(page);
+
+    let createCalls = 0;
+    await page.route("**/rest/v1/rpc/admin_create_case", async (route) => {
+      createCalls += 1;
+      if (createCalls === 1) {
+        await route.fetch();
+        await route.abort("failed");
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.getByRole("button", { name: "複製本頁" }).click();
+    await page.waitForURL((url) => {
+      const m = url.pathname.match(/^\/cases\/([^/]+)/);
+      return !!m && m[1] !== sourceId;
+    }, { timeout: 60_000 });
+    const newId = page.url().match(/\/cases\/([^/?#]+)/)![1];
+    expect(reserved.ids).toEqual([newId]);
+    expect(createCalls).toBe(1);
+    await expect(page.getByText("新案件建立失敗")).toHaveCount(0);
+    await expect(page.getByText("建案結果未知")).toHaveCount(0);
+    await page.unroute("**/rest/v1/rpc/admin_create_case");
+
+    await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY), { timeout: 30_000 }).toMatchObject({
+      "f-server": "mq.copy.local",
+      "f-user": "copy-user",
+      "f-pass": "copy-pass",
+    });
+    const after = await listCaseIdsByTitlePrefix(page, prefix);
+    expect(after.length).toBe(before.length + 1);
+    expect(after).toContain(newId);
   });
 
   test("T5 複製後連續編輯仍走 #85 單欄保全", async ({ page }) => {

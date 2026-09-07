@@ -7,6 +7,8 @@ import {
   classifyDuplicateException,
   credentialsMatchCopied,
   evaluateRetryDecision,
+  createdReadbackFailedMessage,
+  createUnknownMessage,
   evaluateSourceCredentials,
   filterPendingRecordsForScope,
   fingerprintCredentialPatch,
@@ -384,6 +386,18 @@ describe("duplicate-tools retry decision and pending records", () => {
     expect(pendingDuplicateToolsMessageTestId(RETRY_MESSAGES.target_conflict)).toBe("duplicate-tools-conflict");
     expect(pendingDuplicateToolsMessageTestId(RETRY_MESSAGES.source_changed)).toBe("duplicate-tools-source-changed");
     expect(pendingDuplicateToolsMessageTestId(RETRY_MESSAGES.already_complete)).toBeUndefined();
+  });
+
+  it("keeps the reserved target id in create readback/unknown messages", () => {
+    const readback = createdReadbackFailedMessage(DST);
+    expect(readback).toContain(DST);
+    expect(readback).toContain("不要再複製一次");
+    expect(pendingDuplicateToolsMessageTestId(readback)).toBe("duplicate-tools-readback-pending");
+
+    const unknown = createUnknownMessage(DST);
+    expect(unknown).toContain(DST);
+    expect(unknown).toContain("未再建案");
+    expect(unknown).not.toContain("再複製一張");
   });
 
   it("classifies post-create exceptions as pending, not create_failed", () => {

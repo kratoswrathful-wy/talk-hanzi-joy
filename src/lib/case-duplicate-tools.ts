@@ -8,7 +8,8 @@ export type DuplicateToolsAbortReason =
   | "source_credentials_masked"
   | "source_case_mismatch"
   | "session_mismatch"
-  | "create_failed";
+  | "create_failed"
+  | "create_unknown";
 
 export type DuplicateCredentialPatch = {
   tools: ToolEntry[];
@@ -57,7 +58,22 @@ const ABORT_MESSAGES: Record<DuplicateToolsAbortReason, string> = {
   source_case_mismatch: "讀到的工具資料不屬於來源案件，已取消複製。",
   session_mismatch: "目前登入身分不明，已取消複製（避免寫入錯誤環境）。",
   create_failed: "新案件建立失敗，未寫入工具。",
+  create_unknown: "建案結果未知，已用同一識別查證、未再建案。",
 };
+
+/** 建案請求已送出但結果不明：保留同一識別，交由使用者確認，不引導再複製一次。 */
+export function createUnknownMessage(targetCaseId: string): string {
+  return `建案請求已送出但結果未知（新案識別：${targetCaseId}）。已用同一識別查證、未再建案、未換新識別。`
+    + "請先確認此案是否已存在再處理，不要直接再複製一次。";
+}
+
+const CREATED_READBACK_FAILED_PREFIX = "新案件已建立（新案識別：";
+
+/** 建案成功但案件資料讀不回來：新案確實存在，只是本機還讀不到。 */
+export function createdReadbackFailedMessage(targetCaseId: string): string {
+  return `${CREATED_READBACK_FAILED_PREFIX}${targetCaseId}），但案件資料尚未讀回，工具未寫入。`
+    + "未刪除新案、也不會自動再建一筆。請用此新案識別處理，不要再複製一次。";
+}
 
 export const RETRY_MESSAGES = {
   already_complete: "工具已核實完成，未再寫入。",
@@ -83,6 +99,7 @@ export function pendingDuplicateToolsMessageTestId(message: string): string | un
   ) {
     return "duplicate-tools-conflict";
   }
+  if (message.startsWith(CREATED_READBACK_FAILED_PREFIX)) return "duplicate-tools-readback-pending";
   return undefined;
 }
 
