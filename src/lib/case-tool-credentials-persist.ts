@@ -77,8 +77,8 @@ function refuse(
 }
 
 /**
- * 安全寫入工具區塊：底稿必須同案、同登入身分、同載入代次；
- * 未確認草稿與後端確認快取分開；佇列執行前再次核對。
+ * 安全寫入工具區塊：只保存「本次修改意圖」（updater），執行時套到最新 confirmed；
+ * 失敗草稿不得當下一筆其他欄位編輯的底稿偷偷重送。
  */
 export async function persistToolBlockPatch(input: {
   caseId: string;
@@ -87,7 +87,10 @@ export async function persistToolBlockPatch(input: {
   generation: number | null;
   block: ToolCredentialsBlock;
   updater: (current: ToolEntry[]) => ToolEntry[];
-  /** 畫面草稿；caseId 必須相符，且不可單獨在無 confirmed 時充當跨案底稿 */
+  /**
+   * 畫面草稿：僅供拒寫時回傳 UI 狀態與跨案檢查；
+   * 執行寫入時一律以最新 confirmed 為底稿，不整組重送舊 draft。
+   */
   draftCredentials: CaseCredentials | null;
   credentialsReady: boolean;
   usedPublicFallback: boolean;
@@ -184,14 +187,8 @@ export async function persistToolBlockPatch(input: {
       });
     }
 
-    // 同案草稿可作為「目前編輯視圖」輸入；不可用別案 draft。仍以 confirmed 校驗 caseId。
-    const draftSameCase =
-      captured.draftCredentials
-      && captured.draftCredentials.caseId === captured.caseId
-        ? captured.draftCredentials
-        : null;
-    const working = draftSameCase ?? confirmed;
-    if (!Array.isArray(working[captured.block])) {
+    // 意圖式：updater 一律套在最新 confirmed，不用 captured draft 當寫入底稿
+    if (!Array.isArray(confirmed[captured.block])) {
       return refuse({
         message: "完整工具資料尚未載入，無法儲存（避免以遮罩空值覆寫）。",
         draftCredentials: captured.draftCredentials,
@@ -201,15 +198,14 @@ export async function persistToolBlockPatch(input: {
       });
     }
 
-    const currentBlock = working[captured.block] as ToolEntry[];
+    const currentBlock = confirmed[captured.block] as ToolEntry[];
     const nextBlock = captured.updater(currentBlock);
-    // 合併時以 confirmed 為骨架，只替換目標 block，避免草稿缺欄污染其他區塊
     const optimistic: CaseCredentials = {
       ...confirmed,
-      ...draftSameCase,
       caseId: captured.caseId,
       [captured.block]: nextBlock,
     };
+    // 畫面草稿僅反映「本次意圖套用結果」；失敗草稿不會在下一筆意圖中被整組重送
     input.deps.putDraft(captured.caseId, optimistic);
 
     const writeError = await input.deps.updateCredentials(captured.caseId, {
@@ -259,12 +255,30 @@ export async function persistToolBlockPatch(input: {
   });
 }
 
+/** @deprecated 優先使用 applyToolEntryFieldPatchById（穩定 entry id） */
 export function applyToolEntryFieldPatch(
   tools: ToolEntry[],
   idx: number,
   updates: Partial<ToolEntry>,
 ): ToolEntry[] {
   return tools.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t));
+}
+
+/** 以工具 entry 穩定 id 套用欄位更新；找不到 id 時原陣列不變 */
+export function applyToolEntryFieldPatchById(
+  tools: ToolEntry[],
+  entryId: string,
+  updates: Partial<ToolEntry>,
+): ToolEntry[] {
+  const id = String(entryId || "").trim();
+  if (!id) return tools;
+  let found = false;
+  const next = tools.map((t) => {
+    if (t.id !== id) return t;
+    found = true;
+    return mergeToolEntryUpdates(t, updates);
+  });
+  return found ? next : tools;
 }
 
 /** 結果是否仍適用於目前畫面（防晚到更新另一案） */

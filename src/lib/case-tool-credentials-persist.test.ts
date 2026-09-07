@@ -5,6 +5,7 @@ import {
 } from "./case-credential-access";
 import {
   applyToolEntryFieldPatch,
+  applyToolEntryFieldPatchById,
   isPersistResultCurrent,
   persistToolBlockPatch,
   resetToolCredentialPersistQueuesForTests,
@@ -179,6 +180,116 @@ describe("persistToolBlockPatch cross-case and draft isolation", () => {
     expect(r2.status).toBe("ok");
     expect(r2.confirmedCredentials?.tools?.[0].fieldValues).toEqual({ a: "1", b: "2" });
     expect(r2.confirmedCredentials?.tools?.[1].fieldValues).toEqual({ c: "3" });
+  });
+
+  it("parallel queue from same stale draft keeps both field intents on latest confirmed", async () => {
+    const base = cred("c1", [
+      { id: "te-default", tool: "memoQ", fieldValues: { a: "0", b: "0" } },
+      { id: "te-2", tool: "GlobalProtect", fieldValues: { c: "3" } },
+    ]);
+    let server = structuredClone(base);
+    const rpc = vi.fn().mockImplementation(async () => ({ data: structuredClone(server), error: null }));
+    const access = createCaseCredentialAccess({ rpc } as never);
+    access.setActiveUser("u1");
+    await access.load("c1");
+    const gen = access.generation("c1");
+    const staleDraft = structuredClone(access.peekConfirmed("c1")!);
+    const updateCredentials = vi.fn(async (_id: string, patch: Partial<CaseCredentials>) => {
+      server = { ...server, ...patch, revision: server.revision + 1 };
+      return null;
+    });
+    const deps = makeDeps(access, { updateCredentials });
+    const p1 = persistToolBlockPatch({
+      caseId: "c1",
+      userId: "u1",
+      generation: gen,
+      block: "tools",
+      updater: (current) => applyToolEntryFieldPatchById(current, "te-default", { fieldValues: { a: "1" } }),
+      draftCredentials: staleDraft,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps,
+    });
+    const p2 = persistToolBlockPatch({
+      caseId: "c1",
+      userId: "u1",
+      generation: gen,
+      block: "tools",
+      updater: (current) => applyToolEntryFieldPatchById(current, "te-default", { fieldValues: { b: "2" } }),
+      draftCredentials: staleDraft,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps,
+    });
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1.status).toBe("ok");
+    expect(r2.status).toBe("ok");
+    expect(r2.confirmedCredentials?.tools?.[0].fieldValues).toEqual({ a: "1", b: "2" });
+    expect(r2.confirmedCredentials?.tools?.[1].fieldValues).toEqual({ c: "3" });
+    expect(r2.confirmedCredentials?.questionTools?.[0].fieldValues).toEqual({ q: "1" });
+  });
+
+  it("failed draft field is not resent by a later sibling-field edit", async () => {
+    const base = cred("c1", [{ id: "te-default", tool: "memoQ", fieldValues: { a: "0", b: "0" } }]);
+    let server = structuredClone(base);
+    const rpc = vi.fn().mockImplementation(async () => ({ data: structuredClone(server), error: null }));
+    const access = createCaseCredentialAccess({ rpc } as never);
+    access.setActiveUser("u1");
+    await access.load("c1");
+    const gen = access.generation("c1");
+    const depsFail = makeDeps(access, {
+      updateCredentials: vi.fn(async () => new Error("write boom")),
+    });
+    const failed = await persistToolBlockPatch({
+      caseId: "c1",
+      userId: "u1",
+      generation: gen,
+      block: "tools",
+      updater: (current) => applyToolEntryFieldPatchById(current, "te-default", { fieldValues: { a: "fail" } }),
+      draftCredentials: access.peekConfirmed("c1")!,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps: depsFail,
+    });
+    expect(failed.status).toBe("write_failed");
+    expect(access.peekDraft("c1")?.tools?.[0].fieldValues).toEqual({ a: "fail", b: "0" });
+    const depsOk = makeDeps(access, {
+      updateCredentials: vi.fn(async (_id, patch) => {
+        server = { ...server, ...patch, revision: server.revision + 1 };
+        return null;
+      }),
+    });
+    const ok2 = await persistToolBlockPatch({
+      caseId: "c1",
+      userId: "u1",
+      generation: access.generation("c1"),
+      block: "tools",
+      updater: (current) => applyToolEntryFieldPatchById(current, "te-default", { fieldValues: { b: "2" } }),
+      draftCredentials: failed.draftCredentials,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps: depsOk,
+    });
+    expect(ok2.status).toBe("ok");
+    expect(ok2.confirmedCredentials?.tools?.[0].fieldValues).toEqual({ a: "0", b: "2" });
+  });
+
+  it("rejects stale load that would overwrite a newer putConfirmed", async () => {
+    let resolveLoad: ((value: unknown) => void) | undefined;
+    const rpc = vi.fn().mockImplementation(() => new Promise((resolve) => {
+      resolveLoad = resolve;
+    }));
+    const access = createCaseCredentialAccess({ rpc } as never);
+    access.setActiveUser("u1");
+    const pending = access.load("c1");
+    access.putConfirmed("c1", cred("c1", [{ id: "te-default", tool: "memoQ", fieldValues: { a: "new" } }], 2));
+    resolveLoad?.({
+      data: cred("c1", [{ id: "te-default", tool: "memoQ", fieldValues: { a: "old" } }], 1),
+      error: null,
+    });
+    await expect(pending).rejects.toBeInstanceOf(CredentialLoadStaleError);
+    expect(access.peekConfirmed("c1")?.revision).toBe(2);
+    expect(access.peekConfirmed("c1")?.tools?.[0].fieldValues).toEqual({ a: "new" });
   });
 
   it("does not put failed draft into confirmed cache", async () => {

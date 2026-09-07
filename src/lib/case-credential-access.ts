@@ -101,6 +101,8 @@ export function createCaseCredentialAccess(
       const userAtStart = activeUserId;
       const myLoad = (loadSeq.get(caseId) ?? 0) + 1;
       loadSeq.set(caseId, myLoad);
+      // putConfirmed／較新 load 會推進 applySeq；舊 load 晚到不得覆蓋
+      const applySeqAtStart = confirmed.get(caseId)?.applySeq ?? 0;
 
       const { data, error } = await getCaseCredentials(client, caseId);
 
@@ -110,12 +112,25 @@ export function createCaseCredentialAccess(
       if (loadSeq.get(caseId) !== myLoad) {
         throw new CredentialLoadStaleError("credential_load_superseded");
       }
+      const curAfterFetch = confirmed.get(caseId);
+      if (curAfterFetch && curAfterFetch.applySeq > applySeqAtStart) {
+        throw new CredentialLoadStaleError("credential_load_stale_behind_confirmed");
+      }
       if (error || !data) {
         // 讀回失敗不得清掉既有已確認底稿（避免「已寫入、尚未確認讀回」後無法再編）
         throw error ?? new Error("credential_access_failed");
       }
       if (data.caseId && data.caseId !== caseId) {
         throw new Error("credential_case_mismatch");
+      }
+      // 若期間 putConfirmed 已寫入較新 revision，拒絕以舊 load 覆寫
+      if (
+        curAfterFetch
+        && typeof data.revision === "number"
+        && typeof curAfterFetch.credentials.revision === "number"
+        && data.revision < curAfterFetch.credentials.revision
+      ) {
+        throw new CredentialLoadStaleError("credential_load_older_revision");
       }
       const normalized: CaseCredentials = { ...data, caseId };
       applySeqCounter += 1;
@@ -133,6 +148,15 @@ export function createCaseCredentialAccess(
       if (credentials.caseId !== caseId) return false;
       const gen = generationFor(caseId);
       if (expectedGeneration != null && expectedGeneration !== gen) return false;
+      const existing = confirmed.get(caseId);
+      if (
+        existing
+        && typeof existing.credentials.revision === "number"
+        && typeof credentials.revision === "number"
+        && credentials.revision < existing.credentials.revision
+      ) {
+        return false;
+      }
       applySeqCounter += 1;
       confirmed.set(caseId, {
         credentials: { ...credentials, caseId },

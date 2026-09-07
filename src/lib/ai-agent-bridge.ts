@@ -5,7 +5,7 @@
 import { caseStore } from "@/stores/case-store";
 import { caseCredentialAccess } from "@/lib/case-credential-store";
 import {
-  applyToolEntryFieldPatch,
+  applyToolEntryFieldPatchById,
   persistToolBlockPatch,
 } from "@/lib/case-tool-credentials-persist";
 import { feeStore } from "@/stores/fee-store";
@@ -910,6 +910,14 @@ export interface LmsAgentApi {
   };
   tool: {
     setField: (input: ToolSetFieldInput) => Promise<AgentResult<ToolSetFieldResult>>;
+    /** 以憑證安全路徑建立／覆寫單一工具列結構（含 fields）；不可走 case.update tools */
+    ensureEntry: (input: {
+      caseId: string;
+      toolEntryId: string;
+      toolLabel: string;
+      fields?: Array<{ id: string; label: string; type?: "text" | "file" }>;
+      toolFieldKey?: ToolBlockKey;
+    }) => Promise<AgentResult<{ toolEntryId: string; verified: boolean }>>;
   };
 }
 
@@ -1548,13 +1556,14 @@ export function buildLmsAgentApi(): LmsAgentApi {
 
         const block = toolFieldKey === "questionTool" ? "questionTools" : "tools";
         const fieldId = built.data.meta.fieldId;
+        const entryId = String(entry.id || built.data.meta.toolEntryId || "").trim();
         const persist = await persistToolBlockPatch({
           caseId,
           userId: caseCredentialAccess.getActiveUserId(),
           generation: caseCredentialAccess.generation(caseId),
           block,
           updater: (current) =>
-            applyToolEntryFieldPatch(current, idxResult.data, {
+            applyToolEntryFieldPatchById(current, entryId, {
               fieldValues: { [fieldId]: input.value },
             }),
           draftCredentials: credentials,
@@ -1596,6 +1605,91 @@ export function buildLmsAgentApi(): LmsAgentApi {
           }
           return ok(result);
         }
+      },
+
+      ensureEntry: async (input) => {
+        if (!input || typeof input !== "object") return fail("input 必須為物件");
+        const caseId = String(input.caseId || "").trim();
+        const toolEntryId = String(input.toolEntryId || "").trim();
+        const toolLabel = String(input.toolLabel || "").trim();
+        if (!caseId) return fail("caseId 必填");
+        if (!toolEntryId) return fail("toolEntryId 必填");
+        if (!toolLabel) return fail("toolLabel 必填");
+        if (!caseStore.getById(caseId)) return fail(`找不到案件 id=${caseId}`);
+
+        let credentials;
+        try {
+          credentials =
+            caseCredentialAccess.peekConfirmed(caseId)
+            ?? await caseCredentialAccess.load(caseId);
+        } catch (e) {
+          return fail(
+            e instanceof Error ? e.message : "無法載入完整工具憑證，拒絕以遮罩資料寫入",
+          );
+        }
+
+        const toolFieldKey: ToolBlockKey = input.toolFieldKey ?? "executionTool";
+        const block = toolFieldKey === "questionTool" ? "questionTools" : "tools";
+        const fields = Array.isArray(input.fields)
+          ? input.fields.map((f) => ({
+              id: String(f.id),
+              label: String(f.label),
+              ...(f.type === "file" || f.type === "text" ? { type: f.type } : { type: "text" as const }),
+            }))
+          : [];
+
+        const persist = await persistToolBlockPatch({
+          caseId,
+          userId: caseCredentialAccess.getActiveUserId(),
+          generation: caseCredentialAccess.generation(caseId),
+          block,
+          updater: (current) => {
+            const nextEntry = {
+              id: toolEntryId,
+              tool: toolLabel,
+              fields,
+              fieldValues:
+                current.find((t) => t.id === toolEntryId)?.fieldValues
+                ?? {},
+            };
+            const without = current.filter((t) => t.id !== toolEntryId);
+            // 若原本只有空殼預設列，以 ensure 結果取代
+            if (
+              without.length === 1
+              && !String(without[0]?.tool || "").trim()
+              && Object.keys(without[0]?.fieldValues || {}).length === 0
+            ) {
+              return [nextEntry];
+            }
+            if (without.length === current.length) {
+              return [...current, nextEntry];
+            }
+            return [...without, nextEntry];
+          },
+          draftCredentials: credentials,
+          credentialsReady: true,
+          usedPublicFallback: false,
+          deps: {
+            getActiveUserId: () => caseCredentialAccess.getActiveUserId(),
+            scope: (id) => caseCredentialAccess.scope(id),
+            peekConfirmed: (id) => caseCredentialAccess.peekConfirmed(id),
+            putConfirmed: (id, c, g) => caseCredentialAccess.putConfirmed(id, c, g),
+            putDraft: (id, c) => caseCredentialAccess.putDraft(id, c),
+            peekDraft: (id) => caseCredentialAccess.peekDraft(id),
+            load: (id) => caseCredentialAccess.load(id),
+            updateCredentials: (id, patch) => caseStore.updateCredentials(id, patch),
+          },
+        });
+
+        if (persist.status === "write_ok_readback_pending") {
+          return fail(persist.error?.message ?? "已寫入、尚未確認讀回");
+        }
+        if (persist.status !== "ok" || !persist.confirmedCredentials) {
+          return fail(persist.error?.message ?? "工具結構寫入失敗");
+        }
+        const blockAfter = persist.confirmedCredentials[block] || [];
+        const found = blockAfter.some((t) => t.id === toolEntryId && t.tool === toolLabel);
+        return ok({ toolEntryId, verified: found });
       },
     },
   };

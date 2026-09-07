@@ -93,6 +93,7 @@ import type { CaseCredentials } from "@/lib/case-action-rpc";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
   applyToolEntryFieldPatch,
+  applyToolEntryFieldPatchById,
   isPersistResultCurrent,
   persistToolBlockPatch,
 } from "@/lib/case-tool-credentials-persist";
@@ -477,6 +478,7 @@ function ToolInstance({
   canAddField = true,
   canRemoveField = true,
   canUseTemplate = true,
+  structurePersistEnabled = false,
 }: {
   entry: ToolEntry;
   index: number;
@@ -490,6 +492,8 @@ function ToolInstance({
   canAddField?: boolean;
   canRemoveField?: boolean;
   canUseTemplate?: boolean;
+  /** 須已載入完整憑證才可結構 persist／套範本（避免公開遮罩誤寫） */
+  structurePersistEnabled?: boolean;
 }) {
   const { options: toolOptions } = useSelectOptions(toolFieldKey);
   const allTemplates = useToolTemplates();
@@ -530,12 +534,14 @@ function ToolInstance({
   const resolvedFieldsRef = useRef(resolvedFields);
   resolvedFieldsRef.current = resolvedFields;
   useEffect(() => {
+    if (!structurePersistEnabled) return;
     if (!entry.fields && resolvedFieldsRef.current.length > 0) {
       onUpdateRef.current({ fields: resolvedFieldsRef.current });
     }
     // resolvedFields 每次 render 重算為新陣列參考，故意只用 .length 當觸發條件（避免
     // 每次 render 都重跑）；透過 ref 讀最新內容，不需（也不應）把整個陣列列入 deps。
-  }, [entry.fields, resolvedFields.length]);
+    // 公開遮罩／未就緒時不得觸發整組寫憑證。
+  }, [entry.fields, resolvedFields.length, structurePersistEnabled]);
 
   const fields = resolvedFields;
   const hasToolSelected = !!entry.tool;
@@ -543,6 +549,14 @@ function ToolInstance({
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
 
   const tryApplyTemplate = (tpl: ToolTemplate) => {
+    if (!structurePersistEnabled) {
+      toast({
+        title: "無法套用範本",
+        description: "完整工具資料尚未載入，請稍候再試（避免以遮罩空值覆寫）。",
+        variant: "destructive",
+      });
+      return;
+    }
     const tplFields = tpl.fields || [];
     const currentFieldIds = fields.map((f) => f.id);
     const tplFieldIds = tplFields.map((f) => f.id);
@@ -559,13 +573,14 @@ function ToolInstance({
     const hasFieldChanges = addedFields.length > 0 || removedFields.length > 0 || renamedFields.length > 0
       || tplFieldIds.join(",") !== currentFieldIds.join(",");
 
+    // 差異比對一律依欄位 id，不依同名猜
     const conflicts: { id: string; label: string; current: string; incoming: string }[] = [];
-    for (const [key, val] of Object.entries(tpl.fieldValues)) {
-      if (!val) continue;
-      const current = values[key];
-      if (current && current !== val) {
-        const fieldDef = tplFields.find((f) => f.id === key) || fields.find((f) => f.id === key);
-        conflicts.push({ id: key, label: fieldDef?.label || key, current, incoming: val });
+    for (const f of tplFields) {
+      const tplVal = tpl.fieldValues[f.id];
+      if (!tplVal) continue;
+      const current = values[f.id];
+      if (current && current !== tplVal) {
+        conflicts.push({ id: f.id, label: f.label || f.id, current, incoming: tplVal });
       }
     }
 
@@ -579,12 +594,21 @@ function ToolInstance({
   };
 
   const applyTemplate = (tpl: ToolTemplate) => {
+    if (!structurePersistEnabled) {
+      toast({
+        title: "無法套用範本",
+        description: "完整工具資料尚未載入，請稍候再試（避免以遮罩空值覆寫）。",
+        variant: "destructive",
+      });
+      return;
+    }
     const tplFields = tpl.fields || [];
     const newValues: Record<string, string> = {};
     for (const f of tplFields) {
       const tplVal = tpl.fieldValues[f.id];
       const currentVal = values[f.id];
-      newValues[f.id] = tplVal || currentVal || "";
+      // 空範本值保留現值；有值則覆蓋；被移除的欄位 id 不帶入
+      newValues[f.id] = tplVal ? tplVal : (currentVal || "");
     }
     onUpdate({ tool: tpl.tool, fields: tplFields, fieldValues: newValues });
     setTplOpen(false);
@@ -1104,6 +1128,9 @@ export default function CaseDetailPage() {
   const [declineMessage, setDeclineMessage] = useState("");
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
   const [caseCredentials, setCaseCredentials] = useState<CaseCredentials | null>(null);
+  const [credentialsStatus, setCredentialsStatus] = useState<
+    "idle" | "loading" | "ready" | "refreshing" | "error"
+  >("idle");
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -1268,23 +1295,36 @@ export default function CaseDetailPage() {
     let active = true;
     if (!id) {
       setCaseCredentials(null);
+      setCredentialsStatus("idle");
       return;
     }
-    // 切換案件時立即隔離；同案 revision 重載保留畫面草稿直到新 load 成功。
+    // 切換案件／revision：保留既有畫面直到新 load 成功；勿先清空造成工具欄閃空。
     const viewingId = id;
     const uid = user?.id ?? null;
+    setCredentialsStatus((prev) => (prev === "ready" || prev === "refreshing" ? "refreshing" : "loading"));
     void caseCredentialAccess.load(viewingId)
       .then((credentials) => {
         if (!active) return;
         if ((user?.id ?? null) !== uid) return;
         if (id !== viewingId) return;
         setCaseCredentials(credentials);
+        setCredentialsStatus("ready");
       })
       .catch((err) => {
         if (!active) return;
         if (err instanceof CredentialLoadStaleError) return;
         if (id !== viewingId) return;
-        setCaseCredentials(null);
+        // 讀取失敗：同案保留上一份畫面並標 error，勿把拒絕讀取轉成可保存空值
+        setCredentialsStatus("error");
+        if (!caseCredentialAccess.peekConfirmed(viewingId)) {
+          // 僅在完全無 confirmed 時才清空畫面
+          setCaseCredentials((prev) => (prev?.caseId === viewingId ? prev : null));
+        }
+        toast({
+          title: "工具憑證載入失敗",
+          description: err instanceof Error ? err.message : "請稍後重試，系統不會以空值覆寫。",
+          variant: "destructive",
+        });
       });
     return () => {
       active = false;
@@ -1301,14 +1341,32 @@ export default function CaseDetailPage() {
   useEffect(() => caseCredentialAccess.subscribe((clearedCaseId) => {
     if (clearedCaseId === null) {
       setCaseCredentials(null);
+      setCredentialsStatus("idle");
       return;
     }
-    if (clearedCaseId === id && !caseCredentialAccess.peekConfirmed(id)) {
-      const draft = caseCredentialAccess.peekDraft(id);
-      // 清除確認快取時：若仍在同案且有未確認草稿可暫留畫面，否則清空
-      if (!draft || draft.caseId !== id) setCaseCredentials(null);
-    }
-  }), [id]);
+    if (clearedCaseId !== id) return;
+    // 改派等觸發 invalidation：進入 refreshing，保留畫面內容直到 reload
+    setCredentialsStatus("refreshing");
+    const viewingId = id;
+    const uid = user?.id ?? null;
+    void caseCredentialAccess.load(viewingId)
+      .then((credentials) => {
+        if ((user?.id ?? null) !== uid) return;
+        if (id !== viewingId) return;
+        setCaseCredentials(credentials);
+        setCredentialsStatus("ready");
+      })
+      .catch((err) => {
+        if (err instanceof CredentialLoadStaleError) return;
+        if (id !== viewingId) return;
+        setCredentialsStatus("error");
+        toast({
+          title: "工具憑證重新載入失敗",
+          description: err instanceof Error ? err.message : "請手動重新整理。已保留畫面資料，不會自動寫空。",
+          variant: "destructive",
+        });
+      });
+  }), [id, user?.id]);
 
   const save = useCallback(
     (partial: Partial<CaseRecord>) => {
@@ -1518,12 +1576,17 @@ export default function CaseDetailPage() {
   );
 
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
+  // credentialsStatus：loading／refreshing／error 與 confirmed 分離；寫入仍以 peekConfirmed 為準
   const credentialsReady =
     !!caseCredentials
     && caseCredentials.caseId === caseData?.id
     && Array.isArray(caseCredentials.tools)
     && !!caseCredentialAccess.peekConfirmed(caseData?.id ?? "");
-  const usedPublicToolsFallback = !credentialsReady && Array.isArray(caseData?.tools);
+  const usedPublicToolsFallback =
+    !credentialsReady
+    && credentialsStatus !== "refreshing"
+    && credentialsStatus !== "loading"
+    && Array.isArray(caseData?.tools);
 
   const tools: ToolEntry[] = useMemo(() => {
     if (
@@ -1630,8 +1693,8 @@ export default function CaseDetailPage() {
     applyPersistResultToUi,
   ]);
 
-  const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
-    patchTools((current) => applyToolEntryFieldPatch(current, idx, updates));
+  const updateTool = (entryId: string, updates: Partial<ToolEntry>) => {
+    patchTools((current) => applyToolEntryFieldPatchById(current, entryId, updates));
   };
 
   const removeTool = (idx: number) => {
@@ -1696,8 +1759,8 @@ export default function CaseDetailPage() {
     applyPersistResultToUi,
   ]);
 
-  const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
-    patchQuestionTools((current) => applyToolEntryFieldPatch(current, idx, updates));
+  const updateQuestionTool = (entryId: string, updates: Partial<ToolEntry>) => {
+    patchQuestionTools((current) => applyToolEntryFieldPatchById(current, entryId, updates));
   };
 
   const removeQuestionTool = (idx: number) => {
@@ -3143,10 +3206,11 @@ export default function CaseDetailPage() {
             key={entry.id}
             entry={entry}
             index={idx}
-            onUpdate={(u) => updateTool(idx, u)}
+            onUpdate={(u) => updateTool(entry.id, u)}
             onRemove={() => removeTool(idx)}
             showRemove={caseData ? canRemoveCaseTool(caseData) : false}
             canEditTool={canEditToolSelect}
+            structurePersistEnabled={credentialsReady}
             canRemoveTool={canRemoveTool}
             canAddField={canAddToolField}
             canRemoveField={canRemoveToolField}
@@ -3235,7 +3299,7 @@ export default function CaseDetailPage() {
               key={entry.id}
               entry={entry}
               index={idx}
-              onUpdate={(u) => updateQuestionTool(idx, u)}
+              onUpdate={(u) => updateQuestionTool(entry.id, u)}
               onRemove={() => removeQuestionTool(idx)}
               showRemove={questionTools.length > 1}
               toolFieldKey="executionTool"
@@ -3245,6 +3309,7 @@ export default function CaseDetailPage() {
               canAddField={canAddToolField}
               canRemoveField={canRemoveToolField}
               canUseTemplate={canUseToolTemplate}
+              structurePersistEnabled={credentialsReady}
             />
           ))}
           {canAddTool && (

@@ -58,6 +58,12 @@ test.describe("LMS tool.setField（W9 wave 2 C1）", () => {
               error?: string;
               data?: { verified?: boolean; readbackValue?: string; fieldId?: string };
             }>;
+            ensureEntry: (input: {
+              caseId: string;
+              toolEntryId: string;
+              toolLabel: string;
+              fields?: Array<{ id: string; label: string; type?: "text" | "file" }>;
+            }) => Promise<{ ok: boolean; error?: string; data?: { verified?: boolean } }>;
           };
         };
       }).__lmsAgent;
@@ -82,34 +88,28 @@ test.describe("LMS tool.setField（W9 wave 2 C1）", () => {
         if (!visible) return { ok: false, step: "create-visible", error: `建立後本地暫不可見 id=${caseId}` };
       }
 
-      const toolsPatch = {
-        tools: [
-          {
-            id: "te-pw",
-            tool: "memoQ",
-            fields: [{ id: "fld-server", label: "伺服器", type: "text" }],
-            fieldValues: {},
-          },
-        ],
+      const toolsSeed = {
+        caseId,
+        toolEntryId: "te-pw",
+        toolLabel: "memoQ",
+        fields: [{ id: "fld-server", label: "伺服器", type: "text" as const }],
       };
 
-      // seed：寫後以 get 輪詢確認 tools 已在本地 store（橋接層亦有回讀輪詢；雙層防 flaky）
+      // seed：走 tool.ensureEntry（憑證路徑），禁止 case.update tools
       let seedError = "";
       const seedDeadline = Date.now() + 8000;
       let seededOk = false;
       while (Date.now() < seedDeadline) {
-        const seeded = await agent.case.update(caseId, toolsPatch);
+        const seeded = await agent.tool.ensureEntry(toolsSeed);
         if (!seeded.ok) {
-          seedError = seeded.error || "seed update failed";
-          // 寫入成功但回讀逾時：勿重寫判斷改以 get 確認
-          if (!/回讀逾時|更新後讀取/.test(seedError)) {
-            await sleep(100);
-            continue;
-          }
+          seedError = seeded.error || "seed ensureEntry failed";
+          await sleep(100);
+          continue;
         }
         const g = agent.case.get(caseId);
         const tools = g.ok && Array.isArray(g.data?.tools) ? g.data.tools : [];
-        if (tools.some((t: { tool?: string }) => t.tool === "memoQ")) {
+        // case.get 公開快照可能遮罩；以 ensureEntry verified 為準，必要時再 peek via setField
+        if (seeded.data?.verified || tools.some((t: { tool?: string }) => t.tool === "memoQ")) {
           seededOk = true;
           break;
         }
