@@ -173,7 +173,7 @@ begin
     insert into public.case_participants(
       case_id, user_id, role, work_status, source, created_by, updated_by
     ) values (
-      v_case_empty, v_t1, 'translator', 'active', 'test_same_txn', v_pm, v_pm
+      v_case_empty, v_t1, 'translator', 'active', 'pm_assign', v_pm, v_pm
     );
     set constraints all immediate;
     set constraints all deferred;
