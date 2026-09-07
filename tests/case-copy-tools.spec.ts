@@ -472,7 +472,8 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
 
     blockTargetReads = false;
     await page.getByTestId("retry-duplicate-tools").click();
-    await expect(page.getByText("工具已核實完成")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("工具已核實完成", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("retry-duplicate-tools")).toHaveCount(0);
     expect(credentialWrites).toBe(1);
     await page.unroute("**/rest/v1/rpc/update_case_credentials");
     await page.unroute("**/rest/v1/rpc/get_case_credentials");
