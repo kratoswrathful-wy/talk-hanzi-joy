@@ -1,4 +1,4 @@
-狀態：已落地待驗收
+狀態：已發布（僅前端；發布核實範圍見文末「正式發布紀錄」）
 
 # 複製案件漏工具
 
@@ -66,4 +66,33 @@ T13 修正前的寫入時間軸（自 trace `0-trace.network` 解出，`p_case_i
 同一份 trace 的 network 顯示：整個測試只有 **1 次** `admin_create_case`（200，發生在 `get_case_credentials` 403 之前，屬 `createDraft` 建來源草稿），`get_case_credentials` 403 恰 1 次。即產品當時**確實已中止且未建案**，與提示時序無關。
 
 改法只動測試驅動：以「來源讀取被拒的實際回應」＋「`admin_create_case` 請求數為 0」＋「資料庫案件清單不變」作為確定訊號，提示文字改到最後才檢查並取 `.first()`；未新增任何固定等待。
+
+## 正式發布紀錄（2026-09-08）
+
+**僅前端建置與 production 發布**，未 merge `main`、未 `db push`、未改 Edge／權限、未做資料復原、未對事故案件補填或改派。
+
+| 項目 | 值 |
+|---|---|
+| 發布來源 SHA | `39002a1bc9f77fb0436ad1dce2a7f010654e9fc8`（分支 `fix/copy-case-tools-20260908`） |
+| 新 production deployment | `dpl_9nNqVH6Y6KzEqfoHkySY6iYFGN89`（2026-09-08 07:40 +08，READY） |
+| 發布前基準 | `dpl_BhZK7F4WEfsoyA7QQZ3YNKzGLY1B`（#85 `4c151695`），發布前確認仍為正式別名指向者且為最新 production |
+| 別名 | `talk-hanzi-joy.vercel.app`、`talk-hanzi-joy-1-up-localization-studio.vercel.app` 已指向新 deployment |
+| 回切點 | `dpl_BhZK7F4WEfsoyA7QQZ3YNKzGLY1B`（僅恢復程式，不撤銷資料寫入） |
+
+發布前後以 bundle 特徵字串核實（皆 ASCII，可重複驗證）：`tms.dupToolsPending.v1`、`retry-duplicate-tools`、`duplicate-tools-conflict`、`duplicate-tools-readback-pending`——發布前四項全部 absent，發布後全部 PRESENT。
+
+核實範圍：`/`、`/cases`、`/login`、`/cat/index.html`、主 JS chunk 皆 200；真實瀏覽器載入後 React 已掛載、無失敗資源請求；未對真實案件試寫。
+
+**未一併恢復**：歷史缺失工具不會自動回填；「工具憑證重新載入失敗」、新增案件無反應、任務完成失敗、CAT、審稿與 #83 均**不在**本次發布範圍，不得視為已恢復。
+
+### 發布時觀察到的既有正式故障（非本次發布造成）
+
+案件列表整表讀取 `GET /rest/v1/cases_visible?select=*&env=eq.production&order=created_at.desc` 間歇回 **500**，Postgres 端為 `57014 canceling statement due to statement timeout`。
+
+- 時間分布（UTC）：21:20 ×33、21:55 ×7、23:25 ×4、23:30 ×26、23:35 ×8＋1×503 —— 皆早於本次發布（23:40:21Z）。
+- 近 4 小時同一支查詢 591 次 200／85 次 500（約 12.6% 失敗）；`id=eq.` 單筆讀取與 `select=updated_at&limit=1` 輪詢全數 200。
+- 本次發布未改動 `load()` 的整表查詢（差異中新增的 `cases_visible` 查詢是 `probeCaseById` 的 `id=eq.` 單筆查證）。
+
+此為下一輪「新增案件點擊無反應」的第一候選原因（整表讀取逾時 → `caseStore` 清單為空 → 列表互動與建案流程失效），待有界診斷。
+
 
