@@ -954,7 +954,13 @@ async function updateCredentials(id: string, credentials: Record<string, unknown
   );
   if (!result.error) {
     applyActionResult(id, result.data);
-    caseCredentialAccess.clear(id);
+    // 成功後重載完整憑證；禁止 clear→公開遮罩回退的空窗（工具誤清空事故）。
+    try {
+      const fresh = await caseCredentialAccess.load(id);
+      caseCredentialAccess.put(id, fresh);
+    } catch {
+      caseCredentialAccess.clear(id);
+    }
     await refreshAfterCaseAction(id);
   }
   return result.error;

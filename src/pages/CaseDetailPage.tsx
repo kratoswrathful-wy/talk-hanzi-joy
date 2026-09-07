@@ -90,6 +90,11 @@ import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
 import { caseCredentialAccess } from "@/lib/case-credential-store";
 import type { CaseCredentials } from "@/lib/case-action-rpc";
+import { CredentialLoadStaleError } from "@/lib/case-credential-access";
+import {
+  applyToolEntryFieldPatch,
+  persistToolBlockPatch,
+} from "@/lib/case-tool-credentials-persist";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -1256,23 +1261,38 @@ export default function CaseDetailPage() {
 
   useEffect(() => {
     let active = true;
-    setCaseCredentials(null);
-    if (!id) return;
+    if (!id) {
+      setCaseCredentials(null);
+      return;
+    }
+    // revision 變更時保留既有草稿直到新 load 成功，避免回退到公開遮罩空值。
     void caseCredentialAccess.load(id)
       .then((credentials) => {
         if (active) setCaseCredentials(credentials);
       })
-      .catch(() => {
-        if (active) setCaseCredentials(null);
+      .catch((err) => {
+        if (!active) return;
+        if (err instanceof CredentialLoadStaleError) return;
+        setCaseCredentials(null);
       });
     return () => {
       active = false;
-      caseCredentialAccess.clear(id);
     };
   }, [id, caseData?.revision]);
 
+  useEffect(() => {
+    if (!id) return;
+    return () => {
+      caseCredentialAccess.clear(id);
+    };
+  }, [id]);
+
   useEffect(() => caseCredentialAccess.subscribe((clearedCaseId) => {
-    if (clearedCaseId === null || clearedCaseId === id) {
+    if (clearedCaseId === null) {
+      setCaseCredentials(null);
+      return;
+    }
+    if (clearedCaseId === id && !caseCredentialAccess.peek(id)) {
       setCaseCredentials(null);
     }
   }), [id]);
@@ -1485,52 +1505,66 @@ export default function CaseDetailPage() {
   );
 
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
+  const credentialsReady = Array.isArray(caseCredentials?.tools);
+  const usedPublicToolsFallback = !credentialsReady && Array.isArray(caseData?.tools);
+
   const tools: ToolEntry[] = useMemo(() => {
     if (Array.isArray(caseCredentials?.tools)) return caseCredentials.tools;
+    // 僅供顯示結構；寫入路徑禁止以此為底稿。
     if (Array.isArray(caseData?.tools)) return caseData.tools;
-    return [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }];
-  }, [caseCredentials?.tools, caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]);
+    return [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: {} }];
+  }, [caseCredentials?.tools, caseData?.tools, caseData?.executionTool]);
+
+  const usedPublicQuestionToolsFallback =
+    !Array.isArray(caseCredentials?.questionTools)
+    && Array.isArray(caseData?.questionTools)
+    && caseData.questionTools.length > 0;
 
   const questionTools: ToolEntry[] = useMemo(() =>
-    caseCredentials?.questionTools?.length
-      ? caseCredentials.questionTools
+    Array.isArray(caseCredentials?.questionTools)
+      ? (caseCredentials.questionTools.length
+        ? caseCredentials.questionTools
+        : [{ id: "qt-default", tool: "", fieldValues: {} }])
       : caseData?.questionTools?.length
       ? caseData.questionTools
       : [{ id: "qt-default", tool: "", fieldValues: {} }],
     [caseCredentials?.questionTools, caseData?.questionTools]
   );
 
-  const mergeToolEntryUpdates = (entry: ToolEntry, updates: Partial<ToolEntry>): ToolEntry => {
-    const next: ToolEntry = { ...entry, ...updates };
-
-    if (updates.fieldValues !== undefined) {
-      next.fieldValues = updates.fields !== undefined
-        ? updates.fieldValues
-        : { ...(entry.fieldValues || {}), ...updates.fieldValues };
-    }
-
-    if (updates.fileValues !== undefined) {
-      next.fileValues = updates.fields !== undefined
-        ? updates.fileValues
-        : { ...(entry.fileValues || {}), ...updates.fileValues };
-    }
-
-    return next;
-  };
+  const toolPersistDeps = useMemo(() => ({
+    peek: (caseId: string) => caseCredentialAccess.peek(caseId),
+    put: (caseId: string, credentials: CaseCredentials) => {
+      caseCredentialAccess.put(caseId, credentials);
+    },
+    load: (caseId: string) => caseCredentialAccess.load(caseId),
+    updateCredentials: (caseId: string, patch: Partial<Pick<CaseCredentials, "tools" | "questionTools">>) =>
+      caseStore.updateCredentials(caseId, patch),
+  }), []);
 
   const patchTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
     if (!caseData) return;
-    const next = updater(tools);
-    setCaseCredentials((prev) => prev ? { ...prev, tools: next } : prev);
-    void caseStore.updateCredentials(caseData.id, { tools: next }).then((error) => {
+    void persistToolBlockPatch({
+      caseId: caseData.id,
+      block: "tools",
+      updater,
+      draftCredentials: caseCredentials,
+      credentialsReady,
+      usedPublicFallback: usedPublicToolsFallback,
+      deps: toolPersistDeps,
+    }).then(({ error, nextCredentials }) => {
+      if (nextCredentials) setCaseCredentials(nextCredentials);
       if (error) {
-        toast({ title: "工具資料儲存失敗", description: error.message, variant: "destructive" });
+        toast({
+          title: "工具資料儲存失敗",
+          description: error.message,
+          variant: "destructive",
+        });
       }
     });
-  }, [caseData, tools]);
+  }, [caseData, caseCredentials, credentialsReady, usedPublicToolsFallback, toolPersistDeps]);
 
   const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
-    patchTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
+    patchTools((current) => applyToolEntryFieldPatch(current, idx, updates));
   };
 
   const removeTool = (idx: number) => {
@@ -1567,17 +1601,34 @@ export default function CaseDetailPage() {
 
   const patchQuestionTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
     if (!caseData) return;
-    const next = updater(questionTools);
-    setCaseCredentials((prev) => prev ? { ...prev, questionTools: next } : prev);
-    void caseStore.updateCredentials(caseData.id, { questionTools: next }).then((error) => {
+    void persistToolBlockPatch({
+      caseId: caseData.id,
+      block: "questionTools",
+      updater,
+      draftCredentials: caseCredentials,
+      credentialsReady: Array.isArray(caseCredentials?.questionTools) || credentialsReady,
+      usedPublicFallback: usedPublicQuestionToolsFallback,
+      deps: toolPersistDeps,
+    }).then(({ error, nextCredentials }) => {
+      if (nextCredentials) setCaseCredentials(nextCredentials);
       if (error) {
-        toast({ title: "提問工具儲存失敗", description: error.message, variant: "destructive" });
+        toast({
+          title: "提問工具儲存失敗",
+          description: error.message,
+          variant: "destructive",
+        });
       }
     });
-  }, [caseData, questionTools]);
+  }, [
+    caseData,
+    caseCredentials,
+    credentialsReady,
+    usedPublicQuestionToolsFallback,
+    toolPersistDeps,
+  ]);
 
   const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
-    patchQuestionTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
+    patchQuestionTools((current) => applyToolEntryFieldPatch(current, idx, updates));
   };
 
   const removeQuestionTool = (idx: number) => {

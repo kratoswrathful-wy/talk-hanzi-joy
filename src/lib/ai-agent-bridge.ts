@@ -3,6 +3,7 @@
  * 複用 store 寫入路徑；下拉合法值讀 selectOptionsStore。
  */
 import { caseStore } from "@/stores/case-store";
+import { caseCredentialAccess } from "@/lib/case-credential-store";
 import { feeStore } from "@/stores/fee-store";
 import { invoiceStore } from "@/stores/invoice-store";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
@@ -600,6 +601,12 @@ function validateCasePatch(
 ): AgentResult<Partial<CaseRecord>> {
   const out: Partial<CaseRecord> = {};
   for (const [key, value] of Object.entries(patch)) {
+    if (key === "tools" || key === "questionTools" || key === "toolFieldValues"
+      || key === "loginAccount" || key === "loginPassword" || key === "otherLoginInfo") {
+      return fail(
+        `欄位「${key}」不可經 case.update 寫入；請改用 tool.setField（工具欄位）或詳情頁憑證保存路徑`,
+      );
+    }
     if (key === "workGroups") {
       const wg = validateWorkGroups(value, existing?.workGroups);
       if (wg.ok === false) return failFrom(wg);
@@ -610,18 +617,6 @@ function validateCasePatch(
       const cr = validateCollabRows(value, existing?.collabRows);
       if (cr.ok === false) return failFrom(cr);
       out.collabRows = cr.data;
-      continue;
-    }
-    if (key === "tools") {
-      const t = validateToolEntries("case.tools", value, "executionTool");
-      if (t.ok === false) return failFrom(t);
-      out.tools = t.data;
-      continue;
-    }
-    if (key === "questionTools") {
-      const t = validateToolEntries("case.questionTools", value, "questionTool");
-      if (t.ok === false) return failFrom(t);
-      out.questionTools = t.data;
       continue;
     }
     if (key === "comments" || key === "internalComments") {
@@ -1516,8 +1511,21 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const existing = caseStore.getById(caseId);
         if (!existing) return fail(`找不到案件 id=${caseId}`);
 
+        let credentials;
+        try {
+          credentials = caseCredentialAccess.peek(caseId) ?? await caseCredentialAccess.load(caseId);
+        } catch (e) {
+          return fail(
+            e instanceof Error ? e.message : "無法載入完整工具憑證，拒絕以遮罩資料寫入",
+          );
+        }
+
         const toolFieldKey: ToolBlockKey = input.toolFieldKey ?? "executionTool";
-        const tools = getEffectiveToolEntries(existing, toolFieldKey);
+        const credentialSlice =
+          toolFieldKey === "questionTool"
+            ? { questionTools: credentials.questionTools }
+            : { tools: credentials.tools, executionTool: existing.executionTool };
+        const tools = getEffectiveToolEntries(credentialSlice, toolFieldKey);
         const idxResult = pickToolEntryIndex(tools, input);
         if (idxResult.ok === false) return failFrom(idxResult);
 
@@ -1525,37 +1533,32 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const toolFields = resolveToolFieldsForEntry(entry, toolFieldKey);
         if (toolFields.length === 0) {
           return fail(
-            `工具「${entry.tool || "（未選）"}」尚無可寫入欄位定義；請先 options.getToolSchema 查欄位，或以 case.update 寫入含 fields 的 tools 列`,
+            `工具「${entry.tool || "（未選）"}」尚無可寫入欄位定義；請先 options.getToolSchema 查欄位，或以詳情頁設定含 fields 的工具列`,
           );
         }
 
-        const built = buildToolFieldWritePatch(existing, { ...input, caseId }, toolFields);
+        const built = buildToolFieldWritePatch(credentialSlice, { ...input, caseId }, toolFields);
         if (built.ok === false) return failFrom(built);
 
-        const validated = validateCasePatch(built.data.patch, existing);
-        if (validated.ok === false) return failFrom(validated);
+        const patch = built.data.patch;
+        const writeError = await caseStore.updateCredentials(caseId, patch);
+        if (writeError) return failWriteFailed("案件工具憑證", describeStoreError(writeError));
 
-        const writeError = await caseStore.update(caseId, validated.data);
-        if (writeError) return failWriteFailed("案件", describeStoreError(writeError));
-        const updated = await awaitStoreReadbackMatch(
-          () => caseStore.getById(caseId),
-          (rec) => {
-            const tools = getEffectiveToolEntries(rec, built.data.meta.toolFieldKey);
-            const entry =
-              tools.find((t) => t.id === built.data.meta.toolEntryId) ??
-              tools[built.data.meta.toolIndex];
-            const actual = entry?.fieldValues?.[built.data.meta.fieldId] ?? "";
-            return finalizeToolSetFieldResult(built.data.meta, input.value, actual).verified;
-          },
-        );
-        if (!updated) return failReadbackTimedOut("案件", caseId);
-
+        const updatedCreds = caseCredentialAccess.peek(caseId);
+        if (!updatedCreds) {
+          return fail("寫入後無法回讀完整工具憑證");
+        }
         {
-          const tools = getEffectiveToolEntries(updated, built.data.meta.toolFieldKey);
-          const entry =
-            tools.find((t) => t.id === built.data.meta.toolEntryId) ??
-            tools[built.data.meta.toolIndex];
-          const actual = entry?.fieldValues?.[built.data.meta.fieldId] ?? "";
+          const toolsAfter = getEffectiveToolEntries(
+            toolFieldKey === "questionTool"
+              ? { questionTools: updatedCreds.questionTools }
+              : { tools: updatedCreds.tools },
+            toolFieldKey,
+          );
+          const entryAfter =
+            toolsAfter.find((t) => t.id === built.data.meta.toolEntryId) ??
+            toolsAfter[built.data.meta.toolIndex];
+          const actual = entryAfter?.fieldValues?.[built.data.meta.fieldId] ?? "";
           const result = finalizeToolSetFieldResult(built.data.meta, input.value, actual);
           if (!result.verified) {
             return fail(`寫入後回讀不一致（fieldId=${result.fieldId}）`);
