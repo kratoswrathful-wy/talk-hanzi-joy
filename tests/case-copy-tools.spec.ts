@@ -376,13 +376,18 @@ describeCopy("複製案件工具（隔離操作驗收）", () => {
     expect(mid.length).toBe(before.length + 1);
 
     await page.getByTestId("retry-duplicate-tools").click();
-    await expect(page.getByText("工具已寫入既有新案")).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY), { timeout: 30_000 }).toMatchObject({
+      "f-server": "mq.copy.local",
+      "f-user": "copy-user",
+      "f-pass": "copy-pass",
+    });
+    await expect.poll(() => backendFieldValues(page, newId, QUESTION_ENTRY, "questionTools")).toMatchObject({
+      "q-note": "copy-question-note",
+    });
+    await expect(page.getByTestId("duplicate-tools-pending")).toHaveCount(0);
     await page.unroute("**/rest/v1/rpc/update_case_credentials");
     const after = await listCaseIdsByTitlePrefix(page, prefix);
     expect(after).toEqual(mid);
-    await expect.poll(() => backendFieldValues(page, newId, TOOL_ENTRY)).toMatchObject({
-      "f-server": "mq.copy.local",
-    });
   });
 
   test("T6 保存回應遺失先查證、不重複建案、不假成功", async ({ page }) => {

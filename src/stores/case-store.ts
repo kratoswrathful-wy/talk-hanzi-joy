@@ -45,6 +45,7 @@ import {
   completeCaseTranslation as completeCaseTranslationRpc,
   declinePublicInquiryCase as declinePublicInquiryCaseRpc,
   updateCaseCredentials as updateCaseCredentialsRpc,
+  getCaseCredentials,
   updateCasePermittedFields,
   caseRpcErrorKind,
   type CaseCredentials,
@@ -1190,16 +1191,9 @@ async function writeCopiedCredentials(
     patch,
   );
   const verifyLoaded = async () => {
-    try {
-      const loaded = await caseCredentialAccess.load(targetId);
-      return credentialsMatchCopied(patch, loaded);
-    } catch (e) {
-      if (e instanceof CredentialLoadStaleError) {
-        const confirmed = caseCredentialAccess.peekConfirmed(targetId);
-        if (confirmed) return credentialsMatchCopied(patch, confirmed);
-      }
-      throw e;
-    }
+    const { data, error } = await getCaseCredentials(supabase, targetId);
+    if (error || !data) throw error ?? new Error("credential_access_failed");
+    return credentialsMatchCopied(patch, { ...data, caseId: targetId });
   };
 
   if (result.error) {
