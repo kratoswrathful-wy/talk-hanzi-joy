@@ -54,6 +54,13 @@ import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSing
 import { toast } from "@/hooks/use-toast";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
+import { listActiveTranslatorParticipantIds } from "@/lib/case-action-rpc";
+import {
+  resolveTaskCompleteActorKind,
+  shouldNotifyTranslatorTaskComplete,
+  shouldOfferTaskCompleteButton,
+} from "@/lib/case-task-complete-access";
+import { supabase } from "@/integrations/supabase/client";
 
 function getTodayYYMMDD(): string {
   const now = new Date();
@@ -518,6 +525,7 @@ export default function CasesPage() {
   const { checkPerm } = usePermissions();
   const tableViews = useCaseTableViews(user?.id, profile?.display_name || "");
   const { activeView } = tableViews;
+  const [selectedActiveTranslatorUserIds, setSelectedActiveTranslatorUserIds] = useState<string[]>([]);
 
   const visibleFees = tableViews.applyFiltersAndSorts(cases);
   const deferredVisibleFees = useDeferredValue(visibleFees);
@@ -544,6 +552,29 @@ export default function CasesPage() {
     const id = Array.from(rowSelection.selectedIds)[0];
     return cases.find((c) => c.id === id) ?? null;
   }, [rowSelection.selectedCount, rowSelection.selectedIds, cases]);
+
+  useEffect(() => {
+    const caseId = selectedSingleCase?.id;
+    if (!caseId) {
+      setSelectedActiveTranslatorUserIds([]);
+      return;
+    }
+    let cancelled = false;
+    void listActiveTranslatorParticipantIds(supabase, caseId).then(({ data }) => {
+      if (!cancelled) setSelectedActiveTranslatorUserIds(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSingleCase?.id, selectedSingleCase?.revision, selectedSingleCase?.status]);
+
+  const offerSelectedTaskComplete = shouldOfferTaskCompleteButton(
+    resolveTaskCompleteActorKind({
+      isPmOrAbove,
+      viewerUserId: user?.id,
+      activeTranslatorUserIds: selectedActiveTranslatorUserIds,
+    }),
+  );
 
   const visibleFieldKeys = caseFieldMetas
     .filter((f) => !CASE_TABLE_MANAGER_ONLY_KEYS.has(f.key) || isPmOrAbove)
@@ -741,21 +772,55 @@ export default function CasesPage() {
     }
   }, [selectedSingleCase, profile, user]);
 
-  const handleFlowFinalizeAssign = useCallback(() => {
+  const handleFlowFinalizeAssign = useCallback(async () => {
     if (!selectedSingleCase) return;
+    if (!selectedSingleCase.multiCollab) {
+      const { data: ids, error } = await listActiveTranslatorParticipantIds(
+        supabase,
+        selectedSingleCase.id,
+      );
+      if (error) {
+        toast({ title: "無法確認譯者授權", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (ids.length === 0) {
+        toast({
+          title: "無法確定指派",
+          description: "單檔派出前須先以可信帳號指派譯者（不可僅有顯示名）。",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus });
     toast({ title: "已確定指派" });
   }, [selectedSingleCase]);
 
   const handleFlowTaskComplete = useCallback(async () => {
     if (!selectedSingleCase) return;
-    const error = await caseStore.completeCaseTranslation(selectedSingleCase.id);
+    const kind = resolveTaskCompleteActorKind({
+      isPmOrAbove,
+      viewerUserId: user?.id,
+      activeTranslatorUserIds: selectedActiveTranslatorUserIds,
+    });
+    if (kind === "none") {
+      toast({
+        title: "無法完成任務",
+        description: "您不是本案有效譯者，也不是可代完成的管理者。",
+        variant: "destructive",
+      });
+      return;
+    }
+    const error =
+      kind === "manager"
+        ? await caseStore.pmCompleteCaseTranslation(selectedSingleCase.id)
+        : await caseStore.completeCaseTranslation(selectedSingleCase.id);
     if (error) {
       toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
       return;
     }
     toast({ title: "任務已完成" });
-    if (user?.id) {
+    if (shouldNotifyTranslatorTaskComplete(kind) && user?.id) {
       void maybeSendTranslatorCaseReplySlack({
         userId: user.id,
         slackMessageDefaults: profile?.slack_message_defaults,
@@ -764,7 +829,7 @@ export default function CasesPage() {
         kind: "task_complete",
       });
     }
-  }, [selectedSingleCase, profile, user]);
+  }, [selectedSingleCase, profile, user, isPmOrAbove, selectedActiveTranslatorUserIds]);
 
   const handleFlowFeedbackComplete = useCallback(() => {
     if (!selectedSingleCase) return;
@@ -1122,6 +1187,7 @@ export default function CasesPage() {
               profile={profile}
               isPmOrAbove={isPmOrAbove}
               isTranslatorRole={isTranslatorRole}
+              offerTaskComplete={offerSelectedTaskComplete}
               onOpenDecline={() => setDeclineOpen(true)}
               onRevertToDraft={handleFlowRevertToDraft}
               onCancelDispatch={handleFlowCancelDispatch}

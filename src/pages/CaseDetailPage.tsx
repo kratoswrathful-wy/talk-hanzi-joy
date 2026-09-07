@@ -67,6 +67,12 @@ import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
+import { listActiveTranslatorParticipantIds } from "@/lib/case-action-rpc";
+import {
+  resolveTaskCompleteActorKind,
+  shouldNotifyTranslatorTaskComplete,
+  shouldOfferTaskCompleteButton,
+} from "@/lib/case-task-complete-access";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import { getUserTimezone } from "@/lib/format-timestamp";
@@ -1098,6 +1104,7 @@ export default function CaseDetailPage() {
   const [declineMessage, setDeclineMessage] = useState("");
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
   const [caseCredentials, setCaseCredentials] = useState<CaseCredentials | null>(null);
+  const [activeTranslatorUserIds, setActiveTranslatorUserIds] = useState<string[]>([]);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -1249,6 +1256,21 @@ export default function CaseDetailPage() {
         if (data) setCreatorName(data.display_name || data.email);
       });
   }, [caseData?.createdBy]);
+
+  useEffect(() => {
+    const caseId = caseData?.id;
+    if (!caseId) {
+      setActiveTranslatorUserIds([]);
+      return;
+    }
+    let cancelled = false;
+    void listActiveTranslatorParticipantIds(supabase, caseId).then(({ data }) => {
+      if (!cancelled) setActiveTranslatorUserIds(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseData?.id, caseData?.revision, caseData?.status]);
 
   useEffect(() => {
     caseEditBurstRef.current = {};
@@ -1836,8 +1858,23 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     if (!caseData?.id) return;
+    if (!caseData.multiCollab) {
+      const { data: ids, error } = await listActiveTranslatorParticipantIds(supabase, caseData.id);
+      if (error) {
+        toast({ title: "無法確認譯者授權", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (ids.length === 0) {
+        toast({
+          title: "無法確定指派",
+          description: "單檔派出前須先以可信帳號指派譯者（不可僅有顯示名）。",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     save({ status: "dispatched" as CaseStatus });
     toast({ title: "已確定指派" });
     showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
@@ -1845,13 +1882,25 @@ export default function CaseDetailPage() {
   };
 
   const handleTaskComplete = async () => {
-    const error = await caseStore.completeCaseTranslation(caseData.id);
+    const kind = resolveTaskCompleteActorKind({
+      isPmOrAbove,
+      viewerUserId: user?.id,
+      activeTranslatorUserIds,
+    });
+    if (kind === "none") {
+      toast({ title: "無法完成任務", description: "您不是本案有效譯者，也不是可代完成的管理者。", variant: "destructive" });
+      return;
+    }
+    const error =
+      kind === "manager"
+        ? await caseStore.pmCompleteCaseTranslation(caseData.id)
+        : await caseStore.completeCaseTranslation(caseData.id);
     if (error) {
       toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
       return;
     }
     toast({ title: "任務已完成" });
-    if (user?.id) {
+    if (shouldNotifyTranslatorTaskComplete(kind) && user?.id) {
       void maybeSendTranslatorCaseReplySlack({
         userId: user.id,
         slackMessageDefaults: profile?.slack_message_defaults,
@@ -1912,6 +1961,13 @@ export default function CaseDetailPage() {
     if (caseData.multiCollab && caseData.collabRows?.some(r => r.translator === dn)) return true;
     return false;
   })();
+
+  const taskCompleteActorKind = resolveTaskCompleteActorKind({
+    isPmOrAbove,
+    viewerUserId: user?.id,
+    activeTranslatorUserIds,
+  });
+  const offerTaskComplete = shouldOfferTaskCompleteButton(taskCompleteActorKind);
 
   const comments = caseData.comments || [];
   const internalComments = caseData.internalComments || [];
@@ -2098,7 +2154,7 @@ export default function CaseDetailPage() {
                 </TooltipProvider>
               ) : btn;
             })()
-          ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
+          ) : isDispatched && offerTaskComplete ? (
             caseData.multiCollab ? (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
