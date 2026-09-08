@@ -20,6 +20,8 @@ interface CreateWithTemplateButtonProps {
   className?: string;
   /** 對應「設定 → 工具列按鈕顏色」的按鈕 id */
   uiButtonId?: string;
+  /** 建案在途：停用按鈕以防連點多建一筆 */
+  busy?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ export function CreateWithTemplateButton({
   label = "新增案件",
   className,
   uiButtonId,
+  busy = false,
 }: CreateWithTemplateButtonProps) {
   const uiProps = useToolbarButtonUiPropsMaybe(uiButtonId);
   const labelFromStore = useUiButtonLabel(uiButtonId);
@@ -45,6 +48,7 @@ export function CreateWithTemplateButton({
   const hasCustomTemplates = customTemplates.length > 0;
 
   const handleCreate = (tpl?: PageTemplate) => {
+    if (busy) return;
     const fieldValues = tpl?.fieldValues || defaultTemplate?.fieldValues || {};
     // Only pass non-empty values
     const filtered: Record<string, TemplateFieldValue> = {};
@@ -62,7 +66,15 @@ export function CreateWithTemplateButton({
   // If no custom templates, just a simple button using default template
   if (!hasCustomTemplates) {
     return (
-      <Button size={size} className={mainBtnClass} style={uiProps?.style} onClick={() => handleCreate()}>
+      <Button
+        size={size}
+        className={mainBtnClass}
+        style={uiProps?.style}
+        onClick={() => handleCreate()}
+        disabled={busy}
+        data-busy={busy ? "true" : undefined}
+        data-testid="create-case-button"
+      >
         {uiButtonId ? <UiToolbarButtonIcon uiButtonId={uiButtonId} /> : <Plus className="h-4 w-4 shrink-0" />}
         {displayLabel}
       </Button>
@@ -77,6 +89,9 @@ export function CreateWithTemplateButton({
         className={cn(MODULE_TOOLBAR_BTN, "rounded-r-none", uiProps?.className, className)}
         style={uiProps?.style}
         onClick={() => handleCreate()}
+        disabled={busy}
+        data-busy={busy ? "true" : undefined}
+        data-testid="create-case-button"
       >
         {uiButtonId ? <UiToolbarButtonIcon uiButtonId={uiButtonId} /> : <Plus className="h-4 w-4 shrink-0" />}
         {displayLabel}

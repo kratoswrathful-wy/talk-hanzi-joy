@@ -21,6 +21,7 @@ export function CasesListSingleCaseFlowButtons({
   profile,
   isPmOrAbove,
   isTranslatorRole,
+  offerTaskComplete,
   onOpenDecline,
   onRevertToDraft,
   onCancelDispatch,
@@ -40,6 +41,8 @@ export function CasesListSingleCaseFlowButtons({
   isPmOrAbove: boolean;
   /** primaryRole === "member" */
   isTranslatorRole: boolean;
+  /** 單檔任務完成：依可信 participant／管理角色，非顯示名 */
+  offerTaskComplete: boolean;
   onOpenDecline: () => void;
   onRevertToDraft: () => void;
   onCancelDispatch: () => void;
@@ -194,7 +197,7 @@ export function CasesListSingleCaseFlowButtons({
             btn
           );
         })()
-      ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
+      ) : isDispatched && offerTaskComplete ? (
         caseData.multiCollab ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -208,7 +211,7 @@ export function CasesListSingleCaseFlowButtons({
             <TooltipContent>請直接勾選「任務完成」</TooltipContent>
           </Tooltip>
         ) : (
-          <Button size="sm" className={ui["cases_detail_task_complete"].className} style={ui["cases_detail_task_complete"].style} onClick={onTaskComplete}>
+          <Button size="sm" className={ui["cases_detail_task_complete"].className} style={ui["cases_detail_task_complete"].style} onClick={onTaskComplete} data-testid="task-complete-button">
             <UiToolbarButtonIcon uiButtonId="cases_detail_task_complete" />
             {lbTaskComplete}
           </Button>

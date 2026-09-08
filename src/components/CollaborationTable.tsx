@@ -26,8 +26,8 @@ import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink }
 import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { selectOptionsStore } from "@/stores/select-options-store";
 import { buildCatDeepLink } from "@/lib/cat-deep-link";
+import { collabTranslatorFromSelection } from "@/lib/assignee-select";
 import { countUnconfirmedSegmentsInCollabRange } from "@/lib/cat-collab-task-complete";
 import { useToast } from "@/hooks/use-toast";
 
@@ -62,15 +62,6 @@ function decodeCatBind(value: string): Pick<CollabRow, "linkedCatFileId" | "link
 
 function isCatBound(row: CollabRow): boolean {
   return !!(row.linkedCatFileId || row.linkedCatViewId);
-}
-
-/** 由顯示名稱對應到 profile UUID（assignee 選單的 option.id 即 profiles.id）。配不到回傳 null。 */
-function resolveAssigneeUserId(name: string): string | null {
-  const n = (name || "").trim();
-  if (!n) return null;
-  const opts = selectOptionsStore.getField("assignee").options;
-  const hit = opts.find((o) => o.label === n);
-  return hit ? String(hit.id) : null;
 }
 
 function CopyTextButton({ value }: { value: string }) {
@@ -151,6 +142,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
   const [bulkPersonField, setBulkPersonField] = useState<"translator" | null>(null);
   const [bulkPersonValue, setBulkPersonValue] = useState<string>("");
+  const [bulkPersonUserId, setBulkPersonUserId] = useState<string | null>(null);
   const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
 
   const updateRow = useCallback(
@@ -191,15 +183,15 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
 
   const applyBulkPerson = () => {
     if (!bulkPersonField) return;
-    const resolvedUserId = resolveAssigneeUserId(bulkPersonValue);
     const next = rows.map((r) => ({
       ...r,
       translator: bulkPersonValue,
-      translatorUserId: resolvedUserId,
+      translatorUserId: bulkPersonUserId,
     }));
     onChange(next);
     setBulkPersonField(null);
     setBulkPersonValue("");
+    setBulkPersonUserId(null);
   };
 
   const resolveCatLink = (row: CollabRow): string | null => {
@@ -302,6 +294,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                         onClick={() => {
                           setBulkPersonField("translator");
                           setBulkPersonValue("");
+                          setBulkPersonUserId(null);
                         }}
                       >
                         <Users className="h-3 w-3" />
@@ -415,7 +408,10 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 <ColorSelect
                   fieldKey="assignee"
                   value={row.translator}
-                  onValueChange={(v) => updateRow(idx, { translator: v, translatorUserId: resolveAssigneeUserId(v) })}
+                  onValueChange={() => {}}
+                  onAssigneeSelect={(selection) => {
+                    updateRow(idx, collabTranslatorFromSelection(selection));
+                  }}
                   className="w-full"
                   disabled={!isPmOrAbove && row.accepted}
                 />
@@ -451,8 +447,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                           return;
                         }
                         const translatorEmpty = !row.translator || !row.translator.trim();
-                        if (translatorEmpty && displayName) {
-                          updateRow(idx, { accepted: true, translator: displayName, translatorUserId: resolveAssigneeUserId(displayName) ?? profile?.id ?? null });
+                        if (translatorEmpty && displayName && profile?.id) {
+                          updateRow(idx, {
+                            accepted: true,
+                            translator: displayName,
+                            translatorUserId: profile.id,
+                          });
                         } else {
                           updateRow(idx, { accepted: true });
                         }
@@ -510,7 +510,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!bulkPersonField} onOpenChange={(open) => { if (!open) { setBulkPersonField(null); setBulkPersonValue(""); } }}>
+      <AlertDialog open={!!bulkPersonField} onOpenChange={(open) => { if (!open) { setBulkPersonField(null); setBulkPersonValue(""); setBulkPersonUserId(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -520,7 +520,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
           <ColorSelect
             fieldKey="assignee"
             value={bulkPersonValue}
-            onValueChange={(v) => setBulkPersonValue(v)}
+            onValueChange={() => {}}
+            onAssigneeSelect={(selection) => {
+              const applied = collabTranslatorFromSelection(selection);
+              setBulkPersonValue(applied.translator);
+              setBulkPersonUserId(applied.translatorUserId);
+            }}
             className="w-full"
           />
           <AlertDialogFooter>
@@ -544,8 +549,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
               if (lastAcceptConfirm) {
                 const row = rows[lastAcceptConfirm.idx];
                 const translatorEmpty = !row.translator || !row.translator.trim();
-                if (translatorEmpty && displayName) {
-                  updateRow(lastAcceptConfirm.idx, { accepted: true, translator: displayName, translatorUserId: resolveAssigneeUserId(displayName) ?? profile?.id ?? null });
+                if (translatorEmpty && displayName && profile?.id) {
+                  updateRow(lastAcceptConfirm.idx, {
+                    accepted: true,
+                    translator: displayName,
+                    translatorUserId: profile.id,
+                  });
                 } else {
                   updateRow(lastAcceptConfirm.idx, { accepted: true });
                 }

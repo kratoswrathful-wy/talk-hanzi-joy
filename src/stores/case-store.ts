@@ -29,6 +29,53 @@ import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import {
+  buildAdminCreateAssignmentMeta,
+  splitDbCasePatch,
+  wholeFileReviewerUserId,
+} from "@/lib/case-assignment-patch";
+import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
+import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
+import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
+import { isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
+import {
+  acceptPublicInquiryCase as acceptPublicInquiryCaseRpc,
+  acceptInquiryCollabRow as acceptInquiryCollabRowRpc,
+  completeCaseCollabRow as completeCaseCollabRowRpc,
+  completeCaseReviewRow as completeCaseReviewRowRpc,
+  completeCaseTranslation as completeCaseTranslationRpc,
+  pmCompleteCaseTranslation as pmCompleteCaseTranslationRpc,
+  declinePublicInquiryCase as declinePublicInquiryCaseRpc,
+  updateCaseCredentials as updateCaseCredentialsRpc,
+  getCaseCredentials,
+  updateCasePermittedFields,
+  caseRpcErrorKind,
+  type CaseCredentials,
+  type DeclineInquiryInput,
+} from "@/lib/case-action-rpc";
+import { caseCredentialAccess } from "@/lib/case-credential-store";
+import { CredentialLoadStaleError } from "@/lib/case-credential-access";
+import {
+  buildDuplicateCredentialPatch,
+  buildPendingDuplicateToolsRecord,
+  createdReadbackFailedMessage,
+  createUnknownMessage,
+  credentialsMatchCopied,
+  DUP_TOOLS_PENDING_STORAGE_KEY,
+  duplicateAbortMessage,
+  evaluateRetryDecision,
+  evaluateSourceCredentials,
+  filterPendingRecordsForScope,
+  parsePendingDuplicateToolsRecords,
+  RETRY_MESSAGES,
+  serializePendingDuplicateToolsRecords,
+  shouldWriteCredentialPatch,
+  type DuplicateCredentialPatch,
+  type DuplicateToolsAbortReason,
+  type DuplicateToolsRetryStatus,
+  type PendingDuplicateToolsRecord,
+} from "@/lib/case-duplicate-tools";
+import { mergeCasePublicSnapshot } from "@/lib/case-public-snapshot";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type DbCase = Database["public"]["Tables"]["cases"]["Row"];
@@ -261,73 +308,12 @@ function notify() {
   listeners.forEach((l) => l());
 }
 
-function parseTimestamp(value: string | null | undefined): number {
-  if (!value) return 0;
-  const ts = Date.parse(value);
-  return Number.isNaN(ts) ? 0 : ts;
-}
-
-function mergeToolEntriesPreferRicher(
-  current: ToolEntry[] | undefined,
-  incoming: ToolEntry[] | undefined,
-): ToolEntry[] | undefined {
-  if (!incoming?.length) return current?.length ? current : incoming;
-  if (!current?.length) return incoming;
-  return incoming.map((inc) => {
-    const cur = current.find((c) => c.id === inc.id) ?? current.find((c) => c.tool && c.tool === inc.tool);
-    if (!cur) return inc;
-    const fieldValues = { ...(cur.fieldValues || {}), ...(inc.fieldValues || {}) };
-    // 本地有值而 incoming 清空／缺該鍵時保留本地（realtime／replica 短板快照）
-    for (const [k, v] of Object.entries(cur.fieldValues || {})) {
-      if (v && (inc.fieldValues?.[k] == null || inc.fieldValues[k] === "")) {
-        fieldValues[k] = v;
-      }
-    }
-    return {
-      ...inc,
-      tool: inc.tool || cur.tool,
-      fieldValues,
-      ...(inc.fields?.length ? { fields: inc.fields } : cur.fields?.length ? { fields: cur.fields } : {}),
-      fileValues: { ...(cur.fileValues || {}), ...(inc.fileValues || {}) },
-    };
-  });
-}
-
+/**
+ * P0-A：公開 view 快照以較新者完整取代；禁止用本地「較豐富」tools／憑證補回遮罩空值。
+ * （PR #80 Auth 的 loadVersion／TOKEN_REFRESHED 短路另見 load／onAuthStateChange。）
+ */
 function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord): CaseRecord {
-  if (!current) return incoming;
-
-  const currentTs = parseTimestamp(current.updatedAt);
-  const incomingTs = parseTimestamp(incoming.updatedAt);
-
-  // Never let older snapshots overwrite newer local data.
-  if (incomingTs > 0 && currentTs > 0 && incomingTs < currentTs) {
-    return current;
-  }
-
-  // 防呆：舊快取或異常資料可能缺 tools／questionTools，避免讀 .length 拋錯導致整頁崩潰
-  const curToolsLen = current.tools?.length ?? 0;
-  const incToolsLen = incoming.tools?.length ?? 0;
-  const curQtLen = current.questionTools?.length ?? 0;
-  const incQtLen = incoming.questionTools?.length ?? 0;
-  const keepTools = curToolsLen > 0 && incToolsLen === 0;
-  const keepQuestionTools = curQtLen > 0 && incQtLen === 0;
-
-  const base: CaseRecord = keepTools || keepQuestionTools
-    ? {
-        ...incoming,
-        ...(keepTools ? { tools: current.tools ?? [] } : {}),
-        ...(keepQuestionTools ? { questionTools: current.questionTools ?? [] } : {}),
-      }
-    : incoming;
-
-  // 即時／poll 可能帶回同時間戳但 fieldValues 較空的 tools；與本地較完整者合併
-  const tools = mergeToolEntriesPreferRicher(current.tools, base.tools);
-  const questionTools = mergeToolEntriesPreferRicher(current.questionTools, base.questionTools);
-  return {
-    ...base,
-    ...(tools ? { tools } : {}),
-    ...(questionTools ? { questionTools } : {}),
-  };
+  return mergeCasePublicSnapshot(current, incoming);
 }
 
 // ── DB ↔ App mapping ──
@@ -354,8 +340,12 @@ function fromDb(row: DbCase): CaseRecord {
       ? { url: clientCaseLinkRaw.url, label: clientCaseLinkRaw.label }
       : { url: "", label: "" };
 
+  // revision：migration 驗證前 types 可能尚無此欄；暫以窄化讀取（R1-E 重生 types 後可改回 row.revision）
+  const rowRevision = (row as DbCase & { revision?: number | null }).revision;
+
   return {
     id: row.id,
+    revision: typeof rowRevision === "number" ? rowRevision : 0,
     title: row.title ?? "",
     status: (row.status || "draft") as CaseStatus,
     client: row.client ?? "",
@@ -460,10 +450,8 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   if (c.reviewDeadline !== undefined) map.review_deadline = c.reviewDeadline;
 
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
-  if (c.toolFieldValues !== undefined) map.tool_field_values = toJson(c.toolFieldValues);
+  // 敏感工具值／憑證：禁止經一般 toDb／apply_case_update 回寫；只走 updateCredentials RPC。
   if (c.catToolEnabled !== undefined) map.cat_tool_enabled = c.catToolEnabled;
-  if (c.tools !== undefined) map.tools = toJson(c.tools);
-  if (c.questionTools !== undefined) map.question_tools = toJson(c.questionTools);
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
   if (c.deliveryMethodFiles !== undefined) map.delivery_method_files = toJson(c.deliveryMethodFiles);
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
@@ -475,9 +463,7 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   if (c.internalNoteForm !== undefined) map.internal_note_form = c.internalNoteForm;
   if (c.clientQuestionForm !== undefined) map.client_question_form = c.clientQuestionForm;
   if (c.workingFiles !== undefined) map.working_files = toJson(c.workingFiles);
-  if (c.otherLoginInfo !== undefined) map.other_login_info = c.otherLoginInfo;
-  if (c.loginAccount !== undefined) map.login_account = c.loginAccount;
-  if (c.loginPassword !== undefined) map.login_password = c.loginPassword;
+  // loginAccount／loginPassword／otherLoginInfo：禁止經一般 patch 回寫
   if (c.onlineToolProject !== undefined) map.online_tool_project = c.onlineToolProject;
   if (c.onlineToolFilename !== undefined) map.online_tool_filename = c.onlineToolFilename;
   if (c.sourceFiles !== undefined) map.source_files = toJson(c.sourceFiles);
@@ -503,7 +489,7 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
   }
   if (c.declineRecords !== undefined) map.decline_records = toJson(c.declineRecords);
   if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
-  if (c.createdBy !== undefined) map.created_by = c.createdBy;
+  // createdBy：僅供本地/UI；建案 RPC 由 server 依 session 寫入，不得經 p_payload 傳送。
   if (c.inquirySlackRecords !== undefined) map.inquiry_slack_records = toJson(c.inquirySlackRecords);
   if (c.edit_logs !== undefined) map.edit_logs = toJson(c.edit_logs);
   if (c.changeLogEnabledAt !== undefined) map.change_log_enabled_at = c.changeLogEnabledAt;
@@ -635,18 +621,9 @@ function getById(id: string): CaseRecord | undefined {
   return cases.find((c) => c.id === id);
 }
 
-async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
-  const env = getEnvironment();
-  const { data: { user } } = await supabase.auth.getUser();
-  const payload: DbCaseInsert = { ...toDb(partial), env, created_by: user?.id || null };
-  const { data, error } = await supabase.from("cases").insert(payload).select().single();
-  if (error || !data) {
-    console.error("[case-store] create failed", errorMessage(error), { payloadKeys: Object.keys(payload || {}) });
-    return null;
-  }
-  const record = fromDb(data);
+/** 建案後的本地登錄（樂觀顯示 + 短期保護，避免整表刷新把剛建的案蓋掉）。 */
+function adoptCreatedCase(record: CaseRecord) {
   cases = [record, ...cases];
-  // 短窗保護：避免並行 poll load 整表覆寫時把剛 insert、尚未出現在 SELECT 的列沖掉
   pendingUpdates.set(record.id, { title: record.title, status: record.status });
   const existingTimer = pendingCleanupTimers.get(record.id);
   if (existingTimer) clearTimeout(existingTimer);
@@ -658,7 +635,98 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
     }, PENDING_CLEANUP_DELAY_MS),
   );
   notify();
-  return record;
+}
+
+/** 以同一識別查證該案是否真的存在；讀取本身失敗時回 unknown，不當成「未建立」。 */
+async function probeCaseById(
+  id: string,
+): Promise<{ found: true; record: CaseRecord } | { found: false } | { found: "unknown" }> {
+  const { data, error } = await supabase
+    .from("cases_visible")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) return { found: "unknown" };
+  if (!data) return { found: false };
+  return { found: true, record: fromDb(asDbCase(data)) };
+}
+
+
+export type CaseCreateOutcome =
+  | { kind: "created"; id: string; record: CaseRecord }
+  | { kind: "created_readback_failed"; id: string }
+  | { kind: "create_failed"; id: string }
+  | { kind: "create_unknown"; id: string }
+  | { kind: "no_session" };
+
+/**
+ * 建案並回報「確定未建立／已建立但讀不回／結果不明」。
+ * 目標 UUID 在送出前就固定，遺失回應時只用同一識別查證，絕不換新識別再建一筆。
+ */
+async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCreateOutcome> {
+  const user = await getAuthenticatedUser().catch((e) => {
+    if (e instanceof AuthRecoverableError) return null;
+    throw e;
+  });
+  if (!user) return { kind: "no_session" };
+  const id = crypto.randomUUID();
+  const rpcPayload = buildAdminCreateRpcPayload(toDb(partial));
+  const createMeta = buildAdminCreateAssignmentMeta(partial as Record<string, unknown>);
+  if (createMeta.translatorUserId) {
+    rpcPayload.translator_user_id = createMeta.translatorUserId;
+  }
+  const reviewerUid =
+    createMeta.reviewerUserId ?? wholeFileReviewerUserId(partial.reviewRows);
+  if (reviewerUid) {
+    rpcPayload.reviewer_user_id = reviewerUid;
+  }
+  // P0-C：建案走 admin_create_case RPC；p_case_id 獨立參數，env/created_by 由 server 產生。
+  let createError: unknown = null;
+  try {
+    const result = await adminCreateCase(supabase, id, rpcPayload);
+    createError = result.error;
+  } catch (thrown) {
+    createError = thrown;
+  }
+  if (createError) {
+    console.error("[case-store] create failed", errorMessage(createError), {
+      payloadKeys: Object.keys(rpcPayload),
+    });
+    const probe = await probeCaseById(id);
+    if (probe.found === true) {
+      adoptCreatedCase(probe.record);
+      return { kind: "created", id, record: probe.record };
+    }
+    if (probe.found === false && isDefiniteCaseCreateError(createError)) {
+      return { kind: "create_failed", id };
+    }
+    return { kind: "create_unknown", id };
+  }
+
+  const { data, error } = await supabase
+    .from("cases_visible")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (!error && data) {
+    const record = fromDb(asDbCase(data));
+    adoptCreatedCase(record);
+    return { kind: "created", id, record };
+  }
+  console.error("[case-store] create readback failed", errorMessage(error), { id });
+  const probe = await probeCaseById(id);
+  if (probe.found === true) {
+    adoptCreatedCase(probe.record);
+    return { kind: "created", id, record: probe.record };
+  }
+  // RPC 已成功，案件必然存在，只是讀不回來：保留識別，不得回報建案失敗。
+  return { kind: "created_readback_failed", id };
+}
+
+/** 既有建案入口契約不變：只有確定拿到案件資料才回傳紀錄，其餘一律 null。 */
+async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
+  const outcome = await createWithOutcome(partial);
+  return outcome.kind === "created" ? outcome.record : null;
 }
 
 async function update(id: string, partial: Partial<CaseRecord>) {
@@ -715,8 +783,91 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   notify();
 
-  // 工項 2：勿直寫 cases 基表 UPDATE（譯者無 SELECT → 靜默 0 列）；改 RPC
-  const { error } = await applyCaseUpdate(supabase, id, mapped as Record<string, unknown>);
+  const user = await getAuthenticatedUser().catch((e) => {
+    if (e instanceof AuthRecoverableError) return null;
+    throw e;
+  });
+  const { data: roleRows } = user
+    ? await supabase.from("user_roles").select("role").eq("user_id", user.id)
+    : { data: null };
+  const isAdmin = (roleRows ?? []).some(
+    (row) => row.role === "pm" || row.role === "executive",
+  );
+
+  let error: Error | { message: string } | null;
+  let nextRevision: number | undefined;
+  if (isAdmin) {
+    let revision = prev?.revision ?? 0;
+    const assignmentMeta = {
+      translatorUserId: (partial as { translatorUserId?: string | null }).translatorUserId,
+      reviewerUserId: (partial as { reviewerUserId?: string | null }).reviewerUserId,
+    };
+    const { assignment, general } = splitDbCasePatch(
+      mapped as Record<string, unknown>,
+      assignmentMeta,
+    );
+
+    if (Object.keys(assignment).length > 0) {
+      const assignResult = await pmUpdateCaseAssignments(
+        supabase,
+        id,
+        assignment,
+        revision,
+      );
+      error = assignResult.error;
+      if (!error && typeof assignResult.data?.revision === "number") {
+        revision = assignResult.data.revision;
+        nextRevision = revision;
+      }
+    }
+
+    if (!error && Object.keys(general).length > 0) {
+      const result = await applyCaseUpdate(
+        supabase,
+        id,
+        general,
+        revision,
+      );
+      error = result.error;
+      nextRevision = error
+        ? undefined
+        : (typeof result.data?.revision === "number"
+            ? result.data.revision
+            : revision + 1);
+    } else if (!error && Object.keys(assignment).length > 0 && nextRevision === undefined) {
+      nextRevision = revision;
+    }
+  } else {
+    const permittedKeys = new Set<keyof CaseRecord>([
+      "title", "bodyContent", "category", "workType", "workGroups",
+      "client", "contact", "keyword", "clientPoNumber", "clientCaseLink",
+      "dispatchRoute", "processNote", "billingUnit", "unitCount", "inquiryNote",
+      "deliveryMethod", "deliveryMethodFiles", "clientReceipt",
+      "clientReceiptFiles", "customGuidelinesUrl", "clientGuidelines",
+      "commonInfo", "commonLinks", "workingFiles", "sourceFiles",
+      "seriesReferenceMaterials", "caseReferenceMaterials", "referenceMaterials",
+      "questionForm", "translatorFinal", "internalReviewFinal", "trackChanges",
+      "internalComments",
+    ]);
+    const changes: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(merged)) {
+      if (permittedKeys.has(key as keyof CaseRecord) && value !== undefined) {
+        changes[key] = JSON.parse(JSON.stringify(value));
+      }
+    }
+    const result = await updateCasePermittedFields(
+      supabase,
+      id,
+      prev?.revision ?? -1,
+      changes,
+    );
+    error = result.error;
+    nextRevision = result.data?.revision;
+  }
+
+  if (!error && nextRevision !== undefined) {
+    cases = cases.map((c) => (c.id === id ? { ...c, revision: nextRevision } : c));
+  }
 
   const remaining = (inFlightCount.get(id) || 1) - 1;
   if (remaining <= 0) {
@@ -748,7 +899,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
 
   if (!error && shouldSyncCatAssignments) {
     try {
-      await supabase.rpc("sync_cat_file_assignments_for_case", { p_case_id: id });
+      await supabase.rpc("lms_sync_cat_file_assignments_for_case", { p_case_id: id });
     } catch (e) {
       console.warn("[case-store] sync CAT assignments skipped:", e);
     }
@@ -766,10 +917,153 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   return error;
 }
 
+function applyActionResult(
+  id: string,
+  result: { revision: number; status?: string } | null | undefined,
+) {
+  if (!result) return;
+  cases = cases.map((c) =>
+    c.id === id
+      ? {
+          ...c,
+          revision: result.revision,
+          ...(result.status ? { status: result.status as CaseStatus } : {}),
+        }
+      : c,
+  );
+  notify();
+}
+
+async function refreshAfterCaseAction(id: string) {
+  loadPromise = null;
+  await load();
+  return getById(id);
+}
+
+async function acceptPublicInquiry(id: string) {
+  const current = getById(id);
+  const result = await acceptPublicInquiryCaseRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function declinePublicInquiry(id: string, decline: DeclineInquiryInput) {
+  const current = getById(id);
+  const result = await declinePublicInquiryCaseRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+    decline,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function acceptInquiryCollabRow(id: string, rowId: string) {
+  const current = getById(id);
+  const result = await acceptInquiryCollabRowRpc(
+    supabase,
+    id,
+    rowId,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function completeCaseCollabRow(id: string, rowId: string) {
+  const current = getById(id);
+  const result = await completeCaseCollabRowRpc(
+    supabase,
+    id,
+    rowId,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function completeCaseTranslation(id: string) {
+  const current = getById(id);
+  const result = await completeCaseTranslationRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function pmCompleteCaseTranslation(id: string) {
+  const current = getById(id);
+  const result = await pmCompleteCaseTranslationRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function completeCaseReviewRow(id: string, rowId: string) {
+  const current = getById(id);
+  const result = await completeCaseReviewRowRpc(
+    supabase,
+    id,
+    rowId,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
+async function updateCredentials(id: string, credentials: Record<string, unknown>) {
+  const current = getById(id);
+  const result = await updateCaseCredentialsRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+    credentials,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    // 讀回由 persist 層負責；此處只刷新公開 view，不 clear 憑證快取。
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
 async function remove(id: string) {
-  const { error } = await supabase.from("cases").delete().eq("id", id);
+  const current = getById(id);
+  const { error } = await adminDeleteCase(supabase, id, current?.revision ?? 0);
   if (!error) {
     cases = cases.filter((c) => c.id !== id);
+    caseCredentialAccess.clear(id);
     notify();
   }
   return error;
@@ -790,6 +1084,8 @@ function reset() {
   inFlightCount.clear();
   pendingCleanupTimers.forEach((timer) => clearTimeout(timer));
   pendingCleanupTimers.clear();
+  caseCredentialAccess.clearAll();
+  pendingToolCopies.clear();
 }
 
 // Listen for auth changes — only reload on sign-in to avoid race conditions
@@ -880,21 +1176,205 @@ supabase
 
 export type CaseDuplicateSort = { key: DuplicateSortKey; dir: DuplicateSortDir };
 
-export interface CaseDuplicateResult {
-  newCase: CaseRecord;
+export interface CaseDuplicateShared {
+  /** 只保證識別與標題；建案讀回失敗時仍必須帶得出新案識別。 */
+  newCase: Pick<CaseRecord, "id" | "title">;
+  sourceCaseId: string;
   renames: { oldTitle: string; newTitle: string }[];
   feePatches: FeeTitlePatch[];
   translatorInvoicePatches: InvoiceTitlePatch[];
   clientInvoicePatches: InvoiceTitlePatch[];
 }
 
+export type CaseDuplicateOutcome =
+  | {
+      ok: false;
+      created: false;
+      reason: DuplicateToolsAbortReason;
+      message: string;
+      /** 結果不明時仍保留該次保留的目標識別，供使用者查證，不換新識別再建。 */
+      targetCaseId?: string;
+    }
+  | ({
+      ok: true;
+      created: true;
+      toolsStatus: "copied" | "skipped_empty";
+    } & CaseDuplicateShared)
+  | ({
+      ok: false;
+      created: true;
+      toolsStatus: "pending";
+      message: string;
+    } & CaseDuplicateShared);
+
+/** @deprecated 使用 CaseDuplicateOutcome */
+export type CaseDuplicateResult = CaseDuplicateOutcome;
+
+const pendingToolCopies = new Map<string, PendingDuplicateToolsRecord>();
+const retryInFlight = new Set<string>();
+let pendingToolsVersion = 0;
+
+function getPendingToolsVersion(): number {
+  return pendingToolsVersion;
+}
+
+function readPendingStorage(): PendingDuplicateToolsRecord[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    return parsePendingDuplicateToolsRecords(localStorage.getItem(DUP_TOOLS_PENDING_STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function writePendingStorage(records: PendingDuplicateToolsRecord[]) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(DUP_TOOLS_PENDING_STORAGE_KEY, serializePendingDuplicateToolsRecords(records));
+  } catch {
+    // 封鎖或超額時略過；記憶體仍保留本次工作階段狀態
+  }
+}
+
+export type SourceCredentialsLoadResult =
+  | { ok: true; credentials: CaseCredentials }
+  | { ok: false; created: false; reason: DuplicateToolsAbortReason; message: string };
+
+function abortDuplicate(reason: DuplicateToolsAbortReason): CaseDuplicateOutcome {
+  return { ok: false, created: false, reason, message: duplicateAbortMessage(reason) };
+}
+
+function peekPendingDuplicateTools(caseId: string): PendingDuplicateToolsRecord | undefined {
+  const userId = currentUserId;
+  if (!userId) return undefined;
+  const env = getEnvironment();
+  const mem = pendingToolCopies.get(caseId);
+  if (mem && mem.userId === userId && mem.env === env) return mem;
+  const stored = filterPendingRecordsForScope(readPendingStorage(), userId, env)
+    .find((rec) => rec.targetCaseId === caseId);
+  if (stored) pendingToolCopies.set(caseId, stored);
+  return stored;
+}
+
+function setPendingToolCopy(record: PendingDuplicateToolsRecord | null, targetCaseId?: string) {
+  const id = record?.targetCaseId ?? targetCaseId;
+  if (!id) return;
+  if (record) {
+    const next = readPendingStorage().filter((rec) => rec.targetCaseId !== id);
+    next.push(record);
+    writePendingStorage(next);
+    pendingToolCopies.set(id, record);
+  } else {
+    writePendingStorage(readPendingStorage().filter((rec) => rec.targetCaseId !== id));
+    pendingToolCopies.delete(id);
+  }
+  pendingToolsVersion += 1;
+  notify();
+}
+
+async function loadSourceCredentialsForCopy(
+  sourceCaseId: string,
+  userId: string,
+): Promise<SourceCredentialsLoadResult> {
+  let loaded: CaseCredentials | undefined;
+  try {
+    loaded = await caseCredentialAccess.load(sourceCaseId);
+  } catch (e) {
+    if (e instanceof CredentialLoadStaleError) {
+      loaded = caseCredentialAccess.peekConfirmed(sourceCaseId);
+    }
+    if (!loaded) {
+      return {
+        ok: false,
+        created: false,
+        reason: "source_credentials_unavailable",
+        message: duplicateAbortMessage("source_credentials_unavailable"),
+      };
+    }
+  }
+  const evaluated = evaluateSourceCredentials({
+    sourceCaseId,
+    credentials: loaded,
+    sourceChannel: "credentials_rpc",
+    activeUserId: userId,
+  });
+  if (evaluated.ok === false) {
+    return { ok: false, created: false, reason: evaluated.reason, message: evaluated.message };
+  }
+  return { ok: true, credentials: evaluated.credentials };
+}
+
+async function writeCopiedCredentials(
+  targetId: string,
+  patch: DuplicateCredentialPatch,
+  expectedRevision: number,
+): Promise<{ status: "ok" | "already_present" | "failed"; message?: string }> {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    return { status: "failed", message: "新案件版本號不明，未寫入工具、未再建案。" };
+  }
+  const result = await updateCaseCredentialsRpc(
+    supabase,
+    targetId,
+    expectedRevision,
+    patch,
+  );
+  const verifyLoaded = async () => {
+    const { data, error } = await getCaseCredentials(supabase, targetId);
+    if (error || !data) throw error ?? new Error("credential_access_failed");
+    return credentialsMatchCopied(patch, { ...data, caseId: targetId });
+  };
+
+  if (result.error) {
+    const kind = caseRpcErrorKind(result.error);
+    try {
+      if (await verifyLoaded()) {
+        if (result.data) applyActionResult(targetId, result.data);
+        await refreshAfterCaseAction(targetId);
+        return { status: "already_present" };
+      }
+    } catch {
+      // 讀回也失敗：結果未知，不盲目重送
+    }
+    return {
+      status: "failed",
+      message:
+        kind === "unknown"
+          ? "工具保存結果未知，已先查證、未重送。可用新案識別重試，不會再建一筆。"
+          : `新案件已建立，但工具尚未寫入：${errorMessage(result.error)}`,
+    };
+  }
+
+  applyActionResult(targetId, result.data);
+  try {
+    if (!(await verifyLoaded())) {
+      return { status: "failed", message: "工具已寫入、讀回不一致，未重送。可用新案識別重試。" };
+    }
+  } catch {
+    return { status: "failed", message: "工具已寫入、尚未確認讀回，未重送。可用新案識別重試。" };
+  }
+  await refreshAfterCaseAction(targetId);
+  return { status: "ok" };
+}
+
 async function duplicate(
   id: string,
   sort: CaseDuplicateSort = DEFAULT_DUPLICATE_SORT
-): Promise<CaseDuplicateResult | null> {
+): Promise<CaseDuplicateOutcome> {
   try {
     const source = cases.find((c) => c.id === id);
-    if (!source) return null;
+    if (!source) return abortDuplicate("source_not_found");
+
+    const user = await getAuthenticatedUser().catch((e) => {
+      if (e instanceof AuthRecoverableError) return null;
+      throw e;
+    });
+    if (!user) return abortDuplicate("session_mismatch");
+
+    const sourceReady = await loadSourceCredentialsForCopy(id, user.id);
+    if (sourceReady.ok === false) return sourceReady;
+    const credentialPatch = buildDuplicateCredentialPatch(sourceReady.credentials);
+    const needsToolWrite = shouldWriteCredentialPatch(credentialPatch);
+
     const {
       id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic,
       // Important: duplicate should not inherit Slack inquiry lock history.
@@ -964,19 +1444,202 @@ async function duplicate(
   }
 
     const cleaned = clearDuplicateFields(rest);
-    const newCase = await create({ ...cleaned, title: plan.newTitle });
-    if (!newCase) return null;
+    const created = await createWithOutcome({ ...cleaned, title: plan.newTitle });
+    if (created.kind === "no_session") return abortDuplicate("session_mismatch");
+    if (created.kind === "create_failed") return abortDuplicate("create_failed");
+    if (created.kind === "create_unknown") {
+      return {
+        ok: false,
+        created: false,
+        reason: "create_unknown",
+        message: createUnknownMessage(created.id),
+        targetCaseId: created.id,
+      };
+    }
 
-    return {
-      newCase,
+    const targetId = created.id;
+    // 建案當下的版本；讀回失敗時為 undefined，代表無法確認原始狀態。
+    const createdRevision = created.kind === "created" ? created.record.revision : undefined;
+
+    const shared: CaseDuplicateShared = {
+      newCase: { id: targetId, title: plan.newTitle },
+      sourceCaseId: id,
       renames: plan.renames,
       feePatches: allFeePatches,
       translatorInvoicePatches,
       clientInvoicePatches,
     };
+
+    /**
+     * 只有目標仍停在「建案當下的版本 + 預期初始空白」時才留下可自動補寫的基準。
+     * 版本已前進、讀不到或結果不明一律不留基準，避免把等待期間的新修改當成原始狀態。
+     */
+    const readTargetBaseline = async () => {
+      if (typeof createdRevision !== "number" || !Number.isSafeInteger(createdRevision)) return undefined;
+      try {
+        const { data, error } = await getCaseCredentials(supabase, targetId);
+        if (error || !data || typeof data.revision !== "number") return undefined;
+        if (data.revision !== createdRevision) return undefined;
+        const patch = buildDuplicateCredentialPatch({ ...data, caseId: targetId });
+        if (shouldWriteCredentialPatch(patch)) return undefined;
+        return { revision: createdRevision, patch };
+      } catch {
+        return undefined;
+      }
+    };
+
+    const rememberPending = async (message: string) => {
+      setPendingToolCopy(buildPendingDuplicateToolsRecord({
+        targetCaseId: targetId,
+        sourceCaseId: id,
+        userId: user.id,
+        env: getEnvironment(),
+        sourceRevision: sourceReady.credentials.revision,
+        expected: credentialPatch,
+        message,
+        targetBaseline: await readTargetBaseline(),
+      }));
+    };
+
+    if (created.kind === "created_readback_failed") {
+      // 新案確實存在，只是案件資料讀不回：保留識別、不寫工具、不再建一筆。
+      const readbackMessage = createdReadbackFailedMessage(targetId);
+      await rememberPending(readbackMessage);
+      return {
+        ok: false,
+        created: true,
+        toolsStatus: "pending",
+        message: readbackMessage,
+        ...shared,
+      };
+    }
+
+    try {
+      if (!needsToolWrite) {
+        setPendingToolCopy(null, targetId);
+        return { ok: true, created: true, toolsStatus: "skipped_empty", ...shared };
+      }
+
+      const written = await writeCopiedCredentials(
+        targetId,
+        credentialPatch,
+        createdRevision ?? 0,
+      );
+      if (written.status === "ok" || written.status === "already_present") {
+        setPendingToolCopy(null, targetId);
+        return { ok: true, created: true, toolsStatus: "copied", ...shared };
+      }
+
+      const pendingMessage = written.message ?? "新案件已建立，工具尚未確認寫入。";
+      await rememberPending(pendingMessage);
+      return {
+        ok: false,
+        created: true,
+        toolsStatus: "pending",
+        message: pendingMessage,
+        ...shared,
+      };
+    } catch (e) {
+      console.error("[case-store] duplicate tools step failed", e);
+      try {
+        const { data } = await getCaseCredentials(supabase, targetId);
+        if (data && credentialsMatchCopied(credentialPatch, { ...data, caseId: targetId })) {
+          setPendingToolCopy(null, targetId);
+          return { ok: true, created: true, toolsStatus: "copied", ...shared };
+        }
+      } catch {
+        // 結果未知：不盲目重送、不引導再複製
+      }
+      await rememberPending(RETRY_MESSAGES.created_unknown);
+      return {
+        ok: false,
+        created: true,
+        toolsStatus: "pending",
+        message: RETRY_MESSAGES.created_unknown,
+        ...shared,
+      };
+    }
   } catch (e) {
     console.error("[case-store] duplicate failed", e);
-    return null;
+    return abortDuplicate("create_failed");
+  }
+}
+
+export type DuplicateToolsRetryResult = {
+  ok: boolean;
+  created: false;
+  status: DuplicateToolsRetryStatus;
+  message: string;
+};
+
+async function retryDuplicateTools(newCaseId: string): Promise<DuplicateToolsRetryResult> {
+  if (retryInFlight.has(newCaseId)) {
+    return { ok: false, created: false, status: "in_flight", message: RETRY_MESSAGES.in_flight };
+  }
+  retryInFlight.add(newCaseId);
+  try {
+    const user = await getAuthenticatedUser().catch((e) => {
+      if (e instanceof AuthRecoverableError) return null;
+      throw e;
+    });
+    if (!user) {
+      return { ok: false, created: false, status: "session_mismatch", message: RETRY_MESSAGES.session_mismatch };
+    }
+    const pending = peekPendingDuplicateTools(newCaseId);
+    if (!pending) {
+      return { ok: false, created: false, status: "failed", message: "沒有可重試的部分完成複製；不會再建新案。" };
+    }
+    if (pending.userId !== user.id || pending.env !== getEnvironment()) {
+      return { ok: false, created: false, status: "session_mismatch", message: RETRY_MESSAGES.session_mismatch };
+    }
+    if (!getById(newCaseId)) {
+      return { ok: false, created: false, status: "failed", message: "找不到已建立的新案，未重送、未再建案。" };
+    }
+
+    const sourceReady = await loadSourceCredentialsForCopy(pending.sourceCaseId, user.id);
+    if (sourceReady.ok === false) {
+      return { ok: false, created: false, status: "failed", message: sourceReady.message };
+    }
+    const { data: target, error: targetError } = await getCaseCredentials(supabase, newCaseId);
+    if (targetError || !target) {
+      return {
+        ok: false,
+        created: false,
+        status: "failed",
+        message: "無法核實新案工具狀態，未重送、未覆寫。",
+      };
+    }
+
+    const decision = evaluateRetryDecision({
+      pending,
+      source: sourceReady.credentials,
+      target: { ...target, caseId: newCaseId },
+      activeUserId: user.id,
+      activeEnv: getEnvironment(),
+    });
+
+    if (decision.action === "already_complete") {
+      setPendingToolCopy(null, newCaseId);
+      return { ok: true, created: false, status: "already_complete", message: decision.message };
+    }
+    if (decision.action !== "write") {
+      setPendingToolCopy({ ...pending, message: decision.message });
+      return { ok: false, created: false, status: decision.status, message: decision.message };
+    }
+
+    const written = await writeCopiedCredentials(
+      newCaseId,
+      decision.patch,
+      decision.expectedRevision,
+    );
+    if (written.status === "ok" || written.status === "already_present") {
+      setPendingToolCopy(null, newCaseId);
+      return { ok: true, created: false, status: "written", message: RETRY_MESSAGES.written };
+    }
+    setPendingToolCopy({ ...pending, message: written.message ?? "工具重試仍未確認，未再建案。" });
+    return { ok: false, created: false, status: "failed", message: written.message ?? "工具重試仍未確認，未再建案。" };
+  } finally {
+    retryInFlight.delete(newCaseId);
   }
 }
 
@@ -1040,9 +1703,26 @@ export const caseStore = {
   getById,
   isLoaded,
   create,
+  createWithOutcome,
   update,
   remove,
   duplicate,
+  retryDuplicateTools,
+  peekPendingDuplicateTools,
+  getPendingToolsVersion,
+  acceptPublicInquiry,
+  declinePublicInquiry,
+  acceptInquiryCollabRow,
+  completeCaseCollabRow,
+  completeCaseTranslation,
+  pmCompleteCaseTranslation,
+  completeCaseReviewRow,
+  updateCredentials,
   subscribe: subscribePoll,
   reset,
 };
+
+/** 供契約測試：partial → snake_case DB 欄位（不含 RPC 禁止鍵過濾）。 */
+export function mapPartialCaseToDb(c: Partial<CaseRecord>): DbCaseUpdate {
+  return toDb(c);
+}

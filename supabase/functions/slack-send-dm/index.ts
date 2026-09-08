@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { corsHeaders } from "../_shared/cors.ts";
+import { rejectWhenMaintenanceEnabled } from "../_shared/maintenance-gate.ts";
 
 async function slackApi(token: string, method: string, body?: Record<string, unknown>) {
   const res = await fetch(`https://slack.com/api/${method}`, {
@@ -205,6 +206,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const maintBlocked = await rejectWhenMaintenanceEnabled(jwt);
+    if (maintBlocked) return maintBlocked;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

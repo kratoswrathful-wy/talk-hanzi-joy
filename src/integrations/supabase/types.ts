@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -10,32 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -189,6 +164,188 @@ export type Database = {
         }
         Relationships: []
       }
+      case_mutation_audit: {
+        Row: {
+          action: string
+          actor_user_id: string
+          case_id: string
+          changed_fields: string[]
+          created_at: string
+          env: string
+          id: string
+          new_revision: number
+          previous_revision: number
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          case_id: string
+          changed_fields?: string[]
+          created_at?: string
+          env: string
+          id?: string
+          new_revision: number
+          previous_revision: number
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          case_id?: string
+          changed_fields?: string[]
+          created_at?: string
+          env?: string
+          id?: string
+          new_revision?: number
+          previous_revision?: number
+        }
+        Relationships: []
+      }
+      case_participant_backfill_unresolved: {
+        Row: {
+          candidate_role: string | null
+          candidate_user_id: string | null
+          case_id: string | null
+          created_at: string
+          env: string
+          id: string
+          reason: string
+          source_kind: string
+          source_record_id: string | null
+        }
+        Insert: {
+          candidate_role?: string | null
+          candidate_user_id?: string | null
+          case_id?: string | null
+          created_at?: string
+          env: string
+          id?: string
+          reason: string
+          source_kind: string
+          source_record_id?: string | null
+        }
+        Update: {
+          candidate_role?: string | null
+          candidate_user_id?: string | null
+          case_id?: string | null
+          created_at?: string
+          env?: string
+          id?: string
+          reason?: string
+          source_kind?: string
+          source_record_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_participant_backfill_unresolved_candidate_user_id_fkey"
+            columns: ["candidate_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participant_backfill_unresolved_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participant_backfill_unresolved_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases_visible"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_participants: {
+        Row: {
+          access_revoked_at: string | null
+          access_revoked_by: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          role: string
+          source: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+          work_status: string
+        }
+        Insert: {
+          access_revoked_at?: string | null
+          access_revoked_by?: string | null
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role: string
+          source: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+          work_status?: string
+        }
+        Update: {
+          access_revoked_at?: string | null
+          access_revoked_by?: string | null
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role?: string
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+          work_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_participants_access_revoked_by_fkey"
+            columns: ["access_revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases_visible"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cases: {
         Row: {
           billing_unit: string
@@ -199,7 +356,7 @@ export type Database = {
           change_log_enabled_at: string | null
           client: string
           client_case_link: Json | null
-          client_guidelines: Json | null
+          client_guidelines: Json
           client_po_number: string
           client_question_form: boolean
           client_receipt: string
@@ -212,7 +369,7 @@ export type Database = {
           contact: string
           created_at: string
           created_by: string | null
-          custom_guidelines_url: Json | null
+          custom_guidelines_url: Json
           decline_records: Json
           delivery_method: string
           delivery_method_files: Json | null
@@ -243,6 +400,7 @@ export type Database = {
           review_deadline: string | null
           review_rows: Json
           reviewer: string
+          revision: number
           series_reference_materials: Json | null
           source_files: Json
           status: string
@@ -250,7 +408,7 @@ export type Database = {
           title: string
           tool_field_values: Json
           tools: Json
-          track_changes: Json | null
+          track_changes: Json
           translation_deadline: string | null
           translator: Json
           translator_final: Json
@@ -269,7 +427,7 @@ export type Database = {
           change_log_enabled_at?: string | null
           client?: string
           client_case_link?: Json | null
-          client_guidelines?: Json | null
+          client_guidelines?: Json
           client_po_number?: string
           client_question_form?: boolean
           client_receipt?: string
@@ -282,7 +440,7 @@ export type Database = {
           contact?: string
           created_at?: string
           created_by?: string | null
-          custom_guidelines_url?: Json | null
+          custom_guidelines_url?: Json
           decline_records?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
@@ -313,6 +471,7 @@ export type Database = {
           review_deadline?: string | null
           review_rows?: Json
           reviewer?: string
+          revision?: number
           series_reference_materials?: Json | null
           source_files?: Json
           status?: string
@@ -320,7 +479,7 @@ export type Database = {
           title?: string
           tool_field_values?: Json
           tools?: Json
-          track_changes?: Json | null
+          track_changes?: Json
           translation_deadline?: string | null
           translator?: Json
           translator_final?: Json
@@ -339,7 +498,7 @@ export type Database = {
           change_log_enabled_at?: string | null
           client?: string
           client_case_link?: Json | null
-          client_guidelines?: Json | null
+          client_guidelines?: Json
           client_po_number?: string
           client_question_form?: boolean
           client_receipt?: string
@@ -352,7 +511,7 @@ export type Database = {
           contact?: string
           created_at?: string
           created_by?: string | null
-          custom_guidelines_url?: Json | null
+          custom_guidelines_url?: Json
           decline_records?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
@@ -383,6 +542,7 @@ export type Database = {
           review_deadline?: string | null
           review_rows?: Json
           reviewer?: string
+          revision?: number
           series_reference_materials?: Json | null
           source_files?: Json
           status?: string
@@ -390,7 +550,7 @@ export type Database = {
           title?: string
           tool_field_values?: Json
           tools?: Json
-          track_changes?: Json | null
+          track_changes?: Json
           translation_deadline?: string | null
           translator?: Json
           translator_final?: Json
@@ -3115,6 +3275,7 @@ export type Database = {
           review_deadline: string | null
           review_rows: Json | null
           reviewer: string | null
+          revision: number | null
           series_reference_materials: Json | null
           source_files: Json | null
           status: string | null
@@ -3172,26 +3333,27 @@ export type Database = {
           internal_records?: Json | null
           internal_review_final?: Json | null
           keyword?: never
-          login_account?: string | null
-          login_password?: string | null
+          login_account?: never
+          login_password?: never
           multi_collab?: boolean | null
           online_tool_filename?: string | null
           online_tool_project?: string | null
-          other_login_info?: string | null
+          other_login_info?: never
           process_note?: string | null
           question_form?: string | null
-          question_tools?: Json | null
+          question_tools?: never
           reference_materials?: Json | null
           review_deadline?: string | null
           review_rows?: Json | null
           reviewer?: string | null
+          revision?: number | null
           series_reference_materials?: Json | null
           source_files?: Json | null
           status?: string | null
           task_status?: string | null
           title?: string | null
-          tool_field_values?: Json | null
-          tools?: Json | null
+          tool_field_values?: never
+          tools?: never
           track_changes?: Json | null
           translation_deadline?: string | null
           translator?: Json | null
@@ -3242,26 +3404,27 @@ export type Database = {
           internal_records?: Json | null
           internal_review_final?: Json | null
           keyword?: never
-          login_account?: string | null
-          login_password?: string | null
+          login_account?: never
+          login_password?: never
           multi_collab?: boolean | null
           online_tool_filename?: string | null
           online_tool_project?: string | null
-          other_login_info?: string | null
+          other_login_info?: never
           process_note?: string | null
           question_form?: string | null
-          question_tools?: Json | null
+          question_tools?: never
           reference_materials?: Json | null
           review_deadline?: string | null
           review_rows?: Json | null
           reviewer?: string | null
+          revision?: number | null
           series_reference_materials?: Json | null
           source_files?: Json | null
           status?: string | null
           task_status?: string | null
           title?: string | null
-          tool_field_values?: Json | null
-          tools?: Json | null
+          tool_field_values?: never
+          tools?: never
           track_changes?: Json | null
           translation_deadline?: string | null
           translator?: Json | null
@@ -3336,8 +3499,32 @@ export type Database = {
       }
     }
     Functions: {
+      accept_inquiry_collab_row: {
+        Args: {
+          p_case_id: string
+          p_collab_row_id: string
+          p_expected_revision: number
+        }
+        Returns: Json
+      }
+      accept_public_inquiry_case: {
+        Args: { p_case_id: string; p_expected_revision: number }
+        Returns: Json
+      }
+      admin_create_case: {
+        Args: { p_case_id: string; p_payload: Json }
+        Returns: Json
+      }
+      admin_delete_case: {
+        Args: { p_case_id: string; p_expected_revision: number }
+        Returns: Json
+      }
       apply_case_update: {
-        Args: { p_case_id: string; p_patch: Json }
+        Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
+        Returns: Json
+      }
+      pm_update_case_assignments: {
+        Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
         Returns: Json
       }
       apply_cat_segment_target_update: {
@@ -3438,6 +3625,73 @@ export type Database = {
         Args: { p_range: string }
         Returns: Record<string, unknown>
       }
+      cat_pm_assign_file: {
+        Args: { p_assignee_user_ids: string[]; p_file_id: string }
+        Returns: Json
+      }
+      cat_pm_assign_view: {
+        Args: { p_assignee_user_ids: string[]; p_view_id: string }
+        Returns: Json
+      }
+      cat_pm_unassign_file: {
+        Args: { p_assignee_user_id: string; p_file_id: string }
+        Returns: Json
+      }
+      cat_pm_unassign_view: {
+        Args: { p_assignee_user_id: string; p_view_id: string }
+        Returns: Json
+      }
+      cat_pm_update_file_workflow_stage_status: {
+        Args: { p_stage_id: string; p_status: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          file_id: string
+          id: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_file_workflow_stages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cat_pm_upsert_review_stage_assignment: {
+        Args: {
+          p_allow_downgrade?: boolean
+          p_assigned_by?: string
+          p_assignee_user_id: string
+          p_collab_row_id?: string
+          p_file_id: string
+          p_line_end?: number
+          p_line_start?: number
+          p_scope_label?: string
+          p_view_id?: string
+          p_workflow_status?: string
+        }
+        Returns: undefined
+      }
+      cat_pm_upsert_translate_stage_assignment: {
+        Args: {
+          p_allow_downgrade?: boolean
+          p_assigned_by?: string
+          p_assignee_user_id: string
+          p_collab_row_id?: string
+          p_file_id: string
+          p_line_end?: number
+          p_line_start?: number
+          p_scope_label?: string
+          p_view_id?: string
+          p_workflow_status?: string
+        }
+        Returns: undefined
+      }
       cat_resolve_effective_upsert_workflow_status: {
         Args: {
           p_allow_downgrade?: boolean
@@ -3509,6 +3763,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cat_update_file_assignment_status: {
+        Args: { p_assignment_id: string; p_status: string }
+        Returns: Json
+      }
+      cat_update_stage_assignment_workflow_status: {
+        Args: { p_assignment_id: string; p_workflow_status: string }
+        Returns: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          collab_row_id: string | null
+          file_id: string
+          file_workflow_stage_id: string
+          first_edited_at: string | null
+          id: string
+          line_end: number | null
+          line_start: number | null
+          scope_label: string | null
+          updated_at: string
+          view_id: string | null
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_stage_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cat_update_view_assignment_status: {
+        Args: { p_assignment_id: string; p_status: string }
+        Returns: Json
+      }
       cat_upsert_review_stage_assignment: {
         Args: {
           p_allow_downgrade?: boolean
@@ -3572,7 +3859,39 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      complete_case_collab_row: {
+        Args: {
+          p_case_id: string
+          p_collab_row_id: string
+          p_expected_revision: number
+        }
+        Returns: Json
+      }
+      complete_case_review_row: {
+        Args: {
+          p_case_id: string
+          p_expected_revision: number
+          p_review_row_id: string
+        }
+        Returns: Json
+      }
+      complete_case_translation: {
+        Args: { p_case_id: string; p_expected_revision: number }
+        Returns: Json
+      }
+      pm_complete_case_translation: {
+        Args: { p_case_id: string; p_expected_revision: number }
+        Returns: Json
+      }
       current_env: { Args: never; Returns: string }
+      decline_public_inquiry_case: {
+        Args: {
+          p_case_id: string
+          p_decline?: Json
+          p_expected_revision: number
+        }
+        Returns: Json
+      }
       ensure_cat_file_workflow_stages: {
         Args: { p_file_id: string }
         Returns: undefined
@@ -3580,6 +3899,15 @@ export type Database = {
       ensure_cat_project_default_workflow_template: {
         Args: { p_project_id: string }
         Returns: string
+      }
+      get_case_credentials: { Args: { p_case_id: string }; Returns: Json }
+      get_own_slack_meta: {
+        Args: never
+        Returns: {
+          slack_team_id: string
+          slack_user_id: string
+          user_id: string
+        }[]
       }
       has_role: {
         Args: {
@@ -3589,9 +3917,31 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      lms_sync_cat_file_assignments_for_case: {
+        Args: { p_case_id: string }
+        Returns: undefined
+      }
+      lms_sync_cat_workflow_for_case: {
+        Args: { p_case_id: string }
+        Returns: Json
+      }
+      maintenance_actor_allowed_for_service: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
+      maintenance_write_gate: { Args: never; Returns: Json }
       release_cat_segment_edit_lease: {
         Args: { p_segment_id: string; p_session_id: string }
         Returns: boolean
+      }
+      revoke_case_participant_access: {
+        Args: {
+          p_case_id: string
+          p_expected_revision: number
+          p_role: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       sync_cat_file_assignments_for_case: {
         Args: { p_case_id: string }
@@ -3609,6 +3959,22 @@ export type Database = {
           p_segment_id: string
           p_session_id: string
           p_ttl_seconds?: number
+        }
+        Returns: Json
+      }
+      update_case_credentials: {
+        Args: {
+          p_case_id: string
+          p_credentials: Json
+          p_expected_revision: number
+        }
+        Returns: Json
+      }
+      update_case_permitted_fields: {
+        Args: {
+          p_case_id: string
+          p_changes: Json
+          p_expected_revision: number
         }
         Returns: Json
       }
@@ -3740,9 +4106,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: ["member", "pm", "executive"],

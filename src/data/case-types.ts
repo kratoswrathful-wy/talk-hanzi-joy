@@ -100,8 +100,12 @@ export interface CaseRecord {
   unitCount: number;     // legacy
   inquiryNote: string;
   translator: string[];
+  /** RPC meta：單人指派時的可信 user_id（不存 cases 表） */
+  translatorUserId?: string | null;
   translationDeadline: string | null;
   reviewer: string;
+  /** RPC meta：整檔審稿 reviewer user_id（不存 cases 表） */
+  reviewerUserId?: string | null;
   reviewDeadline: string | null;
   
   executionTool: string;
@@ -149,6 +153,8 @@ export interface CaseRecord {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  /** P0-A optimistic concurrency；DB 欄位待 isolation migration 後由 types 重生對齊 */
+  revision: number;
   /**
    * Slack inquiry history for each case (who already received the InquirySlackDialog DM
    * for this case). Used to lock checkboxes and prevent re-sending.

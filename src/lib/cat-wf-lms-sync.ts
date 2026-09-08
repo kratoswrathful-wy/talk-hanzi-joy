@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { getEnvironment } from "@/lib/environment";
 
 type CollabRowJson = {
@@ -18,6 +19,10 @@ function mapCollabRows(rows: CollabRowJson[], collabRowId: string, taskCompleted
   return rows.map((r) =>
     String(r.id) === String(collabRowId) ? { ...r, taskCompleted } : r,
   );
+}
+
+function readRevision(row: { revision?: number | null } | null | undefined): number {
+  return typeof row?.revision === "number" ? row.revision : 0;
 }
 
 /** CAT 段落「任務完成」→ LMS 協作列 taskCompleted（B-4） */
@@ -41,7 +46,7 @@ export async function setCollabRowTaskCompletedFromCat(
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
     .from("cases_visible")
-    .select("collab_rows, review_rows, status, multi_collab")
+    .select("collab_rows, review_rows, status, multi_collab, revision")
     .eq("id", caseId)
     .eq("env", env)
     .maybeSingle();
@@ -78,7 +83,12 @@ export async function setCollabRowTaskCompletedFromCat(
     updates.status = "dispatched";
   }
 
-  const { error: updErr } = await applyCaseUpdate(supabase, caseId, updates);
+  const { error: updErr } = await pmUpdateCaseAssignments(
+    supabase,
+    caseId,
+    updates,
+    readRevision(caseRow as { revision?: number }),
+  );
   if (updErr) return { ok: false, error: updErr.message };
   return { ok: true, allTaskCompleted };
 }
@@ -93,7 +103,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
     .from("cases_visible")
-    .select("collab_rows, review_rows, status")
+    .select("collab_rows, review_rows, status, revision")
     .eq("id", caseId)
     .eq("env", env)
     .maybeSingle();
@@ -130,7 +140,12 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
     patch.status = "dispatched";
   }
 
-  const { error: updErr } = await applyCaseUpdate(supabase, caseId, patch);
+  const { error: updErr } = await pmUpdateCaseAssignments(
+    supabase,
+    caseId,
+    patch,
+    readRevision(caseRow as { revision?: number }),
+  );
   if (updErr) return { ok: false, error: updErr.message };
   return { ok: true, allTaskCompleted };
 }
@@ -144,7 +159,7 @@ export async function maybeUpgradeCaseTaskCompletedFromCatFiles(
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
     .from("cases_visible")
-    .select("status, multi_collab")
+    .select("status, multi_collab, revision")
     .eq("id", caseId)
     .eq("env", env)
     .maybeSingle();
@@ -193,10 +208,15 @@ export async function maybeUpgradeCaseTaskCompletedFromCatFiles(
   const coversAllFiles = fileIds.every((fid) => filesWithAssign.has(String(fid)));
   if (!allDone || !coversAllFiles) return { ok: true, upgraded: false };
 
-  const { error: updErr } = await applyCaseUpdate(supabase, caseId, {
-    status: "task_completed",
-    updated_at: updatedAt,
-  });
+  const { error: updErr } = await applyCaseUpdate(
+    supabase,
+    caseId,
+    {
+      status: "task_completed",
+      updated_at: updatedAt,
+    },
+    readRevision(caseRow as { revision?: number }),
+  );
   if (updErr) return { ok: false, upgraded: false, error: updErr.message };
   return { ok: true, upgraded: true };
 }

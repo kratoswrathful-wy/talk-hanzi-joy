@@ -26,6 +26,7 @@ import {
 import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
+import { OWN_SLACK_META_LOAD_ERROR_MESSAGE, useOwnSlackMetaStatus } from "@/lib/get-own-slack-meta";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import type { CaseRecord } from "@/data/case-types";
 import {
@@ -66,7 +67,7 @@ export function InquirySlackDialog({
   cases: CaseRecord[];
 }) {
   const { user, isAdmin } = useAuth();
-  const [slackConnected, setSlackConnected] = useState<boolean | null>(null);
+  const { status: slackStatus } = useOwnSlackMetaStatus(open && !!user?.id, user?.id);
   const [rows, setRows] = useState<RecipientRow[]>([]);
   const [workloadByName, setWorkloadByName] = useState<Map<string, number>>(() => new Map());
   const [loading, setLoading] = useState(false);
@@ -101,14 +102,9 @@ export function InquirySlackDialog({
     setSortMode("workload");
   }, [open]);
 
-  useEffect(() => {
-    if (!open || !user?.id) return;
-
-    void (async () => {
-      const { data } = await supabase.from("user_slack_meta").select("user_id").eq("user_id", user.id).maybeSingle();
-      setSlackConnected(!!data);
-    })();
-  }, [open, user?.id]);
+  const slackConnected = slackStatus.kind === "connected";
+  const slackStatusLoading = slackStatus.kind === "loading";
+  const slackStatusError = slackStatus.kind === "error";
 
   useEffect(() => {
     if (!open) return;
@@ -295,6 +291,10 @@ export function InquirySlackDialog({
   };
 
   const handleSend = async () => {
+    if (slackStatusError) {
+      toast.error(OWN_SLACK_META_LOAD_ERROR_MESSAGE);
+      return;
+    }
     if (!slackConnected) {
       toast.error("請先到「個人檔案」連結 Slack");
       return;
@@ -397,7 +397,10 @@ export function InquirySlackDialog({
           </DialogTitle>
           <DialogDescription>
             訊息會以您在 Slack 連結的身分發送私訊；所有勾選的收件人收到<strong>同一則</strong>訊息。已選 {cases.length} 筆案件。
-            {slackConnected === false && (
+            {slackStatusError && (
+              <span className="block mt-2 text-destructive">{OWN_SLACK_META_LOAD_ERROR_MESSAGE}</span>
+            )}
+            {!slackStatusLoading && !slackStatusError && slackStatus.kind === "not_connected" && (
               <span className="block mt-2 text-destructive">
                 尚未連結 Slack，請至{" "}
                 <Link to="/profile" className="underline font-medium" onClick={() => onOpenChange(false)}>
@@ -589,7 +592,15 @@ export function InquirySlackDialog({
           </Button>
           <Button
             onClick={handleSend}
-            disabled={sending || !slackConnected || !canSendNow || loading || cases.length === 0}
+            disabled={
+              sending
+              || slackStatusLoading
+              || slackStatusError
+              || !slackConnected
+              || !canSendNow
+              || loading
+              || cases.length === 0
+            }
           >
             {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             發送 Slack 私訊
