@@ -1,10 +1,10 @@
-狀態：已落地待驗收（隔離 CI 通過；未授權正式發布）
+狀態：已驗收（隔離通過、已正式發布；正式登入驗證見下）
 
 # Bug：登入後停在「角色資料載入失敗」
 
-正式基準（第 2 項發布後）：`a011b96d062f3ff55d594b5b6eb0fd8ab2d11c0e`／`dpl_GvfaeuNYFaqKtEkBZWoQ3nCviH2w`；migration 168 筆，最高 `20260907120000`。
+正式基準（第 3 項發布後）：`becce084cb497aa94ad2de43a7307d63c5c27fa5`／`dpl_5VAs62hdfzCJu4qQpQMtFc9tJySr`；主 JS `/assets/index-ecZRqAbc.js`；migration 168 筆，最高 `20260907120000`。回切點（僅前端）：`dpl_GvfaeuNYFaqKtEkBZWoQ3nCviH2w`。
 
-本項在 `C:\Homemade Apps\1UP-TMS-auth-identity-20260908` 分支 `fix/auth-identity-20260908`。保留 #85／#89／第 2 項。不 merge `main`、不正式部署。
+本項在 `C:\Homemade Apps\1UP-TMS-auth-identity-20260908` 分支 `fix/auth-identity-20260908`。保留 #85／#89／第 2 項。不 merge `main`。無新 migration。
 
 ## 已證實（程式＋正式 24h 彙總，非正式單次使用者請求）
 
@@ -65,7 +65,16 @@
 - 通過：run [34210613080](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/34210613080) SHA `507b9ee0`；後續 HEAD 再綠見該次 push。suite `auth-identity`；未跑 case-buttons／T14／T15。
 - T5：達上限後重試鈕停用、可見「登出」與「請按「登出」後再登入」；案件頁與新增案件不出現。
 - 切帳／登出污染：單元測試為主；Playwright 未單獨做「spinner 期間登出」。
-- 正式發布未授權；無新 migration。
+
+## 正式發布（2026-09-08）
+
+結案句：**前端身分載入錯誤處理與重試：隔離驗收通過、已正式發布。**
+
+- 來源 SHA `becce084cb497aa94ad2de43a7307d63c5c27fa5`；deployment `dpl_5VAs62hdfzCJu4qQpQMtFc9tJySr`；主 JS `index-ecZRqAbc.js`。
+- 一般 CI [34212517230](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/34212517230) 通過；隔離 [34212513275](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/34212513275) 通過。未重跑等價測試。
+- `--skip-domain` 準備後兩個別名仍為 `dpl_GvfaeuNYFaqKtEkBZWoQ3nCviH2w`／`index-C1TpTbI0.js`，本次未漂走。promote 後兩邊皆為新 deployment／新 JS。
+- 正式登入驗證：既有登入工作階段重新載入 `/cases`，載入 `index-ecZRqAbc.js`，無身分錯誤畫面，可見「案件管理」與新增案件鈕。未新增／完成／派出／修改真實案件。
+- 不宣稱使用者當次故障原因已查清、後端逾時已根治，或瀏覽器取消等於資料庫查詢已停。
 
 ## 第 2 項發布流程異常（不重開、不回切）
 
