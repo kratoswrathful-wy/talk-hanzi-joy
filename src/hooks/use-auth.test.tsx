@@ -32,7 +32,9 @@ vi.mock("@/integrations/supabase/client", () => ({
         return {
           select: () => ({
             eq: () => ({
-              maybeSingle: () => profileSelect(),
+              abortSignal: () => ({
+                maybeSingle: () => profileSelect(),
+              }),
             }),
           }),
         };
@@ -40,7 +42,9 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "user_roles") {
         return {
           select: () => ({
-            eq: () => rolesSelect(),
+            eq: () => ({
+              abortSignal: () => rolesSelect(),
+            }),
           }),
         };
       }
@@ -162,6 +166,65 @@ describe("useAuth multi-consumer / identity / signOut", () => {
       expect(result.current.identityError).toBeNull();
       expect(result.current.isAdmin).toBe(true);
     });
+  });
+
+  it("profile 失敗不得被後到的 roles 成功清掉，且不與合法空 roles 混稱", async () => {
+    let resolveProfile: ((v: unknown) => void) | null = null;
+    profileSelect.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveProfile = resolve;
+        }),
+    );
+    rolesSelect.mockResolvedValue({ data: [{ role: "pm" }], error: null });
+
+    const { useAuth } = await import("./use-auth");
+    const { result } = renderHook(() => useAuth());
+
+    await waitFor(() => expect(result.current.identityLoading).toBe(true));
+
+    await act(async () => {
+      resolveProfile?.({ data: null, error: { message: "profile boom" } });
+    });
+
+    await waitFor(() => {
+      expect(result.current.identityError).toBeTruthy();
+      expect(result.current.identitySource).toBe("profile");
+      expect(result.current.rolesTrusted).toBe(true);
+      expect(result.current.isAdmin).toBe(true);
+    });
+  });
+
+  it("合法空 roles 不是錯誤；不得當成已載入管理角色", async () => {
+    rolesSelect.mockResolvedValue({ data: [], error: null });
+    profileSelect.mockResolvedValue({
+      data: { id: "u1", email: "a@b.c", display_name: "A" },
+      error: null,
+    });
+    const { useAuth } = await import("./use-auth");
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.identityError).toBeNull();
+    expect(result.current.rolesTrusted).toBe(true);
+    expect(result.current.isAdmin).toBe(false);
+    expect(result.current.primaryRole).toBe("member");
+  });
+
+  it("重試有界：超過上限不再發新請求", async () => {
+    rolesSelect.mockResolvedValue({ data: null, error: { message: "boom" } });
+    const { useAuth } = await import("./use-auth");
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.identityError).toBeTruthy());
+    const before = rolesSelect.mock.calls.length;
+
+    await act(async () => {
+      for (let i = 0; i < 8; i += 1) {
+        await result.current.retryIdentity();
+      }
+    });
+
+    expect(result.current.identityRetryCapped).toBe(true);
+    expect(rolesSelect.mock.calls.length).toBeLessThanOrEqual(before + 5);
   });
 
   it("refetchProfile 強制重新查詢", async () => {

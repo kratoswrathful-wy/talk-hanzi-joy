@@ -15,9 +15,12 @@ import {
   beginForcedProfileRefresh,
   invalidateIdentity,
   isIdentityResultCurrent,
+  isIgnorableIdentityFailure,
   setActiveUserId,
+  MAX_IDENTITY_RETRIES,
   type AuthProfile,
   type AuthUserRole,
+  type IdentityLoadFailure,
   type ProfileLoadResult,
   type RolesLoadResult,
 } from "@/lib/auth-identity";
@@ -45,8 +48,11 @@ export function useAuth() {
   const [identityLoading, setIdentityLoading] = useState(
     () => initialSnapshot.phase === "authenticated" || initialSnapshot.user != null,
   );
-  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [rolesError, setRolesError] = useState<IdentityLoadFailure | null>(null);
+  const [profileError, setProfileError] = useState<IdentityLoadFailure | null>(null);
   const [identityRetrying, setIdentityRetrying] = useState(false);
+  const [identityRetryCount, setIdentityRetryCount] = useState(0);
+  const identityRetryCountRef = useRef(0);
   const [authRetrying, setAuthRetrying] = useState(false);
   const userIdRef = useRef<string | null>(initialSnapshot.user?.id ?? null);
   const signOutEpochRef = useRef(0);
@@ -69,7 +75,10 @@ export function useAuth() {
           invalidateIdentity();
           setProfile(null);
           setRoles([]);
-          setIdentityError(null);
+          setRolesError(null);
+          setProfileError(null);
+          setIdentityRetryCount(0);
+          identityRetryCountRef.current = 0;
           setTestAccountFlag(null);
           setIdentityLoading(false);
         } else {
@@ -77,7 +86,10 @@ export function useAuth() {
           setActiveUserId(nextId);
           setProfile(null);
           setRoles([]);
-          setIdentityError(null);
+          setRolesError(null);
+          setProfileError(null);
+          setIdentityRetryCount(0);
+          identityRetryCountRef.current = 0;
           setTestAccountFlag(null);
         }
       }
@@ -111,43 +123,34 @@ export function useAuth() {
   const loadIdentity = useCallback(
     (uid: string, opts?: { force?: boolean }) => {
       setIdentityLoading(true);
-      setIdentityError(null);
       setActiveUserId(uid);
 
       const { generation, profilePromise, rolesPromise } = beginIdentityLoad(uid, opts);
 
-      void profilePromise.then((result: ProfileLoadResult) => {
-        if (!isIdentityResultCurrent(uid, generation)) return;
-        // strictNullChecks:false 下 ok 字面量無法可靠收窄，改用 in 檢查
-        if ("error" in result) {
-          if (result.error !== "stale") {
-            setIdentityError((prev) => prev ?? result.error);
-          }
-          return;
-        }
-        setProfile(result.profile);
-      });
-
-      void rolesPromise
-        .then((result: RolesLoadResult) => {
+      const applied = Promise.all([profilePromise, rolesPromise]).then(
+        ([profileResult, rolesResult]: [ProfileLoadResult, RolesLoadResult]) => {
           if (!isIdentityResultCurrent(uid, generation)) return;
-          if ("error" in result) {
-            if (result.error !== "stale") {
-              setRoles([]);
-              setIdentityError(result.error);
-            }
-            return;
-          }
-          setRoles(result.roles);
-          setIdentityError(null);
-        })
-        .finally(() => {
-          if (isIdentityResultCurrent(uid, generation)) {
-            setIdentityLoading(false);
-          }
-        });
 
-      return generation;
+          if (!("error" in profileResult)) {
+            setProfile(profileResult.profile);
+            setProfileError(null);
+          } else if (!isIgnorableIdentityFailure(profileResult.kind)) {
+            setProfileError(profileResult);
+          }
+
+          if (!("error" in rolesResult)) {
+            setRoles(rolesResult.roles);
+            setRolesError(null);
+          } else if (!isIgnorableIdentityFailure(rolesResult.kind)) {
+            setRoles([]);
+            setRolesError(rolesResult);
+          }
+
+          setIdentityLoading(false);
+        },
+      );
+
+      return { generation, profilePromise, rolesPromise, applied };
     },
     [],
   );
@@ -172,12 +175,17 @@ export function useAuth() {
   }, [userId, authPhase, loadIdentity]);
 
   const authInitializing = authPhase === "initializing" || authPhase === "idle";
+  const identityError = rolesError?.error ?? profileError?.error ?? null;
+  const identitySource: "roles" | "profile" | "both" | null =
+    rolesError && profileError ? "both" : rolesError ? "roles" : profileError ? "profile" : null;
+  const identityRetryCapped = identityRetryCount >= MAX_IDENTITY_RETRIES;
   // 身分錯誤時結束 spinner（可重試），不得永久轉圈
   const loading =
     authInitializing ||
     (authPhase === "authenticated" && identityLoading && !identityError);
 
-  const rolesTrusted = !identityError && !identityLoading;
+  // 授權只看 roles；profile 失敗不得假裝「沒有角色」，也不得因此改判為已載入成功。
+  const rolesTrusted = !rolesError && !identityLoading;
   const isAdmin =
     rolesTrusted && roles.some((r) => r.role === "pm" || r.role === "executive");
   const primaryRole: UserRole["role"] = (() => {
@@ -221,7 +229,10 @@ export function useAuth() {
     setSession(null);
     setProfile(null);
     setRoles([]);
-    setIdentityError(null);
+    setRolesError(null);
+    setProfileError(null);
+    setIdentityRetryCount(0);
+    identityRetryCountRef.current = 0;
     setTestAccountFlag(null);
     setIdentityLoading(false);
     setAuthPhase("anonymous");
@@ -237,7 +248,10 @@ export function useAuth() {
       invalidateIdentity();
       setProfile(null);
       setRoles([]);
-      setIdentityError(null);
+      setRolesError(null);
+      setProfileError(null);
+      setIdentityRetryCount(0);
+      identityRetryCountRef.current = 0;
       const snap = await retryAuthInitialization();
       setAuthPhase(snap.phase);
       setAuthErrorKind(snap.errorKind);
@@ -254,9 +268,12 @@ export function useAuth() {
 
   const retryIdentity = useCallback(async () => {
     if (!userId || identityRetrying) return;
+    if (identityRetryCountRef.current >= MAX_IDENTITY_RETRIES) return;
+    identityRetryCountRef.current += 1;
+    setIdentityRetryCount(identityRetryCountRef.current);
     setIdentityRetrying(true);
     try {
-      loadIdentity(userId, { force: true });
+      await loadIdentity(userId, { force: true }).applied;
     } finally {
       setIdentityRetrying(false);
     }
@@ -273,7 +290,12 @@ export function useAuth() {
     authRetrying,
     identityLoading,
     identityError,
+    identitySource,
+    rolesError,
+    profileError,
     identityRetrying,
+    identityRetryCount,
+    identityRetryCapped,
     rolesTrusted,
     isAdmin,
     primaryRole,

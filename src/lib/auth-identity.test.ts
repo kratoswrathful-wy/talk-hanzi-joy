@@ -10,7 +10,9 @@ vi.mock("@/integrations/supabase/client", () => ({
         return {
           select: () => ({
             eq: () => ({
-              maybeSingle: () => profileSelect(),
+              abortSignal: () => ({
+                maybeSingle: () => profileSelect(),
+              }),
             }),
           }),
         };
@@ -18,7 +20,9 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "user_roles") {
         return {
           select: () => ({
-            eq: () => rolesSelect(),
+            eq: () => ({
+              abortSignal: () => rolesSelect(),
+            }),
           }),
         };
       }
@@ -140,7 +144,7 @@ describe("auth-identity stale guard / single-flight", () => {
     const load = beginIdentityLoad("pm-user");
     const roles = await load.rolesPromise;
     await load.profilePromise;
-    expect(roles).toEqual({ ok: false, error: "roles boom" });
+    expect(roles).toEqual({ ok: false, error: "roles boom", kind: "http" });
     expect(getCachedRoles("pm-user")).toBeNull();
     await Promise.resolve();
     expect(getPendingFlightForTests()).toBeNull();
@@ -200,5 +204,36 @@ describe("auth-identity stale guard / single-flight", () => {
     setActiveUserId("user-b");
     expect(isIdentityResultCurrent("user-a", load.generation)).toBe(false);
     expect(isIdentityResultCurrent("user-b", load.generation)).toBe(false);
+  });
+
+  it("合法空 roles 是成功而非失敗", async () => {
+    profileSelect.mockResolvedValue({ data: null, error: null });
+    rolesSelect.mockResolvedValue({ data: [], error: null });
+    const { beginIdentityLoad } = await import("./auth-identity");
+    const roles = await beginIdentityLoad("u1").rolesPromise;
+    expect(roles).toEqual({ ok: true, roles: [] });
+  });
+
+  it("逾時分類為 timeout，且 force 在 pending 時重用同一 flight", async () => {
+    rolesSelect.mockImplementation(() => new Promise(() => undefined));
+    profileSelect.mockResolvedValue({ data: null, error: null });
+    const { beginIdentityLoad } = await import("./auth-identity");
+    const a = beginIdentityLoad("u1");
+    const b = beginIdentityLoad("u1", { force: true });
+    expect(a.rolesPromise).toBe(b.rolesPromise);
+    const roles = await a.rolesPromise;
+    expect(roles).toEqual({ ok: false, error: "timeout", kind: "timeout" });
+  });
+
+  it("classifyIdentityFailure 區分 timeout／http／lost／stale", async () => {
+    const { classifyIdentityFailure } = await import("./auth-identity");
+    expect(classifyIdentityFailure(new Error("x"), "timeout").kind).toBe("timeout");
+    expect(classifyIdentityFailure(new Error("x"), "switch").kind).toBe("stale");
+    expect(classifyIdentityFailure(new Error("Failed to fetch"), null).kind).toBe("lost");
+    expect(classifyIdentityFailure(new Error("column missing"), null)).toEqual({
+      ok: false,
+      error: "column missing",
+      kind: "http",
+    });
   });
 });
