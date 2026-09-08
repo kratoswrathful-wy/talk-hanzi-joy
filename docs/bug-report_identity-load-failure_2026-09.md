@@ -1,4 +1,4 @@
-狀態：實作中（隔離修復；未授權正式發布）
+狀態：已落地待驗收（隔離 CI 通過；未授權正式發布）
 
 # Bug：登入後停在「角色資料載入失敗」
 
@@ -34,6 +34,14 @@
 - 兩路都 settle 後一次套用；roles 成功不得清 profile 錯誤。
 - 逾時／切帳 abort 進行中請求；pending 時重試重用同一 flight；手動重試上限 5。
 - 合法空 roles：進入系統、管理鈕不出現。
+
+## 隔離驗收（2026-09-08）
+
+- 分支 `fix/auth-identity-20260908`；Draft PR [#91](https://github.com/kratoswrathful-wy/talk-hanzi-joy/pull/91)（base＝`fix/case-buttons-20260908`／`a011b96d`）。
+- 修正前失敗：隔離 run [34209998554](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/34209998554) 因 `playwright.config.ts` chromium `testMatch` 未列入新 spec → `No tests found`。
+- 修正後通過：run [34210613080](https://github.com/kratoswrathful-wy/talk-hanzi-joy/actions/runs/34210613080) SHA `507b9ee0`；suite `auth-identity`；Playwright T1–T6；vitest `auth-identity`／`use-auth`；未跑 case-buttons／T14／T15。
+- 切帳／登出污染：單元測試 A→B 與 signOut 晚到；Playwright 未單獨做「spinner 期間登出」。
+- 正式發布未授權；無新 migration。
 
 ## 第 2 項發布流程異常（不重開、不回切）
 
