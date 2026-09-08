@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeTaskCompleteFailure,
   resolveTaskCompleteActorKind,
   shouldNotifyTranslatorTaskComplete,
   shouldOfferTaskCompleteButton,
@@ -66,5 +67,29 @@ describe("case-task-complete-access", () => {
     expect(shouldOfferTaskCompleteButton("none")).toBe(false);
     expect(shouldNotifyTranslatorTaskComplete("translator")).toBe(true);
     expect(shouldNotifyTranslatorTaskComplete("manager")).toBe(false);
+  });
+
+  it("does not treat undeployed manager RPC as an authorization problem", () => {
+    expect(
+      describeTaskCompleteFailure({
+        kind: "manager",
+        code: "PGRST202",
+        message: "Could not find the function public.pm_complete_case_translation",
+      }),
+    ).toContain("尚未部署");
+    expect(
+      describeTaskCompleteFailure({
+        kind: "translator",
+        code: "P0002",
+        message: "case_unavailable",
+      }),
+    ).toContain("有效受派譯者");
+    expect(
+      describeTaskCompleteFailure({
+        kind: "manager",
+        code: "P0002",
+        message: "case_unavailable",
+      }),
+    ).toContain("已派出");
   });
 });

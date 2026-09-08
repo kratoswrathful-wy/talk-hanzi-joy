@@ -73,6 +73,7 @@ export function CreateWithTemplateButton({
         onClick={() => handleCreate()}
         disabled={busy}
         data-busy={busy ? "true" : undefined}
+        data-testid="create-case-button"
       >
         {uiButtonId ? <UiToolbarButtonIcon uiButtonId={uiButtonId} /> : <Plus className="h-4 w-4 shrink-0" />}
         {displayLabel}
@@ -90,6 +91,7 @@ export function CreateWithTemplateButton({
         onClick={() => handleCreate()}
         disabled={busy}
         data-busy={busy ? "true" : undefined}
+        data-testid="create-case-button"
       >
         {uiButtonId ? <UiToolbarButtonIcon uiButtonId={uiButtonId} /> : <Plus className="h-4 w-4 shrink-0" />}
         {displayLabel}

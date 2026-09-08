@@ -211,7 +211,7 @@ export function CasesListSingleCaseFlowButtons({
             <TooltipContent>請直接勾選「任務完成」</TooltipContent>
           </Tooltip>
         ) : (
-          <Button size="sm" className={ui["cases_detail_task_complete"].className} style={ui["cases_detail_task_complete"].style} onClick={onTaskComplete}>
+          <Button size="sm" className={ui["cases_detail_task_complete"].className} style={ui["cases_detail_task_complete"].style} onClick={onTaskComplete} data-testid="task-complete-button">
             <UiToolbarButtonIcon uiButtonId="cases_detail_task_complete" />
             {lbTaskComplete}
           </Button>

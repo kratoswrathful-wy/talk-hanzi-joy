@@ -2527,6 +2527,7 @@ export default function CaseDetailPage() {
                 className={uiTaskComplete.className}
                 style={uiTaskComplete.style}
                 onClick={handleTaskComplete}
+                data-testid="task-complete-button"
               >
                 <UiToolbarButtonIcon uiButtonId="cases_detail_task_complete" />
                 {lbTaskComplete}
