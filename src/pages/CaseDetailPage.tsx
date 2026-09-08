@@ -2106,6 +2106,12 @@ export default function CaseDetailPage() {
         description: feedback.description,
         variant: feedback.variant,
       });
+    } catch {
+      toast({
+        title: "建案結果不明",
+        description: "目前無法確認是否已建立。請不要再按一次新增，重新整理列表確認後再決定。",
+        variant: "destructive",
+      });
     } finally {
       creatingCaseRef.current = false;
       setCreatingCase(false);

@@ -17,6 +17,11 @@ import { expectSignedInAs, loginAs } from "./helpers/login-as";
 const ENABLED = process.env.PLAYWRIGHT_CASE_BUTTONS_UI === "1";
 const describeButtons = ENABLED ? test.describe : test.describe.skip;
 
+/** Radix toast 標題與螢幕閱讀器 live region 會重複同一句，取第一個即可。 */
+function toastCopy(page: Page, text: string | RegExp, exact = false) {
+  return page.getByText(text, typeof text === "string" && exact ? { exact: true } : {}).first();
+}
+
 function cred(role: "pm" | "exec" | "t1" | "t2"): { email: string; password: string } {
   const map = {
     pm: [process.env.PLAYWRIGHT_ISO_PM_EMAIL, process.env.PLAYWRIGHT_ISO_PM_PASSWORD],
@@ -159,8 +164,8 @@ describeButtons("案件按鈕（隔離操作驗收）", () => {
       await pm.page.goto("/cases");
       const btn = pm.page.getByTestId("create-case-button").first();
       await btn.click();
-      await expect(pm.page.getByText("無法新增案件", { exact: true })).toBeVisible({ timeout: 30_000 });
-      await expect(pm.page.getByText("後端已明確拒絕")).toBeVisible();
+      await expect(toastCopy(pm.page, "無法新增案件", true)).toBeVisible({ timeout: 30_000 });
+      await expect(toastCopy(pm.page, "後端已明確拒絕")).toBeVisible();
       await expect(pm.page).toHaveURL(/\/cases\/?$/);
       await btn.click();
       expect(tracked.ids.length).toBeGreaterThanOrEqual(1);
@@ -200,8 +205,8 @@ describeButtons("案件按鈕（隔離操作驗收）", () => {
       });
       await pm.page.goto("/cases");
       await pm.page.getByTestId("create-case-button").first().click();
-      await expect(pm.page.getByText("新案件已建立，但資料讀不回")).toBeVisible({ timeout: 30_000 });
-      await expect(pm.page.getByText(/不要再按一次新增/)).toBeVisible();
+      await expect(toastCopy(pm.page, "新案件已建立，但資料讀不回", true)).toBeVisible({ timeout: 30_000 });
+      await expect(toastCopy(pm.page, /不要再按一次新增/)).toBeVisible();
       expect(reserved[0]).toBeTruthy();
       await expect(pm.page).not.toHaveURL(new RegExp(`/cases/${reserved[0]}`));
       const rest = await restFor(pm.page);
@@ -228,12 +233,21 @@ describeButtons("案件按鈕（隔離操作驗收）", () => {
       });
       await pm.page.goto("/cases");
       await pm.page.getByTestId("create-case-button").first().click();
-      await expect(
-        pm.page.getByText(/建案結果不明|新案件已建立，但資料讀不回|已新增案件/),
-      ).toBeVisible({ timeout: 30_000 });
-      expect(reserved[0]).toBeTruthy();
-      if (await pm.page.getByText(/不要再按一次新增/).isVisible().catch(() => false)) {
-        await expect(pm.page.getByText(reserved[0], { exact: false })).toBeVisible();
+      await expect.poll(() => reserved[0], { timeout: 30_000 }).toBeTruthy();
+      const lostId = reserved[0];
+      await expect.poll(async () => {
+        if (pm.page.url().includes(`/cases/${lostId}`)) return "found";
+        if ((await toastCopy(pm.page, "建案結果不明", true).count()) > 0) return "unknown";
+        if ((await toastCopy(pm.page, "新案件已建立，但資料讀不回", true).count()) > 0) return "readback";
+        if ((await toastCopy(pm.page, "無法新增案件", true).count()) > 0) return "misclassified";
+        return "pending";
+      }, { timeout: 30_000 }).toMatch(/^(found|unknown|readback)$/);
+      expect(new Set(reserved).size).toBe(1);
+      const rest = await restFor(pm.page);
+      const row = await readCaseState(rest, lostId);
+      expect(row === null || row.id === lostId).toBe(true);
+      if (await toastCopy(pm.page, /不要再按一次新增/).isVisible().catch(() => false)) {
+        await expect(toastCopy(pm.page, lostId)).toBeVisible();
       }
     } finally {
       await pm.close();
@@ -289,7 +303,7 @@ describeButtons("案件按鈕（隔離操作驗收）", () => {
       const before = await readCaseState(rest, caseId);
       await expect(t1.page.getByTestId("task-complete-button")).toBeVisible({ timeout: 30_000 });
       await t1.page.getByTestId("task-complete-button").click();
-      await expect(t1.page.getByText("任務已完成", { exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(toastCopy(t1.page, "任務已完成", true)).toBeVisible({ timeout: 30_000 });
       await expect.poll(async () => (await readCaseState(rest, caseId))?.status).toBe("task_completed");
       const after = await readCaseState(rest, caseId);
       expect(after!.revision).toBeGreaterThan(before!.revision);
@@ -324,7 +338,7 @@ describeButtons("案件按鈕（隔離操作驗收）", () => {
       await t2.page.goto(`/cases/${caseId}`);
       await expect(t2.page.getByTestId("task-complete-button")).toBeVisible({ timeout: 30_000 });
       await t2.page.getByTestId("task-complete-button").click();
-      await expect(t2.page.getByText("任務已完成", { exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(toastCopy(t2.page, "任務已完成", true)).toBeVisible({ timeout: 30_000 });
       await expect.poll(async () => (await readCaseState(rest, caseId))?.status).toBe("task_completed");
     } finally {
       await t2.close();
@@ -354,7 +368,7 @@ describeButtons("案件按鈕（隔離操作驗收）", () => {
       await expectSignedInAs(exec.page, cred("exec").email);
       await expect(exec.page.getByTestId("task-complete-button")).toBeVisible({ timeout: 30_000 });
       await exec.page.getByTestId("task-complete-button").click();
-      await expect(exec.page.getByText("已由管理身分代為完成")).toBeVisible({ timeout: 30_000 });
+      await expect(toastCopy(exec.page, "已由管理身分代為完成", true)).toBeVisible({ timeout: 30_000 });
       const rest = await restFor(exec.page);
       await expect.poll(async () => (await readCaseState(rest, caseId))?.status).toBe("task_completed");
       const parts = await readParticipants(rest, caseId);
@@ -411,7 +425,7 @@ describeButtons("案件按鈕（隔離操作驗收）", () => {
       await pm.page.goto(`/cases/${caseId}`);
       await expect(pm.page.getByTestId("task-complete-button")).toBeVisible({ timeout: 30_000 });
       await pm.page.getByTestId("task-complete-button").click();
-      await expect(pm.page.getByText("任務已完成", { exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(toastCopy(pm.page, "任務已完成", true)).toBeVisible({ timeout: 30_000 });
       expect(hits).toContain("complete_case_translation");
       expect(hits).not.toContain("pm_complete_case_translation");
     } finally {

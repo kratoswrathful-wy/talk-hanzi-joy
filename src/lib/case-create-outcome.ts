@@ -20,6 +20,32 @@ export interface CaseCreateFeedback {
   variant?: "destructive";
 }
 
+const TRANSPORT_FAILURE_RE =
+  /fetch|network|abort|timeout|load failed|failed to send|err_failed|net::/i;
+
+function caseCreateErrorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const rec = error as { message?: unknown; details?: unknown; hint?: unknown };
+    return [rec.message, rec.details, rec.hint]
+      .filter((part): part is string => typeof part === "string" && part.length > 0)
+      .join(" ");
+  }
+  return String(error ?? "");
+}
+
+/**
+ * 只有「伺服器有回應並拒絕」才算確定未建立。
+ * 連線中斷／abort／逾時（含 Postgrest 空 code 的 Failed to fetch 物件）一律當結果不明，
+ * 不得報成「未建立任何案件」。
+ */
+export function isDefiniteCaseCreateError(error: unknown): boolean {
+  if (TRANSPORT_FAILURE_RE.test(caseCreateErrorText(error))) return false;
+  const code = error && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+  if (typeof code === "string" && code.trim()) return true;
+  return error instanceof Error;
+}
+
 export function describeCaseCreateOutcome(input: {
   kind: CaseCreateOutcomeKind;
   caseId?: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeCaseCreateOutcome } from "./case-create-outcome";
+import { describeCaseCreateOutcome, isDefiniteCaseCreateError } from "./case-create-outcome";
 
 const ID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -40,5 +40,19 @@ describe("describeCaseCreateOutcome", () => {
     const feedback = describeCaseCreateOutcome({ kind: "no_session" });
     expect(feedback.description).toContain("登入狀態已失效");
     expect(feedback.description).toContain("未建立任何案件");
+  });
+});
+
+describe("isDefiniteCaseCreateError", () => {
+  it("treats a backend permission code as a definite rejection", () => {
+    expect(isDefiniteCaseCreateError({ code: "42501", message: "not_authorized" })).toBe(true);
+    expect(isDefiniteCaseCreateError(new Error("admin_create_case failed"))).toBe(true);
+  });
+
+  it("does not treat transport loss as a definite rejection", () => {
+    expect(isDefiniteCaseCreateError({ code: "", message: "Failed to fetch" })).toBe(false);
+    expect(isDefiniteCaseCreateError({ message: "TypeError: Failed to fetch" })).toBe(false);
+    expect(isDefiniteCaseCreateError(new Error("net::ERR_FAILED"))).toBe(false);
+    expect(isDefiniteCaseCreateError({ code: "PGRST301", message: "Request aborted" })).toBe(false);
   });
 });

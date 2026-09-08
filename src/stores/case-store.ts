@@ -37,6 +37,7 @@ import {
 import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
+import { isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
 import {
   acceptPublicInquiryCase as acceptPublicInquiryCaseRpc,
   acceptInquiryCollabRow as acceptInquiryCollabRowRpc,
@@ -650,12 +651,6 @@ async function probeCaseById(
   return { found: true, record: fromDb(asDbCase(data)) };
 }
 
-/** 伺服器有回應並拒絕才算「確定未建立」；連線中斷／逾時一律視為結果不明。 */
-function createErrorIsDefinite(error: unknown): boolean {
-  const code = (error as { code?: unknown } | null)?.code;
-  if (typeof code === "string" && code) return true;
-  return !/fetch|network|abort|timeout|load failed|failed to send/i.test(errorMessage(error));
-}
 
 export type CaseCreateOutcome =
   | { kind: "created"; id: string; record: CaseRecord }
@@ -686,7 +681,13 @@ async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCrea
     rpcPayload.reviewer_user_id = reviewerUid;
   }
   // P0-C：建案走 admin_create_case RPC；p_case_id 獨立參數，env/created_by 由 server 產生。
-  const { error: createError } = await adminCreateCase(supabase, id, rpcPayload);
+  let createError: unknown = null;
+  try {
+    const result = await adminCreateCase(supabase, id, rpcPayload);
+    createError = result.error;
+  } catch (thrown) {
+    createError = thrown;
+  }
   if (createError) {
     console.error("[case-store] create failed", errorMessage(createError), {
       payloadKeys: Object.keys(rpcPayload),
@@ -696,7 +697,7 @@ async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCrea
       adoptCreatedCase(probe.record);
       return { kind: "created", id, record: probe.record };
     }
-    if (probe.found === false && createErrorIsDefinite(createError)) {
+    if (probe.found === false && isDefiniteCaseCreateError(createError)) {
       return { kind: "create_failed", id };
     }
     return { kind: "create_unknown", id };
