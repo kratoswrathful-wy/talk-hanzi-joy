@@ -149,6 +149,40 @@ export async function completeCaseTranslation(
   });
 }
 
+/** PM／executive 代完成；audit actor 為管理者，不冒充譯者。 */
+export async function pmCompleteCaseTranslation(
+  client: SupabaseClient,
+  caseId: string,
+  expectedRevision: number,
+): Promise<RpcResponse<CaseActionResult>> {
+  const invalid = requireCaseAndRevision(caseId, expectedRevision);
+  if (invalid) return invalid;
+  return rpc(client, "pm_complete_case_translation", {
+    p_case_id: caseId,
+    p_expected_revision: expectedRevision,
+  });
+}
+
+/** 讀取本案 active＋未撤銷的 translator participant（RLS：本人或 admin）。 */
+export async function listActiveTranslatorParticipantIds(
+  client: SupabaseClient,
+  caseId: string,
+): Promise<{ data: string[]; error: PostgrestError | Error | null }> {
+  if (!caseId) return { data: [], error: new Error("missing caseId") };
+  const { data, error } = await client
+    .from("case_participants")
+    .select("user_id")
+    .eq("case_id", caseId)
+    .eq("role", "translator")
+    .is("access_revoked_at", null)
+    .eq("work_status", "active");
+  if (error) return { data: [], error };
+  const ids = (data ?? [])
+    .map((row) => (typeof row.user_id === "string" ? row.user_id : ""))
+    .filter(Boolean);
+  return { data: ids, error: null };
+}
+
 export async function completeCaseReviewRow(
   client: SupabaseClient,
   caseId: string,

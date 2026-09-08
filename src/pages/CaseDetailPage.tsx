@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
+import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
@@ -68,6 +69,13 @@ import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
+import { listActiveTranslatorParticipantIds } from "@/lib/case-action-rpc";
+import {
+  describeTaskCompleteFailure,
+  resolveTaskCompleteActorKind,
+  shouldNotifyTranslatorTaskComplete,
+  shouldOfferTaskCompleteButton,
+} from "@/lib/case-task-complete-access";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import { getUserTimezone } from "@/lib/format-timestamp";
@@ -1144,6 +1152,13 @@ export default function CaseDetailPage() {
   const [credentialsStatus, setCredentialsStatus] = useState<
     "idle" | "loading" | "ready" | "refreshing" | "error"
   >("idle");
+  const [activeTranslatorUserIds, setActiveTranslatorUserIds] = useState<string[]>([]);
+  const [translatorParticipantLoadState, setTranslatorParticipantLoadState] = useState<
+    "idle" | "loading" | "ready" | "empty" | "error"
+  >("idle");
+  const translatorParticipantRequestGen = useRef(0);
+  const [creatingCase, setCreatingCase] = useState(false);
+  const creatingCaseRef = useRef(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -1295,6 +1310,42 @@ export default function CaseDetailPage() {
         if (data) setCreatorName(data.display_name || data.email);
       });
   }, [caseData?.createdBy]);
+
+  // 任務完成授權以 case_participants 為準；顯示名不得當授權來源。
+  useEffect(() => {
+    const caseId = caseData?.id;
+    const revision = caseData?.revision;
+    const viewerId = user?.id ?? null;
+    if (!caseId) {
+      setActiveTranslatorUserIds([]);
+      setTranslatorParticipantLoadState("idle");
+      return;
+    }
+    let cancelled = false;
+    const requestGen = ++translatorParticipantRequestGen.current;
+    setTranslatorParticipantLoadState("loading");
+    setActiveTranslatorUserIds([]);
+    void listActiveTranslatorParticipantIds(supabase, caseId).then(({ data, error }) => {
+      if (cancelled || requestGen !== translatorParticipantRequestGen.current) return;
+      if (
+        caseData?.id !== caseId ||
+        caseData?.revision !== revision ||
+        (user?.id ?? null) !== viewerId
+      ) {
+        return;
+      }
+      if (error) {
+        setActiveTranslatorUserIds([]);
+        setTranslatorParticipantLoadState("error");
+        return;
+      }
+      setActiveTranslatorUserIds(data);
+      setTranslatorParticipantLoadState(data.length > 0 ? "ready" : "empty");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseData?.id, caseData?.revision, caseData?.status, user?.id]);
 
   useEffect(() => {
     caseCredentialAccess.setActiveUser(user?.id ?? null);
@@ -2036,8 +2087,29 @@ export default function CaseDetailPage() {
   };
 
   const handleNewCase = async (templateValues: Record<string, TemplateFieldValue> = {}) => {
-    const newCase = await caseStore.create({ title: "", ...templateValues });
-    if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
+    // 防連點：建案在途時忽略後續點擊，避免結果不明時多建一筆。
+    if (creatingCaseRef.current) return;
+    creatingCaseRef.current = true;
+    setCreatingCase(true);
+    try {
+      const outcome = await caseStore.createWithOutcome({ title: "", ...templateValues });
+      const feedback = describeCaseCreateOutcome({
+        kind: outcome.kind,
+        caseId: outcome.kind === "no_session" ? undefined : outcome.id,
+      });
+      if (feedback.navigateToCase && outcome.kind === "created") {
+        navigate(`/cases/${outcome.id}`, { state: { autoFocusTitle: true } });
+        return;
+      }
+      toast({
+        title: feedback.title,
+        description: feedback.description,
+        variant: feedback.variant,
+      });
+    } finally {
+      creatingCaseRef.current = false;
+      setCreatingCase(false);
+    }
   };
 
   const handlePublish = () => {
@@ -2069,22 +2141,80 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     if (!caseData?.id) return;
-    save({ status: "dispatched" as CaseStatus });
+    if (!caseData.multiCollab) {
+      if (translatorParticipantLoadState === "loading") {
+        toast({
+          title: "無法確定指派",
+          description: "譯者授權仍在載入，請稍後再試。",
+          variant: "destructive",
+        });
+        return;
+      }
+      const { data: ids, error } = await listActiveTranslatorParticipantIds(
+        supabase,
+        caseData.id,
+      );
+      if (error) {
+        toast({ title: "無法確認譯者授權", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (ids.length === 0) {
+        toast({
+          title: "無法確定指派",
+          description: "單檔派出前須先以可信帳號指派譯者（不可僅有顯示名）。",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    const error = await caseStore.update(caseData.id, { status: "dispatched" as CaseStatus });
+    if (error) {
+      toast({ title: "無法確定指派", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCaseData((prev) => (prev ? { ...prev, status: "dispatched" as CaseStatus } : prev));
     toast({ title: "已確定指派" });
     showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
     warnUnresolvedTranslatorsIfNeeded(caseData.id, toast);
   };
 
   const handleTaskComplete = async () => {
-    const error = await caseStore.completeCaseTranslation(caseData.id);
-    if (error) {
-      toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+    const kind = resolveTaskCompleteActorKind({
+      isPmOrAbove,
+      viewerUserId: user?.id,
+      activeTranslatorUserIds,
+    });
+    if (kind === "none") {
+      toast({
+        title: "無法完成任務",
+        description:
+          translatorParticipantLoadState === "error"
+            ? "無法確認您的譯者授權（讀取失敗），請重新整理後再試。"
+            : "您不是本案有效受派譯者，也不是可代完成的管理者。",
+        variant: "destructive",
+      });
       return;
     }
-    toast({ title: "任務已完成" });
-    if (user?.id) {
+    const error =
+      kind === "manager"
+        ? await caseStore.pmCompleteCaseTranslation(caseData.id)
+        : await caseStore.completeCaseTranslation(caseData.id);
+    if (error) {
+      toast({
+        title: "無法完成任務",
+        description: describeTaskCompleteFailure({
+          kind,
+          code: (error as { code?: string }).code ?? "",
+          message: error.message,
+        }),
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({ title: kind === "manager" ? "已由管理身分代為完成" : "任務已完成" });
+    if (shouldNotifyTranslatorTaskComplete(kind) && user?.id) {
       void maybeSendTranslatorCaseReplySlack({
         userId: user.id,
         slackMessageDefaults: profile?.slack_message_defaults,
@@ -2145,6 +2275,13 @@ export default function CaseDetailPage() {
     if (caseData.multiCollab && caseData.collabRows?.some(r => r.translator === dn)) return true;
     return false;
   })();
+
+  const taskCompleteActorKind = resolveTaskCompleteActorKind({
+    isPmOrAbove,
+    viewerUserId: user?.id,
+    activeTranslatorUserIds,
+  });
+  const offerTaskComplete = shouldOfferTaskCompleteButton(taskCompleteActorKind);
 
   const comments = caseData.comments || [];
   const internalComments = caseData.internalComments || [];
@@ -2208,6 +2345,7 @@ export default function CaseDetailPage() {
               label="新增案件"
               size="sm"
               uiButtonId="cases_add"
+              busy={creatingCase}
             />
           )}
           {/* Decline button for translators on draft/inquiry */}
@@ -2363,7 +2501,7 @@ export default function CaseDetailPage() {
                 </TooltipProvider>
               ) : btn;
             })()
-          ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
+          ) : isDispatched && offerTaskComplete ? (
             caseData.multiCollab ? (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>

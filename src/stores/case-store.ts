@@ -43,6 +43,7 @@ import {
   completeCaseCollabRow as completeCaseCollabRowRpc,
   completeCaseReviewRow as completeCaseReviewRowRpc,
   completeCaseTranslation as completeCaseTranslationRpc,
+  pmCompleteCaseTranslation as pmCompleteCaseTranslationRpc,
   declinePublicInquiryCase as declinePublicInquiryCaseRpc,
   updateCaseCredentials as updateCaseCredentialsRpc,
   getCaseCredentials,
@@ -1011,6 +1012,20 @@ async function completeCaseTranslation(id: string) {
   return result.error;
 }
 
+async function pmCompleteCaseTranslation(id: string) {
+  const current = getById(id);
+  const result = await pmCompleteCaseTranslationRpc(
+    supabase,
+    id,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
 async function completeCaseReviewRow(id: string, rowId: string) {
   const current = getById(id);
   const result = await completeCaseReviewRowRpc(
@@ -1687,6 +1702,7 @@ export const caseStore = {
   getById,
   isLoaded,
   create,
+  createWithOutcome,
   update,
   remove,
   duplicate,
@@ -1698,6 +1714,7 @@ export const caseStore = {
   acceptInquiryCollabRow,
   completeCaseCollabRow,
   completeCaseTranslation,
+  pmCompleteCaseTranslation,
   completeCaseReviewRow,
   updateCredentials,
   subscribe: subscribePoll,

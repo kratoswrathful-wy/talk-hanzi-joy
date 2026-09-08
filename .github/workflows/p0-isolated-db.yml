@@ -1,6 +1,7 @@
 # Gate2 / P0：GitHub runner 本機 Supabase PostgreSQL 17（不得連 production／不得建 Micro）
 # - feat/isolation-replay-20260901：完整 Gate1 隔離套件（既有）
 # - ops/gate2-maint-write-acl-20260905：定向維護 ACL（不重跑完整 Gate1／全 Playwright）
+# - fix/case-buttons-20260908：任務完成／deferred dispatch 定向套件（承 #84）
 name: P0 isolated DB (local PG17)
 
 on:
@@ -10,10 +11,11 @@ on:
     branches:
       - feat/isolation-replay-20260901
       - ops/gate2-maint-write-acl-20260905
+      - fix/case-buttons-20260908
   workflow_dispatch:
     inputs:
       suite:
-        description: "full | maint-acl | tool-ui | copy-tools（預設依分支）"
+        description: "full | maint-acl | tool-ui | copy-tools | pm-complete（預設依分支）"
         required: false
         default: ""
 
@@ -30,8 +32,10 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.ref_name == 'feat/isolation-replay-20260901' ||
       github.ref_name == 'ops/gate2-maint-write-acl-20260905' ||
+      github.ref_name == 'fix/case-buttons-20260908' ||
       github.head_ref == 'feat/isolation-replay-20260901' ||
-      github.head_ref == 'ops/gate2-maint-write-acl-20260905'
+      github.head_ref == 'ops/gate2-maint-write-acl-20260905' ||
+      github.head_ref == 'fix/case-buttons-20260908'
     env:
       PRODUCTION_REF: wshsmerltcakffllgyul
     steps:
@@ -50,6 +54,8 @@ jobs:
             SUITE="${INPUT_SUITE}"
           elif [ "${REF}" = "ops/gate2-maint-write-acl-20260905" ] || [ "${HEAD_REF}" = "ops/gate2-maint-write-acl-20260905" ]; then
             SUITE="maint-acl"
+          elif [ "${REF}" = "fix/case-buttons-20260908" ] || [ "${HEAD_REF}" = "fix/case-buttons-20260908" ]; then
+            SUITE="pm-complete"
           else
             SUITE="full"
           fi
@@ -62,6 +68,11 @@ jobs:
             echo "suite=maint-acl" >> "$GITHUB_OUTPUT"
             echo "expected_count=167" >> "$GITHUB_OUTPUT"
             echo "expected_max=20260905120000" >> "$GITHUB_OUTPUT"
+          elif [ "${SUITE}" = "pm-complete" ]; then
+            # pm-complete＝任務完成雙路徑（含新 migration 20260907120000）
+            echo "suite=pm-complete" >> "$GITHUB_OUTPUT"
+            echo "expected_count=168" >> "$GITHUB_OUTPUT"
+            echo "expected_max=20260907120000" >> "$GITHUB_OUTPUT"
           else
             echo "suite=full" >> "$GITHUB_OUTPUT"
             echo "expected_count=166" >> "$GITHUB_OUTPUT"

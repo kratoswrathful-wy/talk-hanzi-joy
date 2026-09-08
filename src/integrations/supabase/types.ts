@@ -3879,6 +3879,10 @@ export type Database = {
         Args: { p_case_id: string; p_expected_revision: number }
         Returns: Json
       }
+      pm_complete_case_translation: {
+        Args: { p_case_id: string; p_expected_revision: number }
+        Returns: Json
+      }
       current_env: { Args: never; Returns: string }
       decline_public_inquiry_case: {
         Args: {

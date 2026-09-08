@@ -53,8 +53,17 @@ import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inqu
 import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSingleCaseFlowButtons";
 import { toast } from "@/hooks/use-toast";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
+import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
+import { listActiveTranslatorParticipantIds } from "@/lib/case-action-rpc";
+import {
+  describeTaskCompleteFailure,
+  resolveTaskCompleteActorKind,
+  shouldNotifyTranslatorTaskComplete,
+  shouldOfferTaskCompleteButton,
+} from "@/lib/case-task-complete-access";
+import { supabase } from "@/integrations/supabase/client";
 
 function getTodayYYMMDD(): string {
   const now = new Date();
@@ -517,6 +526,9 @@ export default function CasesPage() {
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
   const isTranslatorRole = primaryRole === "member";
   const { checkPerm } = usePermissions();
+  const [selectedActiveTranslatorUserIds, setSelectedActiveTranslatorUserIds] = useState<string[]>([]);
+  const [creatingCase, setCreatingCase] = useState(false);
+  const creatingCaseRef = useRef(false);
   const tableViews = useCaseTableViews(user?.id, profile?.display_name || "");
   const { activeView } = tableViews;
 
@@ -545,6 +557,30 @@ export default function CasesPage() {
     const id = Array.from(rowSelection.selectedIds)[0];
     return cases.find((c) => c.id === id) ?? null;
   }, [rowSelection.selectedCount, rowSelection.selectedIds, cases]);
+
+  // 任務完成授權以 case_participants 為準；顯示名不得當授權來源。
+  useEffect(() => {
+    const caseId = selectedSingleCase?.id;
+    if (!caseId) {
+      setSelectedActiveTranslatorUserIds([]);
+      return;
+    }
+    let cancelled = false;
+    void listActiveTranslatorParticipantIds(supabase, caseId).then(({ data }) => {
+      if (!cancelled) setSelectedActiveTranslatorUserIds(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSingleCase?.id, selectedSingleCase?.revision, selectedSingleCase?.status]);
+
+  const offerSelectedTaskComplete = shouldOfferTaskCompleteButton(
+    resolveTaskCompleteActorKind({
+      isPmOrAbove,
+      viewerUserId: user?.id,
+      activeTranslatorUserIds: selectedActiveTranslatorUserIds,
+    }),
+  );
 
   const visibleFieldKeys = caseFieldMetas
     .filter((f) => !CASE_TABLE_MANAGER_ONLY_KEYS.has(f.key) || isPmOrAbove)
@@ -638,8 +674,29 @@ export default function CasesPage() {
   const handleDragEnd = () => { dragColRef.current = null; setDragOverCol(null); };
 
   const handleCreate = async (templateValues: Record<string, TemplateFieldValue> = {}) => {
-    const newCase = await caseStore.create({ title: "新案件", ...templateValues });
-    if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
+    // 防連點：建案在途時忽略後續點擊，避免結果不明時多建一筆。
+    if (creatingCaseRef.current) return;
+    creatingCaseRef.current = true;
+    setCreatingCase(true);
+    try {
+      const outcome = await caseStore.createWithOutcome({ title: "新案件", ...templateValues });
+      const feedback = describeCaseCreateOutcome({
+        kind: outcome.kind,
+        caseId: outcome.kind === "no_session" ? undefined : outcome.id,
+      });
+      if (feedback.navigateToCase && outcome.kind === "created") {
+        navigate(`/cases/${outcome.id}`, { state: { autoFocusTitle: true } });
+        return;
+      }
+      toast({
+        title: feedback.title,
+        description: feedback.description,
+        variant: feedback.variant,
+      });
+    } finally {
+      creatingCaseRef.current = false;
+      setCreatingCase(false);
+    }
   };
 
   // Delete with undo support
@@ -745,21 +802,69 @@ export default function CasesPage() {
     }
   }, [selectedSingleCase, profile, user]);
 
-  const handleFlowFinalizeAssign = useCallback(() => {
+  const handleFlowFinalizeAssign = useCallback(async () => {
     if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus });
+    if (!selectedSingleCase.multiCollab) {
+      const { data: ids, error } = await listActiveTranslatorParticipantIds(
+        supabase,
+        selectedSingleCase.id,
+      );
+      if (error) {
+        toast({ title: "無法確認譯者授權", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (ids.length === 0) {
+        toast({
+          title: "無法確定指派",
+          description: "單檔派出前須先以可信帳號指派譯者（不可僅有顯示名）。",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    const error = await caseStore.update(selectedSingleCase.id, {
+      status: "dispatched" as CaseStatus,
+    });
+    if (error) {
+      toast({ title: "無法確定指派", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "已確定指派" });
   }, [selectedSingleCase]);
 
   const handleFlowTaskComplete = useCallback(async () => {
     if (!selectedSingleCase) return;
-    const error = await caseStore.completeCaseTranslation(selectedSingleCase.id);
-    if (error) {
-      toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+    const kind = resolveTaskCompleteActorKind({
+      isPmOrAbove,
+      viewerUserId: user?.id,
+      activeTranslatorUserIds: selectedActiveTranslatorUserIds,
+    });
+    if (kind === "none") {
+      toast({
+        title: "無法完成任務",
+        description: "您不是本案有效受派譯者，也不是可代完成的管理者。",
+        variant: "destructive",
+      });
       return;
     }
-    toast({ title: "任務已完成" });
-    if (user?.id) {
+    const error =
+      kind === "manager"
+        ? await caseStore.pmCompleteCaseTranslation(selectedSingleCase.id)
+        : await caseStore.completeCaseTranslation(selectedSingleCase.id);
+    if (error) {
+      toast({
+        title: "無法完成任務",
+        description: describeTaskCompleteFailure({
+          kind,
+          code: (error as { code?: string }).code ?? "",
+          message: error.message,
+        }),
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({ title: kind === "manager" ? "已由管理身分代為完成" : "任務已完成" });
+    if (shouldNotifyTranslatorTaskComplete(kind) && user?.id) {
       void maybeSendTranslatorCaseReplySlack({
         userId: user.id,
         slackMessageDefaults: profile?.slack_message_defaults,
@@ -768,7 +873,7 @@ export default function CasesPage() {
         kind: "task_complete",
       });
     }
-  }, [selectedSingleCase, profile, user]);
+  }, [selectedSingleCase, profile, user, isPmOrAbove, selectedActiveTranslatorUserIds]);
 
   const handleFlowFeedbackComplete = useCallback(() => {
     if (!selectedSingleCase) return;
@@ -1126,6 +1231,7 @@ export default function CasesPage() {
               label="新增案件"
               size="sm"
               uiButtonId="cases_add"
+              busy={creatingCase}
             />
           )}
           {canShowMarkDeliveredBulk ? (
@@ -1145,6 +1251,7 @@ export default function CasesPage() {
               profile={profile}
               isPmOrAbove={isPmOrAbove}
               isTranslatorRole={isTranslatorRole}
+              offerTaskComplete={offerSelectedTaskComplete}
               onOpenDecline={() => setDeclineOpen(true)}
               onRevertToDraft={handleFlowRevertToDraft}
               onCancelDispatch={handleFlowCancelDispatch}
