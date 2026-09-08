@@ -76,6 +76,8 @@ import {
   type PendingDuplicateToolsRecord,
 } from "@/lib/case-duplicate-tools";
 import { mergeCasePublicSnapshot } from "@/lib/case-public-snapshot";
+import { CASE_LIST_COLUMNS } from "@/lib/case-list-columns";
+import { casesAfterFullListFailure, mergeCaseListProjection } from "@/lib/case-list-load";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type DbCase = Database["public"]["Tables"]["cases"]["Row"];
@@ -83,8 +85,8 @@ type DbCaseInsert = Database["public"]["Tables"]["cases"]["Insert"];
 type DbCaseUpdate = Database["public"]["Tables"]["cases"]["Update"];
 type DbCaseVisible = Database["public"]["Views"]["cases_visible"]["Row"];
 
-function asDbCase(row: DbCaseVisible): DbCase {
-  // cases_visible 欄位集合與 cases 對齊；view Row 在 generated types 中可為 nullable。
+function asDbCase(row: DbCaseVisible | Record<string, unknown>): DbCase {
+  // cases_visible 欄位集合與 cases 對齊；清單投影只含子集，fromDb 以預設值補齊。
   return row as DbCase;
 }
 
@@ -291,10 +293,13 @@ type Listener = () => void;
 
 let cases: CaseRecord[] = [];
 let loaded = false;
+let loadError: string | null = null;
 let loadPromise: Promise<void> | null = null;
 let loadVersion = 0; // version counter to discard stale loads
 const listeners = new Set<Listener>();
 let currentUserId: string | null = null;
+/** 僅清單投影、尚未單筆拉齊的案件。詳情／複製必須再取 select("*")。 */
+const listProjectionIds = new Set<string>();
 
 // Track in-flight optimistic updates to prevent poll/realtime from overwriting
 const pendingUpdates = new Map<string, Partial<CaseRecord>>();
@@ -499,13 +504,9 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
 // ── Public API ──
 
 /**
- * 僅載入單一案件（詳情頁優先路徑，避免等待全表 `select("*")` 逾時／阻塞）。
- * 若記憶體已有該筆則立即回傳；否則向 DB 取一列並合入 `cases`。
+ * 單筆完整列（含 tools／附件／edit_logs）。清單投影不得當成已齊。
  */
-async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
-  const existing = getById(id);
-  if (existing) return existing;
-
+async function fetchCaseFull(id: string): Promise<CaseRecord | undefined> {
   let user;
   try {
     user = await getAuthenticatedUser();
@@ -524,7 +525,7 @@ async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
     .maybeSingle();
 
   if (error) {
-    console.error("[case-store] loadCaseIfMissing", errorMessage(error));
+    console.error("[case-store] fetchCaseFull", errorMessage(error));
     return undefined;
   }
   if (!data) return undefined;
@@ -532,6 +533,7 @@ async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
   const incoming = fromDb(asDbCase(data));
   const current = getById(id);
   const merged = mergeIncomingCase(current, incoming);
+  listProjectionIds.delete(id);
   const idx = cases.findIndex((c) => c.id === id);
   if (idx >= 0) {
     cases = cases.map((c, i) => (i === idx ? merged : c));
@@ -540,6 +542,16 @@ async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
   }
   notify();
   return merged;
+}
+
+/**
+ * 僅載入單一案件（詳情頁優先路徑，避免等待全表清單逾時／阻塞）。
+ * 記憶體已有**完整列**則立即回傳；清單投影或缺列則向 DB 取 select("*")。
+ */
+async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
+  const existing = getById(id);
+  if (existing && !listProjectionIds.has(id)) return existing;
+  return fetchCaseFull(id);
 }
 
 async function load() {
@@ -553,23 +565,26 @@ async function load() {
       if (!user) {
         cases = [];
         loaded = false;
+        loadError = null;
+        listProjectionIds.clear();
         loadPromise = null;
         notify();
         return;
       }
 
       const env = getEnvironment();
-      // 工項 D：讀取一律走遮罩 view；寫入仍走 cases 原表。
+      // 工項 D：讀取一律走遮罩 view；寫入仍走 cases 原表。清單禁止 select("*")。
       const { data, error } = await supabase
         .from("cases_visible")
-        .select("*")
+        .select(CASE_LIST_COLUMNS)
         .eq("env", env)
         .order("created_at", { ascending: false });
       if (version !== loadVersion) return;
 
       if (error) {
         console.error("[case-store] full load failed", errorMessage(error));
-        cases = [];
+        cases = casesAfterFullListFailure(cases);
+        loadError = errorMessage(error);
         loaded = true;
         loadPromise = null;
         notify();
@@ -577,9 +592,15 @@ async function load() {
       }
 
       const currentById = new Map(cases.map((c) => [c.id, c] as const));
-      let fetched = (data || [])
-        .map((row) => fromDb(asDbCase(row)))
-        .map((incoming) => mergeIncomingCase(currentById.get(incoming.id), incoming));
+      let fetched = (data || []).map((row) => {
+        const incoming = fromDb(asDbCase(row));
+        const current = currentById.get(incoming.id);
+        const currentIsFull = !!current && !listProjectionIds.has(incoming.id);
+        const merged = mergeCaseListProjection(current, incoming, currentIsFull);
+        if (currentIsFull) listProjectionIds.delete(incoming.id);
+        else listProjectionIds.add(incoming.id);
+        return merged;
+      });
 
       if (pendingUpdates.size > 0) {
         fetched = fetched.map((c) => {
@@ -597,9 +618,13 @@ async function load() {
       }
       cases = fetched;
       loaded = true;
+      loadError = null;
       notify();
     } catch (e) {
       console.error("[case-store] load", e);
+      cases = casesAfterFullListFailure(cases);
+      loadError = errorMessage(e);
+      loaded = true;
       loadPromise = null;
       notify();
     }
@@ -615,6 +640,18 @@ function getAll(): CaseRecord[] {
 /** True after the first full load attempt for the current session (success or failure). */
 function isLoaded(): boolean {
   return loaded;
+}
+
+function getLoadError(): string | null {
+  return loadError;
+}
+
+async function retryLoad(): Promise<void> {
+  loadError = null;
+  loaded = false;
+  loadPromise = null;
+  notify();
+  await load();
 }
 
 function getById(id: string): CaseRecord | undefined {
@@ -1076,9 +1113,11 @@ function subscribe(fn: Listener) {
 
 function reset() {
   loaded = false;
+  loadError = null;
   loadPromise = null;
   cases = [];
   currentUserId = null;
+  listProjectionIds.clear();
 
   pendingUpdates.clear();
   inFlightCount.clear();
@@ -1361,7 +1400,7 @@ async function duplicate(
   sort: CaseDuplicateSort = DEFAULT_DUPLICATE_SORT
 ): Promise<CaseDuplicateOutcome> {
   try {
-    const source = cases.find((c) => c.id === id);
+    const source = await fetchCaseFull(id);
     if (!source) return abortDuplicate("source_not_found");
 
     const user = await getAuthenticatedUser().catch((e) => {
@@ -1698,10 +1737,12 @@ function subscribePoll(fn: Listener) {
 
 export const caseStore = {
   load,
+  retryLoad,
   loadCaseIfMissing,
   getAll,
   getById,
   isLoaded,
+  getLoadError,
   create,
   createWithOutcome,
   update,

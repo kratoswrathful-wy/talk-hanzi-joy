@@ -17,6 +17,14 @@ export function useCaseStoreReady(): boolean {
   );
 }
 
+export function useCaseStoreLoadError(): string | null {
+  return useSyncExternalStore(
+    caseStore.subscribe,
+    () => caseStore.getLoadError(),
+    () => null,
+  );
+}
+
 /** 部分完成複製工具：訂閱 pending 版本，核實／衝突後橫幅會立刻更新。 */
 export function usePendingDuplicateTools(caseId: string | undefined): PendingDuplicateToolsRecord | undefined {
   const version = useSyncExternalStore(

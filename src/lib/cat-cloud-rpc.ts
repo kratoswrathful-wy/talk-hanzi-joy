@@ -9,6 +9,7 @@ import { fetchEnabledCatAiModelOptions } from "@/lib/cat-ai-model-registry/list-
 import { mapEnabledModelOptionsToRpc } from "@/lib/cat-ai-model-registry/rpc-enabled-models";
 import { sortMappedCatSegmentsByImportOrder } from "@/lib/cat-segment-import-order";
 import { CAT_PAGE_SIZE, nextKeysetCursor } from "@/lib/cat-keyset-pagination";
+import { CAT_TB_LIST_COLUMNS } from "@/lib/cat-tb-list-columns";
 
 type RpcPayload = Record<string, any>;
 
@@ -1772,7 +1773,11 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.updateTBLangs":
       return await supabase.from("cat_tbs").update({ source_langs: payload.sourceLangs ?? [], target_langs: payload.targetLangs ?? [], last_modified: nowIso() } as any).eq("id", payload.tbId);
     case "db.getTBs": {
-      const { data } = await supabase.from("cat_tbs").select("*").eq("env", env).order("created_at", { ascending: true, nullsFirst: true });
+      const { data } = await supabase
+        .from("cat_tbs")
+        .select(CAT_TB_LIST_COLUMNS)
+        .eq("env", env)
+        .order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapTbRow);
     }
     case "db.getTB": {

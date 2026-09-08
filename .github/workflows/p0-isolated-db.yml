@@ -3,6 +3,7 @@
 # - ops/gate2-maint-write-acl-20260905：定向維護 ACL（不重跑完整 Gate1／全 Playwright）
 # - fix/case-buttons-20260908：任務完成／deferred dispatch 定向套件（承 #84）
 # - fix/auth-identity-20260908：身分 roles／profile 載入定向套件
+# - fix/backend-errors-20260908：案件清單／CAT 讀取 500／503 定向套件
 name: P0 isolated DB (local PG17)
 
 on:
@@ -14,10 +15,11 @@ on:
       - ops/gate2-maint-write-acl-20260905
       - fix/case-buttons-20260908
       - fix/auth-identity-20260908
+      - fix/backend-errors-20260908
   workflow_dispatch:
     inputs:
       suite:
-        description: "full | maint-acl | tool-ui | copy-tools | pm-complete | auth-identity（預設依分支）"
+        description: "full | maint-acl | tool-ui | copy-tools | pm-complete | auth-identity | backend-errors（預設依分支）"
         required: false
         default: ""
 
@@ -39,7 +41,9 @@ jobs:
       github.head_ref == 'ops/gate2-maint-write-acl-20260905' ||
       github.head_ref == 'fix/case-buttons-20260908' ||
       github.ref_name == 'fix/auth-identity-20260908' ||
-      github.head_ref == 'fix/auth-identity-20260908'
+      github.head_ref == 'fix/auth-identity-20260908' ||
+      github.ref_name == 'fix/backend-errors-20260908' ||
+      github.head_ref == 'fix/backend-errors-20260908'
     env:
       PRODUCTION_REF: wshsmerltcakffllgyul
     steps:
@@ -58,6 +62,8 @@ jobs:
             SUITE="${INPUT_SUITE}"
           elif [ "${REF}" = "ops/gate2-maint-write-acl-20260905" ] || [ "${HEAD_REF}" = "ops/gate2-maint-write-acl-20260905" ]; then
             SUITE="maint-acl"
+          elif [ "${REF}" = "fix/backend-errors-20260908" ] || [ "${HEAD_REF}" = "fix/backend-errors-20260908" ]; then
+            SUITE="backend-errors"
           elif [ "${REF}" = "fix/auth-identity-20260908" ] || [ "${HEAD_REF}" = "fix/auth-identity-20260908" ]; then
             SUITE="auth-identity"
           elif [ "${REF}" = "fix/case-buttons-20260908" ] || [ "${HEAD_REF}" = "fix/case-buttons-20260908" ]; then
@@ -74,8 +80,8 @@ jobs:
             echo "suite=maint-acl" >> "$GITHUB_OUTPUT"
             echo "expected_count=167" >> "$GITHUB_OUTPUT"
             echo "expected_max=20260905120000" >> "$GITHUB_OUTPUT"
-          elif [ "${SUITE}" = "pm-complete" ] || [ "${SUITE}" = "auth-identity" ]; then
-            # pm-complete／auth-identity 皆含第 2 項已發布 migration 20260907120000
+          elif [ "${SUITE}" = "pm-complete" ] || [ "${SUITE}" = "auth-identity" ] || [ "${SUITE}" = "backend-errors" ]; then
+            # pm-complete／auth-identity／backend-errors 皆含第 2 項已發布 migration 20260907120000
             echo "suite=${SUITE}" >> "$GITHUB_OUTPUT"
             echo "expected_count=168" >> "$GITHUB_OUTPUT"
             echo "expected_max=20260907120000" >> "$GITHUB_OUTPUT"
@@ -193,7 +199,7 @@ jobs:
         run: node scripts/isolation-run-pm-complete.mjs
 
       - name: Capture local API endpoints (masked)
-        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity'
+        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors'
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/iso-keys"
@@ -230,7 +236,7 @@ jobs:
           rm -f "$API_CREDS" || true
 
       - name: Provision Playwright test personas
-        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity'
+        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors'
         run: |
           set -euo pipefail
           CREDS=$(node scripts/isolation-pipe-provision.mjs personas "$RUNNER_TEMP/iso-keys")
@@ -255,7 +261,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP"/playwright-password.txt "$RUNNER_TEMP"/iso-*-password.txt
 
       - name: Install Playwright Chromium
-        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity'
+        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors'
         run: npx playwright install --with-deps chromium
 
       - name: Tool credentials UI + backend readback (#85, local only)
@@ -406,6 +412,41 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - name: Backend-errors cases list UI (local only)
+        if: steps.meta.outputs.suite == 'backend-errors'
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
+          PLAYWRIGHT_BACKEND_ERRORS_UI: "1"
+        run: |
+          set -euo pipefail
+          export VITE_SUPABASE_URL="$(cat "$RUNNER_TEMP/iso-keys/url.txt")"
+          export VITE_SUPABASE_PUBLISHABLE_KEY="$(cat "$RUNNER_TEMP/iso-keys/anon.key")"
+          export PLAYWRIGHT_TEST_EMAIL="$(cat "$RUNNER_TEMP/playwright-email.txt")"
+          export PLAYWRIGHT_TEST_PASSWORD="$(cat "$RUNNER_TEMP/playwright-password.txt")"
+          export PLAYWRIGHT_ISO_PM_EMAIL="$(cat "$RUNNER_TEMP/iso-pm-email.txt")"
+          export PLAYWRIGHT_ISO_PM_PASSWORD="$(cat "$RUNNER_TEMP/iso-pm-password.txt")"
+          if echo "${VITE_SUPABASE_URL}" | grep -Eqi "${PRODUCTION_REF}"; then
+            echo "::error::Playwright URL is production"
+            exit 1
+          fi
+          if ! echo "${VITE_SUPABASE_URL}" | grep -Eqi '^https?://(127\.0\.0\.1|localhost)'; then
+            echo "::error::Playwright URL is not local loopback"
+            exit 1
+          fi
+          npx playwright test tests/cases-list-load.spec.ts --project=chromium
+
+      - name: Upload backend-errors Playwright report
+        if: always() && steps.meta.outputs.suite == 'backend-errors'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-errors-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Directed #89 copy-id regression (T14/T15 only)
         if: steps.meta.outputs.suite == 'pm-complete'
         env:
@@ -531,6 +572,18 @@ jobs:
           npx vitest run \
             src/lib/auth-identity.test.ts \
             src/hooks/use-auth.test.tsx
+
+      - name: Backend-errors quality gates + unit tests
+        if: steps.meta.outputs.suite == 'backend-errors'
+        run: |
+          set -euo pipefail
+          npm run check:encoding
+          npm run check:forbidden-casts
+          npm run typecheck
+          npx vitest run \
+            src/lib/case-list-columns.test.ts \
+            src/lib/case-list-load.test.ts \
+            src/lib/cat-tb-list-columns.test.ts
 
       - name: Maint-acl quality gates + Edge gate policy tests
         if: steps.meta.outputs.suite == 'maint-acl'

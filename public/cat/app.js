@@ -9347,16 +9347,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rawList = workList.filter((ff) => !(_wcGetFileMode(ff.id) === 'weighted' && WCE));
         const weightedList = workList.filter((ff) => _wcGetFileMode(ff.id) === 'weighted' && WCE);
 
-        await Promise.all(rawList.map((f) => {
-            if (!_wcStillOnProjectDetail(pgId)) return Promise.resolve();
-            return _fillOneFileProgressCell(f, pgId, tmNormList, discounts).catch(() => {});
-        }));
+        for (const f of rawList) {
+            if (!_wcStillOnProjectDetail(pgId)) break;
+            try {
+                await _fillOneFileProgressCell(f, pgId, tmNormList, discounts);
+            } catch (_) {
+                const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+                if (cell) {
+                    cell.innerHTML = '<span style="color:#b45309; font-size:0.76rem;">進度載入失敗</span>';
+                }
+            }
+        }
 
         for (const f of weightedList) {
             if (!_wcStillOnProjectDetail(pgId)) break;
             try {
                 await _fillOneFileProgressCell(f, pgId, tmNormList, discounts);
-            } catch (_) { /* team mode 或空檔案時靜默失敗 */ }
+            } catch (_) {
+                const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+                if (cell) {
+                    cell.innerHTML = '<span style="color:#b45309; font-size:0.76rem;">進度載入失敗</span>';
+                }
+            }
         }
         _wcRefreshFileToolbarTitle();
     }
@@ -9433,16 +9445,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rawList = workList.filter((vv) => !(_wcGetViewMode(vv.id) === 'weighted' && WCE));
         const weightedList = workList.filter((vv) => _wcGetViewMode(vv.id) === 'weighted' && WCE);
 
-        await Promise.all(rawList.map((v) => {
-            if (!_wcStillOnProjectDetail(pgId)) return Promise.resolve();
-            return _fillOneViewProgressCell(v, pgId, tmNormList, discounts).catch(() => {});
-        }));
+        for (const v of rawList) {
+            if (!_wcStillOnProjectDetail(pgId)) break;
+            try {
+                await _fillOneViewProgressCell(v, pgId, tmNormList, discounts);
+            } catch (_) {
+                const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                if (cell) {
+                    cell.innerHTML = '<span style="color:#b45309; font-size:0.76rem;">進度載入失敗</span>';
+                }
+            }
+        }
 
         for (const v of weightedList) {
             if (!_wcStillOnProjectDetail(pgId)) break;
             try {
                 await _fillOneViewProgressCell(v, pgId, tmNormList, discounts);
-            } catch (_) { /* 靜默失敗 */ }
+            } catch (_) {
+                const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                if (cell) {
+                    cell.innerHTML = '<span style="color:#b45309; font-size:0.76rem;">進度載入失敗</span>';
+                }
+            }
         }
         _wcRefreshViewToolbarTitle();
     }
@@ -9492,7 +9516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (m.includes('cat_object_not_found')) {
             return '找不到此檔案紀錄或您沒有權限。';
         }
-        if (m.includes('timeout') || m.includes('逾時')) {
+        if (m.includes('timeout') || m.includes('逾時') || m.includes('statement timeout') || m.includes('57014')) {
             return '匯出逾時，檔案可能較大，請稍後再試。';
         }
         if (m.includes('無法下載雲端原始檔案')) {
@@ -18448,7 +18472,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const msg = String((e && e.message) ? e.message : e || '');
             const m = msg.toLowerCase();
             let userMsg = '無法開啟檔案，請稍後再試或回到專案重新點選。';
-            if (m.includes('timeout') || m.includes('逾時')) {
+            if (m.includes('timeout') || m.includes('逾時') || m.includes('statement timeout') || m.includes('57014')) {
                 userMsg = '載入檔案逾時，請稍後再試；若檔案很大，請聯絡專案經理協助。';
             } else if (
                 m.includes('cat_object_not_found') ||

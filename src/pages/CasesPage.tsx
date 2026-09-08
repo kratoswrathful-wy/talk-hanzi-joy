@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Button } from "@/components/ui/button";
 import { TableRowSelectCheckbox } from "@/components/ui/checkbox-patterns";
 import { formatDateTz as formatDate, formatDateTimeTz as formatDateTime } from "@/lib/format-timestamp";
-import { useCases, useCaseStoreReady, caseStore } from "@/hooks/use-case-store";
+import { useCases, useCaseStoreReady, useCaseStoreLoadError, caseStore } from "@/hooks/use-case-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
@@ -521,6 +521,7 @@ export default function CasesPage() {
   const navigate = useNavigate();
   const cases = useCases();
   const casesReady = useCaseStoreReady();
+  const casesLoadError = useCaseStoreLoadError();
   const allFees = useFees();
   const { user, profile, primaryRole } = useAuth();
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
@@ -1226,6 +1227,23 @@ export default function CasesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
+      {casesLoadError ? (
+        <div
+          data-testid="cases-list-load-error"
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
+        >
+          <p>案件清單載入失敗。已保留先前資料（若有）；這不是「目前沒有案件」。</p>
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="cases-list-retry-button"
+            onClick={() => void caseStore.retryLoad()}
+          >
+            重試
+          </Button>
+        </div>
+      ) : null}
       {/* 第一行：標題 → 新增案件（PM+）→ 流程按鈕（批次交件、單筆流程）；譯者僅見標題與流程按鈕 */}
       <div className="space-y-2">
         <div className="flex w-full flex-wrap items-center gap-2">
@@ -1477,8 +1495,12 @@ export default function CasesPage() {
             })}
             {visibleFees.length === 0 && (
               <tr>
-                <td colSpan={orderedCols.length + 1} className="h-24 text-center text-muted-foreground">
-                  尚無案件紀錄
+                <td
+                  colSpan={orderedCols.length + 1}
+                  className="h-24 text-center text-muted-foreground"
+                  data-testid={casesLoadError ? "cases-list-load-error-empty" : "cases-list-empty"}
+                >
+                  {casesLoadError ? "案件清單載入失敗" : "尚無案件紀錄"}
                 </td>
               </tr>
             )}
