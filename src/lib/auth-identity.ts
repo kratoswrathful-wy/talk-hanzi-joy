@@ -21,16 +21,35 @@ export interface AuthUserRole {
   role: "member" | "pm" | "executive";
 }
 
+/** 讀取失敗分類。合法空結果不是失敗，不得進此型別。 */
+export type IdentityFailureKind =
+  | "timeout"
+  | "http"
+  | "aborted"
+  | "lost"
+  | "stale"
+  | "unknown";
+
+export interface IdentityLoadFailure {
+  ok: false;
+  error: string;
+  kind: IdentityFailureKind;
+}
+
 export type ProfileLoadResult =
   | { ok: true; profile: AuthProfile | null }
-  | { ok: false; error: string };
+  | IdentityLoadFailure;
 
 export type RolesLoadResult =
   | { ok: true; roles: AuthUserRole[] }
-  | { ok: false; error: string };
+  | IdentityLoadFailure;
 
-const DEFAULT_ROLES_TIMEOUT_MS = 12_000;
-const DEFAULT_PROFILE_TIMEOUT_MS = 12_000;
+export const MAX_IDENTITY_RETRIES = 5;
+/** 正式前端期限；測試可覆寫時鐘，不得當成已根治後端逾時。 */
+export const IDENTITY_ROLES_TIMEOUT_MS = 12_000;
+export const IDENTITY_PROFILE_TIMEOUT_MS = 12_000;
+const DEFAULT_ROLES_TIMEOUT_MS = IDENTITY_ROLES_TIMEOUT_MS;
+const DEFAULT_PROFILE_TIMEOUT_MS = IDENTITY_PROFILE_TIMEOUT_MS;
 
 let rolesTimeoutMs = DEFAULT_ROLES_TIMEOUT_MS;
 let profileTimeoutMs = DEFAULT_PROFILE_TIMEOUT_MS;
@@ -43,6 +62,7 @@ type Flight = {
   generation: number;
   profilePromise: Promise<ProfileLoadResult>;
   rolesPromise: Promise<RolesLoadResult>;
+  abort: (reason: "timeout" | "switch") => void;
 };
 
 /** 僅代表仍在進行的請求；settled 後必須清除。 */
@@ -73,23 +93,90 @@ function profileFromRow(row: Record<string, unknown>): AuthProfile {
   };
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    if (timer) clearTimeout(timer);
-  }) as Promise<T>;
+export function isIgnorableIdentityFailure(kind: IdentityFailureKind) {
+  return kind === "stale" || kind === "aborted";
 }
 
-async function fetchProfile(userId: string): Promise<AuthProfile | null> {
+export function classifyIdentityFailure(
+  e: unknown,
+  abortReason: "timeout" | "switch" | null,
+): IdentityLoadFailure {
+  if (abortReason === "switch") {
+    return { ok: false, error: "stale", kind: "stale" };
+  }
+  if (abortReason === "timeout") {
+    return { ok: false, error: "timeout", kind: "timeout" };
+  }
+  const message =
+    e instanceof Error
+      ? e.message
+      : typeof e === "object" && e && "message" in e && typeof e.message === "string"
+        ? e.message
+        : "";
+  const name =
+    e instanceof Error
+      ? e.name
+      : typeof e === "object" && e && "name" in e && typeof e.name === "string"
+        ? e.name
+        : "";
+  const lower = `${name} ${message}`.toLowerCase();
+  if (name === "AbortError" || lower.includes("abort")) {
+    return { ok: false, error: "stale", kind: "stale" };
+  }
+  if (
+    lower.includes("failed to fetch") ||
+    lower.includes("networkerror") ||
+    lower.includes("load failed") ||
+    lower.includes("network request failed")
+  ) {
+    return { ok: false, error: message || "lost", kind: "lost" };
+  }
+  if (message) {
+    return { ok: false, error: message, kind: "http" };
+  }
+  return { ok: false, error: "unknown", kind: "unknown" };
+}
+
+function makeFlightAbort() {
+  const profileCtrl = new AbortController();
+  const rolesCtrl = new AbortController();
+  let profileReason: "timeout" | "switch" | null = null;
+  let rolesReason: "timeout" | "switch" | null = null;
+  return {
+    profileSignal: profileCtrl.signal,
+    rolesSignal: rolesCtrl.signal,
+    profileReason: () => profileReason,
+    rolesReason: () => rolesReason,
+    abort(next: "timeout" | "switch") {
+      if (!profileReason) profileReason = next;
+      if (!rolesReason) rolesReason = next;
+      profileCtrl.abort();
+      rolesCtrl.abort();
+    },
+    abortProfileTimeout() {
+      if (profileReason) return;
+      profileReason = "timeout";
+      profileCtrl.abort();
+    },
+    abortRolesTimeout() {
+      if (rolesReason) return;
+      rolesReason = "timeout";
+      rolesCtrl.abort();
+    },
+  };
+}
+
+async function fetchProfile(userId: string, signal: AbortSignal): Promise<AuthProfile | null> {
   const { data, error } = await supabase
     .from("profiles")
     .select(PROFILE_SELECT_COLUMNS)
     .eq("id", userId)
+    .abortSignal(signal)
     .maybeSingle();
 
+  if (signal.aborted) {
+    throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }
   if (error) {
     throw new Error(error.message || "fetchProfile_error");
   }
@@ -97,16 +184,39 @@ async function fetchProfile(userId: string): Promise<AuthProfile | null> {
   return profileFromRow(data as Record<string, unknown>);
 }
 
-async function fetchRoles(userId: string): Promise<AuthUserRole[]> {
+async function fetchRoles(userId: string, signal: AbortSignal): Promise<AuthUserRole[]> {
   const { data, error } = await supabase
     .from("user_roles")
     .select("role")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .abortSignal(signal);
 
+  if (signal.aborted) {
+    throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }
   if (error) {
     throw new Error(error.message || "fetchRoles_error");
   }
   return (data as AuthUserRole[]) || [];
+}
+
+function runBounded<T>(
+  run: Promise<T>,
+  ms: number,
+  abortTimeout: () => void,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // 附加 catch 不改變 `run` 本身；避免逾時勝出後，晚到的 reject 變成 unhandled。
+  void run.catch(() => undefined);
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      abortTimeout();
+      reject(Object.assign(new Error("timeout"), { name: "AbortError" }));
+    }, ms);
+  });
+  return Promise.race([run, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  }) as Promise<T>;
 }
 
 function clearFlightIfCurrent(candidate: Flight) {
@@ -127,6 +237,9 @@ function clearFlightIfCurrent(candidate: Flight) {
 export function invalidateIdentity() {
   identityGeneration += 1;
   activeUserId = null;
+  if (flight) {
+    flight.abort("switch");
+  }
   flight = null;
   cachedProfile = null;
   cachedRoles = null;
@@ -166,7 +279,8 @@ export function getPendingFlightForTests() {
 
 /**
  * 同一 userId + generation 多 consumer 共用仍在 pending 的 single-flight。
- * force=true 時必定開新查詢（refetchProfile）。
+ * force=true 時若已有 pending，直接重用（避免重試疊加）；僅在無 pending 時開新查詢。
+ * 若要在 settled 後重試，呼叫端先確定 flight 為 null 再 force。
  */
 export function beginIdentityLoad(
   userId: string,
@@ -178,12 +292,7 @@ export function beginIdentityLoad(
 } {
   activeUserId = userId;
 
-  if (
-    !opts?.force &&
-    flight &&
-    flight.userId === userId &&
-    flight.generation === identityGeneration
-  ) {
+  if (flight && flight.userId === userId && flight.generation === identityGeneration) {
     return {
       generation: flight.generation,
       profilePromise: flight.profilePromise,
@@ -191,12 +300,22 @@ export function beginIdentityLoad(
     };
   }
 
-  const generation = identityGeneration;
+  if (opts?.force && flight && flight.userId === userId) {
+    flight.abort("switch");
+    flight = null;
+  }
 
-  const profilePromise = withTimeout(fetchProfile(userId), profileTimeoutMs, "fetchProfile")
+  const generation = identityGeneration;
+  const aborts = makeFlightAbort();
+
+  const profilePromise = runBounded(
+    fetchProfile(userId, aborts.profileSignal),
+    profileTimeoutMs,
+    () => aborts.abortProfileTimeout(),
+  )
     .then((profile): ProfileLoadResult => {
       if (!isIdentityResultCurrent(userId, generation)) {
-        return { ok: false, error: "stale" };
+        return { ok: false, error: "stale", kind: "stale" };
       }
       cachedProfile = { userId, generation, value: profile };
       if (profile) {
@@ -205,28 +324,42 @@ export function beginIdentityLoad(
       return { ok: true, profile };
     })
     .catch((e): ProfileLoadResult => {
-      const message = e instanceof Error ? e.message : "fetchProfile_error";
-      console.error("[auth-identity] fetchProfile failed:", message);
-      // 錯誤不得快取為可信 null
-      return { ok: false, error: message };
+      const failure = classifyIdentityFailure(e, aborts.profileReason());
+      if (!isIdentityResultCurrent(userId, generation) || isIgnorableIdentityFailure(failure.kind)) {
+        return { ok: false, error: "stale", kind: "stale" };
+      }
+      console.error("[auth-identity] fetchProfile failed:", failure.kind, failure.error);
+      return failure;
     });
 
-  const rolesPromise = withTimeout(fetchRoles(userId), rolesTimeoutMs, "fetchRoles")
+  const rolesPromise = runBounded(
+    fetchRoles(userId, aborts.rolesSignal),
+    rolesTimeoutMs,
+    () => aborts.abortRolesTimeout(),
+  )
     .then((roles): RolesLoadResult => {
       if (!isIdentityResultCurrent(userId, generation)) {
-        return { ok: false, error: "stale" };
+        return { ok: false, error: "stale", kind: "stale" };
       }
       cachedRoles = { userId, generation, value: roles };
       return { ok: true, roles };
     })
     .catch((e): RolesLoadResult => {
-      const message = e instanceof Error ? e.message : "fetchRoles_error";
-      console.error("[auth-identity] fetchRoles failed:", message);
-      // 錯誤不得快取為空角色（避免 PM 被降級成 member）
-      return { ok: false, error: message };
+      const failure = classifyIdentityFailure(e, aborts.rolesReason());
+      if (!isIdentityResultCurrent(userId, generation) || isIgnorableIdentityFailure(failure.kind)) {
+        return { ok: false, error: "stale", kind: "stale" };
+      }
+      console.error("[auth-identity] fetchRoles failed:", failure.kind, failure.error);
+      return failure;
     });
 
-  const candidate: Flight = { userId, generation, profilePromise, rolesPromise };
+  const candidate: Flight = {
+    userId,
+    generation,
+    profilePromise,
+    rolesPromise,
+    abort: (reason) => aborts.abort(reason),
+  };
   flight = candidate;
 
   let remaining = 2;
@@ -249,14 +382,13 @@ export function beginForcedProfileRefresh(userId: string): {
   if (cachedProfile?.userId === userId) {
     cachedProfile = null;
   }
-  // 拆掉既有 flight，避免重用已完成／pending 的 profilePromise
   if (flight?.userId === userId) {
+    flight.abort("switch");
     flight = null;
   }
   const { generation, profilePromise, rolesPromise } = beginIdentityLoad(userId, {
     force: true,
   });
-  // beginIdentityLoad force 會同時重查 roles；保留 rolesPromise 消化即可
   void rolesPromise;
   return { generation, profilePromise };
 }
@@ -274,6 +406,9 @@ export function __resetAuthIdentityForTests(opts?: {
   rolesTimeoutMs?: number;
   profileTimeoutMs?: number;
 }) {
+  if (flight) {
+    flight.abort("switch");
+  }
   identityGeneration = 0;
   activeUserId = null;
   flight = null;

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const profileSelect = vi.fn();
 const rolesSelect = vi.fn();
+let lastRolesSignal: AbortSignal | null = null;
+let lastProfileSignal: AbortSignal | null = null;
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -9,16 +11,31 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "profiles") {
         return {
           select: () => ({
-            eq: () => ({
-              maybeSingle: () => profileSelect(),
-            }),
+            eq: () => {
+              const maybeSingle = () => profileSelect();
+              return {
+                abortSignal: (signal: AbortSignal) => {
+                  lastProfileSignal = signal;
+                  return { maybeSingle };
+                },
+                maybeSingle,
+              };
+            },
           }),
         };
       }
       if (table === "user_roles") {
         return {
           select: () => ({
-            eq: () => rolesSelect(),
+            eq: () => {
+              const result = rolesSelect();
+              return Object.assign(result, {
+                abortSignal: (signal: AbortSignal) => {
+                  lastRolesSignal = signal;
+                  return result;
+                },
+              });
+            },
           }),
         };
       }
@@ -36,6 +53,8 @@ describe("auth-identity stale guard / single-flight", () => {
     vi.resetModules();
     profileSelect.mockReset();
     rolesSelect.mockReset();
+    lastRolesSignal = null;
+    lastProfileSignal = null;
     const mod = await import("./auth-identity");
     mod.__resetAuthIdentityForTests({ rolesTimeoutMs: 80, profileTimeoutMs: 80 });
   });
@@ -140,7 +159,7 @@ describe("auth-identity stale guard / single-flight", () => {
     const load = beginIdentityLoad("pm-user");
     const roles = await load.rolesPromise;
     await load.profilePromise;
-    expect(roles).toEqual({ ok: false, error: "roles boom" });
+    expect(roles).toEqual({ ok: false, error: "roles boom", kind: "http" });
     expect(getCachedRoles("pm-user")).toBeNull();
     await Promise.resolve();
     expect(getPendingFlightForTests()).toBeNull();
@@ -200,5 +219,84 @@ describe("auth-identity stale guard / single-flight", () => {
     setActiveUserId("user-b");
     expect(isIdentityResultCurrent("user-a", load.generation)).toBe(false);
     expect(isIdentityResultCurrent("user-b", load.generation)).toBe(false);
+  });
+
+  it("合法空 roles 是成功而非失敗", async () => {
+    profileSelect.mockResolvedValue({ data: null, error: null });
+    rolesSelect.mockResolvedValue({ data: [], error: null });
+    const { beginIdentityLoad } = await import("./auth-identity");
+    const roles = await beginIdentityLoad("u1").rolesPromise;
+    expect(roles).toEqual({ ok: true, roles: [] });
+  });
+
+  it("正式期限仍為 12 秒（測試縮短時鐘，不改正式常數）", async () => {
+    const { IDENTITY_ROLES_TIMEOUT_MS, IDENTITY_PROFILE_TIMEOUT_MS } =
+      await import("./auth-identity");
+    expect(IDENTITY_ROLES_TIMEOUT_MS).toBe(12_000);
+    expect(IDENTITY_PROFILE_TIMEOUT_MS).toBe(12_000);
+  });
+
+  it("逾時分類為 timeout，且 force 在 pending 時重用同一 flight", async () => {
+    rolesSelect.mockImplementation(() => new Promise(() => undefined));
+    profileSelect.mockResolvedValue({ data: null, error: null });
+    const { beginIdentityLoad } = await import("./auth-identity");
+    const a = beginIdentityLoad("u1");
+    const b = beginIdentityLoad("u1", { force: true });
+    expect(a.rolesPromise).toBe(b.rolesPromise);
+    const roles = await a.rolesPromise;
+    expect(roles).toEqual({ ok: false, error: "timeout", kind: "timeout" });
+  });
+
+  it("逾時後重試成功，先前晚到的 roles 不得覆寫新結果", async () => {
+    let resolveFirst: ((v: unknown) => void) | null = null;
+    rolesSelect
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ data: [{ role: "pm" }], error: null });
+    profileSelect.mockResolvedValue({ data: null, error: null });
+
+    const { beginIdentityLoad, getCachedRoles } = await import("./auth-identity");
+    const first = beginIdentityLoad("u1");
+    expect(await first.rolesPromise).toEqual({
+      ok: false,
+      error: "timeout",
+      kind: "timeout",
+    });
+    expect(getCachedRoles("u1")).toBeNull();
+
+    const retry = beginIdentityLoad("u1", { force: true });
+    expect(await retry.rolesPromise).toEqual({ ok: true, roles: [{ role: "pm" }] });
+    expect(getCachedRoles("u1")).toEqual([{ role: "pm" }]);
+
+    resolveFirst?.({ data: [{ role: "executive" }], error: null });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(getCachedRoles("u1")).toEqual([{ role: "pm" }]);
+  });
+
+  it("逾時會 abort AbortSignal（僅 supabase-js 層；不宣稱後端查詢已停）", async () => {
+    rolesSelect.mockImplementation(() => new Promise(() => undefined));
+    profileSelect.mockResolvedValue({ data: null, error: null });
+    const { beginIdentityLoad } = await import("./auth-identity");
+    const roles = await beginIdentityLoad("u1").rolesPromise;
+    expect(roles).toEqual({ ok: false, error: "timeout", kind: "timeout" });
+    expect(lastRolesSignal).toBeTruthy();
+    expect(lastRolesSignal?.aborted).toBe(true);
+  });
+
+  it("classifyIdentityFailure 區分 timeout／http／lost／stale", async () => {
+    const { classifyIdentityFailure } = await import("./auth-identity");
+    expect(classifyIdentityFailure(new Error("x"), "timeout").kind).toBe("timeout");
+    expect(classifyIdentityFailure(new Error("x"), "switch").kind).toBe("stale");
+    expect(classifyIdentityFailure(new Error("Failed to fetch"), null).kind).toBe("lost");
+    expect(classifyIdentityFailure(new Error("column missing"), null)).toEqual({
+      ok: false,
+      error: "column missing",
+      kind: "http",
+    });
   });
 });
