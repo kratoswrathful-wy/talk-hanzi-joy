@@ -312,7 +312,11 @@ describeBackend("cases list vs full split (isolated)", () => {
     await page.getByRole("link", { name: "案件管理" }).click();
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(`${title}-newer`)).toBeVisible({ timeout: 30_000 });
-    await page.goto(`/cases/${caseId}`);
+    // 必須走 SPA 返回，保留記憶體裡的過期完整快取。page.goto 會整頁重載，
+    // 快取清空後只剩清單投影，會誤走「完整讀取失敗」而不是 stale。
+    const row = page.locator("tr").filter({ hasText: `${title}-newer` });
+    await row.locator('button[title="開啟"]').click({ force: true });
+    await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
     await expect(page.getByTestId("case-detail-stale-banner")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "stale");
     await expect(page.getByTestId("case-detail-omitted-preview")).toContainText(oldBody);
