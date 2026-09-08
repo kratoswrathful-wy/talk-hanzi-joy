@@ -444,6 +444,8 @@ begin
   if (select status from public.cases where id = v_case_empty) <> 'dispatched' then
     raise exception 'reassign must not complete the case';
   end if;
+  select count(*) into v_audit_before from public.case_mutation_audit where case_id = v_case_empty;
+  select revision into v_revision from public.cases where id = v_case_empty;
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
@@ -451,7 +453,6 @@ begin
   );
   set local role authenticated;
   v_blocked := false;
-  select count(*) into v_audit_before from public.case_mutation_audit where case_id = v_case_empty;
   begin
     perform public.complete_case_translation(v_case_empty, v_revision);
   exception
