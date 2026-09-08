@@ -280,12 +280,6 @@ describeBackend("cases list vs full split (isolated)", () => {
       timeout: 30_000,
     });
 
-    await patchCaseOutOfBand(page, caseId, {
-      title: `${title}-newer`,
-      body_content: isoBodyBlocks(newBody),
-      process_note: newBody,
-    });
-
     await page.route("**/rest/v1/cases_visible*", async (route) => {
       const req = route.request();
       if (req.method() === "GET" && isCasesVisibleSingleFullGet(req.url(), caseId)) {
@@ -297,6 +291,12 @@ describeBackend("cases list vs full split (isolated)", () => {
         return;
       }
       await route.continue();
+    });
+
+    await patchCaseOutOfBand(page, caseId, {
+      title: `${title}-newer`,
+      body_content: isoBodyBlocks(newBody),
+      process_note: newBody,
     });
 
     await page.goto("/cases");

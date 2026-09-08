@@ -1246,6 +1246,8 @@ async function requeryCaseFromView(id: string) {
   const incoming = fromDb(asDbCase(data));
   const current = getById(id);
   const merged = mergeIncomingCase(current, incoming);
+  setCompleteness(id, "full");
+  fullLoadErrorById.delete(id);
   if (cases.some((c) => c.id === id)) {
     cases = cases.map((c) => (c.id === id ? merged : c));
   } else {
