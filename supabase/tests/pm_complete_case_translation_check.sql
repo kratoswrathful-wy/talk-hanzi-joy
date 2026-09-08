@@ -304,6 +304,104 @@ begin
   if coalesce(v_result->>'ok', 'false') <> 'true' then
     raise exception 'pm assign+dispatch failed: %', v_result;
   end if;
+  -- deferred trigger 在函式 return 後才跑；立即檢查代表正式 RPC commit 不會被擋。
+  set constraints all immediate;
+  set constraints all deferred;
+  if (select status from public.cases where id = v_case_keep) <> 'dispatched' then
+    raise exception 'assign+dispatch must leave status dispatched';
+  end if;
+  select count(*) into v_tr_count
+  from public.case_participants
+  where case_id = v_case_keep
+    and user_id = v_t1
+    and role = 'translator'
+    and access_revoked_at is null
+    and work_status = 'active';
+  if v_tr_count <> 1 then
+    raise exception 'assign+dispatch must leave one active translator participant';
+  end if;
+
+  -- 正式前端 39002a1b 呼叫形狀：先有 participant，再只送 status=dispatched
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by, multi_collab
+  ) values (
+    gen_random_uuid(), '[ISO] prod-shaped status-only dispatch', 'inquiry', 'c',
+    jsonb_build_array('T1'), 'test', v_pm, false
+  ) returning id into v_case_empty;
+  insert into public.case_participants(
+    case_id, user_id, role, work_status, source, created_by, updated_by
+  ) values (
+    v_case_empty, v_t1, 'translator', 'active', 'pm_assign', v_pm, v_pm
+  );
+  select revision into v_revision from public.cases where id = v_case_empty;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_result := public.pm_update_case_assignments(
+    v_case_empty,
+    v_revision,
+    jsonb_build_object('status', 'dispatched')
+  );
+  reset role;
+  if coalesce(v_result->>'ok', 'false') <> 'true' then
+    raise exception 'status-only dispatch with participant failed: %', v_result;
+  end if;
+  set constraints all immediate;
+  set constraints all deferred;
+  if (select status from public.cases where id = v_case_empty) <> 'dispatched' then
+    raise exception 'status-only dispatch with participant must become dispatched';
+  end if;
+
+  -- 同一 RPC、無有效譯者：commit 時擋下，狀態不得留下 dispatched
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by, multi_collab
+  ) values (
+    gen_random_uuid(), '[ISO] status-only dispatch blocked', 'inquiry', 'c',
+    jsonb_build_array('NameOnly'), 'test', v_pm, false
+  ) returning id into v_case_empty;
+  select revision into v_revision from public.cases where id = v_case_empty;
+  v_blocked := false;
+  begin
+    perform set_config(
+      'request.jwt.claims',
+      json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+      true
+    );
+    set local role authenticated;
+    v_result := public.pm_update_case_assignments(
+      v_case_empty,
+      v_revision,
+      jsonb_build_object('status', 'dispatched')
+    );
+    reset role;
+    if coalesce(v_result->>'ok', 'true') = 'false'
+      and coalesce(v_result->>'error', '') like '%dispatch_requires_active_translator_participant%'
+    then
+      v_blocked := true;
+    else
+      set constraints all immediate;
+      raise exception 'status-only dispatch without translator must be blocked';
+    end if;
+  exception
+    when sqlstate '22023' then
+      v_blocked := true;
+      reset role;
+      set constraints all deferred;
+    when others then
+      reset role;
+      set constraints all deferred;
+      raise;
+  end;
+  set constraints all deferred;
+  if not v_blocked then
+    raise exception 'status-only dispatch without translator was not blocked';
+  end if;
+  if (select status from public.cases where id = v_case_empty) <> 'inquiry' then
+    raise exception 'blocked status-only dispatch must not leave dispatched';
+  end if;
 
   -- stale：仍為 dispatched 的案上用錯 revision（不可用「已完成後再按」代替）
   insert into public.cases (
