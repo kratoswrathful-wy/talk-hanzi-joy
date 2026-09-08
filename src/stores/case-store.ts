@@ -642,7 +642,6 @@ async function load() {
         cases = casesAfterFullListFailure(cases);
         loadError = errorMessage(error);
         loaded = true;
-        loadPromise = null;
         notify();
         return;
       }
@@ -683,8 +682,10 @@ async function load() {
       cases = casesAfterFullListFailure(cases);
       loadError = errorMessage(e);
       loaded = true;
-      loadPromise = null;
       notify();
+    } finally {
+      // 成功後也要清掉，否則後續 load() 會一直拿到已結束的 promise，清單較新版本無法合併成 stale。
+      if (version === loadVersion) loadPromise = null;
     }
   })();
   return loadPromise;

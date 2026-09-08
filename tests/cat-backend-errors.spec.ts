@@ -17,7 +17,9 @@ function credPm(): { email: string; password: string } {
 }
 
 function catFrame(page: Page): FrameLocator {
-  return page.frameLocator('iframe[src*="/cat/"]');
+  return page.frameLocator(
+    'iframe[title="CAT 團隊線上版"], iframe[title="CAT 個人離線版"], iframe[src*="/cat/"]',
+  );
 }
 
 function syntheticXliff(opts: {
@@ -52,10 +54,24 @@ async function dismissWfSessionIfNeeded(frame: FrameLocator) {
 
 async function waitCatReady(page: Page) {
   const frame = catFrame(page);
-  await expect(frame.locator("#statTBs")).toBeVisible({ timeout: 90_000 });
+  const stat = frame.locator("#statTBs");
+  await expect(stat).toBeVisible({ timeout: 90_000 });
+  await expect(stat).toHaveAttribute("data-load-state", /^(ready|empty|error)$/, { timeout: 60_000 });
+  await expect.poll(async () => {
+    return frame.locator("body").evaluate(() => {
+      // db.js 為 const DBService，不在 window；與 tests/helpers/cat-bcd-assert.ts 相同取法。
+      const DB = new Function(
+        'try { return typeof DBService !== "undefined" ? DBService : null; } catch { return null; }',
+      )() as { getProjects?: () => Promise<unknown> } | null;
+      if (!DB || typeof DB.getProjects !== "function") return "no-db";
+      return "has-db";
+    });
+  }, { timeout: 30_000 }).toBe("has-db");
   await expect.poll(async () => {
     return frame.locator("body").evaluate(async () => {
-      const DB = (window as unknown as { DBService?: { getProjects?: () => Promise<unknown> } }).DBService;
+      const DB = new Function(
+        'try { return typeof DBService !== "undefined" ? DBService : null; } catch { return null; }',
+      )() as { getProjects?: () => Promise<unknown> } | null;
       if (!DB || typeof DB.getProjects !== "function") return "no-db";
       try {
         const rows = await DB.getProjects();
@@ -89,21 +105,22 @@ async function seedSyntheticCat(page: Page): Promise<SeededCat> {
   const xliffB = syntheticXliff({ original: "iso-b.txt", units: unitsB });
   const seeded = await frame.locator("body").evaluate(
     async ({ xmlA, xmlB, name, unitsA, unitsB }) => {
-      const DB = (window as unknown as {
-        DBService: {
-          createProject: (n: string, s: string[], t: string[]) => Promise<string>;
-          createFile: (
-            projectId: string,
-            fileName: string,
-            buf: ArrayBuffer,
-            src: string,
-            tgt: string,
-            osrc: string,
-            otgt: string,
-          ) => Promise<string>;
-          addSegments: (rows: Record<string, unknown>[]) => Promise<number>;
-        };
-      }).DBService;
+      const DB = new Function(
+        'try { return typeof DBService !== "undefined" ? DBService : null; } catch { return null; }',
+      )() as {
+        createProject: (n: string, s: string[], t: string[]) => Promise<string>;
+        createFile: (
+          projectId: string,
+          fileName: string,
+          buf: ArrayBuffer,
+          src: string,
+          tgt: string,
+          osrc: string,
+          otgt: string,
+        ) => Promise<string>;
+        addSegments: (rows: Record<string, unknown>[]) => Promise<number>;
+      } | null;
+      if (!DB) throw new Error("DBService missing");
       const projectId = await DB.createProject(name, ["en-US"], ["zh-TW"]);
       const toBuf = (xml: string) => {
         const bytes = new TextEncoder().encode(xml);
@@ -161,6 +178,10 @@ describeBackend("CAT backend-errors isolated", () => {
     const page = session.page;
     const segmentGets: Array<{ url: string; startedAt: number; endedAt: number; status: number }> = [];
     await page.route("**/rest/v1/cat_segments*", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
       const startedAt = Date.now();
       const response = await route.fetch();
       segmentGets.push({
@@ -186,7 +207,7 @@ describeBackend("CAT backend-errors isolated", () => {
     await page.unroute("**/rest/v1/cat_segments*");
     await page.route("**/rest/v1/cat_segments*", async (route) => {
       const url = route.request().url();
-      if (url.includes(`file_id=eq.${seeded.fileB}`)) {
+      if (route.request().method() === "GET" && url.includes(`file_id=eq.${seeded.fileB}`)) {
         await route.fulfill({
           status: 500,
           contentType: "application/json",
@@ -227,6 +248,10 @@ describeBackend("CAT backend-errors isolated", () => {
     expect((xml.match(/<trans-unit\b/g) || []).length).toBe(2);
 
     await page.route("**/rest/v1/cat_segments*", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
       await route.fulfill({
         status: 500,
         contentType: "application/json",

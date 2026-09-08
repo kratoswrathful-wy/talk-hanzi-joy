@@ -301,6 +301,7 @@ describeBackend("cases list vs full split (isolated)", () => {
 
     await page.goto("/cases");
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(`${title}-newer`)).toBeVisible({ timeout: 30_000 });
     await page.goto(`/cases/${caseId}`);
     await expect(page.getByTestId("case-detail-stale-banner")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "stale");
