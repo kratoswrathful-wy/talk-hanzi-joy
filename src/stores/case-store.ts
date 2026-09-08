@@ -97,6 +97,10 @@ function asDbCase(row: DbCaseVisible | Record<string, unknown>): DbCase {
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
   return String(error);
 }
 
@@ -649,7 +653,8 @@ async function load() {
       const currentById = new Map(cases.map((c) => [c.id, c] as const));
       let fetched = (data || []).map((row) => {
         const incoming = fromDb(asDbCase(row));
-        const current = currentById.get(incoming.id);
+        // 清單請求可能在單筆完整讀取完成前就開始；合併時改看現況，避免用過期 snapshot 把完整快取蓋成 list。
+        const current = getById(incoming.id) ?? currentById.get(incoming.id);
         const merged = mergeCaseListProjection(
           current,
           incoming,

@@ -232,7 +232,9 @@ describeBackend("cases list vs full split (isolated)", () => {
       await route.continue();
     });
     await page.getByRole("button", { name: "複製本頁" }).click();
-    await expect(page.getByText("來源案件完整資料讀取失敗")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("來源案件完整資料讀取失敗，已取消複製。請重試後再複製。", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
     expect(page.url()).toContain(caseId);
 
     await page.unroute("**/rest/v1/cases_visible*");
