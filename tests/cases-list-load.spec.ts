@@ -275,12 +275,12 @@ describeBackend("cases list vs full split (isolated)", () => {
       process_note: oldBody,
     });
 
-    await page.goto("/cases");
-    await page.reload();
     await page.goto(`/cases/${caseId}`);
+    await page.reload();
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
       timeout: 30_000,
     });
+    await expect(page.getByText(oldBody)).toBeVisible({ timeout: 15_000 });
 
     await page.route("**/rest/v1/cases_visible*", async (route) => {
       const req = route.request();
@@ -301,7 +301,7 @@ describeBackend("cases list vs full split (isolated)", () => {
       process_note: newBody,
     });
 
-    await page.goto("/cases");
+    await page.getByRole("link", { name: "案件管理" }).click();
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(`${title}-newer`)).toBeVisible({ timeout: 30_000 });
     await page.goto(`/cases/${caseId}`);
