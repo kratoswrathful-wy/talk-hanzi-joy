@@ -116,15 +116,23 @@ describeBackend("cases list backend errors (isolated)", () => {
   });
 });
 
-function isCasesVisibleSingleFullGet(url: string, caseId?: string): boolean {
+function isCasesVisibleStarSelect(url: string): boolean {
   if (!url.includes("/rest/v1/cases_visible")) return false;
+  try {
+    return new URL(url).searchParams.get("select") === "*";
+  } catch {
+    return /[?&]select=\*/.test(url);
+  }
+}
+
+function isCasesVisibleSingleFullGet(url: string, caseId?: string): boolean {
+  if (!isCasesVisibleStarSelect(url)) return false;
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return false;
   }
-  if (parsed.searchParams.get("select") !== "*") return false;
   const idEq = parsed.searchParams.get("id");
   if (!idEq || !idEq.startsWith("eq.")) return false;
   if (caseId && idEq !== `eq.${caseId}`) return false;
@@ -284,7 +292,7 @@ describeBackend("cases list vs full split (isolated)", () => {
 
     await page.route("**/rest/v1/cases_visible*", async (route) => {
       const req = route.request();
-      if (req.method() === "GET" && isCasesVisibleSingleFullGet(req.url(), caseId)) {
+      if (req.method() === "GET" && isCasesVisibleStarSelect(req.url())) {
         await route.fulfill({
           status: 500,
           contentType: "application/json",
