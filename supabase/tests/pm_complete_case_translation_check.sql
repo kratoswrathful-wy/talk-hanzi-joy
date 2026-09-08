@@ -9,6 +9,7 @@ declare
   v_t1 uuid := gen_random_uuid();
   v_t2 uuid := gen_random_uuid();
   v_pm uuid := gen_random_uuid();
+  v_exec uuid := gen_random_uuid();
   v_rv uuid := gen_random_uuid();
   v_case uuid := gen_random_uuid();
   v_case_empty uuid := gen_random_uuid();
@@ -27,14 +28,17 @@ begin
     (v_t1, 'pm-complete-t1@test.local', '{"display_name":"T1"}'),
     (v_t2, 'pm-complete-t2@test.local', '{"display_name":"T2"}'),
     (v_pm, 'pm-complete-pm@test.local', '{"display_name":"PM"}'),
+    (v_exec, 'pm-complete-exec@test.local', '{"display_name":"EXEC"}'),
     (v_rv, 'pm-complete-rv@test.local', '{"display_name":"RV"}');
   update public.profiles set is_test = true, display_name = 'T1' where id = v_t1;
   update public.profiles set is_test = true, display_name = 'T2' where id = v_t2;
   update public.profiles set is_test = true, display_name = 'PM' where id = v_pm;
+  update public.profiles set is_test = true, display_name = 'EXEC' where id = v_exec;
   update public.profiles set is_test = true, display_name = 'RV' where id = v_rv;
-  delete from public.user_roles where user_id in (v_pm, v_t1, v_t2, v_rv);
+  delete from public.user_roles where user_id in (v_pm, v_exec, v_t1, v_t2, v_rv);
   insert into public.user_roles(user_id, role) values
     (v_pm, 'pm'),
+    (v_exec, 'executive'),
     (v_t1, 'member'),
     (v_t2, 'member'),
     (v_rv, 'member');
@@ -396,6 +400,153 @@ begin
     and access_revoked_at is null;
   if v_tr_count <> 1 then
     raise exception 'reviewer-only patch must keep translator participant';
+  end if;
+
+  -- 改派：舊譯者不可完成，新譯者可以；不造假 participant
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by, multi_collab
+  ) values (
+    gen_random_uuid(), '[ISO] reassign complete', 'dispatched', 'c',
+    jsonb_build_array('T1'), 'test', v_pm, false
+  ) returning id into v_case_empty;
+  insert into public.case_participants(
+    case_id, user_id, role, work_status, source, created_by, updated_by
+  ) values (
+    v_case_empty, v_t1, 'translator', 'active', 'pm_assign', v_pm, v_pm
+  );
+  select revision into v_revision from public.cases where id = v_case_empty;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_result := public.pm_update_case_assignments(
+    v_case_empty,
+    v_revision,
+    jsonb_build_object(
+      'translator', jsonb_build_array('T2'),
+      'translator_user_id', v_t2::text
+    )
+  );
+  reset role;
+  if coalesce(v_result->>'ok', 'false') <> 'true' then
+    raise exception 'reassign failed: %', v_result;
+  end if;
+  select count(*) into v_tr_count
+  from public.case_participants
+  where case_id = v_case_empty and user_id = v_t1 and role = 'translator'
+    and access_revoked_at is null;
+  if v_tr_count <> 0 then
+    raise exception 'old translator must be revoked after reassign';
+  end if;
+  select revision into v_revision from public.cases where id = v_case_empty;
+  if (select status from public.cases where id = v_case_empty) <> 'dispatched' then
+    raise exception 'reassign must not complete the case';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_blocked := false;
+  select count(*) into v_audit_before from public.case_mutation_audit where case_id = v_case_empty;
+  begin
+    perform public.complete_case_translation(v_case_empty, v_revision);
+  exception
+    when sqlstate 'P0002' or sqlstate '42501' then
+      v_blocked := true;
+  end;
+  reset role;
+  if not v_blocked then
+    raise exception 'revoked translator must not complete';
+  end if;
+  select count(*) into v_audit_after from public.case_mutation_audit where case_id = v_case_empty;
+  if v_audit_after <> v_audit_before then
+    raise exception 'rejected complete must not write audit';
+  end if;
+  if (select status from public.cases where id = v_case_empty) <> 'dispatched' then
+    raise exception 'rejected complete must not change status';
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t2::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_result := public.complete_case_translation(v_case_empty, v_revision);
+  reset role;
+  if v_result->>'status' <> 'task_completed' then
+    raise exception 'new translator complete failed: %', v_result;
+  end if;
+
+  -- executive 代完成（與 PM 同分權 is_admin）
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by, multi_collab
+  ) values (
+    gen_random_uuid(), '[ISO] exec complete', 'dispatched', 'c',
+    jsonb_build_array('T1'), 'test', v_pm, false
+  ) returning id into v_case_empty;
+  insert into public.case_participants(
+    case_id, user_id, role, work_status, source, created_by, updated_by
+  ) values (
+    v_case_empty, v_t1, 'translator', 'active', 'pm_assign', v_pm, v_pm
+  );
+  select revision into v_revision from public.cases where id = v_case_empty;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_exec::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_result := public.pm_complete_case_translation(v_case_empty, v_revision);
+  reset role;
+  if v_result->>'status' <> 'task_completed' then
+    raise exception 'executive pm_complete failed: %', v_result;
+  end if;
+  select actor_user_id into v_audit_actor
+  from public.case_mutation_audit
+  where case_id = v_case_empty and action = 'pm_complete_case_translation'
+  order by created_at desc
+  limit 1;
+  if v_audit_actor is distinct from v_exec then
+    raise exception 'executive complete audit actor must be executive';
+  end if;
+  if exists (
+    select 1 from public.case_participants
+    where case_id = v_case_empty and user_id = v_exec
+  ) then
+    raise exception 'executive complete must not insert a fake participant';
+  end if;
+
+  -- 身兼 PM＋有效譯者：本人完成 RPC 成功，且不插入第二個 participant
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by, multi_collab
+  ) values (
+    gen_random_uuid(), '[ISO] pm as translator', 'dispatched', 'c',
+    jsonb_build_array('PM'), 'test', v_pm, false
+  ) returning id into v_case_empty;
+  insert into public.case_participants(
+    case_id, user_id, role, work_status, source, created_by, updated_by
+  ) values (
+    v_case_empty, v_pm, 'translator', 'active', 'pm_assign', v_pm, v_pm
+  );
+  select revision into v_revision from public.cases where id = v_case_empty;
+  select count(*) into v_tr_count from public.case_participants where case_id = v_case_empty;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  v_result := public.complete_case_translation(v_case_empty, v_revision);
+  reset role;
+  if v_result->>'status' <> 'task_completed' then
+    raise exception 'pm-as-translator self complete failed: %', v_result;
+  end if;
+  if (select count(*) from public.case_participants where case_id = v_case_empty) <> v_tr_count then
+    raise exception 'pm-as-translator complete must not insert participants';
   end if;
 end;
 $$;

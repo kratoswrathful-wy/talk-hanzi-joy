@@ -55,9 +55,29 @@ audit 補充（不得詮釋成已修好）：
 | 新增案件 | `createWithOutcome`：列表與詳情皆保留同一 UUID；拒絕／讀不回／不明結果分開提示，不引導連點再建 |
 | 前端 | 詳情／列表分流 RPC；管理者代完成不發譯者 Slack |
 
-## 新增案件（同工項 B）
+## 新增案件：原始「點了沒反應」
 
-正式站「點了沒反應」不得預設成 `cases_visible` 57014。已區分：沒送出、後端拒絕、已建立但讀不回、結果不明。畫面必須說清楚；已建立不得報成「確定沒建立」。
+正式發布碼 `39002a1b`（不是本機後續 checkpoint）的列表入口是：
+
+```ts
+const newCase = await caseStore.create({ title: "新案件", ...templateValues });
+if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
+```
+
+`create()` 在 #89 已改成包 `createWithOutcome`，但**對外契約仍是**：只有 `kind === "created"` 才回傳紀錄，其餘一律 `null`。列表／詳情新增入口吃這個 `null` 後**沒有 toast、沒有識別、沒有導航**。
+
+因此可重現的吞錯層是 **UI 處理 `create() === null`**，不是「按鈕沒綁事件」本身：
+
+| 實際後端結果 | 當時畫面 | 分類 |
+|---|---|---|
+| 未送出（角色載入失敗導致按鈕未渲染） | 完全沒反應 | 第 3 項候選，本項未證實為主因 |
+| `admin_create_case` 被拒 | `create()`→null，無提示 | 2. 後端拒絕被吞 |
+| RPC 成功但 `cases_visible` 讀回失敗／逾時 | `create()`→null，無提示；案件可能已存在 | 3. 已建立但讀回／導航失敗 |
+| 連線中斷／回應遺失 | `create()`→null，無提示 | 4. 結果未知被當成沒發生 |
+
+`cases_visible` 整表 57014 只能列為**放大讀回失敗的候選**，除非同一操作證明讀回路徑就是該次 GET。本輪不把它當成按鈕失效的既定根因。
+
+修法：列表／詳情改呼 `createWithOutcome`，四種結果都有提示；已建立／不明結果保留同一 UUID 且防連點。這修的是吞錯與重複建案，不宣稱已解決列表逾時。
 
 ## 資料補正（獨立；本輪不執行）
 
