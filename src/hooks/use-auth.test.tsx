@@ -31,20 +31,25 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "profiles") {
         return {
           select: () => ({
-            eq: () => ({
-              abortSignal: () => ({
-                maybeSingle: () => profileSelect(),
-              }),
-            }),
+            eq: () => {
+              const maybeSingle = () => profileSelect();
+              return {
+                abortSignal: () => ({ maybeSingle }),
+                maybeSingle,
+              };
+            },
           }),
         };
       }
       if (table === "user_roles") {
         return {
           select: () => ({
-            eq: () => ({
-              abortSignal: () => rolesSelect(),
-            }),
+            eq: () => {
+              const result = rolesSelect();
+              return Object.assign(result, {
+                abortSignal: () => result,
+              });
+            },
           }),
         };
       }
@@ -170,13 +175,19 @@ describe("useAuth multi-consumer / identity / signOut", () => {
 
   it("profile 失敗不得被後到的 roles 成功清掉，且不與合法空 roles 混稱", async () => {
     let resolveProfile: ((v: unknown) => void) | null = null;
+    let resolveRoles: ((v: unknown) => void) | null = null;
     profileSelect.mockImplementation(
       () =>
         new Promise((resolve) => {
           resolveProfile = resolve;
         }),
     );
-    rolesSelect.mockResolvedValue({ data: [{ role: "pm" }], error: null });
+    rolesSelect.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRoles = resolve;
+        }),
+    );
 
     const { useAuth } = await import("./use-auth");
     const { result } = renderHook(() => useAuth());
@@ -185,6 +196,9 @@ describe("useAuth multi-consumer / identity / signOut", () => {
 
     await act(async () => {
       resolveProfile?.({ data: null, error: { message: "profile boom" } });
+    });
+    await act(async () => {
+      resolveRoles?.({ data: [{ role: "pm" }], error: null });
     });
 
     await waitFor(() => {
@@ -225,6 +239,13 @@ describe("useAuth multi-consumer / identity / signOut", () => {
 
     expect(result.current.identityRetryCapped).toBe(true);
     expect(rolesSelect.mock.calls.length).toBeLessThanOrEqual(before + 5);
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(result.current.identityRetryCapped).toBe(false);
+    expect(result.current.identityRetryCount).toBe(0);
+    expect(result.current.authPhase).toBe("anonymous");
   });
 
   it("refetchProfile 強制重新查詢", async () => {

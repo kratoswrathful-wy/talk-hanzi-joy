@@ -130,6 +130,8 @@ describeIdentity("auth identity load (isolated)", () => {
     }
     await expect(btn).toBeDisabled();
     await expect(session.page.getByText("已達重試上限").first()).toBeVisible();
+    await expect(session.page.getByTestId("auth-identity-relogin-button")).toBeVisible();
+    await expect(session.page.getByText("請按「登出」後再登入").first()).toBeVisible();
     await expect(session.page.getByRole("heading", { name: "案件管理" })).toHaveCount(0);
     expect(rolesHits).toBeLessThanOrEqual(afterReload + 5);
     await session.close();

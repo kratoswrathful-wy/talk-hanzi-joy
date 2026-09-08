@@ -239,25 +239,26 @@ function AuthRecoverableScreen({
 }
 
 function identityFailureCopy(source: "roles" | "profile" | "both" | null, retryCapped: boolean) {
+  const capHint = retryCapped
+    ? "已達重試上限，重試不會再送出，也不會自動再試。請按「登出」後再登入；上限會在登出或切換帳號時重置。"
+    : "請重試；這不是把你降級成一般成員的永久狀態。";
   if (source === "profile") {
     return {
       title: "個人資料載入失敗",
       description:
-        "帳號角色已另案處理；目前無法載入個人資料（顯示名稱、時區等）。已暫時限制進入系統，避免在資料不完整時誤開管理功能。請重試。",
+        "帳號角色已另案處理；目前無法載入個人資料（顯示名稱、時區等）。已暫時限制進入系統，避免在資料不完整時誤開管理功能。" +
+        capHint,
     };
   }
   if (source === "both") {
     return {
       title: "角色與個人資料載入失敗",
-      description:
-        "無法確認帳號角色與個人資料，已暫時限制管理權限。這不是把你降級成一般成員的永久狀態。請重試。",
+      description: "無法確認帳號角色與個人資料，已暫時限制管理權限。" + capHint,
     };
   }
   return {
     title: "角色資料載入失敗",
-    description: retryCapped
-      ? "無法確認帳號角色，已暫時限制管理權限。已達重試上限，請稍後再試；這不是把你降級成一般成員的永久狀態。"
-      : "無法確認帳號角色，已暫時限制管理權限。請重試；這不是把你降級成一般成員的永久狀態。",
+    description: "無法確認帳號角色，已暫時限制管理權限。" + capHint,
   };
 }
 
@@ -266,11 +267,13 @@ function IdentityRecoverableScreen({
   retryCapped,
   source,
   onRetry,
+  onSignOut,
 }: {
   retrying: boolean;
   retryCapped: boolean;
   source: "roles" | "profile" | "both" | null;
   onRetry: () => void;
+  onSignOut: () => void;
 }) {
   const copy = identityFailureCopy(source, retryCapped);
   return (
@@ -284,14 +287,25 @@ function IdentityRecoverableScreen({
           <AlertTitle>{copy.title}</AlertTitle>
           <AlertDescription className="mt-2 text-sm">{copy.description}</AlertDescription>
         </Alert>
-        <Button
-          type="button"
-          data-testid="auth-identity-retry-button"
-          disabled={retrying || retryCapped}
-          onClick={onRetry}
-        >
-          {retrying ? "重試中…" : retryCapped ? "已達重試上限" : "重試"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            data-testid="auth-identity-retry-button"
+            disabled={retrying || retryCapped}
+            onClick={onRetry}
+          >
+            {retrying ? "重試中…" : retryCapped ? "已達重試上限" : "重試"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="auth-identity-relogin-button"
+            disabled={retrying}
+            onClick={onSignOut}
+          >
+            登出
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -372,6 +386,7 @@ function AuthenticatedRoutes() {
         retryCapped={identityRetryCapped}
         source={identitySource}
         onRetry={() => void retryIdentity()}
+        onSignOut={() => void signOut()}
       />
     );
   }

@@ -45,8 +45,11 @@ export type RolesLoadResult =
   | IdentityLoadFailure;
 
 export const MAX_IDENTITY_RETRIES = 5;
-const DEFAULT_ROLES_TIMEOUT_MS = 12_000;
-const DEFAULT_PROFILE_TIMEOUT_MS = 12_000;
+/** 正式前端期限；測試可覆寫時鐘，不得當成已根治後端逾時。 */
+export const IDENTITY_ROLES_TIMEOUT_MS = 12_000;
+export const IDENTITY_PROFILE_TIMEOUT_MS = 12_000;
+const DEFAULT_ROLES_TIMEOUT_MS = IDENTITY_ROLES_TIMEOUT_MS;
+const DEFAULT_PROFILE_TIMEOUT_MS = IDENTITY_PROFILE_TIMEOUT_MS;
 
 let rolesTimeoutMs = DEFAULT_ROLES_TIMEOUT_MS;
 let profileTimeoutMs = DEFAULT_PROFILE_TIMEOUT_MS;
@@ -203,6 +206,8 @@ function runBounded<T>(
   abortTimeout: () => void,
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // 附加 catch 不改變 `run` 本身；避免逾時勝出後，晚到的 reject 變成 unhandled。
+  void run.catch(() => undefined);
   const timeoutPromise = new Promise<T>((_, reject) => {
     timer = setTimeout(() => {
       abortTimeout();
