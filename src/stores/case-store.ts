@@ -77,7 +77,12 @@ import {
 } from "@/lib/case-duplicate-tools";
 import { mergeCasePublicSnapshot } from "@/lib/case-public-snapshot";
 import { CASE_LIST_COLUMNS } from "@/lib/case-list-columns";
-import { casesAfterFullListFailure, mergeCaseListProjection } from "@/lib/case-list-load";
+import {
+  caseUpdateBlockedReason,
+  casesAfterFullListFailure,
+  mergeCaseListProjection,
+  type CaseCompleteness,
+} from "@/lib/case-list-load";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type DbCase = Database["public"]["Tables"]["cases"]["Row"];
@@ -298,8 +303,14 @@ let loadPromise: Promise<void> | null = null;
 let loadVersion = 0; // version counter to discard stale loads
 const listeners = new Set<Listener>();
 let currentUserId: string | null = null;
-/** 僅清單投影、尚未單筆拉齊的案件。詳情／複製必須再取 select("*")。 */
-const listProjectionIds = new Set<string>();
+/** 清單投影／完整列／過期完整快取。詳情與複製不得把 list／stale 當成可寫的最新完整資料。 */
+const completenessById = new Map<string, CaseCompleteness>();
+const fullLoadErrorById = new Map<string, string>();
+
+type FetchCaseFullResult =
+  | { ok: true; record: CaseRecord }
+  | { ok: false; kind: "missing" }
+  | { ok: false; kind: "error"; error: string };
 
 // Track in-flight optimistic updates to prevent poll/realtime from overwriting
 const pendingUpdates = new Map<string, Partial<CaseRecord>>();
@@ -503,18 +514,41 @@ function toDb(c: Partial<CaseRecord>): DbCaseUpdate {
 
 // ── Public API ──
 
+function setCompleteness(id: string, completeness: CaseCompleteness) {
+  completenessById.set(id, completeness);
+}
+
+function getCompleteness(id: string): CaseCompleteness | undefined {
+  return completenessById.get(id);
+}
+
+function getFullLoadError(id: string): string | null {
+  return fullLoadErrorById.get(id) ?? null;
+}
+
 /**
  * 單筆完整列（含 tools／附件／edit_logs）。清單投影不得當成已齊。
+ * 失敗回傳 error，不得讓呼叫端把「讀取失敗」當成「沒有這筆」。
  */
-async function fetchCaseFull(id: string): Promise<CaseRecord | undefined> {
+async function fetchCaseFull(id: string): Promise<FetchCaseFullResult> {
   let user;
   try {
     user = await getAuthenticatedUser();
   } catch (e) {
-    if (e instanceof AuthRecoverableError) return undefined;
+    if (e instanceof AuthRecoverableError) {
+      const msg = errorMessage(e);
+      fullLoadErrorById.set(id, msg);
+      notify();
+      return { ok: false, kind: "error", error: msg };
+    }
     throw e;
   }
-  if (!user) return undefined;
+  if (!user) {
+    const msg = "尚未登入，無法讀取完整案件。";
+    fullLoadErrorById.set(id, msg);
+    notify();
+    return { ok: false, kind: "error", error: msg };
+  }
 
   const env = getEnvironment();
   const { data, error } = await supabase
@@ -525,15 +559,24 @@ async function fetchCaseFull(id: string): Promise<CaseRecord | undefined> {
     .maybeSingle();
 
   if (error) {
-    console.error("[case-store] fetchCaseFull", errorMessage(error));
-    return undefined;
+    const msg = errorMessage(error);
+    console.error("[case-store] fetchCaseFull", msg);
+    fullLoadErrorById.set(id, msg);
+    notify();
+    return { ok: false, kind: "error", error: msg };
   }
-  if (!data) return undefined;
+  if (!data) {
+    fullLoadErrorById.delete(id);
+    completenessById.delete(id);
+    notify();
+    return { ok: false, kind: "missing" };
+  }
 
   const incoming = fromDb(asDbCase(data));
   const current = getById(id);
   const merged = mergeIncomingCase(current, incoming);
-  listProjectionIds.delete(id);
+  setCompleteness(id, "full");
+  fullLoadErrorById.delete(id);
   const idx = cases.findIndex((c) => c.id === id);
   if (idx >= 0) {
     cases = cases.map((c, i) => (i === idx ? merged : c));
@@ -541,17 +584,29 @@ async function fetchCaseFull(id: string): Promise<CaseRecord | undefined> {
     cases = [merged, ...cases];
   }
   notify();
-  return merged;
+  return { ok: true, record: merged };
+}
+
+/**
+ * 僅載入單一案件（詳情頁優先路徑）。
+ * 記憶體已是**最新完整列**才跳過網路；list／stale／缺列一律再取 select("*")。
+ */
+async function loadCaseFull(id: string): Promise<FetchCaseFullResult> {
+  if (completenessById.get(id) === "full") {
+    const existing = getById(id);
+    if (existing) return { ok: true, record: existing };
+  }
+  return fetchCaseFull(id);
 }
 
 /**
  * 僅載入單一案件（詳情頁優先路徑，避免等待全表清單逾時／阻塞）。
  * 記憶體已有**完整列**則立即回傳；清單投影或缺列則向 DB 取 select("*")。
+ * 讀取失敗回傳 undefined（與缺列相同形狀）；呼叫端若需區分請用 loadCaseFull。
  */
 async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
-  const existing = getById(id);
-  if (existing && !listProjectionIds.has(id)) return existing;
-  return fetchCaseFull(id);
+  const result = await loadCaseFull(id);
+  return result.ok ? result.record : undefined;
 }
 
 async function load() {
@@ -566,7 +621,8 @@ async function load() {
         cases = [];
         loaded = false;
         loadError = null;
-        listProjectionIds.clear();
+        completenessById.clear();
+        fullLoadErrorById.clear();
         loadPromise = null;
         notify();
         return;
@@ -595,11 +651,13 @@ async function load() {
       let fetched = (data || []).map((row) => {
         const incoming = fromDb(asDbCase(row));
         const current = currentById.get(incoming.id);
-        const currentIsFull = !!current && !listProjectionIds.has(incoming.id);
-        const merged = mergeCaseListProjection(current, incoming, currentIsFull);
-        if (currentIsFull) listProjectionIds.delete(incoming.id);
-        else listProjectionIds.add(incoming.id);
-        return merged;
+        const merged = mergeCaseListProjection(
+          current,
+          incoming,
+          completenessById.get(incoming.id),
+        );
+        setCompleteness(incoming.id, merged.completeness);
+        return merged.record;
       });
 
       if (pendingUpdates.size > 0) {
@@ -661,6 +719,8 @@ function getById(id: string): CaseRecord | undefined {
 /** 建案後的本地登錄（樂觀顯示 + 短期保護，避免整表刷新把剛建的案蓋掉）。 */
 function adoptCreatedCase(record: CaseRecord) {
   cases = [record, ...cases];
+  setCompleteness(record.id, "full");
+  fullLoadErrorById.delete(record.id);
   pendingUpdates.set(record.id, { title: record.title, status: record.status });
   const existingTimer = pendingCleanupTimers.get(record.id);
   if (existingTimer) clearTimeout(existingTimer);
@@ -767,6 +827,10 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
 }
 
 async function update(id: string, partial: Partial<CaseRecord>) {
+  const blocked = caseUpdateBlockedReason(completenessById.get(id), partial);
+  if (blocked) {
+    return new Error(blocked);
+  }
   const prev = getById(id);
   const shouldSyncCatAssignments =
     !!prev &&
@@ -1100,6 +1164,8 @@ async function remove(id: string) {
   const { error } = await adminDeleteCase(supabase, id, current?.revision ?? 0);
   if (!error) {
     cases = cases.filter((c) => c.id !== id);
+    completenessById.delete(id);
+    fullLoadErrorById.delete(id);
     caseCredentialAccess.clear(id);
     notify();
   }
@@ -1117,7 +1183,8 @@ function reset() {
   loadPromise = null;
   cases = [];
   currentUserId = null;
-  listProjectionIds.clear();
+  completenessById.clear();
+  fullLoadErrorById.clear();
 
   pendingUpdates.clear();
   inFlightCount.clear();
@@ -1400,8 +1467,11 @@ async function duplicate(
   sort: CaseDuplicateSort = DEFAULT_DUPLICATE_SORT
 ): Promise<CaseDuplicateOutcome> {
   try {
-    const source = await fetchCaseFull(id);
-    if (!source) return abortDuplicate("source_not_found");
+    const sourceResult = await fetchCaseFull(id);
+    if (sourceResult.ok !== true) {
+      return abortDuplicate(sourceResult.kind === "missing" ? "source_not_found" : "source_read_failed");
+    }
+    const source = sourceResult.record;
 
     const user = await getAuthenticatedUser().catch((e) => {
       if (e instanceof AuthRecoverableError) return null;
@@ -1739,6 +1809,9 @@ export const caseStore = {
   load,
   retryLoad,
   loadCaseIfMissing,
+  loadCaseFull,
+  getCompleteness,
+  getFullLoadError,
   getAll,
   getById,
   isLoaded,

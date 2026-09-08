@@ -1773,11 +1773,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.updateTBLangs":
       return await supabase.from("cat_tbs").update({ source_langs: payload.sourceLangs ?? [], target_langs: payload.targetLangs ?? [], last_modified: nowIso() } as any).eq("id", payload.tbId);
     case "db.getTBs": {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("cat_tbs")
         .select(CAT_TB_LIST_COLUMNS)
         .eq("env", env)
         .order("created_at", { ascending: true, nullsFirst: true });
+      if (error) throw error;
       return (data ?? []).map(mapTbRow);
     }
     case "db.getTB": {

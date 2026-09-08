@@ -4,6 +4,7 @@ import { assertWritableToolCredentials } from "@/lib/case-tool-credentials-guard
 
 export type DuplicateToolsAbortReason =
   | "source_not_found"
+  | "source_read_failed"
   | "source_credentials_unavailable"
   | "source_credentials_masked"
   | "source_case_mismatch"
@@ -53,6 +54,7 @@ export const DUP_TOOLS_PENDING_STORAGE_KEY = "tms.dupToolsPending.v1";
 
 const ABORT_MESSAGES: Record<DuplicateToolsAbortReason, string> = {
   source_not_found: "找不到來源案件，已取消複製。",
+  source_read_failed: "來源案件完整資料讀取失敗，已取消複製。請重試後再複製。",
   source_credentials_unavailable: "來源案件的完整工具資料無法讀取，已取消複製。",
   source_credentials_masked: "來源工具仍是公開遮罩或未載入底稿，已取消複製。",
   source_case_mismatch: "讀到的工具資料不屬於來源案件，已取消複製。",

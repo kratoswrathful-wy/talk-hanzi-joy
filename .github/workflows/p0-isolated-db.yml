@@ -434,7 +434,7 @@ jobs:
             echo "::error::Playwright URL is not local loopback"
             exit 1
           fi
-          npx playwright test tests/cases-list-load.spec.ts --project=chromium
+          npx playwright test tests/cases-list-load.spec.ts tests/cat-backend-errors.spec.ts --project=chromium
 
       - name: Upload backend-errors Playwright report
         if: always() && steps.meta.outputs.suite == 'backend-errors'

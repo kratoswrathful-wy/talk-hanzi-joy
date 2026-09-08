@@ -5170,12 +5170,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     // DATA LOADERS
     // ==========================================
     async function loadDashboardData() {
-        const ps = await DBService.getProjects();
-        const tms = await DBService.getTMs();
-        const tbs = await DBService.getTBs();
-        statProjects.textContent = ps.length;
-        statTMs.textContent = tms.length;
-        statTBs.textContent = tbs.length;
+        const applyStat = async (el, loader) => {
+            if (!el) return;
+            try {
+                const rows = await loader();
+                const n = Array.isArray(rows) ? rows.length : 0;
+                el.textContent = String(n);
+                el.dataset.loadState = n ? 'ready' : 'empty';
+            } catch (_) {
+                el.textContent = '載入失敗';
+                el.dataset.loadState = 'error';
+            }
+        };
+        await applyStat(statProjects, () => DBService.getProjects());
+        await applyStat(statTMs, () => DBService.getTMs());
+        await applyStat(statTBs, () => DBService.getTBs());
 
         // 讀取使用者介面偏好（隱藏已完成，預設 true）
         if (dashboardHideCompleted) {
@@ -8842,9 +8851,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** 專案頁：僅顯示已掛載 TB（唯讀） */
     async function loadProjectTbs(project) {
-        const tbs = await DBService.getTBs();
         const projectTbListBody = document.getElementById('projectTbListBody');
         if (!projectTbListBody) return;
+        let tbs;
+        try {
+            tbs = await DBService.getTBs();
+        } catch (_) {
+            projectTbListBody.innerHTML = '<tr data-load-state="error"><td colspan="4" style="padding:0.75rem; color:#b45309;">術語庫載入失敗，請稍後重試。</td></tr>';
+            return;
+        }
 
         if (tbs.length === 0) {
             projectTbListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何術語庫。請至 TB 管理頁面新增。</td></tr>';
@@ -8900,7 +8915,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body.innerHTML = '';
         DBService.getTBs().then(tbs => {
             if (!tbs.length) {
-                body.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中尚無 TB。</td></tr>';
+                body.innerHTML = '<tr data-load-state="empty"><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中尚無 TB。</td></tr>';
                 return;
             }
             tbs.forEach((tb, idx) => {
@@ -8925,6 +8940,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
                 body.appendChild(tr);
             });
+        }).catch(() => {
+            body.innerHTML = '<tr data-load-state="error"><td colspan="5" style="padding:0.75rem; color:#b45309;">術語庫載入失敗</td></tr>';
         });
     }
 
@@ -10876,7 +10893,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function loadTBList() {
-        lastTbListItems = await DBService.getTBs();
+        try {
+            lastTbListItems = await DBService.getTBs();
+        } catch (_) {
+            lastTbListItems = [];
+            if (tbList) {
+                tbList.innerHTML = '<tr data-load-state="error"><td colspan="6" style="padding:0.75rem; border:1px solid #e2e8f0; color:#b45309; font-size:0.9rem;">術語庫載入失敗</td></tr>';
+            }
+            return;
+        }
         await applyTbListFilter();
         if (tbListChangeLog) {
             const logs = await DBService.getModuleLogs('tb', 0);

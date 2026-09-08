@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CaseRecord } from "@/data/case-types";
 import {
+  caseUpdateBlockedReason,
   casesAfterFullListFailure,
   casesListEmptyKind,
+  listSnapshotIsNewer,
   mergeCaseListProjection,
 } from "./case-list-load";
 
@@ -77,25 +79,53 @@ function stubCase(partial: Partial<CaseRecord> & { id: string; updatedAt: string
 }
 
 describe("mergeCaseListProjection", () => {
-  it("詳情已載入完整列時，清單刷新不得清掉 tools／edit_logs", () => {
+  it("詳情已載入完整列且清單未更新時，保留 tools／edit_logs 且仍為 full", () => {
     const current = stubCase({
       id: "a",
       updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 3,
       title: "舊標題",
       tools: [{ id: "t1", tool: "memoQ", fieldValues: {} }],
       edit_logs: [{ id: "e1", changedBy: "x", description: "d", timestamp: "2026-09-08T09:00:00.000Z" }],
     });
     const incoming = stubCase({
       id: "a",
-      updatedAt: "2026-09-08T11:00:00.000Z",
-      title: "新標題",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 3,
+      title: "舊標題",
       tools: [],
       edit_logs: [],
     });
-    const merged = mergeCaseListProjection(current, incoming, true);
-    expect(merged.title).toBe("新標題");
-    expect(merged.tools).toEqual([{ id: "t1", tool: "memoQ", fieldValues: {} }]);
-    expect(merged.edit_logs).toHaveLength(1);
+    const merged = mergeCaseListProjection(current, incoming, "full");
+    expect(merged.completeness).toBe("full");
+    expect(merged.record.title).toBe("舊標題");
+    expect(merged.record.tools).toEqual([{ id: "t1", tool: "memoQ", fieldValues: {} }]);
+    expect(merged.record.edit_logs).toHaveLength(1);
+  });
+
+  it("已快取完整案件、清單收到較新版本：保留舊內文但標 stale，不得當最新完整資料", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 3,
+      title: "舊標題",
+      processNote: "舊備註",
+      tools: [{ id: "t1", tool: "memoQ", fieldValues: {} }],
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T11:00:00.000Z",
+      revision: 4,
+      title: "新標題",
+      processNote: "",
+      tools: [],
+    });
+    const merged = mergeCaseListProjection(current, incoming, "full");
+    expect(merged.completeness).toBe("stale");
+    expect(merged.record.title).toBe("新標題");
+    expect(merged.record.revision).toBe(4);
+    expect(merged.record.processNote).toBe("舊備註");
+    expect(merged.record.tools).toEqual([{ id: "t1", tool: "memoQ", fieldValues: {} }]);
   });
 
   it("僅清單列、記憶體沒有完整資料時，不把空陣列當成「保留」", () => {
@@ -105,9 +135,34 @@ describe("mergeCaseListProjection", () => {
       title: "僅清單",
       tools: [],
     });
-    const merged = mergeCaseListProjection(undefined, incoming, false);
-    expect(merged.title).toBe("僅清單");
-    expect(merged.tools).toEqual([]);
+    const merged = mergeCaseListProjection(undefined, incoming, undefined);
+    expect(merged.completeness).toBe("list");
+    expect(merged.record.title).toBe("僅清單");
+    expect(merged.record.tools).toEqual([]);
+  });
+});
+
+describe("listSnapshotIsNewer", () => {
+  it("revision 較高即為較新，即使 updatedAt 較舊", () => {
+    const current = stubCase({ id: "a", updatedAt: "2026-09-08T12:00:00.000Z", revision: 2 });
+    const incoming = stubCase({ id: "a", updatedAt: "2026-09-08T11:00:00.000Z", revision: 3 });
+    expect(listSnapshotIsNewer(current, incoming)).toBe(true);
+  });
+});
+
+describe("caseUpdateBlockedReason", () => {
+  it("完整列可寫 omitted 欄", () => {
+    expect(caseUpdateBlockedReason("full", { processNote: "x" })).toBeNull();
+  });
+
+  it("清單列／過期列不得寫入內文或附件", () => {
+    expect(caseUpdateBlockedReason("list", { processNote: "x" })).toMatch(/完整內容尚未載入或已過期/);
+    expect(caseUpdateBlockedReason("stale", { bodyContent: [] })).toMatch(/完整內容尚未載入或已過期/);
+  });
+
+  it("清單列仍可寫標題／狀態", () => {
+    expect(caseUpdateBlockedReason("list", { title: "t", status: "draft" })).toBeNull();
+    expect(caseUpdateBlockedReason("stale", { title: "t" })).toBeNull();
   });
 });
 

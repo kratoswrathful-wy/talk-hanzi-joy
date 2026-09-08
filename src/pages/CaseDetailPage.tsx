@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
+import type { CaseCompleteness } from "@/lib/case-list-load";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
@@ -340,7 +341,7 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
 }
 
 /** IME-safe title input — single line */
-function TitleInput({ value, onSave, autoFocusSelect }: { value: string; onSave: (v: string) => void; autoFocusSelect?: boolean }) {
+function TitleInput({ value, onSave, autoFocusSelect, readOnly }: { value: string; onSave: (v: string) => void; autoFocusSelect?: boolean; readOnly?: boolean }) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -362,10 +363,14 @@ function TitleInput({ value, onSave, autoFocusSelect }: { value: string; onSave:
       type="text"
       data-testid="case-title-input"
       value={local}
-      onChange={(e) => setLocal(e.target.value)}
+      readOnly={!!readOnly}
+      onChange={(e) => {
+        if (readOnly) return;
+        setLocal(e.target.value);
+      }}
       onBlur={() => {
         setFocused(false);
-        if (local !== value) onSave(local);
+        if (!readOnly && local !== value) onSave(local);
       }}
       onFocus={(e) => {
         setFocused(true);
@@ -1120,6 +1125,8 @@ export default function CaseDetailPage() {
   /** Single fetch hung past CASE_LOAD_TIMEOUT_MS */
   const [caseLoadTimedOut, setCaseLoadTimedOut] = useState(false);
   const [loadRetryNonce, setLoadRetryNonce] = useState(0);
+  const [recordCompleteness, setRecordCompleteness] = useState<CaseCompleteness | "missing">("missing");
+  const [fullLoadError, setFullLoadError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
   const [collabCountDialogOpen, setCollabCountDialogOpen] = useState(false);
@@ -1215,49 +1222,69 @@ export default function CaseDetailPage() {
     if (!id) return;
     setCaseLoadTimedOut(false);
     const found = caseStore.getById(id);
+    const completeness = caseStore.getCompleteness(id);
     const exp = duplicateExpectedTitle;
-    if (found) {
+    setRecordCompleteness(completeness ?? (found ? "list" : "missing"));
+    setFullLoadError(caseStore.getFullLoadError(id));
+    if (found && (completeness === "full" || completeness === "stale")) {
       const merged = exp && found.title !== exp ? { ...found, title: exp } : found;
       setCaseData(merged);
       setLoading(false);
-    } else {
-      setCaseData(null);
-      setLoading(true);
+      return;
     }
+    setCaseData(null);
+    setLoading(true);
   }, [id, duplicateExpectedTitle]);
 
   useEffect(() => {
     let mounted = true;
     if (!id) return;
 
+    const applyStoreSnapshot = () => {
+      const completeness = caseStore.getCompleteness(id);
+      const found = caseStore.getById(id);
+      setRecordCompleteness(completeness ?? (found ? "list" : "missing"));
+      setFullLoadError(caseStore.getFullLoadError(id));
+      if (!(completeness === "full" || completeness === "stale") || !found) return;
+      const exp = dupExpectedRef.current;
+      const merged = exp && found.title !== exp ? { ...found, title: exp } : found;
+      setCaseData(merged);
+      setLoading(false);
+    };
+
     const run = async () => {
       setCaseLoadTimedOut(false);
       try {
         await Promise.race([
-          caseStore.loadCaseIfMissing(id),
+          caseStore.loadCaseFull(id),
           caseDetailLoadTimeoutPromise(),
         ]);
       } catch (e) {
         if (e instanceof Error && e.message === CASE_LOAD_TIMEOUT_ERROR) {
           if (!mounted) return;
+          const completeness = caseStore.getCompleteness(id);
+          if (completeness === "full" || completeness === "stale") {
+            applyStoreSnapshot();
+            return;
+          }
           setCaseData(null);
           setLoading(false);
           setCaseLoadTimedOut(true);
           return;
         }
-        console.error("[CaseDetailPage] loadCaseIfMissing", e);
+        console.error("[CaseDetailPage] loadCaseFull", e);
       }
       if (!mounted) return;
+      const completeness = caseStore.getCompleteness(id);
       const found = caseStore.getById(id);
-      const exp = dupExpectedRef.current;
-      if (!found) {
+      setRecordCompleteness(completeness ?? (found ? "list" : "missing"));
+      setFullLoadError(caseStore.getFullLoadError(id));
+      if (completeness === "full" || completeness === "stale") {
+        applyStoreSnapshot();
+      } else {
         setCaseData(null);
         setLoading(false);
-        return;
       }
-      const merged = exp && found.title !== exp ? { ...found, title: exp } : found;
-      setCaseData(merged);
-      setLoading(false);
 
       // 背景同步全表（列表頁／即時更新用）；不阻塞詳情頁首次顯示
       void caseStore.load().catch((err) => console.error("[CaseDetailPage] case full load", err));
@@ -1267,14 +1294,7 @@ export default function CaseDetailPage() {
 
     const unsub = caseStore.subscribe(() => {
       if (!mounted) return;
-      const found = caseStore.getById(id);
-      if (!found) return;
-      const exp = dupExpectedRef.current;
-      if (exp && found.title !== exp) {
-        setCaseData({ ...found, title: exp });
-        return;
-      }
-      setCaseData(found);
+      applyStoreSnapshot();
     });
     return () => {
       mounted = false;
@@ -1434,6 +1454,14 @@ export default function CaseDetailPage() {
 
   const save = useCallback(
     (partial: Partial<CaseRecord>) => {
+      if (!id || caseStore.getCompleteness(id) !== "full") {
+        toast({
+          title: "完整內容尚未載入或已過期",
+          description: "請重新載入成功後再儲存，以免用舊內容覆寫新資料。",
+          variant: "destructive",
+        });
+        return;
+      }
       setCaseData((prev) => {
         if (!prev) return prev;
         let merged: Partial<CaseRecord> = partial;
@@ -1636,7 +1664,7 @@ export default function CaseDetailPage() {
         return { ...prev, ...merged };
       });
     },
-    [profile]
+    [id, profile]
   );
 
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
@@ -1945,6 +1973,12 @@ export default function CaseDetailPage() {
   }, [caseData?.bodyContent]);
   const pendingDuplicateTools = usePendingDuplicateTools(caseData?.id);
 
+  const retryFullLoad = (keepVisible: boolean) => {
+    setCaseLoadTimedOut(false);
+    if (!keepVisible) setLoading(true);
+    setLoadRetryNonce((n) => n + 1);
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
   }
@@ -1958,11 +1992,28 @@ export default function CaseDetailPage() {
         <Button
           type="button"
           variant="secondary"
-          onClick={() => {
-            setCaseLoadTimedOut(false);
-            setLoading(true);
-            setLoadRetryNonce((n) => n + 1);
-          }}
+          onClick={() => retryFullLoad(false)}
+        >
+          重試
+        </Button>
+      </div>
+    );
+  }
+  if (!caseData && fullLoadError) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center gap-4 min-h-[16rem] px-4 text-center"
+        data-testid="case-detail-full-load-error"
+      >
+        <p className="text-muted-foreground max-w-md">
+          案件完整內容載入失敗。清單資料不能當成完整案件，也尚未開放儲存。請重試。
+        </p>
+        <p className="text-xs text-muted-foreground max-w-md break-all">{fullLoadError}</p>
+        <Button
+          type="button"
+          variant="secondary"
+          data-testid="case-detail-full-load-retry"
+          onClick={() => retryFullLoad(false)}
         >
           重試
         </Button>
@@ -1972,6 +2023,10 @@ export default function CaseDetailPage() {
   if (!caseData) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">找不到此案件</div>;
   }
+
+  const contentWritable = recordCompleteness === "full";
+  const omittedPreview = safeBodyContent.map(extractBlockText).filter(Boolean).join("\n")
+    || (caseData.processNote || "").trim();
 
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
@@ -2293,7 +2348,33 @@ export default function CaseDetailPage() {
   const internalComments = caseData.internalComments || [];
 
   return (
-    <div className="space-y-1 max-w-3xl overflow-hidden">
+    <div
+      className="space-y-1 max-w-3xl overflow-hidden"
+      data-testid="case-detail-completeness"
+      data-completeness={recordCompleteness}
+    >
+      {recordCompleteness === "stale" && (
+        <div
+          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm space-y-2"
+          data-testid="case-detail-stale-banner"
+        >
+          <p>
+            清單已有較新版本，畫面上的內文／附件可能過期，不能用來覆寫新內容。請重新載入完整資料後再編輯。
+          </p>
+          {fullLoadError ? (
+            <p className="text-xs text-muted-foreground break-all">完整內容重新讀取失敗：{fullLoadError}</p>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            data-testid="case-detail-stale-retry"
+            onClick={() => retryFullLoad(true)}
+          >
+            重新載入完整內容
+          </Button>
+        </div>
+      )}
       <div className="space-y-1">
         {pendingDuplicateTools && !dupDialogOpen && (
           <div
@@ -2663,6 +2744,7 @@ export default function CaseDetailPage() {
                 value={caseData.title}
                 onSave={(v) => save({ title: v })}
                 autoFocusSelect={autoFocusTitle}
+                readOnly={!contentWritable}
               />
             </div>
           </div>
@@ -2700,6 +2782,7 @@ export default function CaseDetailPage() {
               value={caseData.title}
               onSave={(v) => save({ title: v })}
               autoFocusSelect={autoFocusTitle}
+              readOnly={!contentWritable}
             />
           </div>
         </div>
@@ -3589,15 +3672,24 @@ export default function CaseDetailPage() {
       {/* 案件說明 */}
       <div className="space-y-2">
         <h2 className="text-base font-semibold">案件說明</h2>
-        <CaseBodyEditorBoundary caseId={caseData.id}>
-          <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
-            <RichTextEditor
-              key={caseData.id}
-              initialContent={safeBodyContent}
-              onChange={(blocks) => save({ bodyContent: blocks })}
-            />
-          </Suspense>
-        </CaseBodyEditorBoundary>
+        {contentWritable ? (
+          <CaseBodyEditorBoundary caseId={caseData.id}>
+            <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
+              <RichTextEditor
+                key={caseData.id}
+                initialContent={safeBodyContent}
+                onChange={(blocks) => save({ bodyContent: blocks })}
+              />
+            </Suspense>
+          </CaseBodyEditorBoundary>
+        ) : (
+          <div
+            data-testid="case-detail-omitted-preview"
+            className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm whitespace-pre-wrap min-h-[4rem]"
+          >
+            {omittedPreview || "（完整內容尚未重新讀取，未開放編輯）"}
+          </div>
+        )}
       </div>
 
       <Separator />
