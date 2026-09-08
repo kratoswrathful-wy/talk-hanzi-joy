@@ -51,12 +51,20 @@ function timestampMs(value: string | undefined): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-/** 清單列是否比已快取完整／過期列更新（先比 revision，再比 updatedAt）。 */
+function revisionNumber(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** 清單列是否比已快取完整／過期列更新（先比 revision，再比 updatedAt；同版時標題／狀態變了也算較新）。 */
 export function listSnapshotIsNewer(current: CaseRecord, incoming: CaseRecord): boolean {
-  const currentRev = current.revision ?? 0;
-  const incomingRev = incoming.revision ?? 0;
+  const currentRev = revisionNumber(current.revision);
+  const incomingRev = revisionNumber(incoming.revision);
   if (incomingRev !== currentRev) return incomingRev > currentRev;
-  return timestampMs(incoming.updatedAt) > timestampMs(current.updatedAt);
+  const currentTs = timestampMs(current.updatedAt);
+  const incomingTs = timestampMs(incoming.updatedAt);
+  if (incomingTs !== currentTs) return incomingTs > currentTs;
+  return incoming.title !== current.title || incoming.status !== current.status;
 }
 
 export function omittedKeysInPartial(

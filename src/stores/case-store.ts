@@ -361,7 +361,7 @@ function fromDb(row: DbCase): CaseRecord {
 
   return {
     id: row.id,
-    revision: typeof rowRevision === "number" ? rowRevision : 0,
+    revision: Number.isFinite(Number(rowRevision)) ? Number(rowRevision) : 0,
     title: row.title ?? "",
     status: (row.status || "draft") as CaseStatus,
     client: row.client ?? "",

@@ -128,6 +128,26 @@ describe("mergeCaseListProjection", () => {
     expect(merged.record.tools).toEqual([{ id: "t1", tool: "memoQ", fieldValues: {} }]);
   });
 
+  it("完整快取、清單標題已變但 revision 未變：仍標 stale", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 4,
+      title: "舊標題",
+      processNote: "舊備註",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 4,
+      title: "新標題",
+      processNote: "",
+    });
+    const merged = mergeCaseListProjection(current, incoming, "full");
+    expect(merged.completeness).toBe("stale");
+    expect(merged.record.processNote).toBe("舊備註");
+  });
+
   it("僅清單列、記憶體沒有完整資料時，不把空陣列當成「保留」", () => {
     const incoming = stubCase({
       id: "b",
@@ -146,6 +166,22 @@ describe("listSnapshotIsNewer", () => {
   it("revision 較高即為較新，即使 updatedAt 較舊", () => {
     const current = stubCase({ id: "a", updatedAt: "2026-09-08T12:00:00.000Z", revision: 2 });
     const incoming = stubCase({ id: "a", updatedAt: "2026-09-08T11:00:00.000Z", revision: 3 });
+    expect(listSnapshotIsNewer(current, incoming)).toBe(true);
+  });
+
+  it("同 revision／updatedAt 但標題已變，仍視為較新清單列", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 4,
+      title: "舊標題",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 4,
+      title: "新標題",
+    });
     expect(listSnapshotIsNewer(current, incoming)).toBe(true);
   });
 });

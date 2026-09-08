@@ -104,7 +104,7 @@ async function seedSyntheticCat(page: Page): Promise<SeededCat> {
   const xliffA = syntheticXliff({ original: "iso-a.txt", units: unitsA });
   const xliffB = syntheticXliff({ original: "iso-b.txt", units: unitsB });
   const seeded = await frame.locator("body").evaluate(
-    async ({ xmlA, xmlB, name, unitsA, unitsB }) => {
+    async (_el, { xmlA, xmlB, name, unitsA, unitsB }) => {
       const DB = new Function(
         'try { return typeof DBService !== "undefined" ? DBService : null; } catch { return null; }',
       )() as {
