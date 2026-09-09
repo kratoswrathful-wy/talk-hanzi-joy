@@ -241,11 +241,22 @@ describeBackend("CAT backend-errors isolated", () => {
     const chunks: Buffer[] = [];
     for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
     const xml = Buffer.concat(chunks).toString("utf8");
-    expect(xml).toContain("<trans-unit");
-    expect(xml).toContain(seeded.unitsA[0].source);
-    expect(xml).toContain(seeded.unitsA[0].target);
-    expect(xml).toContain(seeded.unitsA[1].target);
-    expect((xml.match(/<trans-unit\b/g) || []).length).toBe(2);
+    const parsed = await page.evaluate((raw) => {
+      const doc = new DOMParser().parseFromString(raw, "application/xml");
+      const err = doc.querySelector("parsererror");
+      if (err) return { ok: false as const, error: err.textContent || "parsererror", units: [] };
+      const units = Array.from(doc.getElementsByTagName("trans-unit")).map((el) => ({
+        id: el.getAttribute("id") || "",
+        source: el.getElementsByTagName("source")[0]?.textContent ?? "",
+        target: el.getElementsByTagName("target")[0]?.textContent ?? "",
+      }));
+      return { ok: true as const, error: "", units };
+    }, xml);
+    expect(parsed.ok, parsed.error || "匯出 XML 無法解析").toBe(true);
+    expect(parsed.units).toEqual([
+      { id: seeded.unitsA[0].id, source: seeded.unitsA[0].source, target: seeded.unitsA[0].target },
+      { id: seeded.unitsA[1].id, source: seeded.unitsA[1].source, target: seeded.unitsA[1].target },
+    ]);
 
     await page.route("**/rest/v1/cat_segments*", async (route) => {
       if (route.request().method() !== "GET") {

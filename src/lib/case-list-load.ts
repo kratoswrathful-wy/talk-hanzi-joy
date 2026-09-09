@@ -86,6 +86,32 @@ export function caseUpdateBlockedReason(
   return "案件完整內容尚未載入或已過期，未寫入內文／附件／工具。請重新載入後再儲存。";
 }
 
+export type FullCaseAdoption =
+  | { adopt: true; record: CaseRecord; completeness: "full" }
+  | { adopt: false; record: CaseRecord; completeness: CaseCompleteness };
+
+/**
+ * 單筆完整列是否可採納為目前最新完整資料。
+ * 記憶體已有較新清單／過期快取時，舊的完整回應必須拒絕，不得標 full。
+ */
+export function decideFullCaseAdoption(
+  current: CaseRecord | undefined,
+  incoming: CaseRecord,
+  currentCompleteness: CaseCompleteness | undefined,
+): FullCaseAdoption {
+  if (!current) {
+    return { adopt: true, record: incoming, completeness: "full" };
+  }
+  if (listSnapshotIsNewer(incoming, current)) {
+    return {
+      adopt: false,
+      record: current,
+      completeness: currentCompleteness ?? "list",
+    };
+  }
+  return { adopt: true, record: incoming, completeness: "full" };
+}
+
 /**
  * 清單投影合併。
  * - 記憶體沒有完整／過期快取：結果為 list，不得把空 omitted 當成已載入。

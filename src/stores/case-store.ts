@@ -75,11 +75,11 @@ import {
   type DuplicateToolsRetryStatus,
   type PendingDuplicateToolsRecord,
 } from "@/lib/case-duplicate-tools";
-import { mergeCasePublicSnapshot } from "@/lib/case-public-snapshot";
 import { CASE_LIST_COLUMNS } from "@/lib/case-list-columns";
 import {
   caseUpdateBlockedReason,
   casesAfterFullListFailure,
+  decideFullCaseAdoption,
   mergeCaseListProjection,
   type CaseCompleteness,
 } from "@/lib/case-list-load";
@@ -328,14 +328,6 @@ function notify() {
   listeners.forEach((l) => l());
 }
 
-/**
- * P0-A：公開 view 快照以較新者完整取代；禁止用本地「較豐富」tools／憑證補回遮罩空值。
- * （PR #80 Auth 的 loadVersion／TOKEN_REFRESHED 短路另見 load／onAuthStateChange。）
- */
-function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord): CaseRecord {
-  return mergeCasePublicSnapshot(current, incoming);
-}
-
 // ── DB ↔ App mapping ──
 
 function fromDb(row: DbCase): CaseRecord {
@@ -530,6 +522,32 @@ function getFullLoadError(id: string): string | null {
   return fullLoadErrorById.get(id) ?? null;
 }
 
+function replaceCaseRecord(id: string, record: CaseRecord) {
+  const idx = cases.findIndex((c) => c.id === id);
+  if (idx >= 0) {
+    cases = cases.map((c, i) => (i === idx ? record : c));
+  } else {
+    cases = [record, ...cases];
+  }
+}
+
+/**
+ * 完整列只有實際採納且版本不落後目前狀態時才能標 full。
+ * 被拒絕的舊回應不得解除 list／stale 的編輯限制。
+ */
+function applyAdoptedFullCase(
+  id: string,
+  incoming: CaseRecord,
+): { status: "adopted"; record: CaseRecord } | { status: "rejected" } {
+  const decision = decideFullCaseAdoption(getById(id), incoming, completenessById.get(id));
+  if (!decision.adopt) return { status: "rejected" };
+  setCompleteness(id, "full");
+  fullLoadErrorById.delete(id);
+  replaceCaseRecord(id, decision.record);
+  notify();
+  return { status: "adopted", record: decision.record };
+}
+
 /**
  * 單筆完整列（含 tools／附件／edit_logs）。清單投影不得當成已齊。
  * 失敗回傳 error，不得讓呼叫端把「讀取失敗」當成「沒有這筆」。
@@ -577,18 +595,14 @@ async function fetchCaseFull(id: string): Promise<FetchCaseFullResult> {
   }
 
   const incoming = fromDb(asDbCase(data));
-  const current = getById(id);
-  const merged = mergeIncomingCase(current, incoming);
-  setCompleteness(id, "full");
-  fullLoadErrorById.delete(id);
-  const idx = cases.findIndex((c) => c.id === id);
-  if (idx >= 0) {
-    cases = cases.map((c, i) => (i === idx ? merged : c));
-  } else {
-    cases = [merged, ...cases];
+  const applied = applyAdoptedFullCase(id, incoming);
+  if (applied.status === "rejected") {
+    const msg = "案件完整內容與目前清單版本不符，未套用過期資料。請重新載入。";
+    fullLoadErrorById.set(id, msg);
+    notify();
+    return { ok: false, kind: "error", error: msg };
   }
-  notify();
-  return { ok: true, record: merged };
+  return { ok: true, record: applied.record };
 }
 
 /**
@@ -1249,16 +1263,7 @@ async function requeryCaseFromView(id: string) {
   }
   if (pendingUpdates.has(id)) return;
   const incoming = fromDb(asDbCase(data));
-  const current = getById(id);
-  const merged = mergeIncomingCase(current, incoming);
-  setCompleteness(id, "full");
-  fullLoadErrorById.delete(id);
-  if (cases.some((c) => c.id === id)) {
-    cases = cases.map((c) => (c.id === id ? merged : c));
-  } else {
-    cases = [merged, ...cases];
-  }
-  notify();
+  applyAdoptedFullCase(id, incoming);
 }
 
 type CaseChangeSignalRow = {

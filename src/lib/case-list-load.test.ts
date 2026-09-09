@@ -4,6 +4,7 @@ import {
   caseUpdateBlockedReason,
   casesAfterFullListFailure,
   casesListEmptyKind,
+  decideFullCaseAdoption,
   listSnapshotIsNewer,
   mergeCaseListProjection,
 } from "./case-list-load";
@@ -159,6 +160,89 @@ describe("mergeCaseListProjection", () => {
     expect(merged.completeness).toBe("list");
     expect(merged.record.title).toBe("僅清單");
     expect(merged.record.tools).toEqual([]);
+  });
+});
+
+describe("decideFullCaseAdoption", () => {
+  it("沒有現況時採納完整列為 full", () => {
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 3,
+      processNote: "完整備註",
+    });
+    const decided = decideFullCaseAdoption(undefined, incoming, undefined);
+    expect(decided.adopt).toBe(true);
+    expect(decided.completeness).toBe("full");
+    expect(decided.record.processNote).toBe("完整備註");
+  });
+
+  it("僅清單資料、舊完整回應晚到：拒絕並維持 list，不得標 full", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T11:00:00.000Z",
+      revision: 4,
+      title: "新標題",
+      processNote: "",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 3,
+      title: "舊標題",
+      processNote: "舊備註",
+    });
+    const decided = decideFullCaseAdoption(current, incoming, "list");
+    expect(decided.adopt).toBe(false);
+    expect(decided.completeness).toBe("list");
+    expect(decided.record.title).toBe("新標題");
+    expect(decided.record.processNote).toBe("");
+    expect(caseUpdateBlockedReason(decided.completeness, { processNote: "x" })).toMatch(/尚未載入或已過期/);
+  });
+
+  it("有過期完整快取、舊完整回應晚到：拒絕並維持 stale，不得用新 revision 讓舊內文可寫", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T11:00:00.000Z",
+      revision: 4,
+      title: "新標題",
+      processNote: "舊備註",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T10:00:00.000Z",
+      revision: 3,
+      title: "舊標題",
+      processNote: "舊備註",
+    });
+    const decided = decideFullCaseAdoption(current, incoming, "stale");
+    expect(decided.adopt).toBe(false);
+    expect(decided.completeness).toBe("stale");
+    expect(decided.record.revision).toBe(4);
+    expect(decided.record.processNote).toBe("舊備註");
+    expect(caseUpdateBlockedReason(decided.completeness, { processNote: "overwrite" })).toMatch(/尚未載入或已過期/);
+  });
+
+  it("完整回應版本符合目前狀態：採納並標 full", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T11:00:00.000Z",
+      revision: 4,
+      title: "新標題",
+      processNote: "舊備註",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-08T11:00:00.000Z",
+      revision: 4,
+      title: "新標題",
+      processNote: "新備註",
+    });
+    const decided = decideFullCaseAdoption(current, incoming, "stale");
+    expect(decided.adopt).toBe(true);
+    expect(decided.completeness).toBe("full");
+    expect(decided.record.processNote).toBe("新備註");
+    expect(caseUpdateBlockedReason(decided.completeness, { processNote: "ok" })).toBeNull();
   });
 });
 
