@@ -31,7 +31,7 @@ export function CommentInput({
   draft: string;
   setDraft: (v: string) => void;
   placeholder: string;
-  onSubmit: (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[]) => void;
+  onSubmit: (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[]) => void | boolean | Promise<void | boolean>;
 }) {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [fileAttachments, setFileAttachments] = useState<{ name: string; url: string }[]>([]);
@@ -158,13 +158,14 @@ export function CommentInput({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!draft.trim() && imagePreviews.length === 0 && fileAttachments.length === 0) return;
-    onSubmit(
+    const result = await onSubmit(
       draft.trim(),
       imagePreviews.length > 0 ? imagePreviews : undefined,
       fileAttachments.length > 0 ? fileAttachments : undefined,
     );
+    if (result === false) return;
     setDraft("");
     setImagePreviews([]);
     setFileAttachments([]);
@@ -183,6 +184,7 @@ export function CommentInput({
       <div className="relative">
         <Textarea
           ref={textareaRef}
+          data-testid="comment-draft-input"
           value={draft}
           onChange={handleTextChange}
           onPaste={handlePaste}
@@ -341,6 +343,7 @@ export function CommentInput({
         </div>
         <Button
           size="sm" className="gap-1 text-xs"
+          data-testid="comment-submit"
           disabled={!draft.trim() && imagePreviews.length === 0 && fileAttachments.length === 0}
           onClick={handleSubmit}
         >

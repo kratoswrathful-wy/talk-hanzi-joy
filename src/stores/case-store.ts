@@ -31,10 +31,12 @@ import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
 import {
   buildAdminCreateAssignmentMeta,
+  casePartialHasAssignmentFields,
   splitDbCasePatch,
   wholeFileReviewerUserId,
 } from "@/lib/case-assignment-patch";
 import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
+import { adminWriteAccessFromRoles, createKeyedQueue } from "@/lib/case-write-queue";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
 import { isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
@@ -62,6 +64,7 @@ import {
   createUnknownMessage,
   credentialsMatchCopied,
   DUP_TOOLS_PENDING_STORAGE_KEY,
+  duplicateAbortFromFullFetch,
   duplicateAbortMessage,
   evaluateRetryDecision,
   evaluateSourceCredentials,
@@ -314,15 +317,29 @@ const fullLoadErrorById = new Map<string, string>();
 type FetchCaseFullResult =
   | { ok: true; record: CaseRecord }
   | { ok: false; kind: "missing" }
-  | { ok: false; kind: "error"; error: string };
+  | { ok: false; kind: "auth"; error: string }
+  | { ok: false; kind: "read_error"; error: string }
+  | { ok: false; kind: "version_conflict"; error: string };
+
+const FULL_LOAD_AUTH_MESSAGE = "目前登入身分尚未確認，無法讀取完整案件。請重新登入後再試。";
+const FULL_LOAD_READ_MESSAGE = "案件完整資料讀取失敗。請重試。";
+const FULL_LOAD_CONFLICT_MESSAGE = "案件完整內容與目前已確認版本不符，未套用過期資料。請重新載入。";
 
 // Track in-flight optimistic updates to prevent poll/realtime from overwriting
 const pendingUpdates = new Map<string, Partial<CaseRecord>>();
+const lastConfirmedRevisionById = new Map<string, number>();
+const caseWriteQueue = createKeyedQueue();
 // Count concurrent in-flight writes per case to avoid premature pending cleanup
 const inFlightCount = new Map<string, number>();
 // Keep pending patches for a short grace window after successful write (handles replica lag)
 const pendingCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const PENDING_CLEANUP_DELAY_MS = 5000;
+
+function rememberConfirmedRevision(id: string, revision: number | undefined) {
+  if (typeof revision === "number" && Number.isFinite(revision)) {
+    lastConfirmedRevisionById.set(id, revision);
+  }
+}
 
 function notify() {
   listeners.forEach((l) => l());
@@ -539,7 +556,10 @@ function applyAdoptedFullCase(
   id: string,
   incoming: CaseRecord,
 ): { status: "adopted"; record: CaseRecord } | { status: "rejected" } {
-  const decision = decideFullCaseAdoption(getById(id), incoming, completenessById.get(id));
+  const decision = decideFullCaseAdoption(getById(id), incoming, completenessById.get(id), {
+    lastConfirmedRevision: lastConfirmedRevisionById.get(id),
+    hasPending: (inFlightCount.get(id) || 0) > 0 || pendingUpdates.has(id),
+  });
   if (!decision.adopt) return { status: "rejected" };
   setCompleteness(id, "full");
   fullLoadErrorById.delete(id);
@@ -552,24 +572,27 @@ function applyAdoptedFullCase(
  * 單筆完整列（含 tools／附件／edit_logs）。清單投影不得當成已齊。
  * 失敗回傳 error，不得讓呼叫端把「讀取失敗」當成「沒有這筆」。
  */
-async function fetchCaseFull(id: string): Promise<FetchCaseFullResult> {
+async function fetchCaseFull(
+  id: string,
+  options: { retryOnConflict?: boolean } = {},
+): Promise<FetchCaseFullResult> {
+  const retryOnConflict = options.retryOnConflict !== false;
   let user;
   try {
     user = await getAuthenticatedUser();
   } catch (e) {
     if (e instanceof AuthRecoverableError) {
-      const msg = errorMessage(e);
-      fullLoadErrorById.set(id, msg);
+      console.error("[case-store] fetchCaseFull auth", errorMessage(e));
+      fullLoadErrorById.set(id, FULL_LOAD_AUTH_MESSAGE);
       notify();
-      return { ok: false, kind: "error", error: msg };
+      return { ok: false, kind: "auth", error: FULL_LOAD_AUTH_MESSAGE };
     }
     throw e;
   }
   if (!user) {
-    const msg = "尚未登入，無法讀取完整案件。";
-    fullLoadErrorById.set(id, msg);
+    fullLoadErrorById.set(id, FULL_LOAD_AUTH_MESSAGE);
     notify();
-    return { ok: false, kind: "error", error: msg };
+    return { ok: false, kind: "auth", error: FULL_LOAD_AUTH_MESSAGE };
   }
 
   const env = getEnvironment();
@@ -581,11 +604,10 @@ async function fetchCaseFull(id: string): Promise<FetchCaseFullResult> {
     .maybeSingle();
 
   if (error) {
-    const msg = errorMessage(error);
-    console.error("[case-store] fetchCaseFull", msg);
-    fullLoadErrorById.set(id, msg);
+    console.error("[case-store] fetchCaseFull", errorMessage(error));
+    fullLoadErrorById.set(id, FULL_LOAD_READ_MESSAGE);
     notify();
-    return { ok: false, kind: "error", error: msg };
+    return { ok: false, kind: "read_error", error: FULL_LOAD_READ_MESSAGE };
   }
   if (!data) {
     fullLoadErrorById.delete(id);
@@ -597,10 +619,12 @@ async function fetchCaseFull(id: string): Promise<FetchCaseFullResult> {
   const incoming = fromDb(asDbCase(data));
   const applied = applyAdoptedFullCase(id, incoming);
   if (applied.status === "rejected") {
-    const msg = "案件完整內容與目前清單版本不符，未套用過期資料。請重新載入。";
-    fullLoadErrorById.set(id, msg);
+    if (retryOnConflict) {
+      return fetchCaseFull(id, { retryOnConflict: false });
+    }
+    fullLoadErrorById.set(id, FULL_LOAD_CONFLICT_MESSAGE);
     notify();
-    return { ok: false, kind: "error", error: msg };
+    return { ok: false, kind: "version_conflict", error: FULL_LOAD_CONFLICT_MESSAGE };
   }
   return { ok: true, record: applied.record };
 }
@@ -673,6 +697,10 @@ async function load() {
           current,
           incoming,
           completenessById.get(incoming.id),
+          {
+            lastConfirmedRevision: lastConfirmedRevisionById.get(incoming.id),
+            hasPending: pendingUpdates.has(incoming.id),
+          },
         );
         setCompleteness(incoming.id, merged.completeness);
         return merged.record;
@@ -740,6 +768,7 @@ function getById(id: string): CaseRecord | undefined {
 function adoptCreatedCase(record: CaseRecord) {
   cases = [record, ...cases];
   setCompleteness(record.id, "full");
+  rememberConfirmedRevision(record.id, record.revision);
   fullLoadErrorById.delete(record.id);
   pendingUpdates.set(record.id, { title: record.title, status: record.status });
   const existingTimer = pendingCleanupTimers.get(record.id);
@@ -788,7 +817,7 @@ async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCrea
   if (!user) return { kind: "no_session" };
   const id = crypto.randomUUID();
   const rpcPayload = buildAdminCreateRpcPayload(toDb(partial));
-  const createMeta = buildAdminCreateAssignmentMeta(partial as Record<string, unknown>);
+  const createMeta = buildAdminCreateAssignmentMeta(partial);
   if (createMeta.translatorUserId) {
     rpcPayload.translator_user_id = createMeta.translatorUserId;
   }
@@ -863,7 +892,6 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     partial.status !== undefined &&
     partial.status !== prev.status &&
     (revertWorkflowStatuses as readonly string[]).includes(partial.status);
-  // 派案重構：過度同步策略──任一派案相關欄位變動即重跑（同步函式冪等，寧可多跑不漏跑）。
   void shouldSyncCatWorkflowOnStatusRevert;
   void nextStatus;
   const shouldSyncCatWorkflowAssignments =
@@ -884,41 +912,81 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     merged = { ...partial, changeLogEnabledAt: new Date().toISOString() };
   }
 
-  const mapped = toDb(merged);
-  mapped.updated_at = new Date().toISOString();
-
-  // Optimistic update BEFORE DB write to prevent poll/realtime from overwriting
-  const updatedAt = mapped.updated_at;
+  const mappedOptimistic = toDb(merged);
+  mappedOptimistic.updated_at = new Date().toISOString();
+  const updatedAt = mappedOptimistic.updated_at;
   cases = cases.map((c) => (c.id === id ? { ...c, ...merged, updatedAt } : c));
-
-  // Merge with existing pending updates instead of replacing to avoid losing concurrent writes
   pendingUpdates.set(id, { ...pendingUpdates.get(id), ...merged });
   inFlightCount.set(id, (inFlightCount.get(id) || 0) + 1);
 
-  // If a delayed cleanup was scheduled, cancel it because we have a new write.
   const cleanupTimer = pendingCleanupTimers.get(id);
   if (cleanupTimer) {
     clearTimeout(cleanupTimer);
     pendingCleanupTimers.delete(id);
   }
-
   notify();
+
+  return caseWriteQueue.enqueue(id, () => persistQueuedUpdate(id, {
+    partial,
+    merged,
+    shouldSyncCatAssignments,
+    shouldSyncCatWorkflowAssignments,
+  }));
+}
+
+function finishInFlight(id: string, keepPending: boolean) {
+  const remaining = (inFlightCount.get(id) || 1) - 1;
+  if (remaining > 0) {
+    inFlightCount.set(id, remaining);
+    return;
+  }
+  inFlightCount.delete(id);
+  if (keepPending) return;
+  const timer = setTimeout(() => {
+    pendingUpdates.delete(id);
+    pendingCleanupTimers.delete(id);
+  }, PENDING_CLEANUP_DELAY_MS);
+  pendingCleanupTimers.set(id, timer);
+}
+
+async function persistQueuedUpdate(
+  id: string,
+  ctx: {
+    partial: Partial<CaseRecord>;
+    merged: Partial<CaseRecord>;
+    shouldSyncCatAssignments: boolean;
+    shouldSyncCatWorkflowAssignments: boolean;
+  },
+) {
+  const { partial, merged, shouldSyncCatAssignments, shouldSyncCatWorkflowAssignments } = ctx;
+  const live = getById(id);
+  const mapped = toDb(merged);
+  mapped.updated_at = new Date().toISOString();
 
   const user = await getAuthenticatedUser().catch((e) => {
     if (e instanceof AuthRecoverableError) return null;
     throw e;
   });
-  const { data: roleRows } = user
+  const roleQuery = user
     ? await supabase.from("user_roles").select("role").eq("user_id", user.id)
-    : { data: null };
-  const isAdmin = (roleRows ?? []).some(
-    (row) => row.role === "pm" || row.role === "executive",
-  );
+    : { data: null, error: new Error("no_session") };
+  const access = adminWriteAccessFromRoles(roleQuery.data, roleQuery.error);
+  if (access.ok === false) {
+    finishInFlight(id, true);
+    notify();
+    return new Error(access.message);
+  }
+  if (!access.isAdmin && casePartialHasAssignmentFields(partial as Record<string, unknown>)) {
+    finishInFlight(id, true);
+    notify();
+    return new Error("目前身分不能寫入譯者、審稿或公布狀態。已保留畫面輸入。");
+  }
 
-  let error: Error | { message: string } | null;
+  let error: Error | { message: string } | null = null;
   let nextRevision: number | undefined;
-  if (isAdmin) {
-    let revision = prev?.revision ?? 0;
+  const liveRevision = live?.revision ?? 0;
+  if (access.isAdmin) {
+    let revision = liveRevision;
     const assignmentMeta = {
       translatorUserId: (partial as { translatorUserId?: string | null }).translatorUserId,
       reviewerUserId: (partial as { reviewerUserId?: string | null }).reviewerUserId,
@@ -939,6 +1007,7 @@ async function update(id: string, partial: Partial<CaseRecord>) {
       if (!error && typeof assignResult.data?.revision === "number") {
         revision = assignResult.data.revision;
         nextRevision = revision;
+        rememberConfirmedRevision(id, revision);
       }
     }
 
@@ -950,13 +1019,15 @@ async function update(id: string, partial: Partial<CaseRecord>) {
         revision,
       );
       error = result.error;
-      nextRevision = error
-        ? undefined
-        : (typeof result.data?.revision === "number"
-            ? result.data.revision
-            : revision + 1);
+      if (!error) {
+        nextRevision = typeof result.data?.revision === "number"
+          ? result.data.revision
+          : revision + 1;
+        rememberConfirmedRevision(id, nextRevision);
+      }
     } else if (!error && Object.keys(assignment).length > 0 && nextRevision === undefined) {
       nextRevision = revision;
+      rememberConfirmedRevision(id, nextRevision);
     }
   } else {
     const permittedKeys = new Set<keyof CaseRecord>([
@@ -979,44 +1050,20 @@ async function update(id: string, partial: Partial<CaseRecord>) {
     const result = await updateCasePermittedFields(
       supabase,
       id,
-      prev?.revision ?? -1,
+      liveRevision,
       changes,
     );
     error = result.error;
     nextRevision = result.data?.revision;
+    if (!error) rememberConfirmedRevision(id, nextRevision);
   }
 
-  if (!error && nextRevision !== undefined) {
+  if (nextRevision !== undefined) {
     cases = cases.map((c) => (c.id === id ? { ...c, revision: nextRevision } : c));
   }
 
-  const remaining = (inFlightCount.get(id) || 1) - 1;
-  if (remaining <= 0) {
-    inFlightCount.delete(id);
-
-    // Keep pending patch briefly after success to guard against stale poll/realtime snapshots.
-    const timer = setTimeout(() => {
-      pendingUpdates.delete(id);
-      pendingCleanupTimers.delete(id);
-    }, PENDING_CLEANUP_DELAY_MS);
-    pendingCleanupTimers.set(id, timer);
-  } else {
-    inFlightCount.set(id, remaining);
-  }
-
-  if (error) {
-    // On failure, clear pending state then reload to restore correct state.
-    const timer = pendingCleanupTimers.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      pendingCleanupTimers.delete(id);
-    }
-    pendingUpdates.delete(id);
-    inFlightCount.delete(id);
-
-    loadPromise = null;
-    await load();
-  }
+  finishInFlight(id, !!error);
+  notify();
 
   if (!error && shouldSyncCatAssignments) {
     try {
@@ -1036,6 +1083,10 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   }
 
   return error;
+}
+
+async function flushWrites(id: string): Promise<void> {
+  await caseWriteQueue.enqueue(id, async () => undefined);
 }
 
 function applyActionResult(
@@ -1208,6 +1259,7 @@ function reset() {
 
   pendingUpdates.clear();
   inFlightCount.clear();
+  lastConfirmedRevisionById.clear();
   pendingCleanupTimers.forEach((timer) => clearTimeout(timer));
   pendingCleanupTimers.clear();
   caseCredentialAccess.clearAll();
@@ -1482,7 +1534,7 @@ async function duplicate(
   try {
     const sourceResult = await fetchCaseFull(id);
     if (sourceResult.ok !== true) {
-      return abortDuplicate(sourceResult.kind === "missing" ? "source_not_found" : "source_read_failed");
+      return abortDuplicate(duplicateAbortFromFullFetch(sourceResult.kind));
     }
     const source = sourceResult.record;
 
@@ -1832,6 +1884,7 @@ export const caseStore = {
   create,
   createWithOutcome,
   update,
+  flushWrites,
   remove,
   duplicate,
   retryDuplicateTools,

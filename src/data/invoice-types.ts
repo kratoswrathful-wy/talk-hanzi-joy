@@ -1,4 +1,5 @@
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import type { InvoiceComment } from "@/lib/invoice-comments";
 
 export type InvoiceStatus = "pending" | "partial" | "paid";
 
@@ -33,4 +34,6 @@ export interface Invoice {
   editLogStartedAt?: string;
   /** 變更紀錄（jsonb） */
   edit_logs?: SimplePersistedLog[];
+  /** 請款留言（DB comments）；與 note 分欄 */
+  comments?: InvoiceComment[];
 }

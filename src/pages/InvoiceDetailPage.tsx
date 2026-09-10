@@ -234,12 +234,8 @@ export default function InvoiceDetailPage() {
   // Initialize from invoice data
   useEffect(() => {
     if (!invoice) return;
-    // Load comments
-    // 註：comments／internalComments 不在 Invoice 正式型別內，是 invoiceStore.updateInvoice
-    // 透過物件展開（{ ...inv, ...updates }）動態附加到記憶體物件的持久化用欄位。
-    // 以擴充交集型別單層 `as`（非 as unknown as）讀取，保留既有「讀不到即略過」行為。
-    const invWithLegacyFields = invoice as Invoice & { comments?: unknown; internalComments?: unknown };
-    setComments(commentEntriesFromJson(invWithLegacyFields.comments));
+    const invWithLegacyFields = invoice as Invoice & { internalComments?: unknown };
+    setComments(invoice.comments ?? []);
     setInternalComments(commentEntriesFromJson(invWithLegacyFields.internalComments));
     const rawEditLogs = invoice.edit_logs;
     if (Array.isArray(rawEditLogs)) {
@@ -490,7 +486,7 @@ export default function InvoiceDetailPage() {
     trackChange("note", oldNote || "(空)", newNote || "(空)");
   };
 
-  const handleAddComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
+  const handleAddComment = async (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string): Promise<boolean> => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `comment-${Date.now()}`,
@@ -501,11 +497,15 @@ export default function InvoiceDetailPage() {
       replyTo,
       timestamp: formatTimestamp(new Date()),
     };
+    if (!id) return false;
     const updated = [...comments, newComment];
-    setComments(updated);
-    if (id) {
-      invoiceStore.updateInvoice(id, { comments: updated });
+    const { error } = await invoiceStore.updateInvoice(id, { comments: updated });
+    if (error) {
+      toast.error("留言儲存失敗，已保留輸入。");
+      return false;
     }
+    setComments(updated);
+    return true;
   };
 
   const handleAddInternalComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
@@ -841,7 +841,7 @@ export default function InvoiceDetailPage() {
                   ))}
                   {replyingTo === c.id && (
                     <div className="ml-6">
-                      <CommentInput draft={commentDraft} setDraft={setCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={(content, imageUrls, fileUrls) => { handleAddComment(content, imageUrls, fileUrls, c.id); setReplyingTo(null); }} />
+                      <CommentInput draft={commentDraft} setDraft={setCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={async (content, imageUrls, fileUrls) => { const ok = await handleAddComment(content, imageUrls, fileUrls, c.id); if (ok) setReplyingTo(null); return ok; }} />
                     </div>
                   )}
                 </div>

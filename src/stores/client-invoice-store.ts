@@ -2,6 +2,7 @@ import type { ClientInvoice, ClientInvoiceAdjustmentLine, ClientInvoiceStatus, C
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
+import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -48,6 +49,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     expectedCollectionDate: row.expected_collection_date || undefined,
     adjustmentLines: parseAdjustmentLines(row.adjustment_lines),
     editLogStartedAt: row.edit_log_started_at || undefined,
+    comments: invoiceCommentsFromJson(row.comments),
   };
 }
 
@@ -314,13 +316,14 @@ export const clientInvoiceStore = {
         | "expectedCollectionDate"
         | "adjustmentLines"
         | "editLogStartedAt"
+        | "comments"
       >
     > & {
-      /** 持久化用欄位，不屬於 app 層 ClientInvoice 型別 */
-      comments?: Json;
       edit_logs?: Json;
     }
   ): Promise<{ error: unknown }> => {
+    const existing = invoices.find((inv) => inv.id === id);
+    const previous = existing;
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -331,7 +334,7 @@ export const clientInvoiceStore = {
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.invoiceNumber !== undefined) dbUpdates.invoice_number = updates.invoiceNumber;
     if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
-    if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
+    if (updates.comments !== undefined) dbUpdates.comments = invoiceCommentsToJson(updates.comments);
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
     if (updates.isRecordOnly !== undefined) dbUpdates.is_record_only = updates.isRecordOnly;
     if (updates.recordAmount !== undefined) dbUpdates.record_amount = updates.recordAmount;
@@ -352,18 +355,23 @@ export const clientInvoiceStore = {
 
     if (error) {
       console.error("Failed to update client invoice:", errorMessage(error));
+      if (previous) {
+        invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
+        notify();
+      }
       return { error };
     }
     if (!data) {
-      // RLS 靜默擋下（0 筆受影響）：無 error 但也無資料列，須視為失敗，
-      // 否則呼叫端會誤信「無 error＝成功」。
       const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
       console.error("Failed to update client invoice:", blockedErr.message);
+      if (previous) {
+        invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
+        notify();
+      }
       return { error: blockedErr };
     }
 
-    const existing = invoices.find((inv) => inv.id === id);
-    const feeIds = existing?.feeIds ?? [];
+    const feeIds = previous?.feeIds ?? [];
     // 以 SELECT 權威列為底，再疊這次明確寫入的 updates，避免 replica／select
     // 短暫缺欄時把樂觀寫入沖掉（setChannel／title 等 bridge 回讀會因此假失敗）。
     const fromDb = dbToApp(data, feeIds);

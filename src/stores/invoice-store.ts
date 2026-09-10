@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
 import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 type Listener = () => void;
@@ -97,6 +98,7 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     payments: paymentsFromJson(row.payments),
     editLogStartedAt: row.edit_log_started_at || undefined,
     edit_logs: editLogsFromJson(row.edit_logs),
+    comments: invoiceCommentsFromJson(row.comments),
   };
 }
 
@@ -282,13 +284,16 @@ export const invoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt">> & Record<string, unknown>) => {
+  updateInvoice: async (
+    id: string,
+    updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt" | "comments">> & Record<string, unknown>,
+  ): Promise<{ error: unknown }> => {
     const existing = invoices.find((inv) => inv.id === id);
     if (!existing) {
-      // 並行 load 覆寫後 map 會變成 no-op；呼叫端應先 ensureLocal／fetch
       console.warn("[invoice-store] updateInvoice: 本地找不到 id=", id);
-      return;
+      return { error: new Error("找不到該筆請款") };
     }
+    const previous = existing;
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -298,19 +303,43 @@ export const invoiceStore = {
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
-    if (updates.comments !== undefined) dbUpdates.comments = updates.comments as Json;
+    if (updates.comments !== undefined) dbUpdates.comments = invoiceCommentsToJson(updates.comments);
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs as Json;
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
-    if (Object.keys(dbUpdates).length > 0) {
-      supabase
-        .from("invoices")
-        .update(dbUpdates as TablesUpdate<"invoices">)
-        .eq("id", id)
-        .then(({ error }) => {
-          if (error) console.error("Failed to update invoice:", error);
-        });
+    if (Object.keys(dbUpdates).length === 0) return { error: null };
+
+    const { data, error } = await supabase
+      .from("invoices")
+      .update(dbUpdates as TablesUpdate<"invoices">)
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error("Failed to update invoice:", error);
+      invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
+      notify();
+      return { error };
     }
+    if (!data) {
+      const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
+      console.error("Failed to update invoice:", blockedErr.message);
+      invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
+      notify();
+      return { error: blockedErr };
+    }
+
+    invoices = invoices.map((inv) =>
+      inv.id === id
+        ? {
+            ...dbToApp(data, previous.feeIds),
+            ...Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined)),
+          }
+        : inv,
+    );
+    notify();
+    return { error: null };
   },
 
   deleteInvoice: (id: string) => {

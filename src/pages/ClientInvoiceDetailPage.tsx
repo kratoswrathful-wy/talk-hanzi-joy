@@ -132,20 +132,6 @@ interface CommentEntry {
 
 type EditLogEntry = SimplePersistedLog;
 
-/** comments／edit_logs 為持久化用 JSONB 欄位（不在 ClientInvoice 正式型別內），
- * 逐欄位重建為 JSON 相容純值，取代整包 `as unknown as Json`。 */
-function commentsToJson(comments: CommentEntry[]): Json {
-  return comments.map((c) => ({
-    id: c.id,
-    author: c.author,
-    content: c.content,
-    ...(c.imageUrls ? { imageUrls: c.imageUrls } : {}),
-    ...(c.fileUrls ? { fileUrls: c.fileUrls.map((f) => ({ name: f.name, url: f.url })) } : {}),
-    ...(c.replyTo ? { replyTo: c.replyTo } : {}),
-    timestamp: c.timestamp,
-  }));
-}
-
 function editLogsToJson(logs: EditLogEntry[]): Json {
   return logs.map((l) => ({
     id: l.id,
@@ -154,41 +140,6 @@ function editLogsToJson(logs: EditLogEntry[]): Json {
     timestamp: l.timestamp,
     ...(l.fieldKey ? { fieldKey: l.fieldKey } : {}),
   }));
-}
-
-function nameUrlFromJson(x: Json): { name: string; url: string } | undefined {
-  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
-  if (typeof x.name !== "string" || typeof x.url !== "string") return undefined;
-  return { name: x.name, url: x.url };
-}
-
-function commentEntryFromJson(x: Json): CommentEntry | undefined {
-  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
-  if (typeof x.id !== "string" || typeof x.author !== "string" || typeof x.content !== "string" || typeof x.timestamp !== "string") {
-    return undefined;
-  }
-  const imageUrls = Array.isArray(x.imageUrls) ? x.imageUrls.filter((u): u is string => typeof u === "string") : undefined;
-  const fileUrls = Array.isArray(x.fileUrls) ? x.fileUrls.flatMap((f) => { const p = nameUrlFromJson(f); return p ? [p] : []; }) : undefined;
-  return {
-    id: x.id,
-    author: x.author,
-    content: x.content,
-    timestamp: x.timestamp,
-    ...(imageUrls?.length ? { imageUrls } : {}),
-    ...(fileUrls?.length ? { fileUrls } : {}),
-    ...(typeof x.replyTo === "string" ? { replyTo: x.replyTo } : {}),
-  };
-}
-
-function commentEntriesFromJson(raw: unknown): CommentEntry[] {
-  if (!Array.isArray(raw)) return [];
-  const out: CommentEntry[] = [];
-  for (const item of raw) {
-    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
-    const entry = commentEntryFromJson(item as Json);
-    if (entry) out.push(entry);
-  }
-  return out;
 }
 
 function editLogEntryFromJson(x: Json): EditLogEntry | undefined {
@@ -312,17 +263,14 @@ export default function ClientInvoiceDetailPage() {
       });
   }, [invoice?.createdBy]);
 
-  // Initialize from invoice data
-  // 註：comments／edit_logs 不在 ClientInvoice 正式型別內，是 clientInvoiceStore.updateInvoice
-  // 透過物件展開（{ ...inv, ...updates }）動態附加到記憶體物件的持久化用欄位（見該檔案註解）。
-  // 以擴充交集型別單層 `as`（非 as unknown as）讀取，保留既有「讀不到即略過」行為，不新增邏輯。
+  // Initialize from invoice data（留言走正式 comments 欄；edit_logs 仍為附加欄）
   useEffect(() => {
     if (!invoice) return;
-    const invWithLegacyFields = invoice as ClientInvoice & { comments?: unknown; edit_logs?: unknown };
-    setComments(commentEntriesFromJson(invWithLegacyFields.comments));
+    const invWithLegacyFields = invoice as ClientInvoice & { edit_logs?: unknown };
+    setComments(invoice.comments ?? []);
     setEditLog(editLogEntriesFromJson(invWithLegacyFields.edit_logs));
     burstMapRef.current = {};
-  }, [invoice?.id]);
+  }, [invoice?.id, invoice?.comments]);
 
   /** 建立者首次離開本頁後才開始記錄（總表批次建立已帶 editLogStartedAt 者除外） */
   useEffect(() => {
@@ -735,7 +683,7 @@ export default function ClientInvoiceDetailPage() {
     trackChange("note", oldNote || "(空)", newNote || "(空)");
   };
 
-  const handleAddComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
+  const handleAddComment = async (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string): Promise<boolean> => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `comment-${Date.now()}`,
@@ -746,11 +694,15 @@ export default function ClientInvoiceDetailPage() {
       replyTo,
       timestamp: formatTimestamp(new Date()),
     };
+    if (!id) return false;
     const updated = [...comments, newComment];
-    setComments(updated);
-    if (id) {
-      clientInvoiceStore.updateInvoice(id, { comments: commentsToJson(updated) });
+    const { error } = await clientInvoiceStore.updateInvoice(id, { comments: updated });
+    if (error) {
+      toast.error("留言儲存失敗，已保留輸入。");
+      return false;
     }
+    setComments(updated);
+    return true;
   };
 
   const handleAddFees = () => {
@@ -1276,7 +1228,7 @@ export default function ClientInvoiceDetailPage() {
                     ))}
                     {replyingTo === c.id && (
                       <div className="ml-6">
-                        <CommentInput draft={commentDraft} setDraft={setCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={(content, imageUrls, fileUrls) => { handleAddComment(content, imageUrls, fileUrls, c.id); setReplyingTo(null); }} />
+                        <CommentInput draft={commentDraft} setDraft={setCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={async (content, imageUrls, fileUrls) => { const ok = await handleAddComment(content, imageUrls, fileUrls, c.id); if (ok) setReplyingTo(null); return ok; }} />
                       </div>
                     )}
                   </div>

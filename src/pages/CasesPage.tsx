@@ -753,10 +753,14 @@ export default function CasesPage() {
     return false;
   }, []);
 
-  const handleFlowPublishSingle = useCallback(() => {
+  const handleFlowPublishSingle = useCallback(async () => {
     if (!selectedSingleCase) return;
     if (!assertPublishUniqueTitle(selectedSingleCase)) return;
-    caseStore.update(selectedSingleCase.id, { status: "inquiry" as CaseStatus });
+    const error = await caseStore.update(selectedSingleCase.id, { status: "inquiry" as CaseStatus });
+    if (error) {
+      toast({ title: "無法公布", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "案件已公布" });
   }, [selectedSingleCase, assertPublishUniqueTitle]);
 
@@ -811,6 +815,7 @@ export default function CasesPage() {
 
   const handleFlowFinalizeAssign = useCallback(async () => {
     if (!selectedSingleCase) return;
+    await caseStore.flushWrites(selectedSingleCase.id);
     if (!selectedSingleCase.multiCollab) {
       const { data: ids, error } = await listActiveTranslatorParticipantIds(
         supabase,
