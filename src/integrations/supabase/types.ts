@@ -3523,6 +3523,14 @@ export type Database = {
         Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
         Returns: Json
       }
+      apply_fee_update: {
+        Args: { p_fee_id: string; p_expected_updated_at: string; p_patch: Json }
+        Returns: Json
+      }
+      apply_fee_delete: {
+        Args: { p_fee_id: string; p_expected_updated_at: string }
+        Returns: Json
+      }
       pm_update_case_assignments: {
         Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
         Returns: Json

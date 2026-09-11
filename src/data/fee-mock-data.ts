@@ -94,6 +94,8 @@ export interface TranslatorFee {
   editLogPhases?: FeeEditLogPhases;
   createdBy: string;
   createdAt: string;
+  /** 後端 updated_at 原樣；衝突比對用，不是畫面顯示欄。 */
+  updatedAt?: string;
   finalizedBy?: string;
   finalizedAt?: string;
 }

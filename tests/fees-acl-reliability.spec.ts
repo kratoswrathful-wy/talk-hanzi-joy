@@ -97,4 +97,127 @@ describeQ13("Q13 費用角色寫入", () => {
     await t1.close();
     await pm.close();
   });
+
+  test("PM 經 apply_fee_update 改標題與費用 PO；任務列／客戶不被清空", async ({ browser }) => {
+    const pm = await loginAs(browser, cred("pm").email, cred("pm").password);
+    const { token, rest } = await restFor(pm.page);
+    const stamp = Date.now();
+    const feeId = crypto.randomUUID();
+    const insert = await restMutate(pm.page.request, token, "POST", "fees", {
+      id: feeId,
+      title: `ISO-FEE-RPC-${stamp}`,
+      status: "draft",
+      env: "test",
+      assignee: "ISO-FEE-ASSIGNEE",
+      client_info: {
+        client: "ISO-CLIENT",
+        clientPoNumber: "PO-OLD",
+        clientTaskItems: [{ id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, clientPrice: 3 }],
+      },
+      task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, unitPrice: 2 }],
+    }, { Prefer: "return=minimal" });
+    expect(insert.ok, insert.text).toBe(true);
+
+    const before = await rest.get<Array<{ updated_at: string; client_info: Record<string, unknown> }>>(
+      `fees_visible?select=id,updated_at,client_info&id=eq.${feeId}`,
+    );
+    expect(before[0]?.updated_at).toBeTruthy();
+
+    const updated = await rest.rpc<{ ok?: boolean; error?: string; updated_at?: string }>("apply_fee_update", {
+      p_fee_id: feeId,
+      p_expected_updated_at: before[0].updated_at,
+      p_patch: {
+        title: `ISO-FEE-RPC-${stamp}-NEW`,
+        client_info: { clientPoNumber: "PO-NEW" },
+      },
+    });
+    expect(updated.ok, updated.text).toBe(true);
+    expect(updated.data?.ok, updated.text).toBe(true);
+
+    const after = await rest.get<Array<{ title: string; client_info: Record<string, unknown> }>>(
+      `fees_visible?select=id,title,client_info&id=eq.${feeId}`,
+    );
+    expect(after[0]?.title).toBe(`ISO-FEE-RPC-${stamp}-NEW`);
+    expect(after[0]?.client_info?.clientPoNumber).toBe("PO-NEW");
+    expect(after[0]?.client_info?.client).toBe("ISO-CLIENT");
+    expect(Array.isArray(after[0]?.client_info?.clientTaskItems)).toBe(true);
+    expect((after[0]?.client_info?.clientTaskItems as unknown[]).length).toBe(1);
+
+    const unknown = await rest.rpc<{ ok?: boolean; error?: string }>("apply_fee_update", {
+      p_fee_id: feeId,
+      p_expected_updated_at: updated.data?.updated_at,
+      p_patch: { mystery: 1 },
+    });
+    expect(unknown.data?.ok, unknown.text).toBe(false);
+    expect(unknown.data?.error, unknown.text).toBe("unknown_patch_key");
+
+    await pm.close();
+  });
+
+  test("T1 不得走 apply_fee_update；草稿刪除成功、已開立刪除被拒", async ({ browser }) => {
+    const pm = await loginAs(browser, cred("pm").email, cred("pm").password);
+    const { token: pmToken, rest: pmRest } = await restFor(pm.page);
+    const stamp = Date.now();
+    const draftId = crypto.randomUUID();
+    const finalizedId = crypto.randomUUID();
+    const draftInsert = await restMutate(pm.page.request, pmToken, "POST", "fees", {
+      id: draftId,
+      title: `ISO-FEE-DEL-${stamp}`,
+      status: "draft",
+      env: "test",
+      assignee: "ISO-FEE-ASSIGNEE",
+    }, { Prefer: "return=minimal" });
+    expect(draftInsert.ok, draftInsert.text).toBe(true);
+    const finalizedInsert = await restMutate(pm.page.request, pmToken, "POST", "fees", {
+      id: finalizedId,
+      title: `ISO-FEE-FIN-${stamp}`,
+      status: "finalized",
+      env: "test",
+      assignee: "ISO-FEE-ASSIGNEE",
+    }, { Prefer: "return=minimal" });
+    expect(finalizedInsert.ok, finalizedInsert.text).toBe(true);
+
+    const t1 = await loginAs(browser, cred("t1").email, cred("t1").password);
+    const { rest: t1Rest } = await restFor(t1.page);
+    const rows = await pmRest.get<Array<{ id: string; updated_at: string }>>(
+      `fees_visible?select=id,updated_at&id=in.(${draftId},${finalizedId})`,
+    );
+    const draftAt = rows.find((r) => r.id === draftId)?.updated_at;
+    const finalizedAt = rows.find((r) => r.id === finalizedId)?.updated_at;
+    expect(draftAt && finalizedAt).toBeTruthy();
+
+    const t1Write = await t1Rest.rpc<{ ok?: boolean; error?: string }>("apply_fee_update", {
+      p_fee_id: draftId,
+      p_expected_updated_at: draftAt,
+      p_patch: { title: "T1-SHOULD-FAIL" },
+    });
+    expect(t1Write.data?.ok ?? false, t1Write.text).toBe(false);
+
+    const delFinal = await pmRest.rpc<{ ok?: boolean; error?: string }>("apply_fee_delete", {
+      p_fee_id: finalizedId,
+      p_expected_updated_at: finalizedAt,
+    });
+    expect(delFinal.data?.ok, delFinal.text).toBe(false);
+    expect(delFinal.data?.error, delFinal.text).toBe("fee_not_deletable");
+    const stillThere = await pmRest.get<Array<{ id: string }>>(
+      `fees_visible?select=id&id=eq.${finalizedId}`,
+    );
+    expect(stillThere[0]?.id).toBe(finalizedId);
+
+    const delDraft = await pmRest.rpc<{ ok?: boolean; error?: string; deleted?: boolean }>("apply_fee_delete", {
+      p_fee_id: draftId,
+      p_expected_updated_at: draftAt,
+    });
+    expect(delDraft.data?.ok, delDraft.text).toBe(true);
+    const gone = await restMutate(
+      pm.page.request,
+      pmToken,
+      "GET",
+      `fees_visible?select=id&id=eq.${draftId}`,
+    );
+    expect(JSON.parse(gone.text) as unknown[]).toEqual([]);
+
+    await t1.close();
+    await pm.close();
+  });
 });

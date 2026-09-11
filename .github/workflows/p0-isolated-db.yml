@@ -86,8 +86,13 @@ jobs:
             echo "suite=maint-acl" >> "$GITHUB_OUTPUT"
             echo "expected_count=167" >> "$GITHUB_OUTPUT"
             echo "expected_max=20260905120000" >> "$GITHUB_OUTPUT"
-          elif [ "${SUITE}" = "pm-complete" ] || [ "${SUITE}" = "auth-identity" ] || [ "${SUITE}" = "backend-errors" ] || [ "${SUITE}" = "save-reliability" ]; then
-            # pm-complete／auth-identity／backend-errors／save-reliability 皆含第 2 項已發布 migration 20260907120000
+          elif [ "${SUITE}" = "save-reliability" ]; then
+            # 含 20260911164313 費用更新／刪除 RPC（僅隔離庫）
+            echo "suite=${SUITE}" >> "$GITHUB_OUTPUT"
+            echo "expected_count=169" >> "$GITHUB_OUTPUT"
+            echo "expected_max=20260911164313" >> "$GITHUB_OUTPUT"
+          elif [ "${SUITE}" = "pm-complete" ] || [ "${SUITE}" = "auth-identity" ] || [ "${SUITE}" = "backend-errors" ]; then
+            # pm-complete／auth-identity／backend-errors 皆含第 2 項已發布 migration 20260907120000
             echo "suite=${SUITE}" >> "$GITHUB_OUTPUT"
             echo "expected_count=168" >> "$GITHUB_OUTPUT"
             echo "expected_max=20260907120000" >> "$GITHUB_OUTPUT"

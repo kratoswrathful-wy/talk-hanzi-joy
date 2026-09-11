@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
-import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import { createKeyedQueue } from "@/lib/case-write-queue";
+import { applyFeeDelete, applyFeeUpdate, clientInfoChangedKeys } from "@/lib/fee-write";
 
 const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 const BILLING_UNITS: BillingUnit[] = ["字", "小時"];
@@ -241,6 +243,7 @@ function dbToApp(row: DbFee): TranslatorFee {
     editLogPhases: parseEditLogPhases(row),
     createdBy: row.created_by || "",
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     finalizedBy: row.finalized_by || undefined,
     finalizedAt: row.finalized_at || undefined,
   };
@@ -258,8 +261,6 @@ function appToDb(fee: Partial<TranslatorFee>): Record<string, Json> {
   if (fee.notes !== undefined) m.notes = notesToJson(fee.notes);
   if (fee.editLogs !== undefined) m.edit_logs = editLogsToJson(fee.editLogs);
   if (fee.editLogPhases !== undefined) m.edit_log_phases = editLogPhasesToJson(fee.editLogPhases);
-  if (fee.finalizedBy !== undefined) m.finalized_by = fee.finalizedBy;
-  if (fee.finalizedAt !== undefined) m.finalized_at = fee.finalizedAt;
   return m;
 }
 
@@ -326,6 +327,9 @@ type FeeChangeSignalRow = {
   op?: string;
 };
 
+const feeWriteQueue = createKeyedQueue();
+const feeInFlight = new Map<string, Partial<TranslatorFee>>();
+
 supabase
   .channel("fee-change-signals")
   .on(
@@ -342,7 +346,7 @@ supabase
         }
         return;
       }
-      void requeryFeeFromView(row.fee_id);
+      if (!feeInFlight.has(row.fee_id)) void requeryFeeFromView(row.fee_id);
     }
   )
   .subscribe();
@@ -351,6 +355,65 @@ supabase
 const feePoll = createFeesVisiblePollFallback(() => {
   if (loaded) feeStore.loadFees();
 }, 15000);
+
+async function resolveFeeUpdatedAt(id: string, current?: TranslatorFee | undefined): Promise<string | null> {
+  if (current?.updatedAt) return current.updatedAt;
+  const { data, error } = await supabase
+    .from("fees_visible")
+    .select("updated_at")
+    .eq("id", id)
+    .eq("env", getEnvironment())
+    .maybeSingle();
+  if (error || !data || typeof (data as { updated_at?: unknown }).updated_at !== "string") {
+    return null;
+  }
+  return (data as { updated_at: string }).updated_at;
+}
+
+function buildFeeRpcPatch(
+  prev: TranslatorFee | undefined,
+  updates: Partial<TranslatorFee>,
+): Record<string, unknown> {
+  const db = appToDb(updates);
+  const patch: Record<string, unknown> = { ...db };
+  if (updates.clientInfo !== undefined) {
+    const keys = clientInfoChangedKeys(prev?.clientInfo, updates.clientInfo);
+    if (Object.keys(keys).length === 0) {
+      delete patch.client_info;
+    } else {
+      patch.client_info = keys;
+    }
+  }
+  delete patch.edit_log_phases;
+  return patch;
+}
+
+async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, prev: TranslatorFee | undefined) {
+  const expected = await resolveFeeUpdatedAt(id, prev ?? fees.find((f) => f.id === id));
+  if (!expected) {
+    return new Error("無法確認費用版本，尚未寫入。已保留畫面輸入。");
+  }
+  const patch = buildFeeRpcPatch(prev, updates);
+  if (Object.keys(patch).length === 0) return null;
+  const result = await applyFeeUpdate(supabase, id, patch, expected);
+  if (result.error) {
+    return result.error instanceof Error ? result.error : new Error("apply_fee_update_failed");
+  }
+  const nextUpdatedAt = result.data?.updated_at;
+  const nextStatus = result.data?.status as TranslatorFee["status"] | undefined;
+  fees = fees.map((f) =>
+    f.id === id
+      ? {
+          ...f,
+          ...updates,
+          ...(nextStatus ? { status: nextStatus } : {}),
+          ...(nextUpdatedAt ? { updatedAt: nextUpdatedAt } : {}),
+        }
+      : f,
+  );
+  notify();
+  return null;
+}
 
 export const feeStore = {
   getFees: () => fees,
@@ -444,32 +507,49 @@ export const feeStore = {
   },
 
   updateFee: (id: string, updates: Partial<TranslatorFee>) => {
-    fees = fees.map((f) => (f.id === id ? { ...f, ...updates } : f));
+    const prev = fees.find((f) => f.id === id);
+    const wroteStatus = updates.status !== undefined;
+    const display = wroteStatus ? { ...updates, status: prev?.status } : updates;
+    fees = fees.map((f) => (f.id === id ? { ...f, ...display } : f));
+    feeInFlight.set(id, { ...feeInFlight.get(id), ...updates });
     notify();
-
-    const dbUpdates = appToDb(updates);
-    if (Object.keys(dbUpdates).length === 0) return;
-
-    supabase
-      .from("fees")
-      .update(dbUpdates as TablesUpdate<"fees">)
-      .eq("id", id)
-      .then(({ error }) => {
-        if (error) console.error("Failed to update fee:", error);
-      });
+    return feeWriteQueue.enqueue(id, async () => {
+      try {
+        return await persistFeeUpdate(id, updates, prev);
+      } finally {
+        feeInFlight.delete(id);
+      }
+    });
   },
 
   deleteFee: (id: string) => {
+    const snapshot = fees.find((f) => f.id === id);
     fees = fees.filter((f) => f.id !== id);
+    feeInFlight.set(id, { id } as Partial<TranslatorFee>);
     notify();
-
-    supabase
-      .from("fees")
-      .delete()
-      .eq("id", id)
-      .then(({ error }) => {
-        if (error) console.error("Failed to delete fee:", error);
-      });
+    return feeWriteQueue.enqueue(id, async () => {
+      try {
+        const expected = await resolveFeeUpdatedAt(id, snapshot);
+        if (!expected) {
+          if (snapshot && !fees.some((f) => f.id === id)) {
+            fees = [snapshot, ...fees];
+            notify();
+          }
+          return new Error("無法確認費用是否已刪除。已保留畫面資料。");
+        }
+        const result = await applyFeeDelete(supabase, id, expected);
+        if (result.error) {
+          if (snapshot && !fees.some((f) => f.id === id)) {
+            fees = [snapshot, ...fees];
+            notify();
+          }
+          return result.error instanceof Error ? result.error : new Error("apply_fee_delete_failed");
+        }
+        return null;
+      } finally {
+        feeInFlight.delete(id);
+      }
+    });
   },
 
   getFeeById: (id: string) => fees.find((f) => f.id === id),
