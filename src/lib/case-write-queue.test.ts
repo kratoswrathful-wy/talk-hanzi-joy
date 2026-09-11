@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminWriteAccessFromRoles, createKeyedQueue, describeCaseWriteFailure } from "./case-write-queue";
+import { adminWriteAccessFromRoles, createKeyedQueue, describeCaseWriteFailure, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
 
 describe("createKeyedQueue", () => {
   it("runs tasks for the same key in order and uses the previous result", async () => {
@@ -44,6 +44,26 @@ describe("adminWriteAccessFromRoles", () => {
       ok: true,
       isAdmin: true,
     });
+  });
+
+  it("role query failure still sends assignment writes to the admin RPC", () => {
+    const failed = adminWriteAccessFromRoles([], new Error("timeout"));
+    expect(shouldUseAdminCaseWritePath(failed, true)).toBe(true);
+    expect(shouldBlockNonAdminAssignmentWrite(failed, true)).toBe(false);
+    expect(shouldUseAdminCaseWritePath(failed, false)).toBe(false);
+  });
+
+  it("known members cannot use the admin write path", () => {
+    const member = adminWriteAccessFromRoles([{ role: "member" }], null);
+    expect(shouldUseAdminCaseWritePath(member, true)).toBe(false);
+    expect(shouldBlockNonAdminAssignmentWrite(member, true)).toBe(true);
+  });
+
+  it("missing session still attempts assignment RPC instead of swallowing the write", () => {
+    const missing = adminWriteAccessFromRoles(null, new Error("no_session"));
+    expect(shouldUseAdminCaseWritePath(missing, true)).toBe(true);
+    expect(shouldBlockNonAdminAssignmentWrite(missing, true)).toBe(false);
+    expect(shouldUseAdminCaseWritePath(missing, false)).toBe(false);
   });
 });
 

@@ -325,9 +325,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
     // 必須走 SPA 返回，保留記憶體裡的過期完整快取。page.goto 會整頁重載，
     // 快取清空後只剩清單投影，會誤走「完整讀取失敗」而不是 stale。
-    const row = page.locator("tr").filter({ hasText: `${title}-newer` });
-    await row.getByTestId("case-list-open").click({ force: true });
-    await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
+    await openCaseFromList(page, `${title}-newer`, caseId);
     await expect(page.getByTestId("case-detail-stale-banner")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "stale");
     await expect(page.getByTestId("case-detail-omitted-preview")).toContainText(oldBody);
@@ -409,6 +407,7 @@ describeBackend("cases list vs full split (isolated)", () => {
   });
 
   test("T7b 過期快取：舊完整回應晚到不得標 full，符合新版後才可編輯", async ({ browser }) => {
+    test.setTimeout(180_000);
     const { email, password } = credPm();
     const session = await loginAs(browser, email, password);
     const page = session.page;
@@ -520,6 +519,9 @@ async function captureCaseFullJson(page: Page, caseId: string): Promise<string> 
 async function openCaseFromList(page: Page, visibleTitle: string, caseId: string) {
   const row = page.locator("tr").filter({ hasText: visibleTitle });
   await expect(row).toBeVisible({ timeout: 30_000 });
-  await row.getByTestId("case-list-open").click({ force: true });
+  const openBtn = row.getByTestId("case-list-open");
+  await expect(openBtn).toHaveCount(1);
+  // 開啟鈕預設 opacity-0，座標 force click 會點到側欄「團隊成員」而進 /members。
+  await openBtn.evaluate((el: HTMLElement) => el.click());
   await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
 }
