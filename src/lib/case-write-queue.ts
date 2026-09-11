@@ -63,6 +63,30 @@ export function mergeOptimisticCaseWrite<T extends { status?: unknown }>(
   return { ...merged, status: prevStatus };
 }
 
+export const CASE_SAVE_NOT_READY_MESSAGE = "案件畫面尚未就緒，尚未寫入。";
+
+/**
+ * 使用者已送出寫入意圖時，不得因畫面快照暫時缺失就當成功。
+ * 本地或 store 缺列時，仍送出有值的 partial。
+ */
+export function resolveIntendedCaseWrite<T extends object>(
+  localPrev: T | null | undefined,
+  storePrev: T | null | undefined,
+  partial: Partial<T>,
+):
+  | { status: "ready"; base: T | null; write: Partial<T> }
+  | { status: "not_ready"; message: string } {
+  const writeKeys = Object.keys(partial).filter((key) => partial[key as keyof T] !== undefined);
+  if (writeKeys.length === 0) {
+    return { status: "not_ready", message: CASE_SAVE_NOT_READY_MESSAGE };
+  }
+  return {
+    status: "ready",
+    base: localPrev ?? storePrev ?? null,
+    write: partial,
+  };
+}
+
 export function describeCaseWriteFailure(error: unknown): {
   kind: "conflict" | "identity" | "failed";
   title: string;

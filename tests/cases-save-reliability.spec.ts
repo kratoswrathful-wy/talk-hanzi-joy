@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
-import { accessToken, restClient, readCaseState } from "./helpers/isolated-api";
+import { accessToken, restClient, readCaseState, readCaseTitle } from "./helpers/isolated-api";
 import { attachRestHitLog, createDraftViaRpc, readSavePhase } from "./helpers/save-reliability-iso";
 
 /**
@@ -51,12 +51,21 @@ function expectedRevisions(gate: RpcGate): number[] {
   });
 }
 
-/** UI 失焦：fill 後點另一欄。不用 fill 自動失焦，也不用內部 evaluate 當 D2 證據。 */
+/** UI 失焦：fill 後 Tab 離開標題。不用 fill 自動失焦，也不用內部 evaluate 當 D2 證據。 */
 async function commitCaseTitleByLeavingField(page: Page, value: string) {
   const titleInput = page.getByTestId("case-title-input");
+  await expect(titleInput).toBeEnabled();
   await titleInput.click();
   await titleInput.fill(value);
-  await page.getByTestId("case-client-po-input").click();
+  await expect(titleInput).toHaveValue(value);
+  await titleInput.press("Tab");
+}
+
+async function publishAttemptSnapshot(page: Page): Promise<string> {
+  const phase = await readSavePhase(page);
+  const cannot = await page.getByText("無法公布").count();
+  const published = await page.getByText("案件已公布").count();
+  return `phase=${phase}; cannotPublish=${cannot}; publishedToast=${published}`;
 }
 
 async function fulfillParked(gate: RpcGate, body: unknown, status = 200) {
@@ -93,7 +102,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
       await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
     } catch (err) {
       throw new Error(
-        `公布未攔截到寫入 RPC；completenessPhase=${await readSavePhase(page)}; hits=${hitLog.format()}`,
+        `公布未攔截到寫入 RPC；${await publishAttemptSnapshot(page)}; hits=${hitLog.format()}`,
         { cause: err },
       );
     }
@@ -158,7 +167,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
       await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
     } catch (err) {
       throw new Error(
-        `角色失敗後公布未送出；completenessPhase=${await readSavePhase(page)}; hits=${hitLog.format()}`,
+        `角色失敗後公布未送出；${await publishAttemptSnapshot(page)}; hits=${hitLog.format()}`,
         { cause: err },
       );
     }
@@ -185,7 +194,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
       await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     } catch (err) {
       throw new Error(
-        `標題失焦未攔截到寫入；completenessPhase=${await readSavePhase(page)}; hits=${hitLog.format()}`,
+        `標題失焦未攔截到寫入；${await publishAttemptSnapshot(page)}; titleValue=${await page.getByTestId("case-title-input").inputValue()}; hits=${hitLog.format()}`,
         { cause: err },
       );
     }
@@ -216,7 +225,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     const rest = restClient(page.request, await accessToken(page));
 
     await commitCaseTitleByLeavingField(page, nextTitle);
-    await expect.poll(async () => (await readCaseState(rest, caseId))?.title, { timeout: 20_000 }).toBe(nextTitle);
+    await expect.poll(async () => readCaseTitle(rest, caseId), { timeout: 20_000 }).toBe(nextTitle);
 
     await page.goto("/cases");
     await page.goto(`/cases/${caseId}`);
@@ -224,7 +233,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
       timeout: 30_000,
     });
     await expect(page.getByTestId("case-title-input")).toHaveValue(nextTitle);
-    await expect.poll(async () => (await readCaseState(rest, caseId))?.title, { timeout: 10_000 }).toBe(nextTitle);
+    await expect.poll(async () => readCaseTitle(rest, caseId), { timeout: 10_000 }).toBe(nextTitle);
     await session.close();
   });
 

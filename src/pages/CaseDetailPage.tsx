@@ -30,7 +30,7 @@ import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import type { CaseCompleteness } from "@/lib/case-list-load";
 import { omittedKeysInPartial } from "@/lib/case-list-load";
-import { describeCaseWriteFailure, mergeOptimisticCaseWrite } from "@/lib/case-write-queue";
+import { CASE_SAVE_NOT_READY_MESSAGE, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
@@ -1131,6 +1131,8 @@ export default function CaseDetailPage() {
   const dupExpectedRef = useRef<string | undefined>(undefined);
   dupExpectedRef.current = duplicateExpectedTitle;
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
+  const caseDataRef = useRef<CaseRecord | null>(null);
+  caseDataRef.current = caseData;
   const [loading, setLoading] = useState(true);
   /** Single fetch hung past CASE_LOAD_TIMEOUT_MS */
   const [caseLoadTimedOut, setCaseLoadTimedOut] = useState(false);
@@ -1477,9 +1479,24 @@ export default function CaseDetailPage() {
         return new Error("案件完整內容尚未載入或已過期");
       }
       setSavePhase("saving");
-      let nextWrite: Partial<CaseRecord> | null = null;
-      setCaseData((prev) => {
-        if (!prev) return prev;
+      const resolved = resolveIntendedCaseWrite(
+        caseDataRef.current,
+        caseStore.getById(id),
+        partial,
+      );
+      if (resolved.status !== "ready") {
+        setSavePhase("failed");
+        toast({
+          title: "尚未寫入",
+          description: resolved.message,
+          variant: "destructive",
+        });
+        return new Error(resolved.message);
+      }
+      let nextWrite: Partial<CaseRecord> = resolved.write;
+      setCaseData((pagePrev) => {
+        const prev = pagePrev ?? resolved.base;
+        if (!prev) return pagePrev;
         let merged: Partial<CaseRecord> = partial;
         if (completeness === "full" && prev.changeLogEnabledAt && profile) {
           const author = profile.display_name || profile.email || "系統";
@@ -1679,9 +1696,14 @@ export default function CaseDetailPage() {
         nextWrite = merged;
         return mergeOptimisticCaseWrite(prev.status, { ...prev, ...merged }, merged.status !== undefined);
       });
-      if (!nextWrite) {
-        setSavePhase("idle");
-        return null;
+      if (Object.keys(nextWrite).length === 0) {
+        setSavePhase("failed");
+        toast({
+          title: "尚未寫入",
+          description: CASE_SAVE_NOT_READY_MESSAGE,
+          variant: "destructive",
+        });
+        return new Error(CASE_SAVE_NOT_READY_MESSAGE);
       }
       const error = (await caseStore.update(id, nextWrite)) ?? null;
       if (error) {

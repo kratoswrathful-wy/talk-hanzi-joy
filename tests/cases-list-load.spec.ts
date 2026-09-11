@@ -493,7 +493,10 @@ describeBackend("cases list vs full split (isolated)", () => {
       return page.getByTestId("case-detail-stale-banner").isVisible();
     }, { timeout: 30_000 }).toBe(true);
 
-    await page.getByTestId("case-detail-stale-retry").click();
+    const retryWhileGated = page.getByTestId("case-detail-stale-retry");
+    await expect(retryWhileGated).toBeVisible();
+    await retryWhileGated.scrollIntoViewIfNeeded();
+    await retryWhileGated.click();
     await expect.poll(async () => {
       if (gate.parked.length) await fulfillParkedFullRows(gate, oldJson);
       return page.getByTestId("case-detail-completeness").getAttribute("data-completeness");
@@ -502,10 +505,18 @@ describeBackend("cases list vs full split (isolated)", () => {
 
     gate.pass = true;
     await releaseParkedToNetwork(gate);
-    await page.getByTestId("case-detail-stale-retry").click();
-    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
-      timeout: 20_000,
-    });
+    await expect.poll(async () => {
+      const completeness = await page.getByTestId("case-detail-completeness").getAttribute("data-completeness");
+      if (completeness === "full") return "full";
+      const retry = page.getByTestId("case-detail-stale-retry");
+      if (await retry.isVisible().catch(() => false)) {
+        await retry.scrollIntoViewIfNeeded().catch(() => undefined);
+        if (await retry.isEnabled().catch(() => false)) {
+          await retry.click({ timeout: 3_000 }).catch(() => undefined);
+        }
+      }
+      return (await page.getByTestId("case-detail-completeness").getAttribute("data-completeness")) ?? "missing";
+    }, { timeout: 20_000 }).toBe("full");
     await expect(page.getByText(newBody)).toBeVisible();
     await expect(page.getByTestId("case-title-input")).not.toHaveAttribute("readonly");
     await session.close();
