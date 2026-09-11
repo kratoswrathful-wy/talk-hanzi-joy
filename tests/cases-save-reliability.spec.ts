@@ -388,4 +388,35 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     }, { timeout: 20_000 }).toEqual({ count: 1, tool: "memoQ", blankName: false });
     await session.close();
   });
+
+  test("N07-a 只改自己的工具後案件說明仍可編輯", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-STALE-${Date.now()}`);
+    await seedCaseToolCredentials(page, caseId, {
+      questionTools: [{
+        id: "qt-default",
+        tool: "memoQ",
+        fields: seededToolFields,
+        fieldValues: { "f-server": "synthetic-old", "f-note": "keep" },
+      }],
+    });
+    await page.goto(`/cases/${caseId}`);
+    const server = page.getByTestId("question-tool-instance-0").getByTestId("tool-server");
+    await expect(server).toBeEnabled({ timeout: 30_000 });
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full");
+    await server.click();
+    await server.fill("synthetic-stale");
+    await expect(server).toHaveValue("synthetic-stale");
+    await server.press("Tab");
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return creds.questionTools[0]?.fieldValues?.["f-server"] ?? "";
+    }, { timeout: 20_000 }).toBe("synthetic-stale");
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full");
+    await expect(page.getByTestId("case-detail-stale-banner")).toHaveCount(0);
+    await expect(page.getByTestId("case-detail-omitted-preview")).toHaveCount(0);
+    await session.close();
+  });
 });

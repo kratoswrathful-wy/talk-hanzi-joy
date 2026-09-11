@@ -330,11 +330,51 @@ describe("listSnapshotIsNewer", () => {
     });
     expect(listSnapshotIsNewer(cachedAfterSave, listPoll)).toBe(true);
     const merged = mergeCaseListProjection(cachedAfterSave, listPoll, "full");
-    expect(merged.completeness).toBe("stale");
+    expect(merged.completeness).toBe("full");
     const ownEcho = mergeCaseListProjection(cachedAfterSave, listPoll, "full", {
       lastConfirmedRevision: 5,
     });
     expect(ownEcho.completeness).toBe("full");
+  });
+
+  it("同 revision 僅 updatedAt 較新不得把完整列標 stale（憑證回聲）", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T06:00:00.000Z",
+      revision: 3,
+      title: "案",
+      processNote: "完整備註",
+    });
+    const listEcho = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T06:00:01.000Z",
+      revision: 3,
+      title: "案",
+    });
+    const merged = mergeCaseListProjection(current, listEcho, "full");
+    expect(merged.completeness).toBe("full");
+    expect(merged.record.processNote).toBe("完整備註");
+    expect(caseUpdateBlockedReason(merged.completeness, { processNote: "x" })).toBeNull();
+  });
+
+  it("revision 真的較高仍標 stale，即使標題相同", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T06:00:00.000Z",
+      revision: 3,
+      title: "案",
+      processNote: "舊備註",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T06:01:00.000Z",
+      revision: 4,
+      title: "案",
+    });
+    const merged = mergeCaseListProjection(current, incoming, "full");
+    expect(merged.completeness).toBe("stale");
+    expect(merged.record.processNote).toBe("舊備註");
+    expect(caseUpdateBlockedReason(merged.completeness, { processNote: "x" })).toMatch(/完整內容尚未載入或已過期/);
   });
 });
 
