@@ -325,7 +325,20 @@ export function applyIntendedToolEntryWrite(
   ];
 }
 
-/** 詳情頁選單／填欄的同一條寫入路徑：空白選單先配穩定 id，後續操作沿用。 */
+function resolveDisplayedToolPatch(
+  current: ToolEntry[],
+  entryId: string,
+  updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+): Partial<ToolEntry> {
+  const latest = current.find((entry) => entry.id === entryId) ?? { id: entryId, tool: "", fieldValues: {} };
+  return typeof updates === "function" ? updates(latest) : updates;
+}
+
+/**
+ * 詳情頁選單／填欄的同一條寫入路徑。
+ * 已確認列（含舊資料把 qt-default／te-default 當真實 id）一律就地更新；
+ * 只有畫面空白選單且 current 沒有該列時才配穩定 id 建立。
+ */
 export function applyDisplayedToolEntryWrite(
   current: ToolEntry[],
   displayedId: string,
@@ -333,11 +346,40 @@ export function applyDisplayedToolEntryWrite(
   allocateStableId: (displayId: string) => string,
 ): ToolEntry[] {
   const displayed = String(displayedId || "").trim();
-  const createIfMissing = isDisplayOnlyToolEntryId(displayed);
-  const entryId = createIfMissing ? allocateStableId(displayed) : displayed;
-  const latest = current.find((entry) => entry.id === entryId) ?? { id: entryId, tool: "", fieldValues: {} };
-  const patch = typeof updates === "function" ? updates(latest) : updates;
-  return applyIntendedToolEntryWrite(current, { entryId, updates: patch, createIfMissing });
+  if (!displayed) return current;
+
+  if (current.some((entry) => entry.id === displayed)) {
+    return applyIntendedToolEntryWrite(current, {
+      entryId: displayed,
+      updates: resolveDisplayedToolPatch(current, displayed, updates),
+      createIfMissing: false,
+    });
+  }
+
+  if (!isDisplayOnlyToolEntryId(displayed)) {
+    return applyIntendedToolEntryWrite(current, {
+      entryId: displayed,
+      updates: resolveDisplayedToolPatch(current, displayed, updates),
+      createIfMissing: false,
+    });
+  }
+
+  const allocated = allocateStableId(displayed);
+  if (current.some((entry) => entry.id === allocated)) {
+    return applyIntendedToolEntryWrite(current, {
+      entryId: allocated,
+      updates: resolveDisplayedToolPatch(current, allocated, updates),
+      createIfMissing: false,
+    });
+  }
+
+  const patch = resolveDisplayedToolPatch(current, allocated, updates);
+  const selectedTool = typeof patch.tool === "string" ? patch.tool.trim() : "";
+  return applyIntendedToolEntryWrite(current, {
+    entryId: allocated,
+    updates: patch,
+    createIfMissing: !!selectedTool,
+  });
 }
 
 /** 結果是否仍適用於目前畫面（防晚到更新另一案） */

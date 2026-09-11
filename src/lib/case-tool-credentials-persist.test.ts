@@ -521,6 +521,70 @@ describe("N07-a first question-tool select from empty confirmed", () => {
     ]);
   });
 
+  it("updates a stored qt-default row in place (Codex 06:19 repro)", () => {
+    const current = [{
+      id: "qt-default",
+      tool: "memoQ",
+      fieldValues: { server: "synthetic-old", note: "keep" },
+    }];
+    const next = applyDisplayedToolEntryWrite(
+      current,
+      "qt-default",
+      { fieldValues: { server: "synthetic-new" } },
+      () => "new-synthetic-id",
+    );
+    expect(next).toEqual([{
+      id: "qt-default",
+      tool: "memoQ",
+      fieldValues: { server: "synthetic-new", note: "keep" },
+    }]);
+  });
+
+  it("updates a stored te-default row in place without adding a blank sibling", () => {
+    const current = [{
+      id: "te-default",
+      tool: "Phrase",
+      fieldValues: { project: "keep-me", server: "old" },
+    }];
+    const next = applyDisplayedToolEntryWrite(
+      current,
+      "te-default",
+      { fieldValues: { server: "synthetic-new" } },
+      () => "new-synthetic-id",
+    );
+    expect(next).toHaveLength(1);
+    expect(next[0].id).toBe("te-default");
+    expect(next[0].tool).toBe("Phrase");
+    expect(next[0].fieldValues).toEqual({ project: "keep-me", server: "synthetic-new" });
+  });
+
+  it("does not create a blank row when changing an ordinary non-default id", () => {
+    const current = [
+      { id: "qt-keep", tool: "memoQ", fieldValues: { a: "1" } },
+      { id: "qt-2", tool: "Phrase", fieldValues: { b: "2" } },
+    ];
+    const next = applyDisplayedToolEntryWrite(
+      current,
+      "qt-2",
+      { fieldValues: { b: "3" } },
+      () => "should-not-allocate",
+    );
+    expect(next).toEqual([
+      { id: "qt-keep", tool: "memoQ", fieldValues: { a: "1" } },
+      { id: "qt-2", tool: "Phrase", fieldValues: { b: "3" } },
+    ]);
+  });
+
+  it("does not resurrect a deleted allocated id with a late field-only write", () => {
+    const next = applyDisplayedToolEntryWrite(
+      [{ id: "qt-keep", tool: "memoQ", fieldValues: {} }],
+      "qt-default",
+      { fieldValues: { server: "late" } },
+      () => "qt-deleted-allocated",
+    );
+    expect(next).toEqual([{ id: "qt-keep", tool: "memoQ", fieldValues: {} }]);
+  });
+
   it("persists the first select through the page updater onto confirmed []", async () => {
     const base = { ...cred("c-empty-qt", [{ id: "te-1", tool: "memoQ", fieldValues: {} }]), questionTools: [] };
     let server = structuredClone(base);
@@ -582,5 +646,47 @@ describe("N07-a first question-tool select from empty confirmed", () => {
     expect(second.confirmedCredentials?.questionTools).toHaveLength(1);
     expect(second.confirmedCredentials?.questionTools?.[0].id).toBe("qt-ui-qt-default");
     expect(second.confirmedCredentials?.questionTools?.[0].fieldValues).toEqual({ url: "https://example.test/second" });
+  });
+
+  it("persists an edit to a stored qt-default through the page updater without a second row", async () => {
+    const base = {
+      ...cred("c-old-qt", [{ id: "te-1", tool: "memoQ", fieldValues: {} }]),
+      questionTools: [{
+        id: "qt-default",
+        tool: "memoQ",
+        fieldValues: { server: "synthetic-old", note: "keep" },
+      }],
+    };
+    let server = structuredClone(base);
+    const rpc = vi.fn().mockImplementation(async () => ({ data: structuredClone(server), error: null }));
+    const access = createCaseCredentialAccess({ rpc } as never);
+    access.setActiveUser("u1");
+    await access.load("c-old-qt");
+    const updateCredentials = vi.fn(async (_id: string, patch: Partial<CaseCredentials>) => {
+      server = { ...server, ...patch, revision: server.revision + 1 };
+      return null;
+    });
+    const result = await persistToolBlockPatch({
+      caseId: "c-old-qt",
+      userId: "u1",
+      generation: access.generation("c-old-qt"),
+      block: "questionTools",
+      updater: (current) => applyDisplayedToolEntryWrite(
+        current,
+        "qt-default",
+        { fieldValues: { server: "synthetic-new" } },
+        () => "new-synthetic-id",
+      ),
+      draftCredentials: base,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps: makeDeps(access, { updateCredentials }),
+    });
+    expect(result.status).toBe("ok");
+    expect(result.confirmedCredentials?.questionTools).toEqual([{
+      id: "qt-default",
+      tool: "memoQ",
+      fieldValues: { server: "synthetic-new", note: "keep" },
+    }]);
   });
 });
