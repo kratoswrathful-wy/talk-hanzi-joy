@@ -3,8 +3,9 @@ import { loginAs } from "./helpers/login-as";
 import { restFor, restMutate } from "./helpers/save-reliability-iso";
 
 /**
- * Q13：真正 authenticated PM 更新合成費用；member 負向不得改他人列。
- * UPDATE 本身不加 select；讀回用另一次 GET fees_visible。
+ * Q13：P0-C 已 revoke fees SELECT。authenticated 可 INSERT（return=minimal），
+ * 不可 PATCH 原表（42501，不得因此 GRANT SELECT）。讀回走 fees_visible。
+ * T1 改同一列必須被拒。
  */
 const ENABLED = process.env.PLAYWRIGHT_SAVE_RELIABILITY_UI === "1";
 const describeQ13 = ENABLED ? test.describe : test.describe.skip;
@@ -18,7 +19,7 @@ function cred(role: "pm" | "t1") {
 }
 
 describeQ13("Q13 費用角色寫入", () => {
-  test("PM 可 UPDATE 原表且獨立讀回確認；T1 改同一列被拒或零列", async ({ browser }) => {
+  test("PM 可建檔並讀 view；原表 PATCH 被 P0-C 拒絕；T1 不得改同一列", async ({ browser }) => {
     const pm = await loginAs(browser, cred("pm").email, cred("pm").password);
     const { token: pmToken } = await restFor(pm.page);
     const stamp = Date.now();
@@ -35,6 +36,17 @@ describeQ13("Q13 費用角色寫入", () => {
     }, { Prefer: "return=minimal" });
     expect(insert.ok, `PM INSERT fees ${insert.status}: ${insert.text}`).toBe(true);
 
+    const visible = await restMutate(
+      pm.page.request,
+      pmToken,
+      "GET",
+      `fees_visible?select=id,title,client_info&id=eq.${feeId}`,
+    );
+    expect(visible.ok, visible.text).toBe(true);
+    const pmRow = (JSON.parse(visible.text) as Array<{ id: string; title: string; client_info: unknown }>)[0];
+    expect(pmRow?.title).toBe(title);
+    expect(pmRow?.client_info).toBeTruthy();
+
     const newTitle = `${title}-UPDATED`;
     const update = await restMutate(
       pm.page.request,
@@ -44,20 +56,9 @@ describeQ13("Q13 費用角色寫入", () => {
       { title: newTitle },
       { Prefer: "return=minimal" },
     );
-    expect(update.ok, `PM UPDATE ${update.status}: ${update.text}`).toBe(true);
-    expect(update.status, "UPDATE 不得為了計列數而變成 select 失敗").toBeLessThan(400);
-    expect(update.text === "" || update.text === "[]").toBe(true);
-
-    const visible = await restMutate(
-      pm.page.request,
-      pmToken,
-      "GET",
-      `fees_visible?select=id,title,client_info&id=eq.${feeId}`,
-    );
-    expect(visible.ok, visible.text).toBe(true);
-    const pmRow = (JSON.parse(visible.text) as Array<{ id: string; title: string; client_info: unknown }>)[0];
-    expect(pmRow?.title).toBe(newTitle);
-    expect(pmRow?.client_info).toBeTruthy();
+    expect(update.ok, `P0-C 下 PM PATCH fees 應被拒，不得 GRANT SELECT：${update.status} ${update.text}`).toBe(false);
+    expect(update.status).toBeGreaterThanOrEqual(400);
+    expect(update.text).toMatch(/permission denied for table fees|42501/);
 
     const t1 = await loginAs(browser, cred("t1").email, cred("t1").password);
     const { token: t1Token } = await restFor(t1.page);
@@ -78,7 +79,7 @@ describeQ13("Q13 費用角色寫入", () => {
       "GET",
       `fees_visible?select=id,title&id=eq.${feeId}`,
     );
-    expect((JSON.parse(after.text) as Array<{ title: string }>)[0]?.title).toBe(newTitle);
+    expect((JSON.parse(after.text) as Array<{ title: string }>)[0]?.title).toBe(title);
 
     const t1Read = await restMutate(
       t1.page.request,

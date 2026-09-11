@@ -76,11 +76,21 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     expect(before?.status).toBe("draft");
 
     const assignGate = newGate();
-    await parkRpcs(page, ["pm_update_case_assignments", "apply_case_update"], assignGate);
+    const rpcHits: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" && /\/rpc\//.test(req.url())) {
+        rpcHits.push(req.url());
+      }
+    });
+    await parkRpcs(page, ["pm_update_case_assignments", "apply_case_update", "update_case_permitted_fields"], assignGate);
 
     await expect(page.getByTestId("case-detail-publish")).toBeEnabled();
     await page.getByTestId("case-detail-publish").click();
-    await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    try {
+      await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    } catch (err) {
+      throw new Error(`公布未攔截到寫入 RPC；hits=${rpcHits.join(" | ") || "(none)"}`, { cause: err });
+    }
     await expect(page.getByText("案件已公布")).toHaveCount(0);
     await expect(page.getByTestId("case-save-status")).toHaveAttribute("data-save-phase", "saving");
 
@@ -107,8 +117,9 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await parkRpcs(page, ["apply_case_update", "update_case_permitted_fields"], generalGate);
 
     const titleInput = page.getByTestId("case-title-input");
+    await titleInput.click();
     await titleInput.fill(`ISO-SAVE-D2-${stamp}-A`);
-    await titleInput.blur();
+    await page.locator("body").click({ position: { x: 8, y: 8 } });
     await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     const firstRevs = expectedRevisions(generalGate);
     expect(firstRevs[0]).toBe(before!.revision);
@@ -116,8 +127,9 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     const nextRev = (before!.revision ?? 0) + 1;
     await fulfillParked(generalGate, { ok: true, revision: nextRev });
 
+    await titleInput.click();
     await titleInput.fill(`ISO-SAVE-D2-${stamp}-B`);
-    await titleInput.blur();
+    await page.locator("body").click({ position: { x: 8, y: 8 } });
 
     await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     const secondRevs = expectedRevisions(generalGate);
@@ -179,7 +191,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     });
 
     await page.getByRole("button", { name: "複製本頁" }).click();
-    await expect(page.getByText("來源案件完整資料讀取失敗，已取消複製。請重試後再複製。")).toBeVisible({
+    await expect(page.getByText("來源案件完整資料讀取失敗，已取消複製。請重試後再複製。").first()).toBeVisible({
       timeout: 20_000,
     });
     await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`));

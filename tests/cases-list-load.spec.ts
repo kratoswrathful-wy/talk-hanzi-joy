@@ -326,7 +326,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     // 必須走 SPA 返回，保留記憶體裡的過期完整快取。page.goto 會整頁重載，
     // 快取清空後只剩清單投影，會誤走「完整讀取失敗」而不是 stale。
     const row = page.locator("tr").filter({ hasText: `${title}-newer` });
-    await row.locator('button[title="開啟"]').click({ force: true });
+    await row.getByTestId("case-list-open").click({ force: true });
     await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
     await expect(page.getByTestId("case-detail-stale-banner")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "stale");
@@ -376,7 +376,8 @@ describeBackend("cases list vs full split (isolated)", () => {
 
     const gate = createFullRowGate();
     await installFullRowGate(page, gate);
-    await openCaseFromList(page, title, caseId);
+    await page.goto(`/cases/${caseId}`);
+    await expect.poll(() => gate.parked.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
     await expect.poll(() => gate.parked.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
 
     await patchCaseOutOfBand(page, caseId, {
@@ -519,7 +520,6 @@ async function captureCaseFullJson(page: Page, caseId: string): Promise<string> 
 async function openCaseFromList(page: Page, visibleTitle: string, caseId: string) {
   const row = page.locator("tr").filter({ hasText: visibleTitle });
   await expect(row).toBeVisible({ timeout: 30_000 });
-  await row.scrollIntoViewIfNeeded();
-  await row.locator('button[title="開啟"]').click({ force: true });
+  await row.getByTestId("case-list-open").click({ force: true });
   await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
 }

@@ -43,11 +43,11 @@ describeQ16("Q16 請款留言往返", () => {
     const draft = page.getByTestId("comment-draft-input").last();
     await draft.fill(`ISO-Q16-C1-${stamp}`);
     await page.getByTestId("comment-submit").last().click();
-    await expect(page.getByText(`ISO-Q16-C1-${stamp}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("span").filter({ hasText: `ISO-Q16-C1-${stamp}` })).toBeVisible({ timeout: 15_000 });
 
     await draft.fill(`ISO-Q16-C2-${stamp}`);
     await page.getByTestId("comment-submit").last().click();
-    await expect(page.getByText(`ISO-Q16-C2-${stamp}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("span").filter({ hasText: `ISO-Q16-C2-${stamp}` })).toBeVisible({ timeout: 15_000 });
 
     await page.route("**/rest/v1/client_invoices*", async (route) => {
       if (route.request().method() === "PATCH") {
@@ -69,8 +69,8 @@ describeQ16("Q16 請款留言往返", () => {
 
     await page.goto("/client-invoices");
     await page.goto(`/client-invoices/${invoiceId}`);
-    await expect(page.getByText(`ISO-Q16-C1-${stamp}`)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(`ISO-Q16-C2-${stamp}`)).toBeVisible();
+    await expect(page.locator("span").filter({ hasText: `ISO-Q16-C1-${stamp}` })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("span").filter({ hasText: `ISO-Q16-C2-${stamp}` })).toBeVisible();
     await expect(page.getByText(failedText)).toHaveCount(0);
     await expect(page.getByTestId("client-invoice-note")).toHaveValue("Q16-NOTE-KEEP");
 

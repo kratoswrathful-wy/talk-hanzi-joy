@@ -261,6 +261,7 @@ function OpenButton({ caseId }: { caseId: string }) {
     <button
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/cases/${caseId}`); }}
       onMouseDown={(e) => e.stopPropagation()}
+      data-testid="case-list-open"
       className="absolute right-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
       title="開啟"
     >
