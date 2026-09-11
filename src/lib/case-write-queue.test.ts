@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminWriteAccessFromRoles, createKeyedQueue, describeCaseWriteFailure, mergeOptimisticCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
+import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
 
 describe("createKeyedQueue", () => {
   it("runs tasks for the same key in order and uses the previous result", async () => {
@@ -98,6 +98,33 @@ describe("identity write routing matrix", () => {
     const second = queue.enqueue("case-1", async () => "sent");
     await expect(first).rejects.toThrow("無法確認身分");
     await expect(second).resolves.toBe("sent");
+  });
+});
+
+describe("resolveIntendedCaseWrite", () => {
+  it("keeps the intended write when the local snapshot is missing", () => {
+    expect(resolveIntendedCaseWrite(null, null, { status: "inquiry" })).toEqual({
+      status: "ready",
+      base: null,
+      write: { status: "inquiry" },
+    });
+  });
+
+  it("prefers the local snapshot when both local and store rows exist", () => {
+    const local = { title: "local" };
+    const store = { title: "store" };
+    expect(resolveIntendedCaseWrite(local, store, { title: "next" })).toEqual({
+      status: "ready",
+      base: local,
+      write: { title: "next" },
+    });
+  });
+
+  it("does not treat an empty patch as a successful write", () => {
+    expect(resolveIntendedCaseWrite(null, { title: "keep" }, {})).toEqual({
+      status: "not_ready",
+      message: CASE_SAVE_NOT_READY_MESSAGE,
+    });
   });
 });
 

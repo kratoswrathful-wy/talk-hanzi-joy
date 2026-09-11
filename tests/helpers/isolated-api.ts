@@ -85,6 +85,13 @@ export async function readCaseState(rest: RestClient, caseId: string): Promise<C
   return rows[0] ?? null;
 }
 
+export async function readCaseTitle(rest: RestClient, caseId: string): Promise<string | undefined> {
+  const rows = await rest.get<Array<{ id: string; title: string | null }>>(
+    `cases_visible?select=id,title&id=eq.${caseId}`,
+  );
+  return rows[0]?.title ?? undefined;
+}
+
 export interface ParticipantRow {
   user_id: string;
   role: string;
