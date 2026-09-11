@@ -1,7 +1,7 @@
-import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
+import { test, expect, type Page, type Route } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
 import { accessToken, restClient, readCaseState } from "./helpers/isolated-api";
-import { createDraftViaRpc } from "./helpers/save-reliability-iso";
+import { attachRestHitLog, createDraftViaRpc, readSavePhase } from "./helpers/save-reliability-iso";
 
 /**
  * TASK-001 儲存可靠性：隔離驗證（D1／D2／Q01／Q21）。
@@ -51,17 +51,12 @@ function expectedRevisions(gate: RpcGate): number[] {
   });
 }
 
-async function commitCaseTitle(titleInput: Locator, value: string) {
+/** UI 失焦：fill 後點另一欄。不用 fill 自動失焦，也不用內部 evaluate 當 D2 證據。 */
+async function commitCaseTitleByLeavingField(page: Page, value: string) {
+  const titleInput = page.getByTestId("case-title-input");
   await titleInput.click();
   await titleInput.fill(value);
-  await titleInput.evaluate((el, next) => {
-    if (!(el instanceof HTMLInputElement)) return;
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-    setter?.call(el, next);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.blur();
-  }, value);
+  await page.getByTestId("case-client-po-input").click();
 }
 
 async function fulfillParked(gate: RpcGate, body: unknown, status = 200) {
@@ -78,7 +73,7 @@ async function fulfillParked(gate: RpcGate, body: unknown, status = 200) {
 }
 
 describeSave("TASK-001 儲存可靠性隔離驗證", () => {
-  test("D1 公布：請求未確認時不得顯示成功", async ({ browser }) => {
+  test("D1 時序：公布未確認不得當成功，徽章不得先改已公布", async ({ browser }) => {
     const { email, password } = credPm();
     const session = await loginAs(browser, email, password);
     const page = session.page;
@@ -89,12 +84,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     expect(before?.status).toBe("draft");
 
     const assignGate = newGate();
-    const rpcHits: string[] = [];
-    page.on("request", (req) => {
-      if (["POST", "PATCH"].includes(req.method()) && /\/rest\/v1\//.test(req.url())) {
-        rpcHits.push(`${req.method()} ${req.url()}`);
-      }
-    });
+    const hitLog = attachRestHitLog(page);
     await parkRpcs(page, ["pm_update_case_assignments", "apply_case_update", "update_case_permitted_fields"], assignGate);
 
     await expect(page.getByTestId("case-detail-publish")).toBeEnabled();
@@ -102,25 +92,81 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     try {
       await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
     } catch (err) {
-      const phase = await page.getByTestId("case-save-status").getAttribute("data-save-phase").catch(() => "missing");
       throw new Error(
-        `公布未攔截到寫入 RPC；savePhase=${phase}; hits=${rpcHits.join(" | ") || "(none)"}`,
+        `公布未攔截到寫入 RPC；completenessPhase=${await readSavePhase(page)}; hits=${hitLog.format()}`,
         { cause: err },
       );
     }
     await expect(page.getByText("案件已公布")).toHaveCount(0);
-    await expect(page.getByTestId("case-save-status")).toHaveAttribute("data-save-phase", "saving");
+    await expect.poll(async () => readSavePhase(page), { timeout: 5_000 }).toBe("saving");
+    await expect(page.getByTestId("case-detail-publish")).toBeVisible();
+    await expect(page.getByRole("button", { name: "收回為草稿" })).toHaveCount(0);
 
     const mid = await readCaseState(rest, caseId);
     expect(mid?.status).toBe("draft");
-
-    await fulfillParked(assignGate, { ok: true, revision: (before?.revision ?? 0) + 1 });
-    await expect(page.getByText("案件已公布").first()).toBeVisible({ timeout: 10_000 });
-
     await session.close();
   });
 
-  test("D2 連改標題：後一筆使用前一筆已確認的 revision", async ({ browser }) => {
+  test("D1 落地：真正放行後讀回 inquiry，重整仍在", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const title = `ISO-SAVE-D1P-${Date.now()}`;
+    const caseId = await createDraftViaRpc(page, title);
+    const rest = restClient(page.request, await accessToken(page));
+    expect((await readCaseState(rest, caseId))?.status).toBe("draft");
+
+    await expect(page.getByTestId("case-detail-publish")).toBeEnabled();
+    await page.getByTestId("case-detail-publish").click();
+    await expect(page.getByText("案件已公布").first()).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => (await readCaseState(rest, caseId))?.status, { timeout: 15_000 }).toBe("inquiry");
+
+    await page.reload();
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+      timeout: 30_000,
+    });
+    await expect.poll(async () => (await readCaseState(rest, caseId))?.status, { timeout: 10_000 }).toBe("inquiry");
+    await expect(page.getByRole("button", { name: "收回為草稿" })).toBeVisible();
+    await session.close();
+  });
+
+  test("D1 身分：角色表失敗仍送出公布寫入", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const title = `ISO-SAVE-D1I-${Date.now()}`;
+    const caseId = await createDraftViaRpc(page, title);
+
+    await page.route("**/rest/v1/user_roles*", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "iso_roles_fail" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    const assignGate = newGate();
+    const hitLog = attachRestHitLog(page);
+    await parkRpcs(page, ["pm_update_case_assignments", "apply_case_update", "update_case_permitted_fields"], assignGate);
+    await expect(page.getByTestId("case-detail-publish")).toBeEnabled();
+    await page.getByTestId("case-detail-publish").click();
+    try {
+      await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    } catch (err) {
+      throw new Error(
+        `角色失敗後公布未送出；completenessPhase=${await readSavePhase(page)}; hits=${hitLog.format()}`,
+        { cause: err },
+      );
+    }
+    await expect(page.getByText("案件已公布")).toHaveCount(0);
+    await session.close();
+  });
+
+  test("D2 時序：fill 後點另一欄，後一筆用已確認 revision", async ({ browser }) => {
     const { email, password } = credPm();
     const session = await loginAs(browser, email, password);
     const page = session.page;
@@ -131,24 +177,54 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     expect(before).toBeTruthy();
 
     const generalGate = newGate();
+    const hitLog = attachRestHitLog(page);
     await parkRpcs(page, ["apply_case_update", "update_case_permitted_fields"], generalGate);
 
-    const titleInput = page.getByTestId("case-title-input");
-    await commitCaseTitle(titleInput, `ISO-SAVE-D2-${stamp}-A`);
-    await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
+    await commitCaseTitleByLeavingField(page, `ISO-SAVE-D2-${stamp}-A`);
+    try {
+      await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
+    } catch (err) {
+      throw new Error(
+        `標題失焦未攔截到寫入；completenessPhase=${await readSavePhase(page)}; hits=${hitLog.format()}`,
+        { cause: err },
+      );
+    }
     const firstRevs = expectedRevisions(generalGate);
     expect(firstRevs[0]).toBe(before!.revision);
 
     const nextRev = (before!.revision ?? 0) + 1;
     await fulfillParked(generalGate, { ok: true, revision: nextRev });
 
-    await commitCaseTitle(titleInput, `ISO-SAVE-D2-${stamp}-B`);
+    await commitCaseTitleByLeavingField(page, `ISO-SAVE-D2-${stamp}-B`);
 
     await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     const secondRevs = expectedRevisions(generalGate);
     expect(secondRevs[0]).toBe(nextRev);
 
     await fulfillParked(generalGate, { ok: true, revision: nextRev + 1 });
+    await session.close();
+  });
+
+  test("D2 落地：fill 後點另一欄，讀回新標題並重整仍在", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const stamp = Date.now();
+    const original = `ISO-SAVE-D2P-${stamp}`;
+    const nextTitle = `${original}-A`;
+    const caseId = await createDraftViaRpc(page, original);
+    const rest = restClient(page.request, await accessToken(page));
+
+    await commitCaseTitleByLeavingField(page, nextTitle);
+    await expect.poll(async () => (await readCaseState(rest, caseId))?.title, { timeout: 20_000 }).toBe(nextTitle);
+
+    await page.goto("/cases");
+    await page.goto(`/cases/${caseId}`);
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId("case-title-input")).toHaveValue(nextTitle);
+    await expect.poll(async () => (await readCaseState(rest, caseId))?.title, { timeout: 10_000 }).toBe(nextTitle);
     await session.close();
   });
 

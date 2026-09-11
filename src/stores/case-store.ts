@@ -36,7 +36,7 @@ import {
   wholeFileReviewerUserId,
 } from "@/lib/case-assignment-patch";
 import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
-import { adminWriteAccessFromRoles, createKeyedQueue, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "@/lib/case-write-queue";
+import { adminWriteAccessFromRoles, createKeyedQueue, mergeOptimisticCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "@/lib/case-write-queue";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
 import { isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
@@ -334,6 +334,15 @@ const inFlightCount = new Map<string, number>();
 // Keep pending patches for a short grace window after successful write (handles replica lag)
 const pendingCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const PENDING_CLEANUP_DELAY_MS = 5000;
+
+/** 公布／收回的 status 在寫入確認前不套到畫面；pending 仍保留意圖以免 realtime 沖掉其他欄。 */
+function pendingForDisplay(id: string, pending: Partial<CaseRecord>): Partial<CaseRecord> {
+  if ((inFlightCount.get(id) || 0) > 0 && pending.status !== undefined) {
+    const { status: _ignored, ...rest } = pending;
+    return rest;
+  }
+  return pending;
+}
 
 function rememberConfirmedRevision(id: string, revision: number | undefined) {
   if (typeof revision === "number" && Number.isFinite(revision)) {
@@ -709,14 +718,14 @@ async function load() {
       if (pendingUpdates.size > 0) {
         fetched = fetched.map((c) => {
           const pending = pendingUpdates.get(c.id);
-          return pending ? { ...c, ...pending } : c;
+          return pending ? { ...c, ...pendingForDisplay(c.id, pending) } : c;
         });
         // 剛 create、尚未進本次 SELECT 的列：保留本地，避免整表覆寫「找不到案件」
         for (const [id, pending] of pendingUpdates) {
           if (fetched.some((c) => c.id === id)) continue;
           const local = currentById.get(id);
           if (local) {
-            fetched = [{ ...local, ...pending }, ...fetched];
+            fetched = [{ ...local, ...pendingForDisplay(id, pending) }, ...fetched];
           }
         }
       }
@@ -915,7 +924,9 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   const mappedOptimistic = toDb(merged);
   mappedOptimistic.updated_at = new Date().toISOString();
   const updatedAt = mappedOptimistic.updated_at;
-  cases = cases.map((c) => (c.id === id ? { ...c, ...merged, updatedAt } : c));
+  const wroteStatus = merged.status !== undefined;
+  const displayPatch = mergeOptimisticCaseWrite(prev?.status, { ...merged, updatedAt }, wroteStatus);
+  cases = cases.map((c) => (c.id === id ? { ...c, ...displayPatch } : c));
   pendingUpdates.set(id, { ...pendingUpdates.get(id), ...merged });
   inFlightCount.set(id, (inFlightCount.get(id) || 0) + 1);
 
@@ -1055,8 +1066,16 @@ async function persistQueuedUpdate(
     if (!error) rememberConfirmedRevision(id, nextRevision);
   }
 
-  if (nextRevision !== undefined) {
-    cases = cases.map((c) => (c.id === id ? { ...c, revision: nextRevision } : c));
+  if (nextRevision !== undefined || (!error && merged.status !== undefined)) {
+    cases = cases.map((c) =>
+      c.id === id
+        ? {
+            ...c,
+            ...(nextRevision !== undefined ? { revision: nextRevision } : {}),
+            ...(!error && merged.status !== undefined ? { status: merged.status as CaseStatus } : {}),
+          }
+        : c,
+    );
   }
 
   finishInFlight(id, !!error);
