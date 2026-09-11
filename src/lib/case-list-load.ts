@@ -137,6 +137,20 @@ export function decideFullCaseAdoption(
   return { adopt: true, record: incoming, completeness: "full" };
 }
 
+/**
+ * 同 revision、標題／狀態不變，只有 updatedAt 較新：
+ * 憑證寫入會改 updated_at 但不加 revision；不得把完整列誤標 stale 而停用案件說明。
+ * 他人改內文走 apply_case_update，會加 revision，不會走這條。
+ */
+export function isSameRevisionTimestampEcho(current: CaseRecord, incoming: CaseRecord): boolean {
+  return (
+    revisionNumber(current.revision) === revisionNumber(incoming.revision)
+    && current.title === incoming.title
+    && current.status === incoming.status
+    && timestampMs(incoming.updatedAt) > timestampMs(current.updatedAt)
+  );
+}
+
 /** 清單列只是自己剛確認的寫入回聲時，維持 full，不要誤標過期。 */
 export function shouldKeepFullDespiteNewerList(
   current: CaseRecord,
@@ -181,6 +195,9 @@ export function mergeCaseListProjection(
   }
   if (listSnapshotIsNewer(current, incoming)) {
     if (shouldKeepFullDespiteNewerList(current, incoming, ownWrite)) {
+      return { record: out, completeness: "full" };
+    }
+    if (isSameRevisionTimestampEcho(current, incoming) && currentCompleteness === "full") {
       return { record: out, completeness: "full" };
     }
     return { record: out, completeness: "stale" };
