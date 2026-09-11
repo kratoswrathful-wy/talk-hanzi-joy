@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
 import { accessToken, restClient, readCaseState } from "./helpers/isolated-api";
 import { createDraftViaRpc } from "./helpers/save-reliability-iso";
@@ -51,6 +51,19 @@ function expectedRevisions(gate: RpcGate): number[] {
   });
 }
 
+async function commitCaseTitle(titleInput: Locator, value: string) {
+  await titleInput.click();
+  await titleInput.fill(value);
+  await titleInput.evaluate((el, next) => {
+    if (!(el instanceof HTMLInputElement)) return;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    setter?.call(el, next);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.blur();
+  }, value);
+}
+
 async function fulfillParked(gate: RpcGate, body: unknown, status = 200) {
   const batch = gate.parked.splice(0, gate.parked.length);
   await Promise.all(
@@ -78,8 +91,8 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     const assignGate = newGate();
     const rpcHits: string[] = [];
     page.on("request", (req) => {
-      if (req.method() === "POST" && /\/rpc\//.test(req.url())) {
-        rpcHits.push(req.url());
+      if (["POST", "PATCH"].includes(req.method()) && /\/rest\/v1\//.test(req.url())) {
+        rpcHits.push(`${req.method()} ${req.url()}`);
       }
     });
     await parkRpcs(page, ["pm_update_case_assignments", "apply_case_update", "update_case_permitted_fields"], assignGate);
@@ -89,7 +102,11 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     try {
       await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
     } catch (err) {
-      throw new Error(`公布未攔截到寫入 RPC；hits=${rpcHits.join(" | ") || "(none)"}`, { cause: err });
+      const phase = await page.getByTestId("case-save-status").getAttribute("data-save-phase").catch(() => "missing");
+      throw new Error(
+        `公布未攔截到寫入 RPC；savePhase=${phase}; hits=${rpcHits.join(" | ") || "(none)"}`,
+        { cause: err },
+      );
     }
     await expect(page.getByText("案件已公布")).toHaveCount(0);
     await expect(page.getByTestId("case-save-status")).toHaveAttribute("data-save-phase", "saving");
@@ -117,9 +134,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await parkRpcs(page, ["apply_case_update", "update_case_permitted_fields"], generalGate);
 
     const titleInput = page.getByTestId("case-title-input");
-    await titleInput.click();
-    await titleInput.fill(`ISO-SAVE-D2-${stamp}-A`);
-    await page.locator("body").click({ position: { x: 8, y: 8 } });
+    await commitCaseTitle(titleInput, `ISO-SAVE-D2-${stamp}-A`);
     await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     const firstRevs = expectedRevisions(generalGate);
     expect(firstRevs[0]).toBe(before!.revision);
@@ -127,9 +142,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     const nextRev = (before!.revision ?? 0) + 1;
     await fulfillParked(generalGate, { ok: true, revision: nextRev });
 
-    await titleInput.click();
-    await titleInput.fill(`ISO-SAVE-D2-${stamp}-B`);
-    await page.locator("body").click({ position: { x: 8, y: 8 } });
+    await commitCaseTitle(titleInput, `ISO-SAVE-D2-${stamp}-B`);
 
     await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     const secondRevs = expectedRevisions(generalGate);

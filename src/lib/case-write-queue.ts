@@ -37,6 +37,22 @@ export function adminWriteAccessFromRoles(
   return { ok: true, isAdmin };
 }
 
+/** 身分表失敗時仍送後端 RPC，不得在前端把公布／改欄請求吞掉。 */
+export function shouldUseAdminCaseWritePath(
+  access: ReturnType<typeof adminWriteAccessFromRoles>,
+  hasAssignment: boolean,
+): boolean {
+  if (access.ok) return access.isAdmin;
+  return hasAssignment;
+}
+
+export function shouldBlockNonAdminAssignmentWrite(
+  access: ReturnType<typeof adminWriteAccessFromRoles>,
+  hasAssignment: boolean,
+): boolean {
+  return access.ok && !access.isAdmin && hasAssignment;
+}
+
 export function describeCaseWriteFailure(error: unknown): {
   kind: "conflict" | "identity" | "failed";
   title: string;

@@ -36,7 +36,7 @@ import {
   wholeFileReviewerUserId,
 } from "@/lib/case-assignment-patch";
 import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
-import { adminWriteAccessFromRoles, createKeyedQueue } from "@/lib/case-write-queue";
+import { adminWriteAccessFromRoles, createKeyedQueue, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "@/lib/case-write-queue";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
 import { isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
@@ -967,16 +967,13 @@ async function persistQueuedUpdate(
     if (e instanceof AuthRecoverableError) return null;
     throw e;
   });
-  const roleQuery = user
-    ? await supabase.from("user_roles").select("role").eq("user_id", user.id)
+  const sessionUser = user ?? (await supabase.auth.getSession()).data.session?.user ?? null;
+  const roleQuery = sessionUser
+    ? await supabase.from("user_roles").select("role").eq("user_id", sessionUser.id)
     : { data: null, error: new Error("no_session") };
   const access = adminWriteAccessFromRoles(roleQuery.data, roleQuery.error);
-  if (access.ok === false) {
-    finishInFlight(id, true);
-    notify();
-    return new Error(access.message);
-  }
-  if (!access.isAdmin && casePartialHasAssignmentFields(partial as Record<string, unknown>)) {
+  const hasAssignment = casePartialHasAssignmentFields(partial as Record<string, unknown>);
+  if (shouldBlockNonAdminAssignmentWrite(access, hasAssignment)) {
     finishInFlight(id, true);
     notify();
     return new Error("目前身分不能寫入譯者、審稿或公布狀態。已保留畫面輸入。");
@@ -985,7 +982,7 @@ async function persistQueuedUpdate(
   let error: Error | { message: string } | null = null;
   let nextRevision: number | undefined;
   const liveRevision = live?.revision ?? 0;
-  if (access.isAdmin) {
+  if (shouldUseAdminCaseWritePath(access, hasAssignment)) {
     let revision = liveRevision;
     const assignmentMeta = {
       translatorUserId: (partial as { translatorUserId?: string | null }).translatorUserId,
