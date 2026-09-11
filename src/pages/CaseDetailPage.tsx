@@ -104,8 +104,7 @@ import { caseCredentialAccess } from "@/lib/case-credential-store";
 import type { CaseCredentials } from "@/lib/case-action-rpc";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
-  applyToolEntryFieldPatch,
-  applyToolEntryFieldPatchById,
+  applyDisplayedToolEntryWrite,
   isPersistResultCurrent,
   persistToolBlockPatch,
 } from "@/lib/case-tool-credentials-persist";
@@ -1133,6 +1132,20 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const caseDataRef = useRef<CaseRecord | null>(null);
   caseDataRef.current = caseData;
+  const displayToolEntryIdsRef = useRef<Map<string, string>>(new Map());
+  const displayToolEntryCaseRef = useRef<string | null>(null);
+  if (caseData?.id !== displayToolEntryCaseRef.current) {
+    displayToolEntryCaseRef.current = caseData?.id ?? null;
+    displayToolEntryIdsRef.current = new Map();
+  }
+  const allocateDisplayToolEntryId = useCallback((displayId: string) => {
+    const existing = displayToolEntryIdsRef.current.get(displayId);
+    if (existing) return existing;
+    const prefix = displayId.startsWith("qt") ? "qt" : "te";
+    const created = `${prefix}-${crypto.randomUUID()}`;
+    displayToolEntryIdsRef.current.set(displayId, created);
+    return created;
+  }, []);
   const [loading, setLoading] = useState(true);
   /** Single fetch hung past CASE_LOAD_TIMEOUT_MS */
   const [caseLoadTimedOut, setCaseLoadTimedOut] = useState(false);
@@ -1844,13 +1857,7 @@ export default function CaseDetailPage() {
     entryId: string,
     updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
   ) => {
-    patchTools((current) => {
-      const entry = current.find((t) => t.id === entryId);
-      const patch = typeof updates === "function"
-        ? updates(entry ?? { id: entryId, tool: "", fieldValues: {} })
-        : updates;
-      return applyToolEntryFieldPatchById(current, entryId, patch);
-    });
+    patchTools((current) => applyDisplayedToolEntryWrite(current, entryId, updates, allocateDisplayToolEntryId));
   };
 
   const removeTool = (idx: number) => {
@@ -1919,13 +1926,7 @@ export default function CaseDetailPage() {
     entryId: string,
     updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
   ) => {
-    patchQuestionTools((current) => {
-      const entry = current.find((t) => t.id === entryId);
-      const patch = typeof updates === "function"
-        ? updates(entry ?? { id: entryId, tool: "", fieldValues: {} })
-        : updates;
-      return applyToolEntryFieldPatchById(current, entryId, patch);
-    });
+    patchQuestionTools((current) => applyDisplayedToolEntryWrite(current, entryId, updates, allocateDisplayToolEntryId));
   };
 
   const removeQuestionTool = (idx: number) => {

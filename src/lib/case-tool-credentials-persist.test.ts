@@ -4,8 +4,11 @@ import {
   CredentialLoadStaleError,
 } from "./case-credential-access";
 import {
+  applyDisplayedToolEntryWrite,
+  applyIntendedToolEntryWrite,
   applyToolEntryFieldPatch,
   applyToolEntryFieldPatchById,
+  isDisplayOnlyToolEntryId,
   isPersistResultCurrent,
   persistToolBlockPatch,
   resetToolCredentialPersistQueuesForTests,
@@ -435,5 +438,149 @@ describe("persistToolBlockPatch cross-case and draft isolation", () => {
     });
     expect(result.status).toBe("ok");
     expect(result.confirmedCredentials?.tools?.[0].fieldValues).toEqual({ a: "", b: "2" });
+  });
+});
+
+describe("N07-a first question-tool select from empty confirmed", () => {
+  it("keeps the 31190692 hole: id patch on [] does not create", () => {
+    const next = applyToolEntryFieldPatchById([], "qt-default", {
+      tool: "Google Sheet",
+      fields: [{ id: "url", label: "網址", type: "text" }],
+      fieldValues: { url: "https://example.test/q" },
+    });
+    expect(next).toEqual([]);
+  });
+
+  it("creates one stable entry on the first valid blank-menu select", () => {
+    const ids: string[] = [];
+    const next = applyDisplayedToolEntryWrite(
+      [],
+      "qt-default",
+      {
+        tool: "Google Sheet",
+        fields: [{ id: "url", label: "網址", type: "text" }],
+        fieldValues: { url: "https://example.test/q" },
+      },
+      (displayId) => {
+        const id = `qt-stable-from-${displayId}`;
+        ids.push(id);
+        return id;
+      },
+    );
+    expect(isDisplayOnlyToolEntryId("qt-default")).toBe(true);
+    expect(next).toHaveLength(1);
+    expect(next[0].id).toBe("qt-stable-from-qt-default");
+    expect(next[0].tool).toBe("Google Sheet");
+    expect(next[0].fieldValues).toEqual({ url: "https://example.test/q" });
+    expect(ids).toEqual(["qt-stable-from-qt-default"]);
+  });
+
+  it("reuses the allocated id for a later field write without adding a second row", () => {
+    const allocate = (() => {
+      let allocated = "";
+      return (displayId: string) => {
+        if (!allocated) allocated = `qt-once-${displayId}`;
+        return allocated;
+      };
+    })();
+    const afterSelect = applyDisplayedToolEntryWrite(
+      [],
+      "qt-default",
+      { tool: "Google Sheet", fieldValues: { url: "" } },
+      allocate,
+    );
+    const afterField = applyDisplayedToolEntryWrite(
+      afterSelect,
+      "qt-default",
+      { fieldValues: { url: "https://example.test/q2" } },
+      allocate,
+    );
+    expect(afterField).toHaveLength(1);
+    expect(afterField[0].id).toBe(afterSelect[0].id);
+    expect(afterField[0].tool).toBe("Google Sheet");
+    expect(afterField[0].fieldValues).toEqual({ url: "https://example.test/q2" });
+  });
+
+  it("does not resurrect a deleted real id", () => {
+    expect(applyIntendedToolEntryWrite(
+      [{ id: "qt-keep", tool: "memoQ", fieldValues: {} }],
+      { entryId: "qt-deleted", updates: { tool: "Google Sheet" }, createIfMissing: false },
+    )).toEqual([{ id: "qt-keep", tool: "memoQ", fieldValues: {} }]);
+  });
+
+  it("keeps another user's first row and appends this create intent", () => {
+    const current = [{ id: "qt-other", tool: "memoQ", fieldValues: { a: "theirs" } }];
+    const next = applyIntendedToolEntryWrite(current, {
+      entryId: "qt-ours",
+      updates: { tool: "Google Sheet", fieldValues: { url: "mine" } },
+      createIfMissing: true,
+    });
+    expect(next).toEqual([
+      { id: "qt-other", tool: "memoQ", fieldValues: { a: "theirs" } },
+      { id: "qt-ours", tool: "Google Sheet", fieldValues: { url: "mine" } },
+    ]);
+  });
+
+  it("persists the first select through the page updater onto confirmed []", async () => {
+    const base = { ...cred("c-empty-qt", [{ id: "te-1", tool: "memoQ", fieldValues: {} }]), questionTools: [] };
+    let server = structuredClone(base);
+    const rpc = vi.fn().mockImplementation(async () => ({ data: structuredClone(server), error: null }));
+    const access = createCaseCredentialAccess({ rpc } as never);
+    access.setActiveUser("u1");
+    await access.load("c-empty-qt");
+    expect(access.peekConfirmed("c-empty-qt")?.questionTools).toEqual([]);
+
+    let allocated = "";
+    const allocate = (displayId: string) => {
+      if (!allocated) allocated = `qt-ui-${displayId}`;
+      return allocated;
+    };
+    const select = {
+      tool: "Google Sheet",
+      fields: [{ id: "url", label: "網址", type: "text" as const }],
+      fieldValues: { url: "https://example.test/first" },
+    };
+    const updateCredentials = vi.fn(async (_id: string, patch: Partial<CaseCredentials>) => {
+      server = { ...server, ...patch, revision: server.revision + 1 };
+      return null;
+    });
+    const first = await persistToolBlockPatch({
+      caseId: "c-empty-qt",
+      userId: "u1",
+      generation: access.generation("c-empty-qt"),
+      block: "questionTools",
+      updater: (current) => applyDisplayedToolEntryWrite(current, "qt-default", select, allocate),
+      draftCredentials: { ...base, questionTools: [] },
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps: makeDeps(access, { updateCredentials }),
+    });
+    expect(first.status).toBe("ok");
+    expect(updateCredentials).toHaveBeenCalledTimes(1);
+    expect(first.confirmedCredentials?.questionTools).toHaveLength(1);
+    expect(first.confirmedCredentials?.questionTools?.[0].id).toBe("qt-ui-qt-default");
+    expect(first.confirmedCredentials?.questionTools?.[0].tool).toBe("Google Sheet");
+    expect(first.confirmedCredentials?.questionTools?.[0].fieldValues).toEqual({ url: "https://example.test/first" });
+
+    const second = await persistToolBlockPatch({
+      caseId: "c-empty-qt",
+      userId: "u1",
+      generation: access.generation("c-empty-qt"),
+      block: "questionTools",
+      updater: (current) => applyDisplayedToolEntryWrite(
+        current,
+        "qt-default",
+        { fieldValues: { url: "https://example.test/second" } },
+        allocate,
+      ),
+      draftCredentials: first.confirmedCredentials,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps: makeDeps(access, { updateCredentials }),
+    });
+    expect(second.status).toBe("ok");
+    expect(second.confirmedCredentials?.questionTools).toHaveLength(1);
+    expect(second.confirmedCredentials?.questionTools?.[0].id).toBe("qt-ui-qt-default");
+    expect(second.confirmedCredentials?.questionTools?.[0].fieldValues).toEqual({ url: "https://example.test/second" });
   });
 });
