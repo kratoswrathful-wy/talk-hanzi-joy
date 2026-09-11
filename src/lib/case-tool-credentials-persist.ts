@@ -281,6 +281,65 @@ export function applyToolEntryFieldPatchById(
   return found ? next : tools;
 }
 
+/** 畫面空白選單用的臨時 id；不得當成已確認列去更新。 */
+export const DISPLAY_ONLY_TOOL_ENTRY_IDS = ["qt-default", "te-default"] as const;
+
+export function isDisplayOnlyToolEntryId(id: string): boolean {
+  return (DISPLAY_ONLY_TOOL_ENTRY_IDS as readonly string[]).includes(id);
+}
+
+export function newStableToolEntryId(displayId: string): string {
+  const prefix = displayId.startsWith("qt") ? "qt" : "te";
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+/**
+ * 首次建立與更新已存在項目分開。
+ * createIfMissing 僅給畫面空白選單剛配出的穩定 id；真實 id 找不到不得復活。
+ */
+export function applyIntendedToolEntryWrite(
+  current: ToolEntry[],
+  intent: {
+    entryId: string;
+    updates: Partial<ToolEntry>;
+    createIfMissing: boolean;
+  },
+): ToolEntry[] {
+  const id = String(intent.entryId || "").trim();
+  if (!id) return current;
+  if (current.some((entry) => entry.id === id)) {
+    return current.map((entry) => (
+      entry.id === id ? mergeToolEntryUpdates(entry, intent.updates) : entry
+    ));
+  }
+  if (!intent.createIfMissing) return current;
+  const selectedTool = typeof intent.updates.tool === "string" ? intent.updates.tool.trim() : "";
+  const hasFieldWrite =
+    intent.updates.fields !== undefined
+    || (intent.updates.fieldValues != null && Object.keys(intent.updates.fieldValues).length > 0)
+    || (intent.updates.fileValues != null && Object.keys(intent.updates.fileValues).length > 0);
+  if (!selectedTool && !hasFieldWrite) return current;
+  return [
+    ...current,
+    mergeToolEntryUpdates({ id, tool: "", fieldValues: {} }, intent.updates),
+  ];
+}
+
+/** 詳情頁選單／填欄的同一條寫入路徑：空白選單先配穩定 id，後續操作沿用。 */
+export function applyDisplayedToolEntryWrite(
+  current: ToolEntry[],
+  displayedId: string,
+  updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+  allocateStableId: (displayId: string) => string,
+): ToolEntry[] {
+  const displayed = String(displayedId || "").trim();
+  const createIfMissing = isDisplayOnlyToolEntryId(displayed);
+  const entryId = createIfMissing ? allocateStableId(displayed) : displayed;
+  const latest = current.find((entry) => entry.id === entryId) ?? { id: entryId, tool: "", fieldValues: {} };
+  const patch = typeof updates === "function" ? updates(latest) : updates;
+  return applyIntendedToolEntryWrite(current, { entryId, updates: patch, createIfMissing });
+}
+
 /** 結果是否仍適用於目前畫面（防晚到更新另一案） */
 export function isPersistResultCurrent(input: {
   result: PersistToolBlockResult;
