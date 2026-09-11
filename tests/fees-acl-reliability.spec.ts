@@ -23,17 +23,17 @@ describeQ13("Q13 費用角色寫入", () => {
     const { token: pmToken } = await restFor(pm.page);
     const stamp = Date.now();
     const title = `ISO-Q13-FEE-${stamp}`;
+    const feeId = crypto.randomUUID();
     const insert = await restMutate(pm.page.request, pmToken, "POST", "fees", {
+      id: feeId,
       title,
       status: "draft",
       env: "test",
       assignee: "ISO-Q13-ASSIGNEE",
       client_info: { currency: "TWD", unitPrice: 1, client: "ISO" },
       task_items: [],
-    }, { Prefer: "return=representation" });
+    }, { Prefer: "return=minimal" });
     expect(insert.ok, `PM INSERT fees ${insert.status}: ${insert.text}`).toBe(true);
-    const feeId = (JSON.parse(insert.text) as { id: string }[])[0]?.id;
-    expect(feeId).toBeTruthy();
 
     const newTitle = `${title}-UPDATED`;
     const update = await restMutate(

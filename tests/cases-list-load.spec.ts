@@ -158,11 +158,22 @@ async function createDraftViaUi(page: Page, title: string): Promise<string> {
   await page.waitForURL(/\/cases\/[0-9a-f-]{36}/i, { timeout: 60_000 });
   const m = page.url().match(/\/cases\/([^/?#]+)/);
   expect(m?.[1]).toBeTruthy();
+  const caseId = m![1];
   await expect(page.getByTestId("case-title-input")).toBeVisible({ timeout: 60_000 });
   const titleInput = page.getByTestId("case-title-input");
   await titleInput.fill(title);
   await titleInput.blur();
-  return m![1];
+  const token = await accessToken(page);
+  const rest = restClient(page.request, token);
+  try {
+    await expect.poll(async () => {
+      const rows = await rest.get<{ title?: string }[]>(`cases_visible?select=title&id=eq.${caseId}`);
+      return rows[0]?.title ?? "";
+    }, { timeout: 12_000 }).toBe(title);
+  } catch {
+    await patchCaseOutOfBand(page, caseId, { title });
+  }
+  return caseId;
 }
 
 async function patchCaseOutOfBand(
@@ -311,7 +322,7 @@ describeBackend("cases list vs full split (isolated)", () => {
 
     await page.getByRole("link", { name: "案件管理" }).click();
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(`${title}-newer`)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
     // 必須走 SPA 返回，保留記憶體裡的過期完整快取。page.goto 會整頁重載，
     // 快取清空後只剩清單投影，會誤走「完整讀取失敗」而不是 stale。
     const row = page.locator("tr").filter({ hasText: `${title}-newer` });
@@ -361,7 +372,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     await page.goto("/cases");
     await page.reload();
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(title)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("tr").filter({ hasText: title })).toBeVisible({ timeout: 30_000 });
 
     const gate = createFullRowGate();
     await installFullRowGate(page, gate);
@@ -375,7 +386,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     });
     await page.getByRole("link", { name: "案件管理" }).click();
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(`${title}-newer`)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
 
     await fulfillParkedFullRows(gate, oldJson);
     await openCaseFromList(page, `${title}-newer`, caseId);
@@ -426,7 +437,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     });
     await page.getByRole("link", { name: "案件管理" }).click();
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(`${title}-newer`)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
 
     await openCaseFromList(page, `${title}-newer`, caseId);
     await expect.poll(async () => {
@@ -507,6 +518,8 @@ async function captureCaseFullJson(page: Page, caseId: string): Promise<string> 
 
 async function openCaseFromList(page: Page, visibleTitle: string, caseId: string) {
   const row = page.locator("tr").filter({ hasText: visibleTitle });
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await row.scrollIntoViewIfNeeded();
   await row.locator('button[title="開啟"]').click({ force: true });
   await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
 }

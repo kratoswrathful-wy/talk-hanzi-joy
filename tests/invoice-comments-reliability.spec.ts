@@ -38,7 +38,7 @@ describeQ16("Q16 請款留言往返", () => {
 
     await page.goto(`/client-invoices/${invoiceId}`);
     await expect(page.getByText("返回客戶請款單清單")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("Q16-NOTE-KEEP")).toBeVisible();
+    await expect(page.getByTestId("client-invoice-note")).toHaveValue("Q16-NOTE-KEEP");
 
     const draft = page.getByTestId("comment-draft-input").last();
     await draft.fill(`ISO-Q16-C1-${stamp}`);
@@ -72,7 +72,7 @@ describeQ16("Q16 請款留言往返", () => {
     await expect(page.getByText(`ISO-Q16-C1-${stamp}`)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(`ISO-Q16-C2-${stamp}`)).toBeVisible();
     await expect(page.getByText(failedText)).toHaveCount(0);
-    await expect(page.getByText("Q16-NOTE-KEEP")).toBeVisible();
+    await expect(page.getByTestId("client-invoice-note")).toHaveValue("Q16-NOTE-KEEP");
 
     const readback = await restMutate(
       page.request,

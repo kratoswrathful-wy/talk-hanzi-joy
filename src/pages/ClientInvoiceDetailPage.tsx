@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
@@ -384,8 +385,10 @@ export default function ClientInvoiceDetailPage() {
   // Buffered title input
   const [localTitle, setLocalTitle] = useState(invoice?.title || "");
   const [localInvoiceNumber, setLocalInvoiceNumber] = useState(invoice?.invoiceNumber || "");
+  const [localNote, setLocalNote] = useState(invoice?.note || "");
   useEffect(() => { if (invoice) setLocalTitle(invoice.title); }, [invoice?.id]);
   useEffect(() => { if (invoice) setLocalInvoiceNumber(invoice.invoiceNumber || ""); }, [invoice?.id]);
+  useEffect(() => { if (invoice) setLocalNote(invoice.note || ""); }, [invoice?.id, invoice?.note]);
 
   if (!invoice) {
     if (!clientInvoicesLoaded) {
@@ -1197,10 +1200,27 @@ export default function ClientInvoiceDetailPage() {
             </>
           )}
 
-          {/* 客戶請款備註 */}
+          {/* 客戶請款備註（DB note；與留言分欄） */}
           <Separator />
           <div className="space-y-3">
-            <Label className="text-sm font-medium">客戶請款備註</Label>
+            <Label className="text-sm font-medium" htmlFor="client-invoice-note">客戶請款備註</Label>
+            <Textarea
+              id="client-invoice-note"
+              data-testid="client-invoice-note"
+              className="form-input min-h-[80px]"
+              value={localNote}
+              onChange={(e) => setLocalNote(e.target.value)}
+              onBlur={() => {
+                if (localNote !== (invoice.note || "")) handleNoteChange(localNote);
+              }}
+              placeholder="內部備註（與下方留言分開）"
+            />
+          </div>
+
+          {/* 請款留言（DB comments） */}
+          <Separator />
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">請款留言</Label>
             <div className="space-y-2">
               {(() => {
                 const topLevel = comments.filter((c) => !c.replyTo);

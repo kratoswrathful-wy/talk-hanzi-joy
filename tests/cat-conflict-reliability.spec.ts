@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
-import { restFor } from "./helpers/save-reliability-iso";
+import { restFor, seedCatSegmentViaRest } from "./helpers/save-reliability-iso";
 
 /**
  * Q18：兩名合成帳號都必須能寫同一句。第二人成功後資料應為第二人譯文。
@@ -22,64 +22,21 @@ function cred(role: "pm" | "t1" | "t2") {
   return { email: email!, password: password! };
 }
 
-function catFrame(page: Page) {
-  return page.frameLocator(
-    'iframe[title="CAT 團隊線上版"], iframe[title="CAT 個人離線版"], iframe[src*="/cat/"]',
-  );
-}
-
-async function seedOneSegment(page: Page): Promise<string> {
-  const frame = catFrame(page);
-  await page.goto("/cat");
-  await expect(frame.locator("#statTBs")).toBeVisible({ timeout: 90_000 });
+async function seedOneSegment(page: Page): Promise<{ fileId: string; segmentId: string; revision: number }> {
   const stamp = Date.now();
-  return frame.locator("body").evaluate(async (_el, { name, src, tgt }) => {
-    const DB = new Function(
-      'try { return typeof DBService !== "undefined" ? DBService : null; } catch { return null; }',
-    )() as {
-      createProject: (n: string, s: string[], t: string[]) => Promise<string>;
-      createFile: (
-        projectId: string,
-        fileName: string,
-        buf: ArrayBuffer,
-        src: string,
-        tgt: string,
-        osrc: string,
-        otgt: string,
-      ) => Promise<string>;
-      addSegments: (rows: Record<string, unknown>[]) => Promise<number>;
-    } | null;
-    if (!DB) throw new Error("DBService missing");
-    const projectId = await DB.createProject(name, ["en-US"], ["zh-TW"]);
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<xliff version="1.2"><file original="iso-q18.txt" source-language="en-US" target-language="zh-TW" datatype="plaintext"><body><trans-unit id="1"><source>${src}</source><target>${tgt}</target></trans-unit></body></file></xliff>`;
-    const bytes = new TextEncoder().encode(xml);
-    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    const fileId = await DB.createFile(projectId, "iso-q18.xliff", buf, "en-US", "zh-TW", "en-US", "zh-TW");
-    await DB.addSegments([{
-      fileId,
-      sheetName: "Sheet1",
-      rowIdx: 0,
-      sourceText: src,
-      targetText: tgt,
-      xliffTuId: "1",
-      globalId: 1,
-      status: "",
-    }]);
-    return fileId;
-  }, { name: `ISO-Q18-${stamp}`, src: `ISO-Q18-SRC-${stamp}`, tgt: `ISO-Q18-SEED-${stamp}` });
+  return seedCatSegmentViaRest(page, {
+    name: `ISO-Q18-${stamp}`,
+    src: `ISO-Q18-SRC-${stamp}`,
+    tgt: `ISO-Q18-SEED-${stamp}`,
+  });
 }
 
 describeQ18("Q18 CAT 雙人衝突", () => {
   test("兩人皆有寫入權時，後寫入且帶正確 revision 的譯文應留下", async ({ browser }) => {
     const pm = await loginAs(browser, cred("pm").email, cred("pm").password);
-    const fileId = await seedOneSegment(pm.page);
+    const seeded = await seedOneSegment(pm.page);
     const { rest: pmRest } = await restFor(pm.page);
-    const segs = await pmRest.get<Array<{ id: string; segment_revision: number }>>(
-      `cat_segments?select=id,segment_revision&file_id=eq.${fileId}&limit=5`,
-    );
-    expect(segs.length, "種子句段未進隔離庫").toBeGreaterThanOrEqual(1);
-    const segmentId = segs[0].id;
+    const segmentId = seeded.segmentId;
 
     const t1 = await loginAs(browser, cred("t1").email, cred("t1").password);
     const t2 = await loginAs(browser, cred("t2").email, cred("t2").password);
@@ -90,7 +47,7 @@ describeQ18("Q18 CAT 雙人衝突", () => {
     const t1First = await t1Rest.rpc("apply_cat_segment_target_update", {
       p_segment_id: segmentId,
       p_new_target_text: firstText,
-      p_expected_segment_revision: segs[0].segment_revision ?? 0,
+      p_expected_segment_revision: seeded.revision,
     });
     expect(t1First.ok, `無法判定覆寫：T1 不能寫入 ${t1First.status} ${t1First.text}`).toBe(true);
 
