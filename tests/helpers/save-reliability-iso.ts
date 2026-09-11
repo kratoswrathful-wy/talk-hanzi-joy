@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { accessToken, localApi, restClient, type RestClient } from "./isolated-api";
+import { accessToken, localApi, readCaseState, restClient, type RestClient } from "./isolated-api";
 
 const SECRET_QUERY_KEYS = new Set(["apikey", "access_token", "token", "authorization", "refresh_token"]);
 
@@ -73,6 +73,45 @@ export async function createDraftViaRpc(page: Page, title: string): Promise<stri
     timeout: 30_000,
   });
   return id;
+}
+
+export type IsolatedToolEntry = {
+  id: string;
+  tool: string;
+  fields?: { id: string; label: string; type?: "text" | "file" }[];
+  fieldValues?: Record<string, string>;
+};
+
+export async function seedCaseToolCredentials(
+  page: Page,
+  caseId: string,
+  patch: { tools?: IsolatedToolEntry[]; questionTools?: IsolatedToolEntry[] },
+): Promise<void> {
+  const { rest } = await restFor(page);
+  const state = await readCaseState(rest, caseId);
+  expect(state, "seed 憑證前讀不到案件").toBeTruthy();
+  const result = await rest.rpc("update_case_credentials", {
+    p_case_id: caseId,
+    p_expected_revision: state!.revision,
+    p_credentials: patch,
+  });
+  expect(result.ok, `update_case_credentials ${result.status}: ${result.text}`).toBe(true);
+}
+
+export async function readCaseToolCredentials(
+  page: Page,
+  caseId: string,
+): Promise<{ tools: IsolatedToolEntry[]; questionTools: IsolatedToolEntry[] }> {
+  const { rest } = await restFor(page);
+  const result = await rest.rpc<{
+    tools?: IsolatedToolEntry[];
+    questionTools?: IsolatedToolEntry[];
+  }>("get_case_credentials", { p_case_id: caseId });
+  expect(result.ok, `get_case_credentials ${result.status}: ${result.text}`).toBe(true);
+  return {
+    tools: Array.isArray(result.data?.tools) ? result.data.tools : [],
+    questionTools: Array.isArray(result.data?.questionTools) ? result.data.questionTools : [],
+  };
 }
 
 export async function seedCatSegmentViaRest(

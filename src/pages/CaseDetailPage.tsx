@@ -686,7 +686,10 @@ function ToolInstance({
 
   return (
     <>
-      <div className="relative border border-border rounded-lg p-3 space-y-1">
+      <div
+        className="relative border border-border rounded-lg p-3 space-y-1"
+        data-testid={toolLabel === "提問工具" ? `question-tool-instance-${index}` : `exec-tool-instance-${index}`}
+      >
         {showRemove && canRemoveTool && (
           <Button
             variant="ghost"
@@ -1931,6 +1934,14 @@ export default function CaseDetailPage() {
 
   const removeQuestionTool = (idx: number) => {
     patchQuestionTools((current) => {
+      const removed = current[idx];
+      if (removed) {
+        for (const [displayId, allocated] of displayToolEntryIdsRef.current) {
+          if (allocated === removed.id || displayId === removed.id) {
+            displayToolEntryIdsRef.current.delete(displayId);
+          }
+        }
+      }
       const next = current.filter((_, i) => i !== idx);
       return next.length ? next : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }];
     });

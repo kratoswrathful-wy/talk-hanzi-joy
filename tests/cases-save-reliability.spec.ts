@@ -1,7 +1,13 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
 import { accessToken, restClient, readCaseState, readCaseTitle } from "./helpers/isolated-api";
-import { attachRestHitLog, createDraftViaRpc, readSavePhase } from "./helpers/save-reliability-iso";
+import {
+  attachRestHitLog,
+  createDraftViaRpc,
+  readCaseToolCredentials,
+  readSavePhase,
+  seedCaseToolCredentials,
+} from "./helpers/save-reliability-iso";
 
 /**
  * TASK-001 儲存可靠性：隔離驗證（D1／D2／Q01／Q21）。
@@ -294,6 +300,92 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     });
     await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`));
     expect(createCalls, "來源失敗不得呼叫建案").toBe(0);
+    await session.close();
+  });
+
+  const seededToolFields = [
+    { id: "f-server", label: "伺服器", type: "text" as const },
+    { id: "f-note", label: "模板附註", type: "text" as const },
+  ];
+
+  test("N07-a 已存 qt-default 編輯原欄位仍一筆且未改欄保留", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-QT-${Date.now()}`);
+    await seedCaseToolCredentials(page, caseId, {
+      questionTools: [{
+        id: "qt-default",
+        tool: "memoQ",
+        fields: seededToolFields,
+        fieldValues: { "f-server": "synthetic-old", "f-note": "keep" },
+      }],
+    });
+    await page.goto(`/cases/${caseId}`);
+    await expect(page.getByTestId("question-tool-instance-0")).toBeVisible({ timeout: 30_000 });
+    const server = page.getByTestId("question-tool-instance-0").getByTestId("tool-server");
+    await expect(server).toBeEnabled({ timeout: 30_000 });
+    await server.click();
+    await server.fill("synthetic-new");
+    await expect(server).toHaveValue("synthetic-new");
+    await server.press("Tab");
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return creds.questionTools.map((entry) =>
+        [entry.id, entry.tool, entry.fieldValues?.["f-server"], entry.fieldValues?.["f-note"]].join(":"),
+      ).join("|");
+    }, { timeout: 20_000 }).toBe("qt-default:memoQ:synthetic-new:keep");
+    await session.close();
+  });
+
+  test("N07-a 已存 te-default 編輯原欄位仍一筆且未改欄保留", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-TE-${Date.now()}`);
+    await seedCaseToolCredentials(page, caseId, {
+      tools: [{
+        id: "te-default",
+        tool: "Phrase",
+        fields: seededToolFields,
+        fieldValues: { "f-server": "synthetic-old", "f-note": "keep-te" },
+      }],
+    });
+    await page.goto(`/cases/${caseId}`);
+    await expect(page.getByTestId("exec-tool-instance-0")).toBeVisible({ timeout: 30_000 });
+    const server = page.getByTestId("exec-tool-instance-0").getByTestId("tool-server");
+    await expect(server).toBeEnabled({ timeout: 30_000 });
+    await server.click();
+    await server.fill("synthetic-te-new");
+    await expect(server).toHaveValue("synthetic-te-new");
+    await server.press("Tab");
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return creds.tools.map((entry) =>
+        [entry.id, entry.tool, entry.fieldValues?.["f-server"], entry.fieldValues?.["f-note"]].join(":"),
+      ).join("|");
+    }, { timeout: 20_000 }).toBe("te-default:Phrase:synthetic-te-new:keep-te");
+    await session.close();
+  });
+
+  test("N07-a 空白提問工具下拉首次選擇後端一筆", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-FIRST-${Date.now()}`);
+    await page.goto(`/cases/${caseId}`);
+    const instance = page.getByTestId("question-tool-instance-0");
+    await expect(instance).toBeVisible({ timeout: 30_000 });
+    await instance.getByText("選擇...").first().click();
+    await page.getByText("memoQ", { exact: true }).first().click();
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return {
+        count: creds.questionTools.length,
+        tool: creds.questionTools[0]?.tool ?? "",
+        blankName: creds.questionTools.some((entry) => !entry.tool),
+      };
+    }, { timeout: 20_000 }).toEqual({ count: 1, tool: "memoQ", blankName: false });
     await session.close();
   });
 });

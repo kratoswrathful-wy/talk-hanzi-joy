@@ -654,7 +654,8 @@ jobs:
             src/lib/case-duplicate-tools.test.ts \
             src/lib/invoice-comments.test.ts \
             src/lib/case-write-queue.test.ts \
-            src/lib/cat-segment-conflict-retry.test.ts
+            src/lib/cat-segment-conflict-retry.test.ts \
+            src/lib/case-tool-credentials-persist.test.ts
 
       - name: Maint-acl quality gates + Edge gate policy tests
         if: steps.meta.outputs.suite == 'maint-acl'
