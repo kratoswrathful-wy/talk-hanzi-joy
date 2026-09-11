@@ -53,6 +53,16 @@ export function shouldBlockNonAdminAssignmentWrite(
   return access.ok && !access.isAdmin && hasAssignment;
 }
 
+/** 公布／收回的正式 status 在後端確認前不得樂觀套到畫面。 */
+export function mergeOptimisticCaseWrite<T extends { status?: unknown }>(
+  prevStatus: T["status"] | undefined,
+  merged: T,
+  wroteStatus: boolean,
+): T {
+  if (!wroteStatus) return merged;
+  return { ...merged, status: prevStatus };
+}
+
 export function describeCaseWriteFailure(error: unknown): {
   kind: "conflict" | "identity" | "failed";
   title: string;

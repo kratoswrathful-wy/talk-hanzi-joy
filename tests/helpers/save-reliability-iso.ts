@@ -1,6 +1,57 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { accessToken, localApi, restClient, type RestClient } from "./isolated-api";
 
+const SECRET_QUERY_KEYS = new Set(["apikey", "access_token", "token", "authorization", "refresh_token"]);
+
+/** 去敏 REST 觀測：方法＋路徑＋狀態＋耗時；不收 token／本文。攔截中尚未回應的也記 pending。 */
+export function attachRestHitLog(page: Page) {
+  const hits: string[] = [];
+  const started = new WeakMap<object, number>();
+  page.on("request", (req) => {
+    if (!/\/rest\/v1\//.test(req.url())) return;
+    const method = req.method();
+    if (!["GET", "POST", "PATCH", "DELETE"].includes(method)) return;
+    started.set(req, Date.now());
+    hits.push(`${method} ${sanitizeRestPath(req.url())} pending`);
+  });
+  page.on("response", (res) => {
+    const req = res.request();
+    if (!/\/rest\/v1\//.test(req.url())) return;
+    const method = req.method();
+    if (!["GET", "POST", "PATCH", "DELETE"].includes(method)) return;
+    const t0 = started.get(req);
+    const ms = t0 ? Date.now() - t0 : -1;
+    hits.push(`${method} ${sanitizeRestPath(req.url())} ${res.status()} ${ms}ms`);
+  });
+  return {
+    hits,
+    format() {
+      return hits.slice(-24).join(" | ") || "(none)";
+    },
+  };
+}
+
+export function sanitizeRestPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const kept: string[] = [];
+    parsed.searchParams.forEach((value, key) => {
+      if (SECRET_QUERY_KEYS.has(key.toLowerCase())) return;
+      kept.push(`${key}=${value.slice(0, 96)}`);
+    });
+    return kept.length ? `${parsed.pathname}?${kept.join("&")}` : parsed.pathname;
+  } catch {
+    return url.replace(/https?:\/\/[^/]+/i, "");
+  }
+}
+
+export async function readSavePhase(page: Page): Promise<string> {
+  return (
+    (await page.getByTestId("case-detail-completeness").getAttribute("data-save-phase").catch(() => null)) ??
+    "missing-completeness"
+  );
+}
+
 /** 隔離測試專用 REST 寫入；拒絕正式 ref 的檢查沿用 localApi()。 */
 
 export async function restFor(page: Page): Promise<{ token: string; rest: RestClient }> {

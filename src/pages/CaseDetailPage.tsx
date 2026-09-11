@@ -30,7 +30,7 @@ import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import type { CaseCompleteness } from "@/lib/case-list-load";
 import { omittedKeysInPartial } from "@/lib/case-list-load";
-import { describeCaseWriteFailure } from "@/lib/case-write-queue";
+import { describeCaseWriteFailure, mergeOptimisticCaseWrite } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
@@ -1677,7 +1677,7 @@ export default function CaseDetailPage() {
           merged = { ...partial, edit_logs: logs };
         }
         nextWrite = merged;
-        return { ...prev, ...merged };
+        return mergeOptimisticCaseWrite(prev.status, { ...prev, ...merged }, merged.status !== undefined);
       });
       if (!nextWrite) {
         setSavePhase("idle");
@@ -2218,9 +2218,15 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handleRevertToDraft = () => {
-    save({ status: "draft" as CaseStatus });
-    toast({ title: "已收回為草稿" });
+  const handleRevertToDraft = async () => {
+    setFlowBusy(true);
+    try {
+      const error = await save({ status: "draft" as CaseStatus });
+      if (error) return;
+      toast({ title: "已收回為草稿" });
+    } finally {
+      setFlowBusy(false);
+    }
   };
 
   const handleAcceptCase = async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminWriteAccessFromRoles, createKeyedQueue, describeCaseWriteFailure, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
+import { adminWriteAccessFromRoles, createKeyedQueue, describeCaseWriteFailure, mergeOptimisticCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
 
 describe("createKeyedQueue", () => {
   it("runs tasks for the same key in order and uses the previous result", async () => {
@@ -67,11 +67,67 @@ describe("adminWriteAccessFromRoles", () => {
   });
 });
 
+describe("identity write routing matrix", () => {
+  it("empty successful roles are not admin and cannot send assignment writes", () => {
+    const empty = adminWriteAccessFromRoles([], null);
+    expect(empty).toEqual({ ok: true, isAdmin: false });
+    expect(shouldUseAdminCaseWritePath(empty, true)).toBe(false);
+    expect(shouldBlockNonAdminAssignmentWrite(empty, true)).toBe(true);
+    expect(shouldUseAdminCaseWritePath(empty, false)).toBe(false);
+  });
+
+  it("executive is admin; member title-only uses permitted path", () => {
+    const executive = adminWriteAccessFromRoles([{ role: "executive" }], null);
+    expect(shouldUseAdminCaseWritePath(executive, true)).toBe(true);
+    const member = adminWriteAccessFromRoles([{ role: "member" }], null);
+    expect(shouldUseAdminCaseWritePath(member, false)).toBe(false);
+    expect(shouldBlockNonAdminAssignmentWrite(member, false)).toBe(false);
+  });
+
+  it("role lookup failure does not block sending; backend still decides", () => {
+    const failed = adminWriteAccessFromRoles(null, new Error("timeout"));
+    expect(shouldUseAdminCaseWritePath(failed, true)).toBe(true);
+    expect(shouldBlockNonAdminAssignmentWrite(failed, true)).toBe(false);
+  });
+
+  it("after a previous identity failure the next queued write still runs", async () => {
+    const queue = createKeyedQueue();
+    const first = queue.enqueue("case-1", async () => {
+      throw new Error("無法確認身分，指派與公布尚未寫入。請稍後再試。");
+    });
+    const second = queue.enqueue("case-1", async () => "sent");
+    await expect(first).rejects.toThrow("無法確認身分");
+    await expect(second).resolves.toBe("sent");
+  });
+});
+
+describe("mergeOptimisticCaseWrite", () => {
+  it("keeps the previous official status while a status write is in flight", () => {
+    expect(mergeOptimisticCaseWrite("draft", { title: "A", status: "inquiry" }, true)).toEqual({
+      title: "A",
+      status: "draft",
+    });
+  });
+
+  it("does not strip status when the patch has no status write", () => {
+    expect(mergeOptimisticCaseWrite("draft", { title: "A", status: "inquiry" }, false)).toEqual({
+      title: "A",
+      status: "inquiry",
+    });
+  });
+});
+
 describe("describeCaseWriteFailure", () => {
   it("maps stale revision to a conflict the user can retry", () => {
     const described = describeCaseWriteFailure(new Error("stale_revision"));
     expect(described.kind).toBe("conflict");
     expect(described.title).toBe("版本衝突");
     expect(described.description).toContain("已保留你剛輸入的內容");
+  });
+
+  it("maps identity lookup failure without treating it as a generic save error", () => {
+    const described = describeCaseWriteFailure(new Error("無法確認身分，指派與公布尚未寫入。請稍後再試。"));
+    expect(described.kind).toBe("identity");
+    expect(described.title).toBe("無法確認身分");
   });
 });

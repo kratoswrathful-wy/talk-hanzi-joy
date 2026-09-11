@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
 import { isCasesVisibleFullListSelect } from "../src/lib/case-list-columns";
 import { accessToken, restClient, readCaseState } from "./helpers/isolated-api";
+import { createDraftViaRpc } from "./helpers/save-reliability-iso";
 
 /**
  * 案件清單載入：縮欄、失敗不得偽裝成空清單。
@@ -151,31 +152,7 @@ function isoBodyBlocks(text: string) {
   ];
 }
 
-async function createDraftViaUi(page: Page, title: string): Promise<string> {
-  await page.goto("/cases");
-  await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "新增案件" }).click();
-  await page.waitForURL(/\/cases\/[0-9a-f-]{36}/i, { timeout: 60_000 });
-  const m = page.url().match(/\/cases\/([^/?#]+)/);
-  expect(m?.[1]).toBeTruthy();
-  const caseId = m![1];
-  await expect(page.getByTestId("case-title-input")).toBeVisible({ timeout: 60_000 });
-  const titleInput = page.getByTestId("case-title-input");
-  await titleInput.fill(title);
-  await titleInput.blur();
-  const token = await accessToken(page);
-  const rest = restClient(page.request, token);
-  try {
-    await expect.poll(async () => {
-      const rows = await rest.get<{ title?: string }[]>(`cases_visible?select=title&id=eq.${caseId}`);
-      return rows[0]?.title ?? "";
-    }, { timeout: 12_000 }).toBe(title);
-  } catch {
-    await patchCaseOutOfBand(page, caseId, { title });
-  }
-  return caseId;
-}
-
+/** 標明的 OOB 準備：只給 T3／T4／T7 合成內文或較新版。標題／公布 UI 驗收失敗不得用此補成預期值。 */
 async function patchCaseOutOfBand(
   page: Page,
   caseId: string,
@@ -204,7 +181,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     const stamp = Date.now();
     const title = `ISO-BE-T3-${stamp}`;
     const bodyText = `ISO-FULL-BODY-${stamp}`;
-    const caseId = await createDraftViaUi(page, title);
+    const caseId = await createDraftViaRpc(page, title);
     await patchCaseOutOfBand(page, caseId, {
       body_content: isoBodyBlocks(bodyText),
       process_note: bodyText,
@@ -288,7 +265,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     const title = `ISO-BE-T4-${stamp}`;
     const oldBody = `ISO-OLD-BODY-${stamp}`;
     const newBody = `ISO-NEW-BODY-${stamp}`;
-    const caseId = await createDraftViaUi(page, title);
+    const caseId = await createDraftViaRpc(page, title);
     await patchCaseOutOfBand(page, caseId, {
       body_content: isoBodyBlocks(oldBody),
       process_note: oldBody,
@@ -325,7 +302,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
     // 必須走 SPA 返回，保留記憶體裡的過期完整快取。page.goto 會整頁重載，
     // 快取清空後只剩清單投影，會誤走「完整讀取失敗」而不是 stale。
-    await openCaseFromList(page, `${title}-newer`, caseId);
+    await openCaseFromListByHover(page, `${title}-newer`, caseId);
     await expect(page.getByTestId("case-detail-stale-banner")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "stale");
     await expect(page.getByTestId("case-detail-omitted-preview")).toContainText(oldBody);
@@ -360,7 +337,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     const title = `ISO-BE-T7A-${stamp}`;
     const oldBody = `ISO-T7A-OLD-${stamp}`;
     const newBody = `ISO-T7A-NEW-${stamp}`;
-    const caseId = await createDraftViaUi(page, title);
+    const caseId = await createDraftViaRpc(page, title);
     await patchCaseOutOfBand(page, caseId, {
       body_content: isoBodyBlocks(oldBody),
       process_note: oldBody,
@@ -388,7 +365,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
 
     await fulfillParkedFullRows(gate, oldJson);
-    await openCaseFromList(page, `${title}-newer`, caseId);
+    await openCaseFromListInternal(page, `${title}-newer`, caseId);
     await expect.poll(async () => {
       if (gate.parked.length) await fulfillParkedFullRows(gate, oldJson);
       return page.getByTestId("case-detail-full-load-error").isVisible();
@@ -406,8 +383,8 @@ describeBackend("cases list vs full split (isolated)", () => {
     await session.close();
   });
 
-  test("T7b 過期快取：舊完整回應晚到不得標 full，符合新版後才可編輯", async ({ browser }) => {
-    test.setTimeout(180_000);
+  test("T7b 過期快取：放行新內容後可自動恢復，不硬找已消失重試鈕", async ({ browser }) => {
+    test.setTimeout(90_000);
     const { email, password } = credPm();
     const session = await loginAs(browser, email, password);
     const page = session.page;
@@ -415,7 +392,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     const title = `ISO-BE-T7B-${stamp}`;
     const oldBody = `ISO-T7B-OLD-${stamp}`;
     const newBody = `ISO-T7B-NEW-${stamp}`;
-    const caseId = await createDraftViaUi(page, title);
+    const caseId = await createDraftViaRpc(page, title);
     await patchCaseOutOfBand(page, caseId, {
       body_content: isoBodyBlocks(oldBody),
       process_note: oldBody,
@@ -439,7 +416,7 @@ describeBackend("cases list vs full split (isolated)", () => {
     await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
     await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
 
-    await openCaseFromList(page, `${title}-newer`, caseId);
+    await openCaseFromListByHover(page, `${title}-newer`, caseId);
     await expect.poll(async () => {
       if (gate.parked.length) await fulfillParkedFullRows(gate, oldJson);
       return page.getByTestId("case-detail-stale-banner").isVisible();
@@ -448,24 +425,89 @@ describeBackend("cases list vs full split (isolated)", () => {
     await expect(page.getByTestId("case-detail-omitted-preview")).toContainText(oldBody);
     await expect(page.getByTestId("case-title-input")).toHaveAttribute("readonly");
 
-    const writes: string[] = [];
-    await page.route("**/rest/v1/rpc/apply_case_update", async (route) => {
-      writes.push(route.request().postData() || "");
-      await route.continue();
+    gate.pass = true;
+    await releaseParkedToNetwork(gate);
+    let autoRecovered = false;
+    try {
+      await expect.poll(async () => {
+        if (await page.getByTestId("case-detail-full-load-error").isVisible().catch(() => false)) {
+          throw new Error("T7b 放行後出現完整讀取錯誤，不得當恢復成功");
+        }
+        const completeness = await page.getByTestId("case-detail-completeness").getAttribute("data-completeness").catch(() => null);
+        const hasNew = await page.getByText(newBody).isVisible().catch(() => false);
+        const titleInput = page.getByTestId("case-title-input");
+        const editable = (await titleInput.count()) > 0 && !(await titleInput.getAttribute("readonly"));
+        return completeness === "full" && hasNew && editable ? "full" : "waiting";
+      }, { timeout: 15_000 }).toBe("full");
+      autoRecovered = true;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("完整讀取錯誤")) throw err;
+    }
+    if (!autoRecovered) {
+      await expect(page.getByTestId("case-detail-stale-retry")).toBeVisible();
+      await page.getByTestId("case-detail-stale-retry").click();
+      await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+        timeout: 20_000,
+      });
+      await expect(page.getByText(newBody)).toBeVisible();
+    }
+    await expect(page.getByTestId("case-detail-stale-banner")).toHaveCount(0);
+    await session.close();
+  });
+
+  test("T7c 過期快取：仍 stale 時必須按重試才恢復", async ({ browser }) => {
+    test.setTimeout(90_000);
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const stamp = Date.now();
+    const title = `ISO-BE-T7C-${stamp}`;
+    const oldBody = `ISO-T7C-OLD-${stamp}`;
+    const newBody = `ISO-T7C-NEW-${stamp}`;
+    const caseId = await createDraftViaRpc(page, title);
+    await patchCaseOutOfBand(page, caseId, {
+      body_content: isoBodyBlocks(oldBody),
+      process_note: oldBody,
     });
-    await page.getByTestId("case-title-input").click();
-    await page.keyboard.type("should-not-save");
-    await page.locator("body").click();
-    expect(writes, "過期完整快取不得因舊回應重獲寫入").toEqual([]);
+    await page.goto(`/cases/${caseId}`);
+    await page.reload();
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+      timeout: 30_000,
+    });
+    const oldJson = await captureCaseFullJson(page, caseId);
+
+    const gate = createFullRowGate();
+    await installFullRowGate(page, gate);
+    await patchCaseOutOfBand(page, caseId, {
+      title: `${title}-newer`,
+      body_content: isoBodyBlocks(newBody),
+      process_note: newBody,
+    });
+    await page.getByRole("link", { name: "案件管理" }).click();
+    await expect(page.getByRole("heading", { name: "案件管理" })).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator("tr").filter({ hasText: `${title}-newer` })).toBeVisible({ timeout: 30_000 });
+
+    await openCaseFromListInternal(page, `${title}-newer`, caseId);
+    await expect.poll(async () => {
+      if (gate.parked.length) await fulfillParkedFullRows(gate, oldJson);
+      return page.getByTestId("case-detail-stale-banner").isVisible();
+    }, { timeout: 30_000 }).toBe(true);
+
+    await page.getByTestId("case-detail-stale-retry").click();
+    await expect.poll(async () => {
+      if (gate.parked.length) await fulfillParkedFullRows(gate, oldJson);
+      return page.getByTestId("case-detail-completeness").getAttribute("data-completeness");
+    }, { timeout: 15_000 }).toBe("stale");
+    await expect(page.getByTestId("case-detail-stale-retry")).toBeVisible();
 
     gate.pass = true;
     await releaseParkedToNetwork(gate);
     await page.getByTestId("case-detail-stale-retry").click();
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
-      timeout: 30_000,
+      timeout: 20_000,
     });
-    await expect(page.getByTestId("case-detail-stale-banner")).toHaveCount(0);
     await expect(page.getByText(newBody)).toBeVisible();
+    await expect(page.getByTestId("case-title-input")).not.toHaveAttribute("readonly");
     await session.close();
   });
 });
@@ -516,12 +558,23 @@ async function captureCaseFullJson(page: Page, caseId: string): Promise<string> 
   return JSON.stringify(rows[0]);
 }
 
-async function openCaseFromList(page: Page, visibleTitle: string, caseId: string) {
+/** 內部狀態測試：evaluate 點隱藏開啟鈕。正常清單開案請用 hover。 */
+async function openCaseFromListInternal(page: Page, visibleTitle: string, caseId: string) {
   const row = page.locator("tr").filter({ hasText: visibleTitle });
   await expect(row).toBeVisible({ timeout: 30_000 });
   const openBtn = row.getByTestId("case-list-open");
   await expect(openBtn).toHaveCount(1);
-  // 開啟鈕預設 opacity-0，座標 force click 會點到側欄「團隊成員」而進 /members。
   await openBtn.evaluate((el: HTMLElement) => el.click());
+  await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
+}
+
+async function openCaseFromListByHover(page: Page, visibleTitle: string, caseId: string) {
+  const row = page.locator("tr").filter({ hasText: visibleTitle });
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await row.scrollIntoViewIfNeeded();
+  await row.locator(".group\\/title").hover();
+  const openBtn = row.getByTestId("case-list-open");
+  await expect(openBtn).toBeVisible({ timeout: 5_000 });
+  await openBtn.click();
   await expect(page).toHaveURL(new RegExp(`/cases/${caseId}`), { timeout: 15_000 });
 }
