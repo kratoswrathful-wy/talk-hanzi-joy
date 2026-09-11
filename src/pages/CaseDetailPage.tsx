@@ -347,9 +347,14 @@ function TitleInput({ value, onSave, autoFocusSelect, readOnly }: { value: strin
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const localRef = useRef(value);
+  localRef.current = local;
 
   useEffect(() => {
-    if (!focused) setLocal(value);
+    if (!focused) {
+      localRef.current = value;
+      setLocal(value);
+    }
   }, [value, focused]);
 
   useEffect(() => {
@@ -368,11 +373,14 @@ function TitleInput({ value, onSave, autoFocusSelect, readOnly }: { value: strin
       readOnly={!!readOnly}
       onChange={(e) => {
         if (readOnly) return;
+        localRef.current = e.target.value;
         setLocal(e.target.value);
       }}
-      onBlur={() => {
+      onBlur={(e) => {
         setFocused(false);
-        if (!readOnly && local !== value) onSave(local);
+        const next = e.currentTarget.value;
+        localRef.current = next;
+        if (!readOnly && next !== value) onSave(next);
       }}
       onFocus={(e) => {
         setFocused(true);

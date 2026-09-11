@@ -34,6 +34,12 @@ async function parkRpc(page: Page, name: string, gate: RpcGate) {
   });
 }
 
+async function parkRpcs(page: Page, names: string[], gate: RpcGate) {
+  for (const name of names) {
+    await parkRpc(page, name, gate);
+  }
+}
+
 function expectedRevisions(gate: RpcGate): number[] {
   return gate.parked.map((route) => {
     try {
@@ -70,8 +76,9 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     expect(before?.status).toBe("draft");
 
     const assignGate = newGate();
-    await parkRpc(page, "pm_update_case_assignments", assignGate);
+    await parkRpcs(page, ["pm_update_case_assignments", "apply_case_update"], assignGate);
 
+    await expect(page.getByTestId("case-detail-publish")).toBeEnabled();
     await page.getByTestId("case-detail-publish").click();
     await expect.poll(() => assignGate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
     await expect(page.getByText("案件已公布")).toHaveCount(0);
@@ -97,20 +104,21 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     expect(before).toBeTruthy();
 
     const generalGate = newGate();
-    await parkRpc(page, "apply_case_update", generalGate);
+    await parkRpcs(page, ["apply_case_update", "update_case_permitted_fields"], generalGate);
 
     const titleInput = page.getByTestId("case-title-input");
     await titleInput.fill(`ISO-SAVE-D2-${stamp}-A`);
     await titleInput.blur();
-    await titleInput.fill(`ISO-SAVE-D2-${stamp}-B`);
-    await titleInput.blur();
-
     await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     const firstRevs = expectedRevisions(generalGate);
     expect(firstRevs[0]).toBe(before!.revision);
 
     const nextRev = (before!.revision ?? 0) + 1;
     await fulfillParked(generalGate, { ok: true, revision: nextRev });
+
+    await titleInput.fill(`ISO-SAVE-D2-${stamp}-B`);
+    await titleInput.blur();
+
     await expect.poll(() => generalGate.parked.length, { timeout: 15_000 }).toBe(1);
     const secondRevs = expectedRevisions(generalGate);
     expect(secondRevs[0]).toBe(nextRev);
