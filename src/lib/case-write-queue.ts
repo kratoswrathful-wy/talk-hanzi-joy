@@ -87,6 +87,33 @@ export function resolveIntendedCaseWrite<T extends object>(
   };
 }
 
+/**
+ * 連續輸入只保留最後一次意圖再寫入，避免每個字各送一筆舊內容互相覆蓋。
+ */
+export function createLatestWriteScheduler<T>(write: (value: T) => void, delayMs: number) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: T | undefined;
+  let hasPending = false;
+  const flush = () => {
+    if (timer != null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!hasPending) return;
+    hasPending = false;
+    write(pending as T);
+  };
+  return {
+    schedule(value: T) {
+      pending = value;
+      hasPending = true;
+      if (timer != null) clearTimeout(timer);
+      timer = setTimeout(flush, delayMs);
+    },
+    flush,
+  };
+}
+
 export function describeCaseWriteFailure(error: unknown): {
   kind: "conflict" | "identity" | "failed";
   title: string;

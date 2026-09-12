@@ -30,7 +30,7 @@ import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import type { CaseCompleteness } from "@/lib/case-list-load";
 import { omittedKeysInPartial } from "@/lib/case-list-load";
-import { CASE_SAVE_NOT_READY_MESSAGE, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite } from "@/lib/case-write-queue";
+import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
@@ -1738,6 +1738,15 @@ export default function CaseDetailPage() {
     },
     [id, profile]
   );
+
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const bodyWriteSchedulerRef = useRef(
+    createLatestWriteScheduler<CaseRecord["bodyContent"]>((blocks) => {
+      void saveRef.current({ bodyContent: blocks });
+    }, 400),
+  );
+  useEffect(() => () => bodyWriteSchedulerRef.current.flush(), []);
 
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
   // credentialsStatus：loading／refreshing／error 與 confirmed 分離；寫入仍以 peekConfirmed 為準
@@ -3806,11 +3815,18 @@ export default function CaseDetailPage() {
         {contentWritable ? (
           <CaseBodyEditorBoundary caseId={caseData.id}>
             <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
-              <div data-testid="case-body-editor">
+              <div
+                data-testid="case-body-editor"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    bodyWriteSchedulerRef.current.flush();
+                  }
+                }}
+              >
                 <RichTextEditor
                   key={caseData.id}
                   initialContent={safeBodyContent}
-                  onChange={(blocks) => save({ bodyContent: blocks })}
+                  onChange={(blocks) => bodyWriteSchedulerRef.current.schedule(blocks)}
                 />
               </div>
             </Suspense>

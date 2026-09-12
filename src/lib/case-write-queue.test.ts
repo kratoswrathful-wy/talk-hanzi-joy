@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
+import { describe, expect, it, vi } from "vitest";
+import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, createLatestWriteScheduler, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
 
 describe("createKeyedQueue", () => {
   it("runs tasks for the same key in order and uses the previous result", async () => {
@@ -141,6 +141,37 @@ describe("mergeOptimisticCaseWrite", () => {
       title: "A",
       status: "inquiry",
     });
+  });
+});
+
+describe("createLatestWriteScheduler", () => {
+  it("writes only the last scheduled value after the delay", () => {
+    vi.useFakeTimers();
+    const seen: string[] = [];
+    const scheduler = createLatestWriteScheduler((value: string) => {
+      seen.push(value);
+    }, 400);
+    scheduler.schedule("N07A-BO");
+    scheduler.schedule("N07A-BODY-1");
+    scheduler.schedule("N07A-BODY-full");
+    expect(seen).toEqual([]);
+    vi.advanceTimersByTime(400);
+    expect(seen).toEqual(["N07A-BODY-full"]);
+    vi.useRealTimers();
+  });
+
+  it("flush writes the latest pending value immediately", () => {
+    vi.useFakeTimers();
+    const seen: string[] = [];
+    const scheduler = createLatestWriteScheduler((value: string) => {
+      seen.push(value);
+    }, 400);
+    scheduler.schedule("partial");
+    scheduler.flush();
+    expect(seen).toEqual(["partial"]);
+    vi.advanceTimersByTime(400);
+    expect(seen).toEqual(["partial"]);
+    vi.useRealTimers();
   });
 });
 
