@@ -104,9 +104,9 @@ import { caseCredentialAccess } from "@/lib/case-credential-store";
 import type { CaseCredentials } from "@/lib/case-action-rpc";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
-  applyDisplayedToolEntryWrite,
   isPersistResultCurrent,
   persistToolBlockPatch,
+  planDisplayedToolEntryWrite,
 } from "@/lib/case-tool-credentials-persist";
 import { applyToolTemplatePatch, toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
 
@@ -697,6 +697,7 @@ function ToolInstance({
             className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
             onClick={onRemove}
             aria-label={`移除工具 ${entry.tool || `#${index + 1}`}`}
+            data-testid={`tool-instance-remove-${index}`}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
@@ -1860,11 +1861,28 @@ export default function CaseDetailPage() {
     entryId: string,
     updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
   ) => {
-    patchTools((current) => applyDisplayedToolEntryWrite(current, entryId, updates, allocateDisplayToolEntryId));
+    if (!caseData) return;
+    const confirmed = caseCredentialAccess.peekConfirmed(caseData.id)?.tools ?? [];
+    const allocated = displayToolEntryIdsRef.current.get(entryId);
+    patchTools(planDisplayedToolEntryWrite(
+      confirmed,
+      entryId,
+      updates,
+      allocateDisplayToolEntryId,
+      allocated,
+    ));
   };
 
   const removeTool = (idx: number) => {
     if (!caseData) return;
+    const removed = tools[idx];
+    if (removed) {
+      for (const [displayId, allocated] of displayToolEntryIdsRef.current) {
+        if (allocated === removed.id || displayId === removed.id) {
+          displayToolEntryIdsRef.current.delete(displayId);
+        }
+      }
+    }
     const next = tools.filter((_, i) => i !== idx);
     const hypothetical = { ...caseData, tools: next };
     if (countCaseTools(hypothetical) < 1) {
@@ -1929,7 +1947,16 @@ export default function CaseDetailPage() {
     entryId: string,
     updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
   ) => {
-    patchQuestionTools((current) => applyDisplayedToolEntryWrite(current, entryId, updates, allocateDisplayToolEntryId));
+    if (!caseData) return;
+    const confirmed = caseCredentialAccess.peekConfirmed(caseData.id)?.questionTools ?? [];
+    const allocated = displayToolEntryIdsRef.current.get(entryId);
+    patchQuestionTools(planDisplayedToolEntryWrite(
+      confirmed,
+      entryId,
+      updates,
+      allocateDisplayToolEntryId,
+      allocated,
+    ));
   };
 
   const removeQuestionTool = (idx: number) => {
@@ -2439,6 +2466,8 @@ export default function CaseDetailPage() {
       data-testid="case-detail-completeness"
       data-completeness={recordCompleteness}
       data-save-phase={savePhase}
+      data-revision={caseData?.revision ?? ""}
+      data-updated-at={caseData?.updatedAt ?? ""}
     >
       {savePhase !== "idle" && (
         <p
@@ -3777,11 +3806,13 @@ export default function CaseDetailPage() {
         {contentWritable ? (
           <CaseBodyEditorBoundary caseId={caseData.id}>
             <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
-              <RichTextEditor
-                key={caseData.id}
-                initialContent={safeBodyContent}
-                onChange={(blocks) => save({ bodyContent: blocks })}
-              />
+              <div data-testid="case-body-editor">
+                <RichTextEditor
+                  key={caseData.id}
+                  initialContent={safeBodyContent}
+                  onChange={(blocks) => save({ bodyContent: blocks })}
+                />
+              </div>
             </Suspense>
           </CaseBodyEditorBoundary>
         ) : (

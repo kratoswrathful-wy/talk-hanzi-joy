@@ -334,16 +334,42 @@ function resolveDisplayedToolPatch(
   return typeof updates === "function" ? updates(latest) : updates;
 }
 
+export type DisplayedToolWriteOptions = {
+  /**
+   * 僅在「發起時」確認這是空白選單的有效首次建立時為 true。
+   * 預設 false：含工具名稱或執行時找不到，都不得自行取得建立權。
+   */
+  createIfMissing?: boolean;
+};
+
+/**
+ * 發起時能不能建立：須是畫面臨時 id，且當時 confirmed 沒有該列／已配置 id。
+ * 不得用「現在找不到」或「patch 有工具名稱」當建立授權。
+ */
+export function canCreateDisplayedToolEntry(
+  confirmedAtEnqueue: ToolEntry[],
+  displayedId: string,
+  allocatedId?: string | null,
+): boolean {
+  const displayed = String(displayedId || "").trim();
+  if (!isDisplayOnlyToolEntryId(displayed)) return false;
+  if (confirmedAtEnqueue.some((entry) => entry.id === displayed)) return false;
+  const allocated = String(allocatedId || "").trim();
+  if (allocated && confirmedAtEnqueue.some((entry) => entry.id === allocated)) return false;
+  return true;
+}
+
 /**
  * 詳情頁選單／填欄的同一條寫入路徑。
  * 已確認列（含舊資料把 qt-default／te-default 當真實 id）一律就地更新；
- * 只有畫面空白選單且 current 沒有該列時才配穩定 id 建立。
+ * 建立只接受發起時拍下的 createIfMissing，執行時找不到不得補建或復活。
  */
 export function applyDisplayedToolEntryWrite(
   current: ToolEntry[],
   displayedId: string,
   updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
   allocateStableId: (displayId: string) => string,
+  options?: DisplayedToolWriteOptions,
 ): ToolEntry[] {
   const displayed = String(displayedId || "").trim();
   if (!displayed) return current;
@@ -378,8 +404,33 @@ export function applyDisplayedToolEntryWrite(
   return applyIntendedToolEntryWrite(current, {
     entryId: allocated,
     updates: patch,
-    createIfMissing: !!selectedTool,
+    createIfMissing: options?.createIfMissing === true && !!selectedTool,
   });
+}
+
+/**
+ * 詳情頁實際接線：在 enqueue 當下用 confirmed 決定能不能建立，
+ * 執行時把同一份意圖套到最新 current。
+ */
+export function planDisplayedToolEntryWrite(
+  confirmedAtEnqueue: ToolEntry[],
+  displayedId: string,
+  updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+  allocateStableId: (displayId: string) => string,
+  allocatedId?: string | null,
+): (current: ToolEntry[]) => ToolEntry[] {
+  const createIfMissing = canCreateDisplayedToolEntry(
+    confirmedAtEnqueue,
+    displayedId,
+    allocatedId,
+  );
+  return (current) => applyDisplayedToolEntryWrite(
+    current,
+    displayedId,
+    updates,
+    allocateStableId,
+    { createIfMissing },
+  );
 }
 
 /** 結果是否仍適用於目前畫面（防晚到更新另一案） */

@@ -8,9 +8,11 @@ import {
   applyIntendedToolEntryWrite,
   applyToolEntryFieldPatch,
   applyToolEntryFieldPatchById,
+  canCreateDisplayedToolEntry,
   isDisplayOnlyToolEntryId,
   isPersistResultCurrent,
   persistToolBlockPatch,
+  planDisplayedToolEntryWrite,
   resetToolCredentialPersistQueuesForTests,
 } from "./case-tool-credentials-persist";
 import type { CaseCredentials } from "@/lib/case-action-rpc";
@@ -466,6 +468,7 @@ describe("N07-a first question-tool select from empty confirmed", () => {
         ids.push(id);
         return id;
       },
+      { createIfMissing: true },
     );
     expect(isDisplayOnlyToolEntryId("qt-default")).toBe(true);
     expect(next).toHaveLength(1);
@@ -488,6 +491,7 @@ describe("N07-a first question-tool select from empty confirmed", () => {
       "qt-default",
       { tool: "Google Sheet", fieldValues: { url: "" } },
       allocate,
+      { createIfMissing: true },
     );
     const afterField = applyDisplayedToolEntryWrite(
       afterSelect,
@@ -613,7 +617,7 @@ describe("N07-a first question-tool select from empty confirmed", () => {
       userId: "u1",
       generation: access.generation("c-empty-qt"),
       block: "questionTools",
-      updater: (current) => applyDisplayedToolEntryWrite(current, "qt-default", select, allocate),
+      updater: planDisplayedToolEntryWrite([], "qt-default", select, allocate),
       draftCredentials: { ...base, questionTools: [] },
       credentialsReady: true,
       usedPublicFallback: false,
@@ -688,5 +692,126 @@ describe("N07-a first question-tool select from empty confirmed", () => {
       tool: "memoQ",
       fieldValues: { server: "synthetic-new", note: "keep" },
     }]);
+  });
+});
+
+describe("late tool-name write after delete (Codex 07:36)", () => {
+  it("does not treat a tool name as create permission when qt-default is already gone", () => {
+    const next = applyDisplayedToolEntryWrite(
+      [],
+      "qt-default",
+      { tool: "Phrase" },
+      () => "new-id",
+    );
+    expect(next).toEqual([]);
+  });
+
+  it("does not treat a tool name as create permission when te-default is already gone", () => {
+    const next = applyDisplayedToolEntryWrite(
+      [],
+      "te-default",
+      { tool: "Phrase" },
+      () => "new-id",
+    );
+    expect(next).toEqual([]);
+  });
+
+  it("does not resurrect a previously created then deleted allocated id", () => {
+    const next = applyDisplayedToolEntryWrite(
+      [],
+      "qt-default",
+      { tool: "Phrase" },
+      () => "previously-created-then-deleted-id",
+    );
+    expect(next).toEqual([]);
+  });
+
+  it("still creates when enqueue-time confirmed is a blank menu", () => {
+    expect(canCreateDisplayedToolEntry([], "qt-default")).toBe(true);
+    const next = planDisplayedToolEntryWrite(
+      [],
+      "qt-default",
+      { tool: "Phrase" },
+      () => "qt-fresh",
+    )([]);
+    expect(next).toEqual([{ id: "qt-fresh", tool: "Phrase", fieldValues: {} }]);
+  });
+
+  it("keeps sibling rows and unedited fields when planning an in-place edit", () => {
+    const confirmed = [
+      { id: "qt-default", tool: "memoQ", fieldValues: { server: "old", note: "keep" } },
+      { id: "qt-other", tool: "XTM", fieldValues: { a: "theirs" } },
+    ];
+    const next = planDisplayedToolEntryWrite(
+      confirmed,
+      "qt-default",
+      { fieldValues: { server: "new" } },
+      () => "should-not-allocate",
+    )(confirmed);
+    expect(next).toEqual([
+      { id: "qt-default", tool: "memoQ", fieldValues: { server: "new", note: "keep" } },
+      { id: "qt-other", tool: "XTM", fieldValues: { a: "theirs" } },
+    ]);
+  });
+
+  it("page planner: generate update while row exists, delete, then release the old update", async () => {
+    const existing = {
+      id: "qt-default",
+      tool: "memoQ",
+      fieldValues: { server: "old", note: "keep" },
+    };
+    const sibling = { id: "qt-keep", tool: "XTM", fieldValues: { a: "theirs" } };
+    const base = {
+      ...cred("c-late-del", [{ id: "te-1", tool: "memoQ", fieldValues: {} }]),
+      questionTools: [existing, sibling],
+    };
+    let server = structuredClone(base);
+    const rpc = vi.fn().mockImplementation(async () => ({ data: structuredClone(server), error: null }));
+    const access = createCaseCredentialAccess({ rpc } as never);
+    access.setActiveUser("u1");
+    await access.load("c-late-del");
+
+    const lateUpdater = planDisplayedToolEntryWrite(
+      access.peekConfirmed("c-late-del")?.questionTools ?? [],
+      "qt-default",
+      { tool: "Phrase" },
+      () => "previously-created-then-deleted-id",
+    );
+    expect(canCreateDisplayedToolEntry(
+      access.peekConfirmed("c-late-del")?.questionTools ?? [],
+      "qt-default",
+    )).toBe(false);
+
+    const updateCredentials = vi.fn(async (_id: string, patch: Partial<CaseCredentials>) => {
+      server = { ...server, ...patch, revision: server.revision + 1 };
+      return null;
+    });
+    const deleted = await persistToolBlockPatch({
+      caseId: "c-late-del",
+      userId: "u1",
+      generation: access.generation("c-late-del"),
+      block: "questionTools",
+      updater: (current) => current.filter((entry) => entry.id !== "qt-default"),
+      draftCredentials: base,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps: makeDeps(access, { updateCredentials }),
+    });
+    expect(deleted.status).toBe("ok");
+    expect(deleted.confirmedCredentials?.questionTools).toEqual([sibling]);
+
+    const late = await persistToolBlockPatch({
+      caseId: "c-late-del",
+      userId: "u1",
+      generation: access.generation("c-late-del"),
+      block: "questionTools",
+      updater: lateUpdater,
+      draftCredentials: deleted.confirmedCredentials,
+      credentialsReady: true,
+      usedPublicFallback: false,
+      deps: makeDeps(access, { updateCredentials }),
+    });
+    expect(late.status).toBe("ok");
+    expect(late.confirmedCredentials?.questionTools).toEqual([sibling]);
   });
 });
