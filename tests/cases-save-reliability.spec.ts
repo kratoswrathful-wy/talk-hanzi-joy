@@ -642,8 +642,8 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await editor.click();
     await page.keyboard.type("-LAST");
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-save-phase", "pending");
-    await stopParking(page, ["apply_case_update", "update_case_permitted_fields"]);
     await continueParked(gate);
+    await stopParking(page, ["apply_case_update", "update_case_permitted_fields"]);
     await page.getByRole("heading", { name: "案件說明" }).click();
     await expect.poll(async () => {
       const phase = await readSavePhase(page);
@@ -671,6 +671,8 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
       const creds = await readCaseToolCredentials(page, caseId);
       return creds.questionTools[0]?.tool ?? "";
     }, { timeout: 20_000 }).toBe("Phrase");
+    await page.getByRole("button", { name: "新增提問工具" }).click();
+    await expect(page.getByTestId("question-tool-instance-1")).toBeVisible();
     await page.getByTestId("tool-instance-remove-0").click();
     await expect.poll(async () => {
       const creds = await readCaseToolCredentials(page, caseId);
