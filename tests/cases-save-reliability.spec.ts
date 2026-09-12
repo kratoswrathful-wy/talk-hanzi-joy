@@ -455,6 +455,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await editor.click();
     await page.keyboard.type(marker);
     await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    await page.getByRole("heading", { name: "案件說明" }).click();
     await expect.poll(async () => {
       const phase = await readSavePhase(page);
       if (phase === "idle" || phase === "saved") return "done";
