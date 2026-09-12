@@ -96,6 +96,12 @@ async function continueParked(gate: RpcGate) {
   await Promise.all(batch.map((route) => route.continue()));
 }
 
+async function stopParking(page: Page, names: string[]) {
+  for (const name of names) {
+    await page.unroute(`**/rest/v1/rpc/${name}`);
+  }
+}
+
 describeSave("TASK-001 儲存可靠性隔離驗證", () => {
   test("D1 時序：公布未確認不得當成功，徽章不得先改已公布", async ({ browser }) => {
     const { email, password } = credPm();
@@ -636,6 +642,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await editor.click();
     await page.keyboard.type("-LAST");
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-save-phase", "pending");
+    await stopParking(page, ["apply_case_update", "update_case_permitted_fields"]);
     await continueParked(gate);
     await page.getByRole("heading", { name: "案件說明" }).click();
     await expect.poll(async () => {
@@ -655,10 +662,11 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     const session = await loginAs(browser, email, password);
     const page = session.page;
     const caseId = await createDraftViaRpc(page, `ISO-N07A-INTENT-${Date.now()}`);
+    await page.goto(`/cases/${caseId}`);
     const instance = page.getByTestId("question-tool-instance-0");
     await expect(instance).toBeVisible({ timeout: 30_000 });
-    await instance.getByRole("combobox").click();
-    await page.getByRole("option", { name: "Phrase" }).click();
+    await instance.getByText("選擇...").first().click();
+    await page.getByText("Phrase", { exact: true }).first().click();
     await expect.poll(async () => {
       const creds = await readCaseToolCredentials(page, caseId);
       return creds.questionTools[0]?.tool ?? "";
@@ -670,8 +678,9 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
       return tools.filter((row) => row.tool && row.tool !== "").length;
     }, { timeout: 20_000 }).toBe(0);
     const again = page.getByTestId("question-tool-instance-0");
-    await again.getByRole("combobox").click();
-    await page.getByRole("option", { name: "XTM" }).click();
+    await expect(again.getByText("選擇...")).toBeVisible({ timeout: 20_000 });
+    await again.getByText("選擇...").first().click();
+    await page.getByText("XTM", { exact: true }).first().click();
     await expect.poll(async () => {
       const creds = await readCaseToolCredentials(page, caseId);
       return (creds.questionTools ?? []).map((row) => row.tool).filter(Boolean);
