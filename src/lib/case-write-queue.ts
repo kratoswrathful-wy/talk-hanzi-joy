@@ -87,31 +87,103 @@ export function resolveIntendedCaseWrite<T extends object>(
   };
 }
 
+export type LatestWriteBusy = "idle" | "pending" | "saving";
+export type CaseSavePhase = "idle" | "pending" | "saving" | "saved" | "failed" | "conflict";
+
 /**
  * 連續輸入只保留最後一次意圖再寫入，避免每個字各送一筆舊內容互相覆蓋。
+ * schedule 立刻標 pending；400ms 或 flush 才真正寫入。flush 會等到當次寫入結束。
  */
-export function createLatestWriteScheduler<T>(write: (value: T) => void, delayMs: number) {
+export function createLatestWriteScheduler<T>(
+  write: (value: T) => void | Promise<unknown>,
+  delayMs: number,
+  onBusy?: (busy: LatestWriteBusy) => void,
+) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: T | undefined;
   let hasPending = false;
-  const flush = () => {
+  let inFlight = 0;
+  let flushTail: Promise<void> = Promise.resolve();
+
+  const busy = (): LatestWriteBusy => {
+    if (hasPending) return "pending";
+    if (inFlight > 0) return "saving";
+    return "idle";
+  };
+  const emit = () => onBusy?.(busy());
+
+  const runFlush = async () => {
     if (timer != null) {
       clearTimeout(timer);
       timer = null;
     }
     if (!hasPending) return;
     hasPending = false;
-    write(pending as T);
+    const value = pending as T;
+    inFlight += 1;
+    emit();
+    try {
+      await write(value);
+    } catch {
+      // 寫入函式自行呈現失敗；flush 仍須結束，離頁才能依結果決定留下或放棄。
+    } finally {
+      inFlight -= 1;
+      emit();
+    }
   };
+
+  const flush = () => {
+    flushTail = flushTail.then(runFlush, runFlush);
+    return flushTail;
+  };
+
   return {
     schedule(value: T) {
       pending = value;
       hasPending = true;
+      emit();
       if (timer != null) clearTimeout(timer);
-      timer = setTimeout(flush, delayMs);
+      timer = setTimeout(() => {
+        void flush();
+      }, delayMs);
     },
     flush,
+    hasPending: () => hasPending,
+    hasInFlight: () => inFlight > 0,
+    hasUnfinished: () => hasPending || inFlight > 0,
+    busy,
   };
+}
+
+/** 前一筆結束時若已有更新的 pending／in-flight，不得標成已儲存。 */
+export function nextSavePhaseAfterWrite(input: {
+  outcome: "ok" | "failed" | "conflict";
+  hasPending: boolean;
+}): CaseSavePhase {
+  if (input.hasPending) return "pending";
+  if (input.outcome === "ok") return "saved";
+  return input.outcome;
+}
+
+export function resolveInAppLeaveDecision(input: {
+  bodyUnfinished: boolean;
+  bodySaveFailed: boolean;
+  showDraftPublishPrompt: boolean;
+}): "flush-body" | "stay-failed" | "prompt-publish" | "navigate" {
+  if (input.bodyUnfinished) return "flush-body";
+  if (input.bodySaveFailed) return "stay-failed";
+  if (input.showDraftPublishPrompt) return "prompt-publish";
+  return "navigate";
+}
+
+export function hardLeaveGuardKind(input: {
+  draftPublishPrompt: boolean;
+  bodyUnfinished: boolean;
+}): "none" | "draft" | "pending" | "draft-pending" {
+  if (input.draftPublishPrompt && input.bodyUnfinished) return "draft-pending";
+  if (input.bodyUnfinished) return "pending";
+  if (input.draftPublishPrompt) return "draft";
+  return "none";
 }
 
 export function describeCaseWriteFailure(error: unknown): {

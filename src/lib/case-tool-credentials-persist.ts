@@ -342,6 +342,11 @@ export type DisplayedToolWriteOptions = {
   createIfMissing?: boolean;
 };
 
+export type PlanDisplayedToolWriteOptions = {
+  /** 刪除後世代已變就不得沿用發起時的 createIfMissing。 */
+  isCreateEpochCurrent?: () => boolean;
+};
+
 /**
  * 發起時能不能建立：須是畫面臨時 id，且當時 confirmed 沒有該列／已配置 id。
  * 不得用「現在找不到」或「patch 有工具名稱」當建立授權。
@@ -418,6 +423,7 @@ export function planDisplayedToolEntryWrite(
   updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
   allocateStableId: (displayId: string) => string,
   allocatedId?: string | null,
+  options?: PlanDisplayedToolWriteOptions,
 ): (current: ToolEntry[]) => ToolEntry[] {
   const createIfMissing = canCreateDisplayedToolEntry(
     confirmedAtEnqueue,
@@ -429,8 +435,72 @@ export function planDisplayedToolEntryWrite(
     displayedId,
     updates,
     allocateStableId,
-    { createIfMissing },
+    {
+      createIfMissing: createIfMissing && (options?.isCreateEpochCurrent?.() ?? true),
+    },
   );
+}
+
+export function defaultDisplayedToolAllocatedId(displayId: string): string {
+  const prefix = displayId.startsWith("qt") ? "qt" : "te";
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+/**
+ * 詳情頁實際接線：配置 id 與刪除世代綁在同一份 session。
+ * 純 planDisplayedToolEntryWrite 無法分辨「從未建立」與「建立後刪除」。
+ */
+export function createDisplayedToolIntentSession(
+  createAllocatedId: (displayId: string) => string = defaultDisplayedToolAllocatedId,
+) {
+  const allocatedByDisplay = new Map<string, string>();
+  const epochByDisplay = new Map<string, number>();
+
+  const epochOf = (displayId: string) => epochByDisplay.get(displayId) ?? 0;
+
+  const allocate = (displayId: string) => {
+    const existing = allocatedByDisplay.get(displayId);
+    if (existing) return existing;
+    const created = createAllocatedId(displayId);
+    allocatedByDisplay.set(displayId, created);
+    return created;
+  };
+
+  const retire = (removedId: string) => {
+    const id = String(removedId || "").trim();
+    if (!id) return;
+    for (const [display, allocated] of [...allocatedByDisplay.entries()]) {
+      if (allocated === id || display === id) {
+        epochByDisplay.set(display, epochOf(display) + 1);
+        allocatedByDisplay.delete(display);
+      }
+    }
+  };
+
+  const planWrite = (
+    confirmedAtEnqueue: ToolEntry[],
+    displayedId: string,
+    updates: Partial<ToolEntry> | ((latest: ToolEntry) => Partial<ToolEntry>),
+  ) => {
+    const allocated = allocatedByDisplay.get(displayedId);
+    const capturedEpoch = epochOf(displayedId);
+    return planDisplayedToolEntryWrite(
+      confirmedAtEnqueue,
+      displayedId,
+      updates,
+      allocate,
+      allocated,
+      { isCreateEpochCurrent: () => epochOf(displayedId) === capturedEpoch },
+    );
+  };
+
+  return {
+    allocate,
+    retire,
+    planWrite,
+    epochOf,
+    peekAllocated: (displayId: string) => allocatedByDisplay.get(displayId),
+  };
 }
 
 /** 結果是否仍適用於目前畫面（防晚到更新另一案） */

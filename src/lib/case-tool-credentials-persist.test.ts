@@ -11,6 +11,7 @@ import {
   canCreateDisplayedToolEntry,
   isDisplayOnlyToolEntryId,
   isPersistResultCurrent,
+  createDisplayedToolIntentSession,
   persistToolBlockPatch,
   planDisplayedToolEntryWrite,
   resetToolCredentialPersistQueuesForTests,
@@ -813,5 +814,35 @@ describe("late tool-name write after delete (Codex 07:36)", () => {
     });
     expect(late.status).toBe("ok");
     expect(late.confirmedCredentials?.questionTools).toEqual([sibling]);
+  });
+
+  it("helper alone still cannot tell never-created from created-then-deleted", () => {
+    const next = planDisplayedToolEntryWrite(
+      [],
+      "qt-default",
+      { tool: "Phrase" },
+      () => "created-then-deleted",
+      "created-then-deleted",
+    )([]);
+    expect(next).toEqual([{ id: "created-then-deleted", tool: "Phrase", fieldValues: {} }]);
+  });
+
+  it("page intent session: late write after delete does not resurrect; new select still creates", () => {
+    const session = createDisplayedToolIntentSession(() => "created-then-deleted");
+    const first = session.planWrite([], "qt-default", { tool: "Phrase" });
+    expect(first([])).toEqual([{ id: "created-then-deleted", tool: "Phrase", fieldValues: {} }]);
+    session.retire("created-then-deleted");
+    expect(first([])).toEqual([]);
+    const again = session.planWrite([], "qt-default", { tool: "XTM" });
+    expect(again([])).toEqual([{ id: "created-then-deleted", tool: "XTM", fieldValues: {} }]);
+  });
+
+  it("page intent session: first-create field update then delete then late update stays empty", () => {
+    const session = createDisplayedToolIntentSession(() => "qt-session");
+    const late = session.planWrite([], "qt-default", { tool: "Phrase" });
+    expect(late([])).toEqual([{ id: "qt-session", tool: "Phrase", fieldValues: {} }]);
+    session.planWrite([], "qt-default", { fieldValues: { project: "keep" } });
+    session.retire("qt-session");
+    expect(late([])).toEqual([]);
   });
 });
