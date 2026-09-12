@@ -1,11 +1,14 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
-import { accessToken, restClient, readCaseState, readCaseTitle } from "./helpers/isolated-api";
+import { accessToken, restClient, readAudit, readCaseState, readCaseTitle } from "./helpers/isolated-api";
 import {
   attachRestHitLog,
   createDraftViaRpc,
+  readCaseBodyText,
   readCaseToolCredentials,
+  readFrontCompleteness,
   readSavePhase,
+  restFor,
   seedCaseToolCredentials,
 } from "./helpers/save-reliability-iso";
 
@@ -417,6 +420,111 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full");
     await expect(page.getByTestId("case-detail-stale-banner")).toHaveCount(0);
     await expect(page.getByTestId("case-detail-omitted-preview")).toHaveCount(0);
+    await session.close();
+  });
+
+  test("N07-a 只改工具後接著輸入案件說明，離開／重整兩者都讀回", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const marker = `N07A-BODY-${Date.now()}`;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-BODY-${Date.now()}`);
+    await seedCaseToolCredentials(page, caseId, {
+      questionTools: [{
+        id: "qt-default",
+        tool: "memoQ",
+        fields: seededToolFields,
+        fieldValues: { "f-server": "synthetic-old", "f-note": "keep" },
+      }],
+    });
+    await page.goto(`/cases/${caseId}`);
+    const server = page.getByTestId("question-tool-instance-0").getByTestId("tool-server");
+    await expect(server).toBeEnabled({ timeout: 30_000 });
+    await server.click();
+    await server.fill("synthetic-body-follow");
+    await server.press("Tab");
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return creds.questionTools[0]?.fieldValues?.["f-server"] ?? "";
+    }, { timeout: 20_000 }).toBe("synthetic-body-follow");
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full");
+    await expect(page.getByTestId("case-detail-omitted-preview")).toHaveCount(0);
+
+    const editor = page.getByTestId("case-body-editor").locator('[contenteditable="true"]').first();
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+    await editor.click();
+    await page.keyboard.type(marker);
+    await expect.poll(async () => readSavePhase(page), { timeout: 20_000 }).toBe("idle");
+
+    await page.goto("/cases");
+    await page.goto(`/cases/${caseId}`);
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return creds.questionTools[0]?.fieldValues?.["f-server"] ?? "";
+    }, { timeout: 20_000 }).toBe("synthetic-body-follow");
+
+    await page.reload();
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    const restBody = await readCaseBodyText(page, caseId);
+    if (restBody !== "[]" && restBody !== "null") {
+      expect(restBody, "後端案件說明應含合成短句").toContain(marker);
+    }
+
+    await session.close();
+  });
+
+  test("憑證寫入後隔離庫 revision 會增加，前端完整列仍可編", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-REV-${Date.now()}`);
+    await seedCaseToolCredentials(page, caseId, {
+      questionTools: [{
+        id: "qt-default",
+        tool: "memoQ",
+        fields: seededToolFields,
+        fieldValues: { "f-server": "synthetic-old", "f-note": "keep" },
+      }],
+    });
+    await page.goto(`/cases/${caseId}`);
+    const { rest } = await restFor(page);
+    const before = await readCaseState(rest, caseId);
+    expect(before, "寫入前讀不到案件").toBeTruthy();
+    const frontBefore = await readFrontCompleteness(page);
+    expect(frontBefore.completeness).toBe("full");
+
+    const server = page.getByTestId("question-tool-instance-0").getByTestId("tool-server");
+    await expect(server).toBeEnabled({ timeout: 30_000 });
+    await server.fill("synthetic-rev");
+    await server.press("Tab");
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return creds.questionTools[0]?.fieldValues?.["f-server"] ?? "";
+    }, { timeout: 20_000 }).toBe("synthetic-rev");
+
+    const after = await readCaseState(rest, caseId);
+    expect(after, "寫入後讀不到案件").toBeTruthy();
+    expect(after!.revision, "隔離庫憑證 UPDATE 應觸發 bump revision").toBeGreaterThan(before!.revision);
+    const audit = await readAudit(rest, caseId);
+    const credAudit = audit.filter((row) => row.action === "update_case_credentials");
+    expect(credAudit.length, "應有憑證寫入稽核").toBeGreaterThan(0);
+    const last = credAudit[credAudit.length - 1];
+    expect(last.new_revision).toBe(after!.revision);
+    expect(last.new_revision).toBeGreaterThan(last.previous_revision);
+
+    const frontAfter = await readFrontCompleteness(page);
+    expect(frontAfter.completeness).toBe("full");
+    expect(Number(frontAfter.revision)).toBeGreaterThanOrEqual(before!.revision);
+    await expect(page.getByTestId("case-detail-omitted-preview")).toHaveCount(0);
+    expect(frontBefore.revision, "寫入前前端 revision").toBeTruthy();
+
     await session.close();
   });
 });

@@ -138,9 +138,12 @@ export function decideFullCaseAdoption(
 }
 
 /**
- * 同 revision、標題／狀態不變，只有 updatedAt 較新：
- * 憑證寫入會改 updated_at 但不加 revision；不得把完整列誤標 stale 而停用案件說明。
- * 他人改內文走 apply_case_update，會加 revision，不會走這條。
+ * 同 revision、標題／狀態不變，只有 updatedAt 較新。
+ * 憑證 RPC 本身沒有 SET revision，但 cases UPDATE 會觸發
+ * `cases_bump_revision_trg`（見 20260830122351／20260830122401）。
+ * 常見順序是：資料庫先加版 → applyActionResult 只寫入新 revision（時間仍舊）
+ * → 清單同版但時間較新。不得把仍屬該版的完整內文誤標 stale。
+ * 清單 revision 真的較高，或標題／狀態變了，不走這條。
  */
 export function isSameRevisionTimestampEcho(current: CaseRecord, incoming: CaseRecord): boolean {
   return (

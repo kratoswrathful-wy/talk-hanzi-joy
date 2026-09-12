@@ -357,6 +357,46 @@ describe("listSnapshotIsNewer", () => {
     expect(caseUpdateBlockedReason(merged.completeness, { processNote: "x" })).toBeNull();
   });
 
+  it("applyActionResult 先寫入新 revision、清單同版但時間較新：維持 full 且保留舊內文", () => {
+    const afterOwnCredentialWrite = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T07:00:00.000Z",
+      revision: 6,
+      title: "案",
+      status: "draft",
+      processNote: "仍屬該版的完整備註",
+    });
+    const listAfterTrigger = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T07:00:01.000Z",
+      revision: 6,
+      title: "案",
+      status: "draft",
+    });
+    const merged = mergeCaseListProjection(afterOwnCredentialWrite, listAfterTrigger, "full");
+    expect(merged.completeness).toBe("full");
+    expect(merged.record.processNote).toBe("仍屬該版的完整備註");
+    expect(caseUpdateBlockedReason(merged.completeness, { processNote: "x" })).toBeNull();
+  });
+
+  it("本地 revision 已較高時，不得把較舊完整回應標成最新 full", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T07:00:01.000Z",
+      revision: 6,
+      processNote: "憑證寫入後仍是這份內文",
+    });
+    const olderFull = stubCase({
+      id: "a",
+      updatedAt: "2026-09-12T06:59:00.000Z",
+      revision: 5,
+      processNote: "更舊完整回應",
+    });
+    const decided = decideFullCaseAdoption(current, olderFull, "full");
+    expect(decided.adopt).toBe(false);
+    expect(decided.record.processNote).toBe("憑證寫入後仍是這份內文");
+  });
+
   it("revision 真的較高仍標 stale，即使標題相同", () => {
     const current = stubCase({
       id: "a",

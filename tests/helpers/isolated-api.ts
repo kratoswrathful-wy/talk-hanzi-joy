@@ -76,11 +76,12 @@ export interface CaseStateRow {
   id: string;
   status: string;
   revision: number;
+  updated_at?: string;
 }
 
 export async function readCaseState(rest: RestClient, caseId: string): Promise<CaseStateRow | null> {
   const rows = await rest.get<CaseStateRow[]>(
-    `cases_visible?select=id,status,revision&id=eq.${caseId}`,
+    `cases_visible?select=id,status,revision,updated_at&id=eq.${caseId}`,
   );
   return rows[0] ?? null;
 }
