@@ -454,7 +454,12 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await expect(editor).toBeVisible({ timeout: 30_000 });
     await editor.click();
     await page.keyboard.type(marker);
-    await expect.poll(async () => readSavePhase(page), { timeout: 20_000 }).toBe("idle");
+    await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    await expect.poll(async () => {
+      const phase = await readSavePhase(page);
+      if (phase === "idle" || phase === "saved") return "done";
+      return phase;
+    }, { timeout: 20_000 }).toBe("done");
 
     await page.goto("/cases");
     await page.goto(`/cases/${caseId}`);
