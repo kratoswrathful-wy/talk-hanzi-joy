@@ -1,5 +1,8 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { plainTextFromCaseBodyContent } from "../../src/lib/case-body-plain-text";
 import { accessToken, localApi, readCaseState, restClient, type RestClient } from "./isolated-api";
+
+export { plainTextFromCaseBodyContent };
 
 const SECRET_QUERY_KEYS = new Set(["apikey", "access_token", "token", "authorization", "refresh_token"]);
 
@@ -112,6 +115,10 @@ export async function readCaseBodyText(page: Page, caseId: string): Promise<stri
     `cases_visible?select=body_content&id=eq.${caseId}`,
   );
   return JSON.stringify(rows[0]?.body_content ?? []);
+}
+
+export async function readCaseBodyPlainText(page: Page, caseId: string): Promise<string> {
+  return plainTextFromCaseBodyContent(await readCaseBodyText(page, caseId));
 }
 
 export async function readFrontCompleteness(page: Page): Promise<{

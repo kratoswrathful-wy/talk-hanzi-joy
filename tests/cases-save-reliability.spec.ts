@@ -5,6 +5,7 @@ import {
   attachRestHitLog,
   createDraftViaRpc,
   createInquiryViaRpc,
+  readCaseBodyPlainText,
   readCaseBodyText,
   readCaseToolCredentials,
   readFrontCompleteness,
@@ -650,10 +651,9 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
       return phase === "saved" || phase === "idle" ? "done" : phase;
     }, { timeout: 20_000 }).toBe("done");
     await expect(page.getByTestId("case-body-editor")).toContainText(last);
-    const restBody = await readCaseBodyText(page, caseId);
-    if (restBody !== "[]" && restBody !== "null") {
-      expect(restBody, "後端案件說明應含最後完整短句").toContain(last);
-    }
+    const restPlain = await readCaseBodyPlainText(page, caseId);
+    expect(restPlain, "後端案件說明應含第一段與接著輸入").toContain(first);
+    expect(restPlain, "後端案件說明應含最後完整短句").toContain(last);
     await session.close();
   });
 
