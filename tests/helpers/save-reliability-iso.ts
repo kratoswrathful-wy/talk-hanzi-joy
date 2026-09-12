@@ -98,6 +98,27 @@ export async function seedCaseToolCredentials(
   expect(result.ok, `update_case_credentials ${result.status}: ${result.text}`).toBe(true);
 }
 
+export async function readCaseBodyText(page: Page, caseId: string): Promise<string> {
+  const { rest } = await restFor(page);
+  const rows = await rest.get<Array<{ body_content?: unknown }>>(
+    `cases_visible?select=body_content&id=eq.${caseId}`,
+  );
+  return JSON.stringify(rows[0]?.body_content ?? []);
+}
+
+export async function readFrontCompleteness(page: Page): Promise<{
+  completeness: string;
+  revision: string;
+  updatedAt: string;
+}> {
+  const el = page.getByTestId("case-detail-completeness");
+  return {
+    completeness: (await el.getAttribute("data-completeness")) ?? "",
+    revision: (await el.getAttribute("data-revision")) ?? "",
+    updatedAt: (await el.getAttribute("data-updated-at")) ?? "",
+  };
+}
+
 export async function readCaseToolCredentials(
   page: Page,
   caseId: string,
