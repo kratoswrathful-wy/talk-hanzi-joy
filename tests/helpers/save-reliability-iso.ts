@@ -60,11 +60,19 @@ export async function restFor(page: Page): Promise<{ token: string; rest: RestCl
 }
 
 export async function createDraftViaRpc(page: Page, title: string): Promise<string> {
+  return createCaseViaRpc(page, title, "draft");
+}
+
+export async function createInquiryViaRpc(page: Page, title: string): Promise<string> {
+  return createCaseViaRpc(page, title, "inquiry");
+}
+
+async function createCaseViaRpc(page: Page, title: string, status: "draft" | "inquiry"): Promise<string> {
   const { rest } = await restFor(page);
   const id = crypto.randomUUID();
   const created = await rest.rpc<{ ok?: boolean; error?: string }>("admin_create_case", {
     p_case_id: id,
-    p_payload: { title, status: "draft" },
+    p_payload: { title, status },
   });
   expect(created.ok, created.text).toBe(true);
   expect(created.data?.ok, created.text).toBe(true);

@@ -4,6 +4,7 @@ import { accessToken, restClient, readAudit, readCaseState, readCaseTitle } from
 import {
   attachRestHitLog,
   createDraftViaRpc,
+  createInquiryViaRpc,
   readCaseBodyText,
   readCaseToolCredentials,
   readFrontCompleteness,
@@ -88,6 +89,11 @@ async function fulfillParked(gate: RpcGate, body: unknown, status = 200) {
       }),
     ),
   );
+}
+
+async function continueParked(gate: RpcGate) {
+  const batch = gate.parked.splice(0, gate.parked.length);
+  await Promise.all(batch.map((route) => route.continue()));
 }
 
 describeSave("TASK-001 儲存可靠性隔離驗證", () => {
@@ -531,6 +537,170 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await expect(page.getByTestId("case-detail-omitted-preview")).toHaveCount(0);
     expect(frontBefore.revision, "寫入前前端 revision").toBeTruthy();
 
+    await session.close();
+  });
+
+  test("案件說明輸入後立刻是尚未儲存，不是上一筆已儲存", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const first = `N07A-PEND-${Date.now()}`;
+    const second = `${first}-MORE`;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-PEND-${Date.now()}`);
+    const editor = page.getByTestId("case-body-editor").locator('[contenteditable="true"]').first();
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+    await editor.click();
+    await page.keyboard.type(first);
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-save-phase", "pending");
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-leave-guard", /pending/);
+    await page.getByRole("heading", { name: "案件說明" }).click();
+    await expect.poll(async () => {
+      const phase = await readSavePhase(page);
+      return phase === "saved" || phase === "idle" ? "done" : phase;
+    }, { timeout: 20_000 }).toBe("done");
+
+    await editor.click();
+    await page.keyboard.type("-MORE");
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-save-phase", "pending");
+    await expect(page.getByTestId("case-save-status")).toHaveText("尚未儲存");
+    await page.getByRole("heading", { name: "案件說明" }).click();
+    await expect.poll(async () => {
+      const phase = await readSavePhase(page);
+      return phase === "saved" || phase === "idle" ? "done" : phase;
+    }, { timeout: 20_000 }).toBe("done");
+    await expect(page.getByTestId("case-body-editor")).toContainText(second);
+    await session.close();
+  });
+
+  test("草稿：debounce 未到就返回列表，先存完再出現公布詢問，讀回完整最後內容", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const marker = `N07A-LEAVE-${Date.now()}`;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-LEAVE-${Date.now()}`);
+    const editor = page.getByTestId("case-body-editor").locator('[contenteditable="true"]').first();
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+    await editor.click();
+    await page.keyboard.type(marker);
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-save-phase", "pending");
+    await page.getByTestId("case-detail-back-to-list").click();
+    await expect(page.getByRole("heading", { name: "公布案件？" })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("case-body-pending-leave")).toHaveCount(0);
+    await page.getByRole("button", { name: "不公布，直接離開" }).click();
+    await page.goto(`/cases/${caseId}`);
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    await session.close();
+  });
+
+  test("詢案中：待儲存離頁沒有公布詢問，存完讀回", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const marker = `N07A-INQ-${Date.now()}`;
+    const caseId = await createInquiryViaRpc(page, `ISO-N07A-INQ-${Date.now()}`);
+    const editor = page.getByTestId("case-body-editor").locator('[contenteditable="true"]').first();
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+    await editor.click();
+    await page.keyboard.type(marker);
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-save-phase", "pending");
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-leave-guard", "pending");
+    await page.getByTestId("case-detail-back-to-list").click();
+    await expect(page.getByRole("heading", { name: "公布案件？" })).toHaveCount(0);
+    await page.goto(`/cases/${caseId}`);
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-completeness", "full", {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    await session.close();
+  });
+
+  test("前一筆案件說明仍在寫時接著輸入，讀回最後完整內容", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const first = `N07A-GATE-${Date.now()}`;
+    const last = `${first}-LAST`;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-GATE-${Date.now()}`);
+    const gate = newGate();
+    await parkRpcs(page, ["apply_case_update", "update_case_permitted_fields"], gate);
+    const editor = page.getByTestId("case-body-editor").locator('[contenteditable="true"]').first();
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+    await editor.click();
+    await page.keyboard.type(first);
+    await page.getByRole("heading", { name: "案件說明" }).click();
+    await expect.poll(() => gate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    await expect.poll(async () => readSavePhase(page), { timeout: 5_000 }).toMatch(/saving|pending/);
+    await editor.click();
+    await page.keyboard.type("-LAST");
+    await expect(page.getByTestId("case-detail-completeness")).toHaveAttribute("data-save-phase", "pending");
+    await continueParked(gate);
+    await page.getByRole("heading", { name: "案件說明" }).click();
+    await expect.poll(async () => {
+      const phase = await readSavePhase(page);
+      return phase === "saved" || phase === "idle" ? "done" : phase;
+    }, { timeout: 20_000 }).toBe("done");
+    await expect(page.getByTestId("case-body-editor")).toContainText(last);
+    const restBody = await readCaseBodyText(page, caseId);
+    if (restBody !== "[]" && restBody !== "null") {
+      expect(restBody, "後端案件說明應含最後完整短句").toContain(last);
+    }
+    await session.close();
+  });
+
+  test("提問工具建立後刪除，晚到的舊選擇不會把已刪列加回來，新選仍可建立", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const caseId = await createDraftViaRpc(page, `ISO-N07A-INTENT-${Date.now()}`);
+    const instance = page.getByTestId("question-tool-instance-0");
+    await expect(instance).toBeVisible({ timeout: 30_000 });
+    await instance.getByRole("combobox").click();
+    await page.getByRole("option", { name: "Phrase" }).click();
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return creds.questionTools[0]?.tool ?? "";
+    }, { timeout: 20_000 }).toBe("Phrase");
+    await page.getByTestId("tool-instance-remove-0").click();
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      const tools = creds.questionTools ?? [];
+      return tools.filter((row) => row.tool && row.tool !== "").length;
+    }, { timeout: 20_000 }).toBe(0);
+    const again = page.getByTestId("question-tool-instance-0");
+    await again.getByRole("combobox").click();
+    await page.getByRole("option", { name: "XTM" }).click();
+    await expect.poll(async () => {
+      const creds = await readCaseToolCredentials(page, caseId);
+      return (creds.questionTools ?? []).map((row) => row.tool).filter(Boolean);
+    }, { timeout: 20_000 }).toEqual(["XTM"]);
+    await session.close();
+  });
+
+  test("案件說明寫入失敗時最新文字仍在，離頁提供留下或放棄", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const marker = `N07A-FAIL-${Date.now()}`;
+    await createDraftViaRpc(page, `ISO-N07A-FAIL-${Date.now()}`);
+    const gate = newGate();
+    await parkRpcs(page, ["apply_case_update", "update_case_permitted_fields"], gate);
+    const editor = page.getByTestId("case-body-editor").locator('[contenteditable="true"]').first();
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+    await editor.click();
+    await page.keyboard.type(marker);
+    await page.getByRole("heading", { name: "案件說明" }).click();
+    await expect.poll(() => gate.parked.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    await fulfillParked(gate, { ok: false, error: "synthetic_body_write_failed" });
+    await expect.poll(async () => readSavePhase(page), { timeout: 10_000 }).toMatch(/failed|conflict/);
+    await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    await page.getByTestId("case-detail-back-to-list").click();
+    await expect(page.getByTestId("case-body-pending-leave")).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "留在此頁" }).click();
+    await expect(page.getByTestId("case-body-editor")).toContainText(marker);
+    await expect(page.getByTestId("case-detail-completeness")).toBeVisible();
     await session.close();
   });
 });
