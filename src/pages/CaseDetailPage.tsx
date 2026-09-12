@@ -30,7 +30,7 @@ import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import type { CaseCompleteness } from "@/lib/case-list-load";
 import { omittedKeysInPartial } from "@/lib/case-list-load";
-import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite } from "@/lib/case-write-queue";
+import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, type CaseSavePhase } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
@@ -106,7 +106,7 @@ import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
   isPersistResultCurrent,
   persistToolBlockPatch,
-  planDisplayedToolEntryWrite,
+  createDisplayedToolIntentSession,
 } from "@/lib/case-tool-credentials-persist";
 import { applyToolTemplatePatch, toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
 
@@ -1136,20 +1136,12 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const caseDataRef = useRef<CaseRecord | null>(null);
   caseDataRef.current = caseData;
-  const displayToolEntryIdsRef = useRef<Map<string, string>>(new Map());
   const displayToolEntryCaseRef = useRef<string | null>(null);
+  const toolIntentRef = useRef(createDisplayedToolIntentSession());
   if (caseData?.id !== displayToolEntryCaseRef.current) {
     displayToolEntryCaseRef.current = caseData?.id ?? null;
-    displayToolEntryIdsRef.current = new Map();
+    toolIntentRef.current = createDisplayedToolIntentSession();
   }
-  const allocateDisplayToolEntryId = useCallback((displayId: string) => {
-    const existing = displayToolEntryIdsRef.current.get(displayId);
-    if (existing) return existing;
-    const prefix = displayId.startsWith("qt") ? "qt" : "te";
-    const created = `${prefix}-${crypto.randomUUID()}`;
-    displayToolEntryIdsRef.current.set(displayId, created);
-    return created;
-  }, []);
   const [loading, setLoading] = useState(true);
   /** Single fetch hung past CASE_LOAD_TIMEOUT_MS */
   const [caseLoadTimedOut, setCaseLoadTimedOut] = useState(false);
@@ -1195,7 +1187,10 @@ export default function CaseDetailPage() {
   const translatorParticipantRequestGen = useRef(0);
   const [creatingCase, setCreatingCase] = useState(false);
   const creatingCaseRef = useRef(false);
-  const [savePhase, setSavePhase] = useState<"idle" | "saving" | "saved" | "failed" | "conflict">("idle");
+  const [savePhase, setSavePhase] = useState<CaseSavePhase>("idle");
+  const savePhaseRef = useRef<CaseSavePhase>("idle");
+  savePhaseRef.current = savePhase;
+  const [pendingLeaveOpen, setPendingLeaveOpen] = useState(false);
   const [flowBusy, setFlowBusy] = useState(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
@@ -1207,6 +1202,16 @@ export default function CaseDetailPage() {
   const caseEditBurstRef = useRef<BurstMap>({});
   const isManager = currentRole === "pm" || currentRole === "executive";
   const pendingNavigateRef = useRef<(() => void) | null>(null);
+  const saveRef = useRef<(partial: Partial<CaseRecord>) => Promise<Error | null>>(async () => new Error("missing id"));
+  const bodyWriteSchedulerRef = useRef(
+    createLatestWriteScheduler<CaseRecord["bodyContent"]>(
+      (blocks) => saveRef.current({ bodyContent: blocks }),
+      400,
+      (busy) => {
+        if (busy === "pending" || busy === "saving") setSavePhase(busy);
+      },
+    ),
+  );
 
   // Permission for publish prompt on leave
   const canSeePublishPrompt = checkPerm("case_management", "case_draft_publish_prompt", "view");
@@ -1232,17 +1237,22 @@ export default function CaseDetailPage() {
 
    // Block navigation when leaving a draft case (PM+ only) to prompt publishing
    const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
+   const bodyUnfinished = savePhase === "pending" || savePhase === "saving";
+   const leaveGuard = hardLeaveGuardKind({
+     draftPublishPrompt: shouldBlockNav,
+     bodyUnfinished,
+   });
 
-   // Intercept back button / browser navigation via beforeunload
+   // 硬重整／關分頁：草稿公布提示與待儲存分開；兩者可同時存在。
    useEffect(() => {
-     if (!shouldBlockNav) return;
+     if (leaveGuard === "none") return;
      const handler = (e: BeforeUnloadEvent) => {
        e.preventDefault();
        e.returnValue = "";
      };
      window.addEventListener("beforeunload", handler);
      return () => window.removeEventListener("beforeunload", handler);
-   }, [shouldBlockNav]);
+   }, [leaveGuard]);
 
   // Load internal notes from DB
   useEffect(() => { internalNotesStore.ensureLoaded(); }, []);
@@ -1725,7 +1735,10 @@ export default function CaseDetailPage() {
       const error = (await caseStore.update(id, nextWrite)) ?? null;
       if (error) {
         const described = describeCaseWriteFailure(error);
-        setSavePhase(described.kind === "conflict" ? "conflict" : "failed");
+        setSavePhase(nextSavePhaseAfterWrite({
+          outcome: described.kind === "conflict" ? "conflict" : "failed",
+          hasPending: bodyWriteSchedulerRef.current.hasPending(),
+        }));
         toast({
           title: described.title,
           description: described.description,
@@ -1733,20 +1746,19 @@ export default function CaseDetailPage() {
         });
         return error instanceof Error ? error : new Error(described.description);
       }
-      setSavePhase("saved");
+      setSavePhase(nextSavePhaseAfterWrite({
+        outcome: "ok",
+        hasPending: bodyWriteSchedulerRef.current.hasPending(),
+      }));
       return null;
     },
     [id, profile]
   );
 
-  const saveRef = useRef(save);
   saveRef.current = save;
-  const bodyWriteSchedulerRef = useRef(
-    createLatestWriteScheduler<CaseRecord["bodyContent"]>((blocks) => {
-      void saveRef.current({ bodyContent: blocks });
-    }, 400),
-  );
-  useEffect(() => () => bodyWriteSchedulerRef.current.flush(), []);
+  useEffect(() => () => {
+    void bodyWriteSchedulerRef.current.flush();
+  }, []);
 
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
   // credentialsStatus：loading／refreshing／error 與 confirmed 分離；寫入仍以 peekConfirmed 為準
@@ -1872,26 +1884,13 @@ export default function CaseDetailPage() {
   ) => {
     if (!caseData) return;
     const confirmed = caseCredentialAccess.peekConfirmed(caseData.id)?.tools ?? [];
-    const allocated = displayToolEntryIdsRef.current.get(entryId);
-    patchTools(planDisplayedToolEntryWrite(
-      confirmed,
-      entryId,
-      updates,
-      allocateDisplayToolEntryId,
-      allocated,
-    ));
+    patchTools(toolIntentRef.current.planWrite(confirmed, entryId, updates));
   };
 
   const removeTool = (idx: number) => {
     if (!caseData) return;
     const removed = tools[idx];
-    if (removed) {
-      for (const [displayId, allocated] of displayToolEntryIdsRef.current) {
-        if (allocated === removed.id || displayId === removed.id) {
-          displayToolEntryIdsRef.current.delete(displayId);
-        }
-      }
-    }
+    if (removed) toolIntentRef.current.retire(removed.id);
     const next = tools.filter((_, i) => i !== idx);
     const hypothetical = { ...caseData, tools: next };
     if (countCaseTools(hypothetical) < 1) {
@@ -1958,26 +1957,13 @@ export default function CaseDetailPage() {
   ) => {
     if (!caseData) return;
     const confirmed = caseCredentialAccess.peekConfirmed(caseData.id)?.questionTools ?? [];
-    const allocated = displayToolEntryIdsRef.current.get(entryId);
-    patchQuestionTools(planDisplayedToolEntryWrite(
-      confirmed,
-      entryId,
-      updates,
-      allocateDisplayToolEntryId,
-      allocated,
-    ));
+    patchQuestionTools(toolIntentRef.current.planWrite(confirmed, entryId, updates));
   };
 
   const removeQuestionTool = (idx: number) => {
     patchQuestionTools((current) => {
       const removed = current[idx];
-      if (removed) {
-        for (const [displayId, allocated] of displayToolEntryIdsRef.current) {
-          if (allocated === removed.id || displayId === removed.id) {
-            displayToolEntryIdsRef.current.delete(displayId);
-          }
-        }
-      }
+      if (removed) toolIntentRef.current.retire(removed.id);
       const next = current.filter((_, i) => i !== idx);
       return next.length ? next : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }];
     });
@@ -2475,21 +2461,22 @@ export default function CaseDetailPage() {
       data-testid="case-detail-completeness"
       data-completeness={recordCompleteness}
       data-save-phase={savePhase}
+      data-leave-guard={leaveGuard}
       data-revision={caseData?.revision ?? ""}
       data-updated-at={caseData?.updatedAt ?? ""}
     >
-      {savePhase !== "idle" && (
-        <p
-          className="text-xs text-muted-foreground px-1"
-          data-testid="case-save-status"
-          data-save-phase={savePhase}
-        >
-          {savePhase === "saving" ? "儲存中"
-            : savePhase === "saved" ? "已儲存"
-            : savePhase === "conflict" ? "版本衝突"
-            : "儲存失敗"}
-        </p>
-      )}
+      <p
+        className="text-xs text-muted-foreground px-1 min-h-4"
+        data-testid="case-save-status"
+        data-save-phase={savePhase}
+      >
+        {savePhase === "pending" ? "尚未儲存"
+          : savePhase === "saving" ? "儲存中"
+          : savePhase === "saved" ? "已儲存"
+          : savePhase === "conflict" ? "版本衝突"
+          : savePhase === "failed" ? "儲存失敗"
+          : "\u00a0"}
+      </p>
       {recordCompleteness === "stale" && (
         <div
           className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm space-y-2"
@@ -2548,14 +2535,41 @@ export default function CaseDetailPage() {
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
+            data-testid="case-detail-back-to-list"
             onClick={() => {
-              if (!assertUniqueCaseTitle("leave")) return;
-              if (shouldBlockNav) {
-                pendingNavigateRef.current = () => navigate("/cases");
-                setPublishPromptOpen(true);
-              } else {
-                navigate("/cases");
-              }
+              void (async () => {
+                if (!assertUniqueCaseTitle("leave")) return;
+                const unfinished = bodyWriteSchedulerRef.current.hasUnfinished();
+                if (unfinished) {
+                  await bodyWriteSchedulerRef.current.flush();
+                }
+                const phase = savePhaseRef.current;
+                const decision = resolveInAppLeaveDecision({
+                  bodyUnfinished: bodyWriteSchedulerRef.current.hasUnfinished(),
+                  bodySaveFailed: phase === "failed" || phase === "conflict",
+                  showDraftPublishPrompt: shouldBlockNav,
+                });
+                if (decision === "flush-body") {
+                  await bodyWriteSchedulerRef.current.flush();
+                }
+                const afterPhase = savePhaseRef.current;
+                const after = resolveInAppLeaveDecision({
+                  bodyUnfinished: bodyWriteSchedulerRef.current.hasUnfinished(),
+                  bodySaveFailed: afterPhase === "failed" || afterPhase === "conflict",
+                  showDraftPublishPrompt: shouldBlockNav,
+                });
+                if (after === "stay-failed") {
+                  pendingNavigateRef.current = () => navigate("/cases");
+                  setPendingLeaveOpen(true);
+                  return;
+                }
+                if (after === "prompt-publish") {
+                  pendingNavigateRef.current = () => navigate("/cases");
+                  setPublishPromptOpen(true);
+                  return;
+                }
+                if (after === "navigate") navigate("/cases");
+              })();
             }}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
@@ -3811,7 +3825,12 @@ export default function CaseDetailPage() {
 
       {/* 案件說明 */}
       <div className="space-y-2">
-        <h2 className="text-base font-semibold">案件說明</h2>
+        <h2
+          className="text-base font-semibold"
+          onClick={() => {
+            void bodyWriteSchedulerRef.current.flush();
+          }}
+        >案件說明</h2>
         {contentWritable ? (
           <CaseBodyEditorBoundary caseId={caseData.id}>
             <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
@@ -4043,6 +4062,31 @@ export default function CaseDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete}>確定刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingLeaveOpen} onOpenChange={(v) => {
+        if (!v) setPendingLeaveOpen(false);
+      }}>
+        <AlertDialogContent data-testid="case-body-pending-leave">
+          <AlertDialogHeader>
+            <AlertDialogTitle>案件說明尚未儲存</AlertDialogTitle>
+            <AlertDialogDescription>
+              剛才輸入的內容還在畫面上，但還沒寫進資料庫。請留在此頁再試一次，或明確放棄未儲存內容。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPendingLeaveOpen(false);
+              pendingNavigateRef.current = null;
+            }}>留在此頁</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setPendingLeaveOpen(false);
+              const nav = pendingNavigateRef.current;
+              pendingNavigateRef.current = null;
+              if (nav) nav();
+            }}>放棄並離開</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
