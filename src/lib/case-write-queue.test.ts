@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, createLatestWriteScheduler, describeCaseWriteFailure, mergeOptimisticCaseWrite, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
+import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
 
 describe("createKeyedQueue", () => {
   it("runs tasks for the same key in order and uses the previous result", async () => {
@@ -145,7 +145,7 @@ describe("mergeOptimisticCaseWrite", () => {
 });
 
 describe("createLatestWriteScheduler", () => {
-  it("writes only the last scheduled value after the delay", () => {
+  it("writes only the last scheduled value after the delay", async () => {
     vi.useFakeTimers();
     const seen: string[] = [];
     const scheduler = createLatestWriteScheduler((value: string) => {
@@ -156,22 +156,103 @@ describe("createLatestWriteScheduler", () => {
     scheduler.schedule("N07A-BODY-full");
     expect(seen).toEqual([]);
     vi.advanceTimersByTime(400);
+    await Promise.resolve();
     expect(seen).toEqual(["N07A-BODY-full"]);
     vi.useRealTimers();
   });
 
-  it("flush writes the latest pending value immediately", () => {
+  it("flush writes the latest pending value immediately", async () => {
     vi.useFakeTimers();
     const seen: string[] = [];
     const scheduler = createLatestWriteScheduler((value: string) => {
       seen.push(value);
     }, 400);
     scheduler.schedule("partial");
-    scheduler.flush();
+    await scheduler.flush();
     expect(seen).toEqual(["partial"]);
     vi.advanceTimersByTime(400);
+    await Promise.resolve();
     expect(seen).toEqual(["partial"]);
     vi.useRealTimers();
+  });
+
+  it("marks pending immediately and does not treat a later success as latest if more text is waiting", async () => {
+    vi.useFakeTimers();
+    const busy: string[] = [];
+    let releaseFirst: (() => void) | undefined;
+    const firstWrite = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let writes = 0;
+    const scheduler = createLatestWriteScheduler(async (value: string) => {
+      writes += 1;
+      if (writes === 1) await firstWrite;
+      void value;
+    }, 400, (status) => {
+      busy.push(status);
+    });
+    scheduler.schedule("first");
+    expect(scheduler.busy()).toBe("pending");
+    expect(scheduler.hasUnfinished()).toBe(true);
+    vi.advanceTimersByTime(400);
+    await Promise.resolve();
+    expect(scheduler.busy()).toBe("saving");
+    scheduler.schedule("second-latest");
+    expect(scheduler.busy()).toBe("pending");
+    expect(nextSavePhaseAfterWrite({ outcome: "ok", hasPending: scheduler.hasPending() })).toBe("pending");
+    releaseFirst?.();
+    await scheduler.flush();
+    expect(scheduler.hasUnfinished()).toBe(false);
+    expect(nextSavePhaseAfterWrite({ outcome: "ok", hasPending: false })).toBe("saved");
+    vi.useRealTimers();
+  });
+
+  it("keeps the latest text after a failed write and does not retry the old short value", async () => {
+    vi.useFakeTimers();
+    const seen: string[] = [];
+    const scheduler = createLatestWriteScheduler(async (value: string) => {
+      seen.push(value);
+      if (value === "short") throw new Error("write failed");
+    }, 400);
+    scheduler.schedule("short");
+    await expect(scheduler.flush()).resolves.toBeUndefined();
+    expect(seen).toEqual(["short"]);
+    scheduler.schedule("full-latest");
+    await scheduler.flush();
+    expect(seen).toEqual(["short", "full-latest"]);
+    vi.useRealTimers();
+  });
+});
+
+describe("leave decisions", () => {
+  it("flushes unfinished body before draft publish or navigate", () => {
+    expect(resolveInAppLeaveDecision({
+      bodyUnfinished: true,
+      bodySaveFailed: false,
+      showDraftPublishPrompt: true,
+    })).toBe("flush-body");
+    expect(resolveInAppLeaveDecision({
+      bodyUnfinished: false,
+      bodySaveFailed: true,
+      showDraftPublishPrompt: true,
+    })).toBe("stay-failed");
+    expect(resolveInAppLeaveDecision({
+      bodyUnfinished: false,
+      bodySaveFailed: false,
+      showDraftPublishPrompt: true,
+    })).toBe("prompt-publish");
+    expect(resolveInAppLeaveDecision({
+      bodyUnfinished: false,
+      bodySaveFailed: false,
+      showDraftPublishPrompt: false,
+    })).toBe("navigate");
+  });
+
+  it("keeps draft and pending hard-leave guards distinct", () => {
+    expect(hardLeaveGuardKind({ draftPublishPrompt: true, bodyUnfinished: false })).toBe("draft");
+    expect(hardLeaveGuardKind({ draftPublishPrompt: false, bodyUnfinished: true })).toBe("pending");
+    expect(hardLeaveGuardKind({ draftPublishPrompt: true, bodyUnfinished: true })).toBe("draft-pending");
+    expect(hardLeaveGuardKind({ draftPublishPrompt: false, bodyUnfinished: false })).toBe("none");
   });
 });
 
