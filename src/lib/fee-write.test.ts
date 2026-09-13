@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientInfoChangedKeys, stripFeeServerOwnedKeys } from "./fee-write";
+import { clientInfoChangedKeys, pickFeePersistExpectedUpdatedAt, stripFeeServerOwnedKeys } from "./fee-write";
 import { defaultClientInfo } from "@/data/fee-mock-data";
 
 describe("clientInfoChangedKeys", () => {
@@ -21,6 +21,23 @@ describe("clientInfoChangedKeys", () => {
   it("ignores keys omitted from the next patch", () => {
     const prev = { ...defaultClientInfo, client: "甲" };
     expect(clientInfoChangedKeys(prev, { clientPoNumber: "X" })).toEqual({ clientPoNumber: "X" });
+  });
+});
+
+describe("pickFeePersistExpectedUpdatedAt", () => {
+  it("優先用目前 store 的新版本，不用入列舊快照", () => {
+    expect(
+      pickFeePersistExpectedUpdatedAt(
+        { updatedAt: "2026-09-13T06:01:00.000Z" },
+        { updatedAt: "2026-09-13T06:00:00.000Z" },
+      ),
+    ).toBe("2026-09-13T06:01:00.000Z");
+  });
+
+  it("尚無新版本時才退回入列快照", () => {
+    expect(
+      pickFeePersistExpectedUpdatedAt(undefined, { updatedAt: "2026-09-13T06:00:00.000Z" }),
+    ).toBe("2026-09-13T06:00:00.000Z");
   });
 });
 

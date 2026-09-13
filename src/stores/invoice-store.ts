@@ -272,7 +272,13 @@ export const invoiceStore = {
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId, env }));
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links);
-      if (linkErr) console.error("Failed to link fees:", linkErr);
+      if (linkErr) {
+        console.error("Failed to link fees:", linkErr);
+        await supabase.from("invoices").delete().eq("id", id);
+        invoices = invoices.filter((i) => i.id !== id);
+        notify();
+        return null;
+      }
     }
 
     // 並行 loadInvoices 可能在 insert 期間覆寫記憶體；寫入成功後再確保本機列存在
@@ -355,12 +361,12 @@ export const invoiceStore = {
       });
   },
 
-  addFeesToInvoice: async (invoiceId: string, feeIds: string[]) => {
+  addFeesToInvoice: async (invoiceId: string, feeIds: string[]): Promise<{ error: unknown }> => {
     const inv = invoices.find((i) => i.id === invoiceId);
-    if (!inv) return;
+    if (!inv) return { error: new Error("找不到該筆稿費請款") };
 
     const newFeeIds = feeIds.filter((fid) => !inv.feeIds.includes(fid));
-    if (newFeeIds.length === 0) return;
+    if (newFeeIds.length === 0) return { error: null };
 
     invoices = invoices.map((i) =>
       i.id === invoiceId ? { ...i, feeIds: [...i.feeIds, ...newFeeIds] } : i
@@ -369,7 +375,14 @@ export const invoiceStore = {
 
     const links = newFeeIds.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId, env: getEnvironment() }));
     const { error } = await supabase.from("invoice_fees").insert(links);
-    if (error) console.error("Failed to add fees to invoice:", error);
+    if (error) {
+      console.error("Failed to add fees to invoice:", error);
+      invoices = invoices.map((i) =>
+        i.id === invoiceId ? { ...i, feeIds: i.feeIds.filter((fid) => !newFeeIds.includes(fid)) } : i
+      );
+      notify();
+    }
+    return { error };
   },
 
   removeFeeFromInvoice: async (invoiceId: string, feeId: string) => {

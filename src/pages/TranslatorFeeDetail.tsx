@@ -283,6 +283,7 @@ interface CommentEntry {
   timestamp: string;
 }
 
+import { feeNoteToCommentFields } from "@/lib/fee-notes";
 import { formatTimestamp24h } from "@/lib/format-timestamp";
 const formatTimestamp = (date: Date | string) => formatTimestamp24h(date);
 
@@ -368,7 +369,7 @@ export default function TranslatorFeeDetail() {
 
   // Comments — initialize from feeData
   const [comments, setComments] = useState<CommentEntry[]>(() =>
-    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: formatTimestamp(n.createdAt) }))
+    (feeData?.notes ?? []).map((n) => ({ ...feeNoteToCommentFields(n), timestamp: formatTimestamp(n.createdAt) }))
   );
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
@@ -476,7 +477,7 @@ export default function TranslatorFeeDetail() {
     setNotionUrlInput(feeData.internalNoteUrl ?? "");
     setClientInfo(feeData.clientInfo ?? { ...defaultClientInfo });
     // creatorName is resolved separately via the UUID→displayName effect below
-    setComments((feeData.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: formatTimestamp(n.createdAt) })));
+    setComments((feeData.notes ?? []).map((n) => ({ ...feeNoteToCommentFields(n), timestamp: formatTimestamp(n.createdAt) })));
     setEditLog(feeEditLogsToSimple(feeData.editLogs ?? []));
     burstMapRef.current = {};
     phasesRef.current = feeData.editLogPhases;
@@ -707,7 +708,7 @@ export default function TranslatorFeeDetail() {
     handleUpdateItem(itemId, field, Number(cleaned));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const nowIso = new Date().toISOString();
     let mergedPhases: FeeEditLogPhases | undefined = feeData.editLogPhases;
 
@@ -734,10 +735,11 @@ export default function TranslatorFeeDetail() {
     }
     setStatus("finalized");
     if (id) {
-      feeStore.updateFee(id, {
+      const error = await feeStore.updateFee(id, {
         status: "finalized",
         ...(mergedPhases !== feeData.editLogPhases ? { editLogPhases: mergedPhases } : {}),
       });
+      if (error) setStatus("draft");
     }
   };
 
@@ -2263,6 +2265,8 @@ export default function TranslatorFeeDetail() {
                               toast.success("已收錄至稿費請款單");
                               setShowInvoiceNavPrompt({ type: 'translator', invoiceId: inv.id });
                               setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                            } else {
+                              toast.error("收錄失敗：請款單或費用關聯未寫入。");
                             }
                           }}
                         >
@@ -2278,7 +2282,11 @@ export default function TranslatorFeeDetail() {
                                 key={inv.id}
                                 onClick={async () => {
                                   if (!id) return;
-                                  await invoiceStore.addFeesToInvoice(inv.id, [id]);
+                                  const { error } = await invoiceStore.addFeesToInvoice(inv.id, [id]);
+                                  if (error) {
+                                    toast.error("收錄失敗：費用關聯未寫入。");
+                                    return;
+                                  }
                                   toast.success("已收錄至稿費請款單");
                                   setShowInvoiceNavPrompt({ type: 'translator', invoiceId: inv.id });
                                   setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
@@ -2458,6 +2466,7 @@ export default function TranslatorFeeDetail() {
                               <Input
                                 type="text"
                                 inputMode="decimal"
+                                data-testid={`fee-task-unit-price-${index}`}
                                 value={isNoFeeTranslator ? "N/A" : item.unitPrice}
                                 onChange={(e) => {
                                   const v = e.target.value;
@@ -2617,7 +2626,7 @@ export default function TranslatorFeeDetail() {
                         draft={commentDraft}
                         setDraft={setCommentDraft}
                         placeholder={`回覆 ${c.author}...`}
-                        onSubmit={(content, imageUrls, fileUrls) => {
+                        onSubmit={async (content, imageUrls, fileUrls) => {
                           const authorName = authProfile?.display_name || authProfile?.email || "成員";
                           const newNote: CommentEntry = {
                             id: `comment-${Date.now()}`,
@@ -2628,16 +2637,15 @@ export default function TranslatorFeeDetail() {
                             replyTo: c.id,
                             timestamp: formatTimestamp(new Date()),
                           };
-                          const updated = [...comments, newNote];
-                          setComments(updated);
-                          if (id) {
-                            const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString(), imageUrls, fileUrls, replyTo: c.id };
-                            const currentFee = feeStore.getFeeById(id);
-                            if (currentFee) {
-                              feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
-                            }
-                          }
+                          if (!id) return false;
+                          const currentFee = feeStore.getFeeById(id);
+                          if (!currentFee) return false;
+                          const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString(), imageUrls, fileUrls, replyTo: c.id };
+                          const error = await feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
+                          if (error) return false;
+                          setComments([...comments, newNote]);
                           setReplyingTo(null);
+                          return true;
                         }}
                       />
                     </div>
@@ -2651,7 +2659,7 @@ export default function TranslatorFeeDetail() {
             draft={replyingTo ? "" : commentDraft}
             setDraft={(v) => { if (!replyingTo) setCommentDraft(v); }}
             placeholder="輸入留言..."
-            onSubmit={(content, imageUrls, fileUrls) => {
+            onSubmit={async (content, imageUrls, fileUrls) => {
               const authorName = authProfile?.display_name || authProfile?.email || "成員";
               const newNote: CommentEntry = {
                 id: `comment-${Date.now()}`,
@@ -2661,15 +2669,14 @@ export default function TranslatorFeeDetail() {
                 fileUrls,
                 timestamp: formatTimestamp(new Date()),
               };
-              const updated = [...comments, newNote];
-              setComments(updated);
-              if (id) {
-                const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString(), imageUrls, fileUrls };
-                const currentFee = feeStore.getFeeById(id);
-                if (currentFee) {
-                  feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
-                }
-              }
+              if (!id) return false;
+              const currentFee = feeStore.getFeeById(id);
+              if (!currentFee) return false;
+              const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString(), imageUrls, fileUrls };
+              const error = await feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
+              if (error) return false;
+              setComments([...comments, newNote]);
+              return true;
             }}
           />
           )}

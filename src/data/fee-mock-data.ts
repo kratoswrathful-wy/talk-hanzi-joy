@@ -59,6 +59,9 @@ export interface Note {
   author: string;
   text: string;
   createdAt: string;
+  imageUrls?: string[];
+  fileUrls?: { name: string; url: string }[];
+  replyTo?: string;
 }
 
 export interface EditLog {

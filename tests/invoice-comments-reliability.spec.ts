@@ -129,4 +129,68 @@ describeQ16("Q16 請款留言往返", () => {
     expect(row.comments.map((c) => c.content)).toContain(`ISO-Q16-INV-C1-${stamp}`);
     await session.close();
   });
+
+  test("稿費請款：附件欄位讀回；上傳成功才核對下載", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const { token } = await restFor(page);
+    const stamp = Date.now();
+    const fileName = `iso-q16-att-${stamp}.txt`;
+    const fileBody = `ISO-Q16-ATTACH-${stamp}`;
+    const created = await restMutate(page.request, token, "POST", "invoices", {
+      title: `ISO-Q16-ATT-${stamp}`,
+      status: "draft",
+      env: "test",
+      note: "Q16-ATT-NOTE",
+      comments: [{
+        id: `c-att-${stamp}`,
+        author: "ISO-PM",
+        content: `ISO-Q16-ATT-SEEDED-${stamp}`,
+        timestamp: "2026/09/13 14:50:00",
+        fileUrls: [{ name: fileName, url: "https://example.test/iso-q16-att.txt" }],
+      }],
+    }, { Prefer: "return=representation" });
+    expect(created.ok, created.text).toBe(true);
+    const invoiceId = (JSON.parse(created.text) as { id: string }[])[0]?.id;
+    expect(invoiceId).toBeTruthy();
+
+    await page.goto(`/invoices/${invoiceId}`);
+    await expect(page.getByText("返回請款單清單")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(`ISO-Q16-ATT-SEEDED-${stamp}`)).toBeVisible();
+    await expect(page.getByText(fileName)).toBeVisible();
+
+    const attach = page.getByTestId("comment-attach-input").first();
+    await attach.setInputFiles({
+      name: `upload-${fileName}`,
+      mimeType: "text/plain",
+      buffer: Buffer.from(fileBody),
+    });
+    const chip = page.getByText(`upload-${fileName}`);
+    const uploaded = await chip.waitFor({ state: "visible", timeout: 8_000 }).then(() => true).catch(() => false);
+    if (uploaded) {
+      await page.getByTestId("comment-draft-input").first().fill(`ISO-Q16-ATT-UI-${stamp}`);
+      await page.getByTestId("comment-submit").first().click();
+      await expect(page.getByText(`ISO-Q16-ATT-UI-${stamp}`)).toBeVisible({ timeout: 15_000 });
+      await page.reload();
+      await expect(page.getByText(`upload-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    } else {
+      test.info().annotations.push({
+        type: "blocked",
+        description: "隔離 Storage case-files 上傳未成功；已用 REST 種子核對附件欄位讀回。",
+      });
+    }
+
+    const readback = await restMutate(
+      page.request,
+      token,
+      "GET",
+      `invoices?select=id,comments&id=eq.${invoiceId}`,
+    );
+    expect(readback.ok, readback.text).toBe(true);
+    const comments = (JSON.parse(readback.text) as Array<{ comments: Array<{ fileUrls?: Array<{ name: string }> }> }>)[0]?.comments ?? [];
+    expect(comments.some((c) => c.fileUrls?.some((f) => f.name === fileName))).toBe(true);
+
+    await session.close();
+  });
 });

@@ -274,6 +274,7 @@ export function CommentInput({
         ref={attachInputRef}
         type="file"
         multiple
+        data-testid="comment-attach-input"
         className="hidden"
         onChange={(e) => {
           const files = e.target.files;

@@ -55,6 +55,16 @@ export function clientInfoChangedKeys(
   return out;
 }
 
+/** 連續寫入取目前 store 已落地的 updatedAt，不用入列當下的舊快照。 */
+export function pickFeePersistExpectedUpdatedAt(
+  latest: { updatedAt?: string } | undefined,
+  queuedSnapshot: { updatedAt?: string } | undefined,
+): string | undefined {
+  if (typeof latest?.updatedAt === "string" && latest.updatedAt) return latest.updatedAt;
+  if (typeof queuedSnapshot?.updatedAt === "string" && queuedSnapshot.updatedAt) return queuedSnapshot.updatedAt;
+  return undefined;
+}
+
 export function stripFeeServerOwnedKeys(patch: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {

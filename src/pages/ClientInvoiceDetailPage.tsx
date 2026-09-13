@@ -708,8 +708,12 @@ export default function ClientInvoiceDetailPage() {
     return true;
   };
 
-  const handleAddFees = () => {
-    clientInvoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
+  const handleAddFees = async () => {
+    const { error } = await clientInvoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
+    if (error) {
+      toast.error("收錄失敗：費用關聯未寫入。");
+      return;
+    }
     const addedNames = selectedAddFees.map((fid) => fees.find((f) => f.id === fid)?.title || "未命名").join(", ");
     trackChange("費用", "", `新增 ${selectedAddFees.length} 筆: ${addedNames}`);
     setSelectedAddFees([]);

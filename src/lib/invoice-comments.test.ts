@@ -42,4 +42,14 @@ describe("invoiceCommentsFromJson", () => {
     const round = invoiceCommentsFromJson(invoiceCommentsToJson([a, b]));
     expect(round).toEqual([a, b]);
   });
+
+  it("往返保留附件與回覆（Q16 文字測未覆蓋）", () => {
+    const withFiles: InvoiceComment = {
+      ...b,
+      imageUrls: ["https://example.test/q16.png"],
+      fileUrls: [{ name: "q16.txt", url: "https://example.test/q16.txt" }],
+    };
+    const round = invoiceCommentsFromJson(invoiceCommentsToJson([a, withFiles]));
+    expect(round).toEqual([a, withFiles]);
+  });
 });

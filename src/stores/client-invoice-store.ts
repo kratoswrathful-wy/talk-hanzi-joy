@@ -277,7 +277,13 @@ export const clientInvoiceStore = {
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ client_invoice_id: id, fee_id: feeId, env }));
       const { error: linkErr } = await supabase.from("client_invoice_fees").insert(links);
-      if (linkErr) console.error("Failed to link fees:", errorMessage(linkErr));
+      if (linkErr) {
+        console.error("Failed to link fees:", errorMessage(linkErr));
+        await supabase.from("client_invoices").delete().eq("id", id);
+        invoices = invoices.filter((i) => i.id !== id);
+        notify();
+        return null;
+      }
     }
 
     // 並行 loadInvoices 可能在 insert 期間覆寫記憶體；寫入成功後再確保本機列存在

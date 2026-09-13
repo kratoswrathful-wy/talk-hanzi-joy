@@ -286,6 +286,8 @@ export default function ClientInfoSection({
                               toast.success("已收錄至客戶請款單");
                               setShowInvoiceNavPrompt({ invoiceId: inv.id });
                               setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                            } else {
+                              toast.error("收錄失敗：請款單或費用關聯未寫入。");
                             }
                           }}
                         >
@@ -300,7 +302,11 @@ export default function ClientInfoSection({
                               <DropdownMenuItem
                                 key={inv.id}
                                 onClick={async () => {
-                                  await clientInvoiceStore.addFeesToInvoice(inv.id, [currentFeeId]);
+                                  const { error } = await clientInvoiceStore.addFeesToInvoice(inv.id, [currentFeeId]);
+                                  if (error) {
+                                    toast.error("收錄失敗：費用關聯未寫入。");
+                                    return;
+                                  }
                                   toast.success("已收錄至客戶請款單");
                                   setShowInvoiceNavPrompt({ invoiceId: inv.id });
                                   setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
@@ -577,6 +583,7 @@ export default function ClientInfoSection({
                           <Input
                             type="text"
                             inputMode="decimal"
+                            data-testid={`fee-client-price-${index}`}
                             value={item.clientPrice}
                             onChange={(e) => {
                               const v = e.target.value;
@@ -676,6 +683,7 @@ export default function ClientInfoSection({
                         <Input
                           value={clientInfo.clientPoNumber}
                           onChange={(e) => update("clientPoNumber", e.target.value)}
+                          data-testid="fee-client-po"
                           placeholder="客戶PO編號"
                           disabled={isInClientInvoice || clientInfo.reconciled}
                           className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"

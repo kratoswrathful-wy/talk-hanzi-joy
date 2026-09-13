@@ -1,11 +1,13 @@
-import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditLogPhases, type FeeTaskItem, type Note, type EditLog, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
+import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditLogPhases, type FeeTaskItem, type EditLog, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import { createKeyedQueue } from "@/lib/case-write-queue";
-import { applyFeeDelete, applyFeeUpdate, clientInfoChangedKeys } from "@/lib/fee-write";
+import { applyFeeDelete, applyFeeUpdate, clientInfoChangedKeys, pickFeePersistExpectedUpdatedAt } from "@/lib/fee-write";
+import { notesFromJson, notesToJson } from "@/lib/fee-notes";
+import { toast } from "sonner";
 
 const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 const BILLING_UNITS: BillingUnit[] = ["字", "小時"];
@@ -113,27 +115,6 @@ function clientInfoToJson(ci: ClientInfo): Json {
     rateConfirmed: ci.rateConfirmed,
     invoiced: ci.invoiced,
   };
-}
-
-function notesFromJson(raw: Json): Note[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Note[] = [];
-  for (const x of raw) {
-    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
-    const o = x as Record<string, Json>;
-    if (typeof o.id !== "string") continue;
-    out.push({
-      id: o.id,
-      author: typeof o.author === "string" ? o.author : "",
-      text: typeof o.text === "string" ? o.text : "",
-      createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
-    });
-  }
-  return out;
-}
-
-function notesToJson(notes: Note[]): Json {
-  return notes.map((n) => ({ id: n.id, author: n.author, text: n.text, createdAt: n.createdAt }));
 }
 
 function editLogsFromJson(raw: Json): EditLog[] {
@@ -389,15 +370,22 @@ function buildFeeRpcPatch(
 }
 
 async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, prev: TranslatorFee | undefined) {
-  const expected = await resolveFeeUpdatedAt(id, prev ?? fees.find((f) => f.id === id));
+  // 入列當下的 prev.updatedAt 會過期；連續改多欄時必須用前一筆已落地的 store 版本。
+  const latest = fees.find((f) => f.id === id);
+  const picked = pickFeePersistExpectedUpdatedAt(latest, prev);
+  const expected = picked ?? (await resolveFeeUpdatedAt(id, latest ?? prev));
   if (!expected) {
-    return new Error("無法確認費用版本，尚未寫入。已保留畫面輸入。");
+    const err = new Error("無法確認費用版本，尚未寫入。已保留畫面輸入。");
+    toast.error(err.message);
+    return err;
   }
   const patch = buildFeeRpcPatch(prev, updates);
   if (Object.keys(patch).length === 0) return null;
   const result = await applyFeeUpdate(supabase, id, patch, expected);
   if (result.error) {
-    return result.error instanceof Error ? result.error : new Error("apply_fee_update_failed");
+    const err = result.error instanceof Error ? result.error : new Error("apply_fee_update_failed");
+    toast.error("費用儲存失敗，已保留畫面輸入。請勿離開後當成已儲存。");
+    return err;
   }
   const nextUpdatedAt = result.data?.updated_at;
   const nextStatus = result.data?.status as TranslatorFee["status"] | undefined;
