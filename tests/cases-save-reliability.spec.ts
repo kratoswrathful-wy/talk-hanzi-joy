@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { loginAs } from "./helpers/login-as";
-import { accessToken, restClient, readAudit, readCaseState, readCaseTitle } from "./helpers/isolated-api";
+import { accessToken, restClient, readAudit, readCaseState, readCaseTitle, readParticipants, userIdByEmail } from "./helpers/isolated-api";
 import {
   attachRestHitLog,
   createDraftViaRpc,
@@ -27,6 +27,18 @@ function credPm(): { email: string; password: string } {
   expect(email, "缺少 PM email").toBeTruthy();
   expect(password, "缺少 PM password").toBeTruthy();
   return { email: email!, password: password! };
+}
+
+function credT1(): { email: string; password: string } {
+  const email = process.env.PLAYWRIGHT_ISO_T1_EMAIL;
+  const password = process.env.PLAYWRIGHT_ISO_T1_PASSWORD;
+  expect(email, "缺少 T1 email").toBeTruthy();
+  expect(password, "缺少 T1 password").toBeTruthy();
+  return { email: email!, password: password! };
+}
+
+function translatorRow(page: Page) {
+  return page.locator("div.grid").filter({ has: page.locator("span", { hasText: /^譯者$/ }) }).first();
 }
 
 type RpcGate = { parked: Route[] };
@@ -712,6 +724,89 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await page.getByRole("button", { name: "留在此頁" }).click();
     await expect(page.getByTestId("case-body-editor")).toContainText(marker);
     await expect(page.getByTestId("case-detail-completeness")).toBeVisible();
+    await session.close();
+  });
+
+  test("連改多欄後確定指派：離頁與重載仍讀回譯者 UUID、欄位與派出狀態", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const stamp = Date.now();
+    const nextTitle = `ISO-ASSIGN-${stamp}`;
+    const nextPo = `PO-ASSIGN-${stamp}`;
+    const nextKeyword = `KW-ASSIGN-${stamp}`;
+    const caseId = await createDraftViaRpc(page, `ISO-ASSIGN-SEED-${stamp}`);
+    const rest = restClient(page.request, await accessToken(page));
+    const t1Id = await userIdByEmail(rest, credT1().email);
+
+    let slackHits = 0;
+    await page.route("**/functions/v1/slack-send-dm*", async (route) => {
+      slackHits += 1;
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    });
+    await page.route("**/hooks.slack.com/**", async (route) => {
+      slackHits += 1;
+      await route.fulfill({ status: 200, contentType: "application/json", body: "ok" });
+    });
+
+    await commitCaseTitleByLeavingField(page, nextTitle);
+    const keyword = page.getByTestId("case-keyword-input");
+    await keyword.click();
+    await keyword.fill(nextKeyword);
+    await keyword.press("Tab");
+    const po = page.getByTestId("case-client-po-input");
+    await po.click();
+    await po.fill(nextPo);
+    await po.press("Tab");
+
+    const trigger = translatorRow(page).getByRole("button").first();
+    await expect(trigger, "譯者指派入口必須可操作").toBeVisible({ timeout: 30_000 });
+    await trigger.click();
+    const translator = page.getByText("譯者一（測試）", { exact: true }).first();
+    await expect(translator).toBeVisible({ timeout: 30_000 });
+    await translator.click();
+
+    await expect.poll(async () => {
+      const people = await readParticipants(rest, caseId);
+      return people.some((row) => row.user_id === t1Id && !row.access_revoked_at);
+    }, { timeout: 30_000 }).toBe(true);
+
+    await page.getByRole("button", { name: "確定指派" }).click();
+    await expect(page.getByText("已確定指派").first()).toBeVisible({ timeout: 20_000 });
+
+    const afterAssign = await rest.get<Array<{
+      status: string;
+      title: string;
+      keyword: string | null;
+      client_po_number: string | null;
+      translator: string[] | null;
+    }>>(`cases_visible?select=status,title,keyword,client_po_number,translator&id=eq.${caseId}`);
+    expect(afterAssign[0]?.status).toBe("dispatched");
+    expect(afterAssign[0]?.title).toBe(nextTitle);
+    expect(afterAssign[0]?.keyword).toBe(nextKeyword);
+    expect(afterAssign[0]?.client_po_number).toBe(nextPo);
+    expect(afterAssign[0]?.translator).toEqual(["譯者一（測試）"]);
+    const participants = await readParticipants(rest, caseId);
+    expect(participants.some((row) => row.user_id === t1Id && !row.access_revoked_at)).toBe(true);
+    expect(slackHits, "確定指派不得發真 Slack；隔離攔截次數可為 0").toBe(0);
+
+    await page.goto("/cases");
+    await page.goto(`/cases/${caseId}`);
+    await expect(page.getByTestId("case-title-input")).toHaveValue(nextTitle, { timeout: 30_000 });
+    await expect(page.getByTestId("case-keyword-input")).toHaveValue(nextKeyword);
+    await expect(page.getByTestId("case-client-po-input")).toHaveValue(nextPo);
+    await expect(page.getByText("譯者一（測試）").first()).toBeVisible();
+
+    await page.reload({ waitUntil: "load" });
+    await expect(page.getByTestId("case-title-input")).toHaveValue(nextTitle, { timeout: 30_000 });
+    await expect(page.getByTestId("case-client-po-input")).toHaveValue(nextPo);
+    const afterReload = await rest.get<Array<{ status: string; translator: string[] | null }>>(
+      `cases_visible?select=status,translator&id=eq.${caseId}`,
+    );
+    expect(afterReload[0]?.status).toBe("dispatched");
+    expect(afterReload[0]?.translator).toEqual(["譯者一（測試）"]);
+    const peopleAfterReload = await readParticipants(rest, caseId);
+    expect(peopleAfterReload.some((row) => row.user_id === t1Id && !row.access_revoked_at)).toBe(true);
     await session.close();
   });
 });

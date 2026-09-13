@@ -204,7 +204,7 @@ jobs:
         run: node scripts/isolation-run-pm-complete.mjs
 
       - name: Capture local API endpoints (masked)
-        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors'
+        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors' || steps.meta.outputs.suite == 'case-candidate'
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/iso-keys"
@@ -241,7 +241,7 @@ jobs:
           rm -f "$API_CREDS" || true
 
       - name: Provision Playwright test personas
-        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors'
+        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors' || steps.meta.outputs.suite == 'case-candidate'
         run: |
           set -euo pipefail
           CREDS=$(node scripts/isolation-pipe-provision.mjs personas "$RUNNER_TEMP/iso-keys")
@@ -266,7 +266,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP"/playwright-password.txt "$RUNNER_TEMP"/iso-*-password.txt
 
       - name: Install Playwright Chromium
-        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors'
+        if: steps.meta.outputs.suite == 'full' || steps.meta.outputs.suite == 'tool-ui' || steps.meta.outputs.suite == 'copy-tools' || steps.meta.outputs.suite == 'pm-complete' || steps.meta.outputs.suite == 'auth-identity' || steps.meta.outputs.suite == 'backend-errors' || steps.meta.outputs.suite == 'case-candidate'
         run: npx playwright install --with-deps chromium
 
       - name: Tool credentials UI + backend readback (#85, local only)
