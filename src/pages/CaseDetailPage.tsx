@@ -29,6 +29,8 @@ import { Separator } from "@/components/ui/separator";
 import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import type { CaseCompleteness } from "@/lib/case-list-load";
+import { omittedKeysInPartial } from "@/lib/case-list-load";
+import { describeCaseWriteFailure } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
@@ -1166,6 +1168,8 @@ export default function CaseDetailPage() {
   const translatorParticipantRequestGen = useRef(0);
   const [creatingCase, setCreatingCase] = useState(false);
   const creatingCaseRef = useRef(false);
+  const [savePhase, setSavePhase] = useState<"idle" | "saving" | "saved" | "failed" | "conflict">("idle");
+  const [flowBusy, setFlowBusy] = useState(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const caseEditLogsFiltered = useMemo(
@@ -1453,19 +1457,23 @@ export default function CaseDetailPage() {
   }), [id, user?.id]);
 
   const save = useCallback(
-    (partial: Partial<CaseRecord>) => {
-      if (!id || caseStore.getCompleteness(id) !== "full") {
+    async (partial: Partial<CaseRecord>): Promise<Error | null> => {
+      if (!id) return new Error("missing id");
+      const completeness = caseStore.getCompleteness(id);
+      if (omittedKeysInPartial(partial).length > 0 && completeness !== "full") {
         toast({
           title: "完整內容尚未載入或已過期",
-          description: "請重新載入成功後再儲存，以免用舊內容覆寫新資料。",
+          description: "請重新載入成功後再儲存內文或附件，以免用舊內容覆寫新資料。",
           variant: "destructive",
         });
-        return;
+        return new Error("案件完整內容尚未載入或已過期");
       }
+      setSavePhase("saving");
+      let nextWrite: Partial<CaseRecord> | null = null;
       setCaseData((prev) => {
         if (!prev) return prev;
         let merged: Partial<CaseRecord> = partial;
-        if (prev.changeLogEnabledAt && profile) {
+        if (completeness === "full" && prev.changeLogEnabledAt && profile) {
           const author = profile.display_name || profile.email || "系統";
           let logs = [...(prev.edit_logs || [])];
           let burst = caseEditBurstRef.current;
@@ -1660,9 +1668,26 @@ export default function CaseDetailPage() {
           caseEditBurstRef.current = burst;
           merged = { ...partial, edit_logs: logs };
         }
-        caseStore.update(prev.id, merged);
+        nextWrite = merged;
         return { ...prev, ...merged };
       });
+      if (!nextWrite) {
+        setSavePhase("idle");
+        return null;
+      }
+      const error = (await caseStore.update(id, nextWrite)) ?? null;
+      if (error) {
+        const described = describeCaseWriteFailure(error);
+        setSavePhase(described.kind === "conflict" ? "conflict" : "failed");
+        toast({
+          title: described.title,
+          description: described.description,
+          variant: "destructive",
+        });
+        return error instanceof Error ? error : new Error(described.description);
+      }
+      setSavePhase("saved");
+      return null;
     },
     [id, profile]
   );
@@ -2173,10 +2198,16 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!assertUniqueCaseTitle("publish")) return;
-    save({ status: "inquiry" as CaseStatus });
-    toast({ title: "案件已公布" });
+    setFlowBusy(true);
+    try {
+      const error = await save({ status: "inquiry" as CaseStatus });
+      if (error) return;
+      toast({ title: "案件已公布" });
+    } finally {
+      setFlowBusy(false);
+    }
   };
 
   const handleRevertToDraft = () => {
@@ -2204,41 +2235,48 @@ export default function CaseDetailPage() {
 
   const handleFinalize = async () => {
     if (!caseData?.id) return;
-    if (!caseData.multiCollab) {
-      if (translatorParticipantLoadState === "loading") {
-        toast({
-          title: "無法確定指派",
-          description: "譯者授權仍在載入，請稍後再試。",
-          variant: "destructive",
-        });
-        return;
+    setFlowBusy(true);
+    try {
+      await caseStore.flushWrites(caseData.id);
+      if (!caseData.multiCollab) {
+        if (translatorParticipantLoadState === "loading") {
+          toast({
+            title: "無法確定指派",
+            description: "譯者授權仍在載入，請稍後再試。",
+            variant: "destructive",
+          });
+          return;
+        }
+        const { data: ids, error } = await listActiveTranslatorParticipantIds(
+          supabase,
+          caseData.id,
+        );
+        if (error) {
+          toast({ title: "無法確認譯者授權", description: error.message, variant: "destructive" });
+          return;
+        }
+        if (ids.length === 0) {
+          toast({
+            title: "無法確定指派",
+            description: "單檔派出前須先以可信帳號指派譯者（不可僅有顯示名）。",
+            variant: "destructive",
+          });
+          return;
+        }
       }
-      const { data: ids, error } = await listActiveTranslatorParticipantIds(
-        supabase,
-        caseData.id,
-      );
+      const error = await caseStore.update(caseData.id, { status: "dispatched" as CaseStatus });
       if (error) {
-        toast({ title: "無法確認譯者授權", description: error.message, variant: "destructive" });
+        const described = describeCaseWriteFailure(error);
+        toast({ title: "無法確定指派", description: described.description, variant: "destructive" });
         return;
       }
-      if (ids.length === 0) {
-        toast({
-          title: "無法確定指派",
-          description: "單檔派出前須先以可信帳號指派譯者（不可僅有顯示名）。",
-          variant: "destructive",
-        });
-        return;
-      }
+      setCaseData((prev) => (prev ? { ...prev, status: "dispatched" as CaseStatus } : prev));
+      toast({ title: "已確定指派" });
+      showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
+      warnUnresolvedTranslatorsIfNeeded(caseData.id, toast);
+    } finally {
+      setFlowBusy(false);
     }
-    const error = await caseStore.update(caseData.id, { status: "dispatched" as CaseStatus });
-    if (error) {
-      toast({ title: "無法確定指派", description: error.message, variant: "destructive" });
-      return;
-    }
-    setCaseData((prev) => (prev ? { ...prev, status: "dispatched" as CaseStatus } : prev));
-    toast({ title: "已確定指派" });
-    showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
-    warnUnresolvedTranslatorsIfNeeded(caseData.id, toast);
   };
 
   const handleTaskComplete = async () => {
@@ -2352,7 +2390,20 @@ export default function CaseDetailPage() {
       className="space-y-1 max-w-3xl overflow-hidden"
       data-testid="case-detail-completeness"
       data-completeness={recordCompleteness}
+      data-save-phase={savePhase}
     >
+      {savePhase !== "idle" && (
+        <p
+          className="text-xs text-muted-foreground px-1"
+          data-testid="case-save-status"
+          data-save-phase={savePhase}
+        >
+          {savePhase === "saving" ? "儲存中"
+            : savePhase === "saved" ? "已儲存"
+            : savePhase === "conflict" ? "版本衝突"
+            : "儲存失敗"}
+        </p>
+      )}
       {recordCompleteness === "stale" && (
         <div
           className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm space-y-2"
@@ -2515,6 +2566,8 @@ export default function CaseDetailPage() {
               className={uiPublish.className}
               style={uiPublish.style}
               onClick={handlePublish}
+              disabled={flowBusy}
+              data-testid="case-detail-publish"
             >
               {lbPublish}
             </Button>
@@ -2573,8 +2626,9 @@ export default function CaseDetailPage() {
                   size="sm"
                   className={uiFinalizeAssign.className}
                   style={uiFinalizeAssign.style}
-                  disabled={translatorEmpty}
+                  disabled={translatorEmpty || flowBusy}
                   onClick={handleFinalize}
+                  data-testid="case-detail-finalize"
                 >
                   {lbFinalizeAssign}
                 </Button>
@@ -3917,9 +3971,11 @@ export default function CaseDetailPage() {
                 nav();
               }
             }}>不公布，直接離開</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
+            <AlertDialogAction onClick={async (event) => {
+              event.preventDefault();
               if (!assertUniqueCaseTitle("publish")) return;
-              save({ status: "inquiry" as CaseStatus });
+              const error = await save({ status: "inquiry" as CaseStatus });
+              if (error) return;
               toast({ title: "案件已公布" });
               setPublishPromptOpen(false);
               const nav = pendingNavigateRef.current;

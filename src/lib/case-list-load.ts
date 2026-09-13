@@ -90,19 +90,44 @@ export type FullCaseAdoption =
   | { adopt: true; record: CaseRecord; completeness: "full" }
   | { adopt: false; record: CaseRecord; completeness: CaseCompleteness };
 
+export type OwnWriteListGuard = {
+  lastConfirmedRevision?: number;
+  hasPending?: boolean;
+};
+
+/**
+ * 採納完整列時，以後端已確認的 revision 當權威。
+ * 未確認草稿／樂觀 updatedAt／同版標題差異不能當「後端資料較舊」。
+ */
+export function fullCaseAdoptionAuthorityRevision(
+  current: CaseRecord,
+  guard?: OwnWriteListGuard,
+): number {
+  const currentRev = revisionNumber(current.revision);
+  const confirmed =
+    typeof guard?.lastConfirmedRevision === "number"
+      ? guard.lastConfirmedRevision
+      : currentRev;
+  if (guard?.hasPending) return confirmed;
+  return Math.max(currentRev, confirmed);
+}
+
 /**
  * 單筆完整列是否可採納為目前最新完整資料。
- * 記憶體已有較新清單／過期快取時，舊的完整回應必須拒絕，不得標 full。
+ * 只拒絕 incoming.revision 嚴格小於已確認後端版本的舊回應；不得標 full。
  */
 export function decideFullCaseAdoption(
   current: CaseRecord | undefined,
   incoming: CaseRecord,
   currentCompleteness: CaseCompleteness | undefined,
+  guard?: OwnWriteListGuard,
 ): FullCaseAdoption {
   if (!current) {
     return { adopt: true, record: incoming, completeness: "full" };
   }
-  if (listSnapshotIsNewer(incoming, current)) {
+  const incomingRev = revisionNumber(incoming.revision);
+  const authorityRev = fullCaseAdoptionAuthorityRevision(current, guard);
+  if (incomingRev < authorityRev) {
     return {
       adopt: false,
       record: current,
@@ -110,6 +135,26 @@ export function decideFullCaseAdoption(
     };
   }
   return { adopt: true, record: incoming, completeness: "full" };
+}
+
+/** 清單列只是自己剛確認的寫入回聲時，維持 full，不要誤標過期。 */
+export function shouldKeepFullDespiteNewerList(
+  current: CaseRecord,
+  incoming: CaseRecord,
+  guard?: OwnWriteListGuard,
+): boolean {
+  if (!guard) return false;
+  const incomingRev = revisionNumber(incoming.revision);
+  if (
+    typeof guard.lastConfirmedRevision === "number"
+    && incomingRev <= guard.lastConfirmedRevision
+  ) {
+    return true;
+  }
+  if (guard.hasPending && incomingRev <= revisionNumber(current.revision)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -122,6 +167,7 @@ export function mergeCaseListProjection(
   current: CaseRecord | undefined,
   incoming: CaseRecord,
   currentCompleteness: CaseCompleteness | undefined,
+  ownWrite?: OwnWriteListGuard,
 ): MergeCaseListProjectionResult {
   const hasOmittedCache =
     !!current && (currentCompleteness === "full" || currentCompleteness === "stale");
@@ -134,6 +180,9 @@ export function mergeCaseListProjection(
     Object.assign(out, { [key]: current[key] });
   }
   if (listSnapshotIsNewer(current, incoming)) {
+    if (shouldKeepFullDespiteNewerList(current, incoming, ownWrite)) {
+      return { record: out, completeness: "full" };
+    }
     return { record: out, completeness: "stale" };
   }
   return {

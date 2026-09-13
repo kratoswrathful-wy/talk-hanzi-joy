@@ -6,6 +6,8 @@ import {
   buildPendingDuplicateToolsRecord,
   classifyDuplicateException,
   credentialsMatchCopied,
+  duplicateAbortFromFullFetch,
+  duplicateAbortMessage,
   evaluateRetryDecision,
   createdReadbackFailedMessage,
   createUnknownMessage,
@@ -50,6 +52,16 @@ const memoq: ToolEntry = {
 };
 
 describe("case-duplicate-tools", () => {
+  it("maps full-fetch failure kinds to distinguishable copy abort reasons", () => {
+    expect(duplicateAbortFromFullFetch("missing")).toBe("source_not_found");
+    expect(duplicateAbortFromFullFetch("auth")).toBe("session_mismatch");
+    expect(duplicateAbortFromFullFetch("read_error")).toBe("source_read_failed");
+    expect(duplicateAbortFromFullFetch("version_conflict")).toBe("source_version_conflict");
+    expect(duplicateAbortMessage("session_mismatch")).toMatch(/登入身分不明/);
+    expect(duplicateAbortMessage("source_read_failed")).toMatch(/完整資料讀取失敗/);
+    expect(duplicateAbortMessage("source_version_conflict")).toMatch(/版本衝突/);
+  });
+
   it("rejects public-view or unknown channels even if payload looks full", () => {
     const credentials = cred({ caseId: "src", tools: [memoq] });
     expect(

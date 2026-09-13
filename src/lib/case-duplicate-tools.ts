@@ -5,12 +5,19 @@ import { assertWritableToolCredentials } from "@/lib/case-tool-credentials-guard
 export type DuplicateToolsAbortReason =
   | "source_not_found"
   | "source_read_failed"
+  | "source_version_conflict"
   | "source_credentials_unavailable"
   | "source_credentials_masked"
   | "source_case_mismatch"
   | "session_mismatch"
   | "create_failed"
   | "create_unknown";
+
+export type DuplicateSourceFetchFailureKind =
+  | "missing"
+  | "auth"
+  | "read_error"
+  | "version_conflict";
 
 export type DuplicateCredentialPatch = {
   tools: ToolEntry[];
@@ -55,6 +62,7 @@ export const DUP_TOOLS_PENDING_STORAGE_KEY = "tms.dupToolsPending.v1";
 const ABORT_MESSAGES: Record<DuplicateToolsAbortReason, string> = {
   source_not_found: "找不到來源案件，已取消複製。",
   source_read_failed: "來源案件完整資料讀取失敗，已取消複製。請重試後再複製。",
+  source_version_conflict: "來源案件版本衝突，未套用過期資料，已取消複製。請重新載入後再複製。",
   source_credentials_unavailable: "來源案件的完整工具資料無法讀取，已取消複製。",
   source_credentials_masked: "來源工具仍是公開遮罩或未載入底稿，已取消複製。",
   source_case_mismatch: "讀到的工具資料不屬於來源案件，已取消複製。",
@@ -123,6 +131,16 @@ const SECRET_KEY_PATTERN =
 
 export function duplicateAbortMessage(reason: DuplicateToolsAbortReason): string {
   return ABORT_MESSAGES[reason];
+}
+
+/** 完整讀取失敗分類對應複製中止原因；不把清單列或舊快照當來源。 */
+export function duplicateAbortFromFullFetch(
+  kind: DuplicateSourceFetchFailureKind,
+): DuplicateToolsAbortReason {
+  if (kind === "missing") return "source_not_found";
+  if (kind === "auth") return "session_mismatch";
+  if (kind === "version_conflict") return "source_version_conflict";
+  return "source_read_failed";
 }
 
 function cloneJson<T>(value: T): T {

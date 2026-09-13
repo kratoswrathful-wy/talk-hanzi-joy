@@ -223,6 +223,52 @@ describe("decideFullCaseAdoption", () => {
     expect(caseUpdateBlockedReason(decided.completeness, { processNote: "overwrite" })).toMatch(/尚未載入或已過期/);
   });
 
+  it("同 revision、記憶體 updatedAt 較新或標題不同：仍採納後端完整列，不得當過期拒收", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-10T10:00:00.050Z",
+      revision: 4,
+      title: "本地草稿標題",
+      processNote: "",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-10T09:59:59.000Z",
+      revision: 4,
+      title: "後端標題",
+      processNote: "完整備註",
+    });
+    const decided = decideFullCaseAdoption(current, incoming, "list");
+    expect(decided.adopt).toBe(true);
+    expect(decided.completeness).toBe("full");
+    expect(decided.record.processNote).toBe("完整備註");
+    expect(decided.record.title).toBe("後端標題");
+  });
+
+  it("未確認 pending 把本地 revision 抬高時，同 confirmed revision 的完整列仍可採納", () => {
+    const current = stubCase({
+      id: "a",
+      updatedAt: "2026-09-10T10:00:01.000Z",
+      revision: 6,
+      title: "樂觀",
+      processNote: "草稿",
+    });
+    const incoming = stubCase({
+      id: "a",
+      updatedAt: "2026-09-10T09:59:00.000Z",
+      revision: 5,
+      title: "已確認",
+      processNote: "完整備註",
+    });
+    const decided = decideFullCaseAdoption(current, incoming, "stale", {
+      lastConfirmedRevision: 5,
+      hasPending: true,
+    });
+    expect(decided.adopt).toBe(true);
+    expect(decided.completeness).toBe("full");
+    expect(decided.record.processNote).toBe("完整備註");
+  });
+
   it("完整回應版本符合目前狀態：採納並標 full", () => {
     const current = stubCase({
       id: "a",
@@ -268,6 +314,28 @@ describe("listSnapshotIsNewer", () => {
     });
     expect(listSnapshotIsNewer(current, incoming)).toBe(true);
   });
+
+  it("自己剛寫入後清單同 revision 但 updatedAt 較新，仍算較新", () => {
+    const cachedAfterSave = stubCase({
+      id: "a",
+      updatedAt: "2026-09-09T09:00:00.000Z",
+      revision: 5,
+      title: "同一標題",
+    });
+    const listPoll = stubCase({
+      id: "a",
+      updatedAt: "2026-09-09T09:00:00.050Z",
+      revision: 5,
+      title: "同一標題",
+    });
+    expect(listSnapshotIsNewer(cachedAfterSave, listPoll)).toBe(true);
+    const merged = mergeCaseListProjection(cachedAfterSave, listPoll, "full");
+    expect(merged.completeness).toBe("stale");
+    const ownEcho = mergeCaseListProjection(cachedAfterSave, listPoll, "full", {
+      lastConfirmedRevision: 5,
+    });
+    expect(ownEcho.completeness).toBe("full");
+  });
 });
 
 describe("caseUpdateBlockedReason", () => {
@@ -283,6 +351,15 @@ describe("caseUpdateBlockedReason", () => {
   it("清單列仍可寫標題／狀態", () => {
     expect(caseUpdateBlockedReason("list", { title: "t", status: "draft" })).toBeNull();
     expect(caseUpdateBlockedReason("stale", { title: "t" })).toBeNull();
+  });
+
+  it("過期列仍可寫譯者／字數／交期，但 edit_logs 會被擋", () => {
+    expect(caseUpdateBlockedReason("stale", {
+      translator: ["Alice"],
+      unitCount: 160,
+      translationDeadline: "2026-09-10T00:00:00.000Z",
+    })).toBeNull();
+    expect(caseUpdateBlockedReason("stale", { edit_logs: [] })).toMatch(/完整內容尚未載入或已過期/);
   });
 });
 
