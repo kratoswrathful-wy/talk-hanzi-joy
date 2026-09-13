@@ -71,6 +71,23 @@ describe("fee in-flight protection", () => {
     });
   });
 
+  it("待送 clientInfo 只蓋改過的鍵，遠端其餘欄位仍在", () => {
+    const remote = {
+      title: "遠端",
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-OLD", client: "甲" },
+    };
+    const pending = {
+      clientInfo: { clientPoNumber: "PO-NEW" },
+      updatedAt: "v0",
+    };
+    expect(mergeFeeRemoteWithPending(remote, pending)).toEqual({
+      title: "遠端",
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-NEW", client: "甲" },
+    });
+  });
+
   it("他人改同一欄則衝突；只改不同欄則不擋", () => {
     const queued = {
       updatedAt: "v1",

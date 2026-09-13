@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   classifyInvoiceWriteCertainty,
   decideInvoiceLinkCleanup,
+  findLocalReusableInvoiceId,
   findReusableInvoiceId,
+  isInvoiceLinkAlreadyExists,
   interpretInvoiceDeleteResult,
   invoiceLinkFailureMessage,
 } from "./invoice-link-write";
@@ -65,6 +67,28 @@ describe("findReusableInvoiceId", () => {
     expect(
       findReusableInvoiceId([{ invoiceId: "inv-1", feeId: "f1" }], ["f1", "f2"]),
     ).toBeNull();
+  });
+});
+
+describe("findLocalReusableInvoiceId", () => {
+  it("本機已有同一組費用的單就沿用，排除這次新建的識別", () => {
+    expect(
+      findLocalReusableInvoiceId(
+        [
+          { id: "inv-keep", feeIds: ["f1"] },
+          { id: "inv-new", feeIds: ["f1"] },
+        ],
+        ["f1"],
+        "inv-new",
+      ),
+    ).toBe("inv-keep");
+  });
+});
+
+describe("isInvoiceLinkAlreadyExists", () => {
+  it("唯一鍵衝突視為已掛上", () => {
+    expect(isInvoiceLinkAlreadyExists({ code: "23505", message: "duplicate" })).toBe(true);
+    expect(isInvoiceLinkAlreadyExists({ code: "23503" })).toBe(false);
   });
 });
 

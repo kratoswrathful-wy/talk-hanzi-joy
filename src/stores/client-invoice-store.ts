@@ -6,6 +6,8 @@ import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-co
 import {
   classifyInvoiceWriteCertainty,
   decideInvoiceLinkCleanup,
+  findLocalReusableInvoiceId,
+  isInvoiceLinkAlreadyExists,
   findReusableInvoiceId,
   interpretInvoiceDeleteResult,
   invoiceLinkFailureMessage,
@@ -281,6 +283,18 @@ export const clientInvoiceStore = {
           return invoices.find((item) => item.id === reuseId) ?? (await clientInvoiceStore.fetchInvoiceById(reuseId));
         }
       }
+      const localReuseId = findLocalReusableInvoiceId(invoices, feeIds, id);
+      if (localReuseId) {
+        invoices = invoices.filter((item) => item.id !== id);
+        notify();
+        const retryLinks = feeIds.map((feeId) => ({ client_invoice_id: localReuseId, fee_id: feeId, env }));
+        const { error: retryErr } = await supabase.from("client_invoice_fees").insert(retryLinks);
+        if (retryErr && !isInvoiceLinkAlreadyExists(retryErr)) {
+          toast.error(invoiceLinkFailureMessage(decideInvoiceLinkCleanup(retryErr)));
+          return null;
+        }
+        return invoices.find((item) => item.id === localReuseId) ?? (await clientInvoiceStore.fetchInvoiceById(localReuseId));
+      }
     }
 
     const { error } = await supabase.from("client_invoices").insert({
@@ -308,6 +322,9 @@ export const clientInvoiceStore = {
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ client_invoice_id: id, fee_id: feeId, env }));
       const { error: linkErr } = await supabase.from("client_invoice_fees").insert(links);
+      if (linkErr && isInvoiceLinkAlreadyExists(linkErr)) {
+        return newInvoice;
+      }
       if (linkErr) {
         console.error("Failed to link fees:", errorMessage(linkErr));
         const decision = decideInvoiceLinkCleanup(linkErr);

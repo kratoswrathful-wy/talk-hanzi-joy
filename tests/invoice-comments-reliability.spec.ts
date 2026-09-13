@@ -211,6 +211,11 @@ describeQ16("Q16 請款留言往返", () => {
     await page.goto("/invoices");
     await page.goto(`/invoices/${invoiceId}`);
     await expect(page.getByText(fileName)).toBeVisible({ timeout: 30_000 });
+    const href = await page.getByRole("link", { name: fileName }).getAttribute("href");
+    expect(href, "上傳成功後必須有可下載連結").toBeTruthy();
+    const downloaded = await page.request.get(href!);
+    expect(downloaded.ok(), `下載失敗 ${downloaded.status()}`).toBe(true);
+    expect(await downloaded.text()).toBe(fileBody);
     await session.close();
   });
 });

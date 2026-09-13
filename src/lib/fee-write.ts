@@ -79,14 +79,23 @@ export function shouldDropFeePendingAfterJob(remaining: number, jobFailed: boole
 }
 
 /** 遠端列覆蓋時保留尚未結束的本機欄位意圖，但不採用本機 updatedAt。 */
-export function mergeFeeRemoteWithPending<T extends { updatedAt?: string }>(
+export function mergeFeeRemoteWithPending<T extends { updatedAt?: string; clientInfo?: Partial<ClientInfo> }>(
   remote: T,
   pending: Partial<T> | undefined,
 ): T {
   if (!pending) return remote;
   const rest = { ...pending };
   delete (rest as { updatedAt?: string }).updatedAt;
-  return { ...remote, ...rest, updatedAt: remote.updatedAt };
+  const pendingInfo = rest.clientInfo;
+  delete (rest as { clientInfo?: Partial<ClientInfo> }).clientInfo;
+  return {
+    ...remote,
+    ...rest,
+    ...(pendingInfo
+      ? { clientInfo: { ...(remote.clientInfo ?? {}), ...pendingInfo } as T["clientInfo"] }
+      : {}),
+    updatedAt: remote.updatedAt,
+  };
 }
 
 type FeeConflictSlice = {

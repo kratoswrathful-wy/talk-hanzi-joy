@@ -68,7 +68,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
 
 declare global {
   interface Window {
@@ -338,6 +338,10 @@ export default function TranslatorFeeDetail() {
   const feeData = useFee(id);
   const allFees = useFees();
   const feesLoaded = useFeesLoaded();
+  const feeUnconfirmed = useSyncExternalStore(
+    feeStore.subscribe,
+    () => (id ? feeStore.hasUnconfirmedWrite(id) : false),
+  );
   const allInvoices = useInvoices();
   const allClientInvoices = useClientInvoices();
   const { options: statusLabelOptions } = useSelectOptions("statusLabel");
@@ -483,6 +487,26 @@ export default function TranslatorFeeDetail() {
     phasesRef.current = feeData.editLogPhases;
     hasBeenSubmittedRef.current = feeData.status === "finalized";
   }, [feeData?.id, feeData?.status]);
+
+  // 重掛或 store 合併待送欄後，輸入框必須跟已合併列，不能只在 id／status 變時灌一次。
+  useEffect(() => {
+    if (!feeData) return;
+    setClientInfo(feeData.clientInfo ?? { ...defaultClientInfo });
+  }, [feeData?.id, feeData?.clientInfo]);
+
+  useEffect(() => {
+    if (!feeData) return;
+    setTitle(feeData.title);
+  }, [feeData?.id, feeData?.title]);
+
+  useEffect(() => {
+    if (!feeData) return;
+    setTaskItems(
+      feeData.taskItems?.length
+        ? feeData.taskItems
+        : [{ id: `item-${Date.now()}`, taskType: "翻譯", billingUnit: "字", unitCount: 0, unitPrice: 0 }],
+    );
+  }, [feeData?.id, feeData?.taskItems]);
 
   useEffect(() => {
     phasesRef.current = feeData?.editLogPhases;
@@ -1645,6 +1669,11 @@ export default function TranslatorFeeDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {feeUnconfirmed ? (
+        <p data-testid="fee-save-pending" className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          尚有未確認寫入，請勿當成已儲存。
+        </p>
+      ) : null}
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">

@@ -59,6 +59,25 @@ export function interpretInvoiceDeleteResult(
   return { kind: "unknown" };
 }
 
+/** 關聯列已存在（重試或並行寫入撞唯一鍵）→ 當已掛上，不得再建第二張。 */
+export function isInvoiceLinkAlreadyExists(error: unknown): boolean {
+  const code = error && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+  return code === "23505";
+}
+
+/** 本機已為同一組費用建過單（含關聯不明而留下的單）→ 重試沿用。 */
+export function findLocalReusableInvoiceId(
+  invoices: Array<{ id: string; feeIds?: string[] }>,
+  feeIds: string[],
+  excludeId?: string,
+): string | null {
+  if (feeIds.length === 0) return null;
+  const hit = invoices.find(
+    (item) => item.id !== excludeId && feeIds.every((feeId) => (item.feeIds ?? []).includes(feeId)),
+  );
+  return hit?.id ?? null;
+}
+
 /** 這些費用已掛在同一張單 → 重試應沿用，不得再建一張。 */
 export function findReusableInvoiceId(
   links: Array<{ invoiceId: string; feeId: string }>,

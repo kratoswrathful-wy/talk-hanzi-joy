@@ -8,9 +8,11 @@ import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-co
 import {
   classifyInvoiceWriteCertainty,
   decideInvoiceLinkCleanup,
+  findLocalReusableInvoiceId,
   findReusableInvoiceId,
   interpretInvoiceDeleteResult,
   invoiceLinkFailureMessage,
+  isInvoiceLinkAlreadyExists,
 } from "@/lib/invoice-link-write";
 import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
@@ -276,6 +278,18 @@ export const invoiceStore = {
           return invoices.find((item) => item.id === reuseId) ?? (await invoiceStore.fetchInvoiceById(reuseId));
         }
       }
+      const localReuseId = findLocalReusableInvoiceId(invoices, feeIds, id);
+      if (localReuseId) {
+        invoices = invoices.filter((item) => item.id !== id);
+        notify();
+        const retryLinks = feeIds.map((feeId) => ({ invoice_id: localReuseId, fee_id: feeId, env }));
+        const { error: retryErr } = await supabase.from("invoice_fees").insert(retryLinks);
+        if (retryErr && !isInvoiceLinkAlreadyExists(retryErr)) {
+          toast.error(invoiceLinkFailureMessage(decideInvoiceLinkCleanup(retryErr)));
+          return null;
+        }
+        return invoices.find((item) => item.id === localReuseId) ?? (await invoiceStore.fetchInvoiceById(localReuseId));
+      }
     }
 
     const { error } = await supabase.from("invoices").insert({
@@ -303,6 +317,9 @@ export const invoiceStore = {
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId, env }));
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links);
+      if (linkErr && isInvoiceLinkAlreadyExists(linkErr)) {
+        return newInvoice;
+      }
       if (linkErr) {
         console.error("Failed to link fees:", linkErr);
         const decision = decideInvoiceLinkCleanup(linkErr);

@@ -592,7 +592,14 @@ export const feeStore = {
     });
   },
 
-  getFeeById: (id: string) => fees.find((f) => f.id === id),
+  getFeeById: (id: string) => {
+    const row = fees.find((f) => f.id === id);
+    if (!row) return undefined;
+    return mergeFeeRemoteWithPending(row, feeInFlight.get(id));
+  },
+
+  hasUnconfirmedWrite: (id: string) =>
+    feeInFlight.has(id) || feeWriteStillProtected(feeInFlightCount.get(id)),
 
   /** 單筆補抓（fees_visible）：供 agent.getFresh 在整表尚未含該列時使用。 */
   fetchFeeById: async (id: string): Promise<TranslatorFee | null> => {

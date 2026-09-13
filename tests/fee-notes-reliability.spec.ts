@@ -136,6 +136,11 @@ describeNotes("F-T03 費用相關備註附件", () => {
     await page.goto("/fees");
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByText(fileName)).toBeVisible({ timeout: 30_000 });
+    const href = await page.getByRole("link", { name: fileName }).getAttribute("href");
+    expect(href, "上傳成功後必須有可下載連結").toBeTruthy();
+    const downloaded = await page.request.get(href!);
+    expect(downloaded.ok(), `下載失敗 ${downloaded.status()}`).toBe(true);
+    expect(await downloaded.text()).toContain(`ISO-FT03-UI-${stamp}`);
     await session.close();
   });
 });
