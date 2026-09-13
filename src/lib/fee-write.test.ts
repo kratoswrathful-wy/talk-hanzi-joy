@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clientInfoChangedKeys,
   feeWriteStillProtected,
+  shouldDropFeePendingAfterJob,
   hasExternalFeeFieldConflict,
   mergeFeeRemoteWithPending,
   nextFeeInFlightCount,
@@ -56,6 +57,8 @@ describe("fee in-flight protection", () => {
     const afterFirstFinally = nextFeeInFlightCount(afterSecondQueued, -1);
     expect(feeWriteStillProtected(afterFirstFinally)).toBe(true);
     expect(feeWriteStillProtected(nextFeeInFlightCount(afterFirstFinally, -1))).toBe(false);
+    expect(shouldDropFeePendingAfterJob(0, true)).toBe(false);
+    expect(shouldDropFeePendingAfterJob(0, false)).toBe(true);
   });
 
   it("遠端重載不得蓋掉待送欄位，也不得用本機舊版本號", () => {

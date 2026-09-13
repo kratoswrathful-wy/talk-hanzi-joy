@@ -73,6 +73,11 @@ export function feeWriteStillProtected(count: number | undefined): boolean {
   return (count ?? 0) > 0;
 }
 
+/** 排隊中或上一筆尚未確定成功時，都要保留待送欄位。中斷／失敗不得清掉。 */
+export function shouldDropFeePendingAfterJob(remaining: number, jobFailed: boolean): boolean {
+  return remaining === 0 && !jobFailed;
+}
+
 /** 遠端列覆蓋時保留尚未結束的本機欄位意圖，但不採用本機 updatedAt。 */
 export function mergeFeeRemoteWithPending<T extends { updatedAt?: string }>(
   remote: T,

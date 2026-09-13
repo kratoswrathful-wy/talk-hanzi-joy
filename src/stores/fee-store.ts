@@ -10,6 +10,7 @@ import {
   applyFeeUpdate,
   clientInfoChangedKeys,
   feeWriteStillProtected,
+  shouldDropFeePendingAfterJob,
   hasExternalFeeFieldConflict,
   mergeFeeRemoteWithPending,
   nextFeeInFlightCount,
@@ -328,7 +329,7 @@ function rememberRemoteFee(row: TranslatorFee) {
 
 function applyRemoteFeeRow(row: TranslatorFee): TranslatorFee {
   rememberRemoteFee(row);
-  if (!feeWriteStillProtected(feeInFlightCount.get(row.id))) return row;
+  if (!feeInFlight.has(row.id) && !feeWriteStillProtected(feeInFlightCount.get(row.id))) return row;
   return mergeFeeRemoteWithPending(row, feeInFlight.get(row.id));
 }
 
@@ -348,7 +349,9 @@ supabase
         }
         return;
       }
-      if (!feeWriteStillProtected(feeInFlightCount.get(row.fee_id))) void requeryFeeFromView(row.fee_id);
+      if (!feeInFlight.has(row.fee_id) && !feeWriteStillProtected(feeInFlightCount.get(row.fee_id))) {
+        void requeryFeeFromView(row.fee_id);
+      }
     }
   )
   .subscribe();
@@ -532,15 +535,21 @@ export const feeStore = {
     feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
     notify();
     return feeWriteQueue.enqueue(id, async () => {
+      let failed = false;
       try {
-        return await persistFeeUpdate(id, updates, prev);
+        const err = await persistFeeUpdate(id, updates, prev);
+        failed = !!err;
+        return err;
+      } catch (error) {
+        failed = true;
+        return error instanceof Error ? error : new Error("apply_fee_update_failed");
       } finally {
         const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
         if (remaining > 0) {
           feeInFlightCount.set(id, remaining);
         } else {
           feeInFlightCount.delete(id);
-          feeInFlight.delete(id);
+          if (shouldDropFeePendingAfterJob(remaining, failed)) feeInFlight.delete(id);
         }
       }
     });

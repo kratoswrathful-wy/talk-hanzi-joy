@@ -93,8 +93,8 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
     await expect(page.getByTestId("fee-client-po")).toHaveValue(`PO-NEW-${stamp}`);
     await expect(page.getByTestId("fee-client-price-0")).toHaveValue("8.5");
 
-    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
     await continueParked(gate);
+    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
     await page.goto("/fees");
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByTestId("fee-client-po")).toHaveValue(`PO-NEW-${stamp}`, { timeout: 30_000 });
@@ -185,8 +185,8 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
     expect(other.ok, other.text).toBe(true);
     expect(other.data?.ok).toBe(true);
 
-    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
     await continueParked(gate);
+    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
     await expect(page.getByText(/他人更新|已保留|儲存失敗/).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("fee-client-po")).toHaveValue(`PO-MINE-${stamp}`);
 
