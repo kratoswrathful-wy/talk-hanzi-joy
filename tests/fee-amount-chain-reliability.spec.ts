@@ -92,7 +92,7 @@ describeAmt("F-T01／F-T02 金額鏈", () => {
     const invoiceId = links[0].client_invoice_id;
     await page.goto(`/client-invoices/${invoiceId}`);
     await expect(page.getByText(title)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("7.5").or(page.getByText("750"))).toBeVisible();
+    await expect(page.getByText("TWD 750").first()).toBeVisible();
 
     await session.close();
   });
@@ -128,7 +128,12 @@ describeAmt("F-T01／F-T02 金額鏈", () => {
     await page.locator("#rateConfirmed").click();
     await expect(page.locator("#rateConfirmed")).toBeChecked();
 
-    await page.getByRole("button", { name: "開立稿費條" }).click();
+    const finalizePrompt = page.getByText("是否直接向譯者開立稿費條");
+    if (await finalizePrompt.isVisible().catch(() => false)) {
+      await page.getByRole("button", { name: "開立稿費條" }).last().click();
+    } else {
+      await page.getByRole("button", { name: "開立稿費條" }).first().click();
+    }
     await expect(page.getByRole("button", { name: "收錄至稿費請款單" })).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "收錄至稿費請款單" }).click();
     await page.getByRole("menuitem", { name: "新建請款單" }).click();
@@ -154,7 +159,7 @@ describeAmt("F-T01／F-T02 金額鏈", () => {
     expect(links.length, "稿費請款關聯應存在").toBeGreaterThan(0);
     await page.goto(`/invoices/${links[0].invoice_id}`);
     await expect(page.getByText(title)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("4.25").or(page.getByText("340"))).toBeVisible();
+    await expect(page.getByText("TWD 340").first()).toBeVisible();
 
     await session.close();
   });

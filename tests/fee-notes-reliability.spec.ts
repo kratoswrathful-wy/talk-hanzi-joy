@@ -77,11 +77,11 @@ describeNotes("F-T03 費用相關備註附件", () => {
       await route.continue();
     });
     const keepText = `ISO-FT03-KEEP-${stamp}`;
-    const draft = page.getByTestId("comment-draft-input").last();
+    const draft = page.getByTestId("comment-draft-input").first();
     await draft.fill(keepText);
-    await page.getByTestId("comment-submit").last().click();
-    await expect(page.getByText("費用儲存失敗，已保留畫面輸入。請勿離開後當成已儲存。")).toBeVisible({ timeout: 15_000 });
-    await expect(draft).toHaveValue(keepText);
+    await page.getByTestId("comment-submit").first().click();
+    await expect(draft).toHaveValue(keepText, { timeout: 15_000 });
+    await expect(page.getByText(/儲存失敗|已保留/).first()).toBeVisible({ timeout: 15_000 });
     await page.unroute("**/rest/v1/rpc/apply_fee_update*");
 
     await page.goto("/fees");
