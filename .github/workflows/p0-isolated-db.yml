@@ -487,7 +487,7 @@ jobs:
             echo "::error::Playwright URL is not local loopback"
             exit 1
           fi
-          SPECS="tests/cases-save-reliability.spec.ts tests/cases-list-load.spec.ts tests/invoice-comments-reliability.spec.ts tests/fees-acl-reliability.spec.ts tests/fee-notes-reliability.spec.ts tests/fee-amount-chain-reliability.spec.ts tests/cat-conflict-reliability.spec.ts"
+          SPECS="tests/cases-save-reliability.spec.ts tests/cases-list-load.spec.ts tests/invoice-comments-reliability.spec.ts tests/fees-acl-reliability.spec.ts tests/fee-notes-reliability.spec.ts tests/fee-amount-chain-reliability.spec.ts tests/fee-queue-reliability.spec.ts tests/invoice-link-reliability.spec.ts tests/cat-conflict-reliability.spec.ts"
           echo "suite=save-reliability"
           echo "specs=${SPECS}"
           npx playwright test ${SPECS} --project=chromium --list
@@ -655,6 +655,7 @@ jobs:
             src/lib/invoice-comments.test.ts \
             src/lib/fee-notes.test.ts \
             src/lib/fee-write.test.ts \
+            src/lib/invoice-link-write.test.ts \
             src/lib/case-write-queue.test.ts \
             src/lib/case-body-plain-text.test.ts \
             src/lib/cat-segment-conflict-retry.test.ts \

@@ -130,14 +130,13 @@ describeQ16("Q16 請款留言往返", () => {
     await session.close();
   });
 
-  test("稿費請款：附件欄位讀回；上傳成功才核對下載", async ({ browser }) => {
+  test("稿費請款：附件種子讀回（不含實際上傳）", async ({ browser }) => {
     const { email, password } = credPm();
     const session = await loginAs(browser, email, password);
     const page = session.page;
     const { token } = await restFor(page);
     const stamp = Date.now();
     const fileName = `iso-q16-att-${stamp}.txt`;
-    const fileBody = `ISO-Q16-ATTACH-${stamp}`;
     const created = await restMutate(page.request, token, "POST", "invoices", {
       title: `ISO-Q16-ATT-${stamp}`,
       status: "draft",
@@ -160,27 +159,6 @@ describeQ16("Q16 請款留言往返", () => {
     await expect(page.getByText(`ISO-Q16-ATT-SEEDED-${stamp}`)).toBeVisible();
     await expect(page.getByText(fileName)).toBeVisible();
 
-    const attach = page.getByTestId("comment-attach-input").first();
-    await attach.setInputFiles({
-      name: `upload-${fileName}`,
-      mimeType: "text/plain",
-      buffer: Buffer.from(fileBody),
-    });
-    const chip = page.getByText(`upload-${fileName}`);
-    const uploaded = await chip.waitFor({ state: "visible", timeout: 8_000 }).then(() => true).catch(() => false);
-    if (uploaded) {
-      await page.getByTestId("comment-draft-input").first().fill(`ISO-Q16-ATT-UI-${stamp}`);
-      await page.getByTestId("comment-submit").first().click();
-      await expect(page.getByText(`ISO-Q16-ATT-UI-${stamp}`)).toBeVisible({ timeout: 15_000 });
-      await page.reload();
-      await expect(page.getByText(`upload-${fileName}`)).toBeVisible({ timeout: 30_000 });
-    } else {
-      test.info().annotations.push({
-        type: "blocked",
-        description: "隔離 Storage case-files 上傳未成功；已用 REST 種子核對附件欄位讀回。",
-      });
-    }
-
     const readback = await restMutate(
       page.request,
       token,
@@ -191,6 +169,48 @@ describeQ16("Q16 請款留言往返", () => {
     const comments = (JSON.parse(readback.text) as Array<{ comments: Array<{ fileUrls?: Array<{ name: string }> }> }>)[0]?.comments ?? [];
     expect(comments.some((c) => c.fileUrls?.some((f) => f.name === fileName))).toBe(true);
 
+    await session.close();
+  });
+
+  test("稿費請款：介面上傳、離頁、下載核對內容（Storage 不足則本項未執行）", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const { token } = await restFor(page);
+    const stamp = Date.now();
+    const fileName = `upload-iso-q16-${stamp}.txt`;
+    const fileBody = `ISO-Q16-UI-BODY-${stamp}`;
+    const created = await restMutate(page.request, token, "POST", "invoices", {
+      title: `ISO-Q16-UI-${stamp}`,
+      status: "draft",
+      env: "test",
+      note: "Q16-UI-NOTE",
+      comments: [],
+    }, { Prefer: "return=representation" });
+    expect(created.ok, created.text).toBe(true);
+    const invoiceId = (JSON.parse(created.text) as { id: string }[])[0]?.id;
+    expect(invoiceId).toBeTruthy();
+
+    await page.goto(`/invoices/${invoiceId}`);
+    await expect(page.getByText("返回請款單清單")).toBeVisible({ timeout: 30_000 });
+    const attach = page.getByTestId("comment-attach-input").first();
+    await attach.setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from(fileBody),
+    });
+    const chip = page.getByText(fileName);
+    const uploaded = await chip.waitFor({ state: "visible", timeout: 8_000 }).then(() => true).catch(() => false);
+    if (!uploaded) {
+      test.info().annotations.push({ type: "blocked", description: "隔離 Storage 不足，UI 上傳鏈未執行。" });
+      test.skip(true, "隔離 Storage 不足，UI 上傳／離頁／下載未執行");
+    }
+    await page.getByTestId("comment-draft-input").first().fill(`ISO-Q16-UI-${stamp}`);
+    await page.getByTestId("comment-submit").first().click();
+    await expect(page.getByText(`ISO-Q16-UI-${stamp}`)).toBeVisible({ timeout: 15_000 });
+    await page.goto("/invoices");
+    await page.goto(`/invoices/${invoiceId}`);
+    await expect(page.getByText(fileName)).toBeVisible({ timeout: 30_000 });
     await session.close();
   });
 });

@@ -1,0 +1,199 @@
+import { test, expect, type Page, type Route } from "@playwright/test";
+import { loginAs } from "./helpers/login-as";
+import { restFor, restMutate } from "./helpers/save-reliability-iso";
+
+/**
+ * 為什麼測：連改兩個數字時，第一筆還沒存完、清單又重載，畫面不該變回舊值；
+ * 第一筆失敗也不該把後面已打的字清掉；別人先改同一欄時，不該用新版本把舊數字蓋回去。
+ */
+const ENABLED = process.env.PLAYWRIGHT_SAVE_RELIABILITY_UI === "1";
+const describeQueue = ENABLED ? test.describe : test.describe.skip;
+
+function credPm() {
+  const email = process.env.PLAYWRIGHT_ISO_PM_EMAIL;
+  const password = process.env.PLAYWRIGHT_ISO_PM_PASSWORD;
+  expect(email, "缺少 PM email").toBeTruthy();
+  expect(password, "缺少 PM password").toBeTruthy();
+  return { email: email!, password: password! };
+}
+
+type Gate = { parked: Route[] };
+
+async function parkApplyFee(page: Page, gate: Gate) {
+  await page.route("**/rest/v1/rpc/apply_fee_update*", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    gate.parked.push(route);
+  });
+}
+
+async function continueParked(gate: Gate) {
+  const batch = gate.parked.splice(0, gate.parked.length);
+  await Promise.all(batch.map((route) => route.continue()));
+}
+
+async function fulfillParked(gate: Gate, body: unknown, status = 200) {
+  const batch = gate.parked.splice(0, gate.parked.length);
+  await Promise.all(
+    batch.map((route) =>
+      route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      }),
+    ),
+  );
+}
+
+async function insertFee(page: import("@playwright/test").Page, token: string, body: Record<string, unknown>) {
+  const insert = await restMutate(page.request, token, "POST", "fees", body, { Prefer: "return=minimal" });
+  expect(insert.ok, insert.text).toBe(true);
+}
+
+describeQueue("F-T07／08／09 費用排隊與重載", () => {
+  test("連續改欄時晚到清單讀取不得蓋掉待送數字", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const { token } = await restFor(page);
+    const stamp = Date.now();
+    const feeId = crypto.randomUUID();
+    const title = `ISO-FT07-FEE-${stamp}`;
+    await insertFee(page, token, {
+      id: feeId,
+      title,
+      status: "draft",
+      env: "test",
+      assignee: "ISO-FT07-ASSIGNEE",
+      client_info: {
+        client: "ISO-FT07-CLIENT",
+        clientPoNumber: "PO-OLD",
+        clientTaskItems: [{ id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 100, clientPrice: 5 }],
+        reconciled: false,
+      },
+      task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 100, unitPrice: 3 }],
+    });
+
+    const gate: Gate = { parked: [] };
+    await parkApplyFee(page, gate);
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+
+    await page.getByTestId("fee-client-po").fill(`PO-NEW-${stamp}`);
+    await page.getByTestId("fee-client-price-0").fill("8.5");
+    await page.getByTestId("fee-client-price-0").blur();
+    await expect.poll(() => gate.parked.length, { timeout: 15_000 }).toBeGreaterThan(0);
+
+    await page.goto("/fees");
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+
+    await expect(page.getByTestId("fee-client-po")).toHaveValue(`PO-NEW-${stamp}`);
+    await expect(page.getByTestId("fee-client-price-0")).toHaveValue("8.5");
+
+    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
+    await continueParked(gate);
+    await page.goto("/fees");
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByTestId("fee-client-po")).toHaveValue(`PO-NEW-${stamp}`, { timeout: 30_000 });
+    await expect(page.getByTestId("fee-client-price-0")).toHaveValue("8.5");
+    await session.close();
+  });
+
+  test("第一筆明確失敗不得清掉後面已打的字，也不得當已儲存", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const { token, rest } = await restFor(page);
+    const stamp = Date.now();
+    const feeId = crypto.randomUUID();
+    await insertFee(page, token, {
+      id: feeId,
+      title: `ISO-FT08-FEE-${stamp}`,
+      status: "draft",
+      env: "test",
+      assignee: "ISO-FT08-ASSIGNEE",
+      client_info: {
+        client: "ISO-FT08-CLIENT",
+        clientPoNumber: "PO-OLD",
+        clientTaskItems: [{ id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, clientPrice: 1 }],
+      },
+      task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, unitPrice: 1 }],
+    });
+
+    const gate: Gate = { parked: [] };
+    await parkApplyFee(page, gate);
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("fee-client-po").fill(`PO-KEEP-${stamp}`);
+    await page.getByTestId("fee-client-price-0").fill("9.25");
+    await page.getByTestId("fee-client-price-0").blur();
+    await expect.poll(() => gate.parked.length, { timeout: 15_000 }).toBeGreaterThan(0);
+
+    await fulfillParked(gate, { ok: false, error: "iso_ft08_forced_fail" });
+    await expect(page.getByTestId("fee-client-po")).toHaveValue(`PO-KEEP-${stamp}`);
+    await expect(page.getByTestId("fee-client-price-0")).toHaveValue("9.25");
+    await expect(page.getByText(/儲存失敗|已保留|未覆寫/).first()).toBeVisible({ timeout: 15_000 });
+
+    const row = await rest.get<Array<{ client_info: { clientPoNumber?: string } }>>(
+      `fees_visible?select=id,client_info&id=eq.${feeId}`,
+    );
+    expect(row[0]?.client_info?.clientPoNumber).toBe("PO-OLD");
+    await session.close();
+  });
+
+  test("他人先改同一欄：不得用新版本把舊數字送回去", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const { token, rest } = await restFor(page);
+    const stamp = Date.now();
+    const feeId = crypto.randomUUID();
+    await insertFee(page, token, {
+      id: feeId,
+      title: `ISO-FT09-FEE-${stamp}`,
+      status: "draft",
+      env: "test",
+      assignee: "ISO-FT09-ASSIGNEE",
+      client_info: {
+        client: "ISO-FT09-CLIENT",
+        clientPoNumber: "PO-BASE",
+        clientTaskItems: [{ id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, clientPrice: 1 }],
+      },
+      task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, unitPrice: 1 }],
+    });
+
+    const before = await rest.get<Array<{ updated_at: string }>>(
+      `fees_visible?select=id,updated_at&id=eq.${feeId}`,
+    );
+    expect(before[0]?.updated_at).toBeTruthy();
+
+    const gate: Gate = { parked: [] };
+    await parkApplyFee(page, gate);
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("fee-client-po").fill(`PO-MINE-${stamp}`);
+    await expect.poll(() => gate.parked.length, { timeout: 15_000 }).toBeGreaterThan(0);
+
+    const other = await rest.rpc<{ ok?: boolean }>("apply_fee_update", {
+      p_fee_id: feeId,
+      p_expected_updated_at: before[0].updated_at,
+      p_patch: { client_info: { clientPoNumber: `PO-OTHER-${stamp}` } },
+    });
+    expect(other.ok, other.text).toBe(true);
+    expect(other.data?.ok).toBe(true);
+
+    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
+    await continueParked(gate);
+    await expect(page.getByText(/他人更新|已保留|儲存失敗/).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("fee-client-po")).toHaveValue(`PO-MINE-${stamp}`);
+
+    const row = await rest.get<Array<{ client_info: { clientPoNumber?: string } }>>(
+      `fees_visible?select=id,client_info&id=eq.${feeId}`,
+    );
+    expect(row[0]?.client_info?.clientPoNumber).toBe(`PO-OTHER-${stamp}`);
+    await session.close();
+  });
+});

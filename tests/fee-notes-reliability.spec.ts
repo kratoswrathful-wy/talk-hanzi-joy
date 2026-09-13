@@ -99,4 +99,43 @@ describeNotes("F-T03 費用相關備註附件", () => {
 
     await session.close();
   });
+
+  test("介面上傳附件後離頁仍在；Storage 不足則本項未執行", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const { token } = await restFor(page);
+    const stamp = Date.now();
+    const feeId = crypto.randomUUID();
+    const insert = await restMutate(page.request, token, "POST", "fees", {
+      id: feeId,
+      title: `ISO-FT03-UI-${stamp}`,
+      status: "draft",
+      env: "test",
+      assignee: "ISO-FT03-UI",
+      notes: [],
+    }, { Prefer: "return=minimal" });
+    expect(insert.ok, insert.text).toBe(true);
+
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+    const fileName = `iso-ft03-ui-${stamp}.txt`;
+    await page.getByTestId("comment-attach-input").first().setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from(`ISO-FT03-UI-${stamp}`),
+    });
+    const uploaded = await page.getByText(fileName).waitFor({ state: "visible", timeout: 8_000 }).then(() => true).catch(() => false);
+    if (!uploaded) {
+      test.info().annotations.push({ type: "blocked", description: "隔離 Storage 不足，費用 UI 上傳鏈未執行。" });
+      test.skip(true, "隔離 Storage 不足，UI 上傳／離頁未執行");
+    }
+    await page.getByTestId("comment-draft-input").first().fill(`ISO-FT03-UI-NOTE-${stamp}`);
+    await page.getByTestId("comment-submit").first().click();
+    await expect(page.getByText(`ISO-FT03-UI-NOTE-${stamp}`)).toBeVisible({ timeout: 15_000 });
+    await page.goto("/fees");
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText(fileName)).toBeVisible({ timeout: 30_000 });
+    await session.close();
+  });
 });

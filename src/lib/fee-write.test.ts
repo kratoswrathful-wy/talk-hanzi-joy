@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { clientInfoChangedKeys, pickFeePersistExpectedUpdatedAt, stripFeeServerOwnedKeys } from "./fee-write";
+import {
+  clientInfoChangedKeys,
+  feeWriteStillProtected,
+  hasExternalFeeFieldConflict,
+  mergeFeeRemoteWithPending,
+  nextFeeInFlightCount,
+  pickFeePersistExpectedUpdatedAt,
+  stripFeeServerOwnedKeys,
+} from "./fee-write";
 import { defaultClientInfo } from "@/data/fee-mock-data";
 
 describe("clientInfoChangedKeys", () => {
@@ -38,6 +46,46 @@ describe("pickFeePersistExpectedUpdatedAt", () => {
     expect(
       pickFeePersistExpectedUpdatedAt(undefined, { updatedAt: "2026-09-13T06:00:00.000Z" }),
     ).toBe("2026-09-13T06:00:00.000Z");
+  });
+});
+
+describe("fee in-flight protection", () => {
+  it("第一筆結束、後面仍排隊時保護不消失", () => {
+    const afterFirstStart = nextFeeInFlightCount(0, 1);
+    const afterSecondQueued = nextFeeInFlightCount(afterFirstStart, 1);
+    const afterFirstFinally = nextFeeInFlightCount(afterSecondQueued, -1);
+    expect(feeWriteStillProtected(afterFirstFinally)).toBe(true);
+    expect(feeWriteStillProtected(nextFeeInFlightCount(afterFirstFinally, -1))).toBe(false);
+  });
+
+  it("遠端重載不得蓋掉待送欄位，也不得用本機舊版本號", () => {
+    const remote = { title: "遠端", clientPoNumber: "OLD", updatedAt: "v2" };
+    const pending = { title: "我剛打的", updatedAt: "v0" };
+    expect(mergeFeeRemoteWithPending(remote, pending)).toEqual({
+      title: "我剛打的",
+      clientPoNumber: "OLD",
+      updatedAt: "v2",
+    });
+  });
+
+  it("他人改同一欄則衝突；只改不同欄則不擋", () => {
+    const queued = {
+      updatedAt: "v1",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-1", reconciled: false },
+    };
+    const sameFieldRemote = {
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-B", reconciled: false },
+    };
+    const otherFieldRemote = {
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-1", reconciled: true },
+    };
+    const updates = {
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-A", reconciled: false },
+    };
+    expect(hasExternalFeeFieldConflict(sameFieldRemote, queued, updates)).toBe(true);
+    expect(hasExternalFeeFieldConflict(otherFieldRemote, queued, updates)).toBe(false);
   });
 });
 

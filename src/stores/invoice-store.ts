@@ -5,7 +5,15 @@ import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import {
+  classifyInvoiceWriteCertainty,
+  decideInvoiceLinkCleanup,
+  findReusableInvoiceId,
+  interpretInvoiceDeleteResult,
+  invoiceLinkFailureMessage,
+} from "@/lib/invoice-link-write";
 import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 type Listener = () => void;
 
@@ -251,6 +259,25 @@ export const invoiceStore = {
     invoices = [newInvoice, ...invoices];
     notify();
 
+    if (feeIds.length > 0) {
+      const existing = await supabase
+        .from("invoice_fees")
+        .select("invoice_id, fee_id")
+        .in("fee_id", feeIds)
+        .eq("env", env);
+      if (!existing.error && existing.data) {
+        const reuseId = findReusableInvoiceId(
+          existing.data.map((row) => ({ invoiceId: row.invoice_id, feeId: row.fee_id })),
+          feeIds,
+        );
+        if (reuseId) {
+          invoices = invoices.filter((item) => item.id !== id);
+          notify();
+          return invoices.find((item) => item.id === reuseId) ?? (await invoiceStore.fetchInvoiceById(reuseId));
+        }
+      }
+    }
+
     const { error } = await supabase.from("invoices").insert({
       id,
       title,
@@ -264,6 +291,10 @@ export const invoiceStore = {
 
     if (error) {
       console.error("Failed to create invoice:", error);
+      if (classifyInvoiceWriteCertainty(error) === "unknown") {
+        toast.error("新建請款單結果不明。請重整後核對，請勿再按一次新建。");
+        return null;
+      }
       invoices = invoices.filter((i) => i.id !== id);
       notify();
       return null;
@@ -274,9 +305,18 @@ export const invoiceStore = {
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links);
       if (linkErr) {
         console.error("Failed to link fees:", linkErr);
-        await supabase.from("invoices").delete().eq("id", id);
-        invoices = invoices.filter((i) => i.id !== id);
-        notify();
+        const decision = decideInvoiceLinkCleanup(linkErr);
+        if (decision.action === "keep") {
+          toast.error(invoiceLinkFailureMessage(decision));
+          return null;
+        }
+        const { data: deleted, error: delErr } = await supabase.from("invoices").delete().eq("id", id).select("id");
+        const deleteCheck = interpretInvoiceDeleteResult(delErr, deleted);
+        toast.error(invoiceLinkFailureMessage(decision, deleteCheck));
+        if (deleteCheck.kind === "deleted") {
+          invoices = invoices.filter((i) => i.id !== id);
+          notify();
+        }
         return null;
       }
     }
@@ -377,6 +417,10 @@ export const invoiceStore = {
     const { error } = await supabase.from("invoice_fees").insert(links);
     if (error) {
       console.error("Failed to add fees to invoice:", error);
+      if (classifyInvoiceWriteCertainty(error) === "unknown") {
+        toast.error("收錄結果不明。請重整後核對，請勿再按一次。");
+        return { error };
+      }
       invoices = invoices.map((i) =>
         i.id === invoiceId ? { ...i, feeIds: i.feeIds.filter((fid) => !newFeeIds.includes(fid)) } : i
       );

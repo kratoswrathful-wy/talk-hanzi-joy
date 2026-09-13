@@ -65,6 +65,62 @@ export function pickFeePersistExpectedUpdatedAt(
   return undefined;
 }
 
+export function nextFeeInFlightCount(current: number | undefined, delta: 1 | -1): number {
+  return Math.max(0, (current ?? 0) + delta);
+}
+
+export function feeWriteStillProtected(count: number | undefined): boolean {
+  return (count ?? 0) > 0;
+}
+
+/** 遠端列覆蓋時保留尚未結束的本機欄位意圖，但不採用本機 updatedAt。 */
+export function mergeFeeRemoteWithPending<T extends { updatedAt?: string }>(
+  remote: T,
+  pending: Partial<T> | undefined,
+): T {
+  if (!pending) return remote;
+  const rest = { ...pending };
+  delete (rest as { updatedAt?: string }).updatedAt;
+  return { ...remote, ...rest, updatedAt: remote.updatedAt };
+}
+
+type FeeConflictSlice = {
+  updatedAt?: string;
+  clientInfo?: Partial<ClientInfo>;
+  taskItems?: unknown;
+};
+
+/**
+ * 遠端版本已變，且他人改過我們正要送出的欄位 → 衝突，不得用新版本號重送舊整包。
+ * 他人只改不同欄位則不擋，呼叫端改用遠端版本＋只送使用者實際改動的鍵。
+ */
+export function hasExternalFeeFieldConflict(
+  remote: FeeConflictSlice | undefined,
+  queuedPrev: FeeConflictSlice | undefined,
+  updates: FeeConflictSlice,
+): boolean {
+  if (!remote || !queuedPrev) return false;
+  if (!remote.updatedAt || remote.updatedAt === queuedPrev.updatedAt) return false;
+
+  if (updates.clientInfo !== undefined) {
+    const changed = clientInfoChangedKeys(queuedPrev.clientInfo, updates.clientInfo);
+    for (const key of Object.keys(changed) as FeeClientInfoKey[]) {
+      if (JSON.stringify(remote.clientInfo?.[key]) !== JSON.stringify(queuedPrev.clientInfo?.[key])) {
+        return true;
+      }
+    }
+  }
+  if (updates.taskItems !== undefined) {
+    if (
+      JSON.stringify(remote.taskItems) !== JSON.stringify(queuedPrev.taskItems) &&
+      JSON.stringify(updates.taskItems) !== JSON.stringify(remote.taskItems)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function stripFeeServerOwnedKeys(patch: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {

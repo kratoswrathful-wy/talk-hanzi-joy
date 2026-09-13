@@ -5,7 +5,16 @@ import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import { createKeyedQueue } from "@/lib/case-write-queue";
-import { applyFeeDelete, applyFeeUpdate, clientInfoChangedKeys, pickFeePersistExpectedUpdatedAt } from "@/lib/fee-write";
+import {
+  applyFeeDelete,
+  applyFeeUpdate,
+  clientInfoChangedKeys,
+  feeWriteStillProtected,
+  hasExternalFeeFieldConflict,
+  mergeFeeRemoteWithPending,
+  nextFeeInFlightCount,
+  pickFeePersistExpectedUpdatedAt,
+} from "@/lib/fee-write";
 import { notesFromJson, notesToJson } from "@/lib/fee-notes";
 import { toast } from "sonner";
 
@@ -293,7 +302,7 @@ async function requeryFeeFromView(id: string) {
     }
     return;
   }
-  const updated = dbToApp(data as DbFee);
+  const updated = applyRemoteFeeRow(dbToApp(data as DbFee));
   if (fees.some((f) => f.id === updated.id)) {
     fees = fees.map((f) => (f.id === updated.id ? updated : f));
   } else {
@@ -310,6 +319,18 @@ type FeeChangeSignalRow = {
 
 const feeWriteQueue = createKeyedQueue();
 const feeInFlight = new Map<string, Partial<TranslatorFee>>();
+const feeInFlightCount = new Map<string, number>();
+const feeLastRemote = new Map<string, TranslatorFee>();
+
+function rememberRemoteFee(row: TranslatorFee) {
+  feeLastRemote.set(row.id, row);
+}
+
+function applyRemoteFeeRow(row: TranslatorFee): TranslatorFee {
+  rememberRemoteFee(row);
+  if (!feeWriteStillProtected(feeInFlightCount.get(row.id))) return row;
+  return mergeFeeRemoteWithPending(row, feeInFlight.get(row.id));
+}
 
 supabase
   .channel("fee-change-signals")
@@ -327,7 +348,7 @@ supabase
         }
         return;
       }
-      if (!feeInFlight.has(row.fee_id)) void requeryFeeFromView(row.fee_id);
+      if (!feeWriteStillProtected(feeInFlightCount.get(row.fee_id))) void requeryFeeFromView(row.fee_id);
     }
   )
   .subscribe();
@@ -372,8 +393,14 @@ function buildFeeRpcPatch(
 async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, prev: TranslatorFee | undefined) {
   // 入列當下的 prev.updatedAt 會過期；連續改多欄時必須用前一筆已落地的 store 版本。
   const latest = fees.find((f) => f.id === id);
-  const picked = pickFeePersistExpectedUpdatedAt(latest, prev);
-  const expected = picked ?? (await resolveFeeUpdatedAt(id, latest ?? prev));
+  const remote = feeLastRemote.get(id);
+  if (hasExternalFeeFieldConflict(remote, prev, updates)) {
+    const err = new Error("費用已被他人更新同一欄位，本次未覆寫。已保留畫面輸入。");
+    toast.error(err.message);
+    return err;
+  }
+  const picked = pickFeePersistExpectedUpdatedAt(remote ?? latest, prev);
+  const expected = picked ?? (await resolveFeeUpdatedAt(id, remote ?? latest ?? prev));
   if (!expected) {
     const err = new Error("無法確認費用版本，尚未寫入。已保留畫面輸入。");
     toast.error(err.message);
@@ -389,16 +416,18 @@ async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, pre
   }
   const nextUpdatedAt = result.data?.updated_at;
   const nextStatus = result.data?.status as TranslatorFee["status"] | undefined;
-  fees = fees.map((f) =>
-    f.id === id
-      ? {
-          ...f,
-          ...updates,
-          ...(nextStatus ? { status: nextStatus } : {}),
-          ...(nextUpdatedAt ? { updatedAt: nextUpdatedAt } : {}),
-        }
-      : f,
-  );
+  fees = fees.map((f) => {
+    if (f.id !== id) return f;
+    const base = feeLastRemote.get(id) ?? prev ?? f;
+    const confirmed = {
+      ...base,
+      ...updates,
+      ...(nextStatus ? { status: nextStatus } : {}),
+      ...(nextUpdatedAt ? { updatedAt: nextUpdatedAt } : {}),
+    };
+    rememberRemoteFee(confirmed);
+    return mergeFeeRemoteWithPending(confirmed, feeInFlight.get(id));
+  });
   notify();
   return null;
 }
@@ -473,7 +502,7 @@ export const feeStore = {
             continue;
           }
           if (!error && data) {
-            fees = (data as DbFee[]).map(dbToApp);
+            fees = (data as DbFee[]).map((row) => applyRemoteFeeRow(dbToApp(row)));
             loaded = true;
             notify();
           }
@@ -500,12 +529,19 @@ export const feeStore = {
     const display = wroteStatus ? { ...updates, status: prev?.status } : updates;
     fees = fees.map((f) => (f.id === id ? { ...f, ...display } : f));
     feeInFlight.set(id, { ...feeInFlight.get(id), ...updates });
+    feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
     notify();
     return feeWriteQueue.enqueue(id, async () => {
       try {
         return await persistFeeUpdate(id, updates, prev);
       } finally {
-        feeInFlight.delete(id);
+        const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
+        if (remaining > 0) {
+          feeInFlightCount.set(id, remaining);
+        } else {
+          feeInFlightCount.delete(id);
+          feeInFlight.delete(id);
+        }
       }
     });
   },
@@ -514,6 +550,7 @@ export const feeStore = {
     const snapshot = fees.find((f) => f.id === id);
     fees = fees.filter((f) => f.id !== id);
     feeInFlight.set(id, { id } as Partial<TranslatorFee>);
+    feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
     notify();
     return feeWriteQueue.enqueue(id, async () => {
       try {
@@ -535,7 +572,13 @@ export const feeStore = {
         }
         return null;
       } finally {
-        feeInFlight.delete(id);
+        const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
+        if (remaining > 0) {
+          feeInFlightCount.set(id, remaining);
+        } else {
+          feeInFlightCount.delete(id);
+          feeInFlight.delete(id);
+        }
       }
     });
   },
@@ -551,7 +594,7 @@ export const feeStore = {
       .eq("env", getEnvironment())
       .maybeSingle();
     if (error || !data) return null;
-    const mapped = dbToApp(data as DbFee);
+    const mapped = applyRemoteFeeRow(dbToApp(data as DbFee));
     if (fees.some((f) => f.id === id)) {
       fees = fees.map((f) => (f.id === id ? mapped : f));
     } else {
