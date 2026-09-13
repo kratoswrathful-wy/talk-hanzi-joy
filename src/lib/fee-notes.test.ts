@@ -21,8 +21,8 @@ const withAttachments: Note = {
 
 describe("notesFromJson／notesToJson", () => {
   it("null／非陣列／空陣列回空，不與其他欄混用", () => {
-    expect(notesFromJson(null as unknown as never)).toEqual([]);
-    expect(notesFromJson("備註" as unknown as never)).toEqual([]);
+    expect(notesFromJson(null)).toEqual([]);
+    expect(notesFromJson("備註")).toEqual([]);
     expect(notesFromJson([])).toEqual([]);
   });
 

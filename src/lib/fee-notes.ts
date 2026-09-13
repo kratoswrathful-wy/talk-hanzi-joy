@@ -8,7 +8,7 @@ function nameUrlFromJson(x: Json): { name: string; url: string } | undefined {
 }
 
 /** 讀回費用相關備註；舊列只有文字也要留下，合法附件／回覆不得丟。 */
-export function notesFromJson(raw: Json): Note[] {
+export function notesFromJson(raw: Json | null | undefined): Note[] {
   if (!Array.isArray(raw)) return [];
   const out: Note[] = [];
   for (const x of raw) {
