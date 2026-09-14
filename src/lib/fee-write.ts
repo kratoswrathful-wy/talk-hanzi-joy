@@ -135,6 +135,39 @@ export function hasExternalFeeFieldConflict(
   return false;
 }
 
+/** jsonb 數字可能以字串回來；畫面輸入框不能因此變成 0。 */
+export function readJsonNumber(value: unknown, fallback = 0): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
+}
+
+/** 重查後只准送實際改過的 client_info 鍵，不得用新版本號配舊整包。 */
+export function feeClientInfoPatchAfterRequery(
+  remote: FeeConflictSlice | undefined,
+  queuedPrev: FeeConflictSlice | undefined,
+  updates: FeeConflictSlice,
+): { conflict: boolean; clientInfoPatch: Partial<ClientInfo> } {
+  if (hasExternalFeeFieldConflict(remote, queuedPrev, updates)) {
+    return { conflict: true, clientInfoPatch: {} };
+  }
+  return {
+    conflict: false,
+    clientInfoPatch: clientInfoChangedKeys(queuedPrev?.clientInfo, updates.clientInfo),
+  };
+}
+
+/** 沒有伺服器 ok 不得當已寫入；中斷／空回應要保留待送。 */
+export function persistFeeWriteConfirmed(result: {
+  error: unknown;
+  data?: ApplyFeeWriteResult | null;
+}): boolean {
+  return !result.error && result.data?.ok === true;
+}
+
 export function stripFeeServerOwnedKeys(patch: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {

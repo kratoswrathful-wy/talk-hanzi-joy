@@ -252,11 +252,12 @@ describeLink("B1 請款關聯失敗", () => {
       .filter((id) => !beforeIds.has(id));
     expect(midIds.length, "關聯不明時應留下已建的單").toBe(1);
 
+    await expect(page.getByRole("button", { name: "收錄至客戶請款單" })).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "收錄至客戶請款單" }).click();
     await page.getByRole("menuitem", { name: "新建請款單" }).click();
 
     await expect.poll(async () => {
-      const links = await rest.get<Array<{ client_invoice_id: string }>>(
+      const links = await rest.get<Array<{ client_invoice_id: string; fee_id: string }>>(
         `client_invoice_fees?select=client_invoice_id,fee_id&fee_id=eq.${feeId}`,
       );
       return links.length;
@@ -265,6 +266,20 @@ describeLink("B1 請款關聯失敗", () => {
       .map((row) => row.id)
       .filter((id) => !beforeIds.has(id));
     expect(afterIds, "重試不得再建第二張空單").toEqual(midIds);
+    const links = await rest.get<Array<{ client_invoice_id: string; fee_id: string }>>(
+      `client_invoice_fees?select=client_invoice_id,fee_id&fee_id=eq.${feeId}`,
+    );
+    expect(links).toHaveLength(1);
+    expect(links[0]?.client_invoice_id).toBe(midIds[0]);
+    const parent = await rest.get<Array<{ id: string; status: string }>>(
+      `client_invoices?select=id,status&id=eq.${midIds[0]}`,
+    );
+    expect(parent[0]?.id).toBe(midIds[0]);
+    const fee = await rest.get<Array<{ client_info: { clientTaskItems?: Array<{ clientPrice?: number; unitCount?: number }> } }>>(
+      `fees_visible?select=id,client_info&id=eq.${feeId}`,
+    );
+    expect(fee[0]?.client_info?.clientTaskItems?.[0]?.clientPrice).toBe(1);
+    expect(fee[0]?.client_info?.clientTaskItems?.[0]?.unitCount).toBe(10);
     await session.close();
   });
 });

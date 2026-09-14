@@ -7,6 +7,10 @@ import {
   classifyInvoiceWriteCertainty,
   decideInvoiceLinkCleanup,
   findLocalReusableInvoiceId,
+  forgetUnconfirmedInvoiceId,
+  invoiceWithoutClaimedFees,
+  peekUnconfirmedInvoiceId,
+  rememberUnconfirmedInvoiceId,
   isInvoiceLinkAlreadyExists,
   findReusableInvoiceId,
   interpretInvoiceDeleteResult,
@@ -19,6 +23,7 @@ import { toast } from "sonner";
 type Listener = () => void;
 
 let invoices: ClientInvoice[] = [];
+const unconfirmedInvoiceByFees = new Map<string, string>();
 let loaded = false;
 let loadPromise: Promise<{ error: unknown }> | null = null;
 let reloadRequested = false;
@@ -283,8 +288,9 @@ export const clientInvoiceStore = {
           return invoices.find((item) => item.id === reuseId) ?? (await clientInvoiceStore.fetchInvoiceById(reuseId));
         }
       }
-      const localReuseId = findLocalReusableInvoiceId(invoices, feeIds, id);
-      if (localReuseId) {
+      const localReuseId = findLocalReusableInvoiceId(invoices, feeIds, id)
+        ?? peekUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
+      if (localReuseId && invoices.some((item) => item.id === localReuseId)) {
         invoices = invoices.filter((item) => item.id !== id);
         notify();
         const retryLinks = feeIds.map((feeId) => ({ client_invoice_id: localReuseId, fee_id: feeId, env }));
@@ -293,6 +299,11 @@ export const clientInvoiceStore = {
           toast.error(invoiceLinkFailureMessage(decideInvoiceLinkCleanup(retryErr)));
           return null;
         }
+        forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
+        invoices = invoices.map((item) =>
+          item.id === localReuseId ? { ...item, feeIds: [...new Set([...item.feeIds, ...feeIds])] } : item,
+        );
+        notify();
         return invoices.find((item) => item.id === localReuseId) ?? (await clientInvoiceStore.fetchInvoiceById(localReuseId));
       }
     }
@@ -323,6 +334,7 @@ export const clientInvoiceStore = {
       const links = feeIds.map((feeId) => ({ client_invoice_id: id, fee_id: feeId, env }));
       const { error: linkErr } = await supabase.from("client_invoice_fees").insert(links);
       if (linkErr && isInvoiceLinkAlreadyExists(linkErr)) {
+        forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
         return newInvoice;
       }
       if (linkErr) {
@@ -330,6 +342,9 @@ export const clientInvoiceStore = {
         const decision = decideInvoiceLinkCleanup(linkErr);
         if (decision.action === "keep") {
           toast.error(invoiceLinkFailureMessage(decision));
+          invoices = invoices.map((item) => (item.id === id ? invoiceWithoutClaimedFees(item) : item));
+          rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, id);
+          notify();
           return null;
         }
         const { data: deleted, error: delErr } = await supabase.from("client_invoices").delete().eq("id", id).select("id");

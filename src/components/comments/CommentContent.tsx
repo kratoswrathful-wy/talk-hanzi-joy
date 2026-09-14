@@ -162,6 +162,7 @@ export function CommentContent({
                 })();
               }}
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/30 px-2 py-1 text-xs hover:bg-secondary/50 transition-colors disabled:opacity-50"
+              data-testid="comment-file-download"
               title="下載附件"
             >
               <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />

@@ -13,6 +13,8 @@ import {
   shouldDropFeePendingAfterJob,
   hasExternalFeeFieldConflict,
   mergeFeeRemoteWithPending,
+  persistFeeWriteConfirmed,
+  readJsonNumber,
   nextFeeInFlightCount,
   pickFeePersistExpectedUpdatedAt,
 } from "@/lib/fee-write";
@@ -40,8 +42,8 @@ function taskItemsFromJson(raw: Json): FeeTaskItem[] {
       id: o.id,
       taskType: readTaskType(o.taskType),
       billingUnit: readBillingUnit(o.billingUnit),
-      unitCount: typeof o.unitCount === "number" ? o.unitCount : 0,
-      unitPrice: typeof o.unitPrice === "number" ? o.unitPrice : 0,
+      unitCount: readJsonNumber(o.unitCount),
+      unitPrice: readJsonNumber(o.unitPrice),
     });
   }
   return out;
@@ -68,8 +70,8 @@ function clientTaskItemsFromJson(raw: Json | undefined): ClientTaskItem[] {
       id: o.id,
       taskType: readTaskType(o.taskType),
       billingUnit: readBillingUnit(o.billingUnit),
-      unitCount: typeof o.unitCount === "number" ? o.unitCount : 0,
-      clientPrice: typeof o.clientPrice === "number" ? o.clientPrice : 0,
+      unitCount: readJsonNumber(o.unitCount),
+      clientPrice: readJsonNumber(o.clientPrice),
     });
   }
   return out;
@@ -414,7 +416,7 @@ async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, pre
   const patch = buildFeeRpcPatch(prev, updates);
   if (Object.keys(patch).length === 0) return null;
   const result = await applyFeeUpdate(supabase, id, patch, expected);
-  if (result.error) {
+  if (!persistFeeWriteConfirmed(result)) {
     const err = result.error instanceof Error ? result.error : new Error("apply_fee_update_failed");
     toast.error("費用儲存失敗，已保留畫面輸入。請勿離開後當成已儲存。");
     return err;

@@ -4,9 +4,13 @@ import {
   decideInvoiceLinkCleanup,
   findLocalReusableInvoiceId,
   findReusableInvoiceId,
+  forgetUnconfirmedInvoiceId,
+  invoiceWithoutClaimedFees,
   isInvoiceLinkAlreadyExists,
   interpretInvoiceDeleteResult,
   invoiceLinkFailureMessage,
+  peekUnconfirmedInvoiceId,
+  rememberUnconfirmedInvoiceId,
 } from "./invoice-link-write";
 
 describe("classifyInvoiceWriteCertainty", () => {
@@ -82,6 +86,20 @@ describe("findLocalReusableInvoiceId", () => {
         "inv-new",
       ),
     ).toBe("inv-keep");
+  });
+});
+
+describe("unconfirmed invoice reuse", () => {
+  it("關聯不明後記住單號，重試沿用且本機不得宣稱已掛費用", () => {
+    const map = new Map<string, string>();
+    rememberUnconfirmedInvoiceId(map, ["f1"], "inv-keep");
+    expect(peekUnconfirmedInvoiceId(map, ["f1"])).toBe("inv-keep");
+    expect(invoiceWithoutClaimedFees({ id: "inv-keep", feeIds: ["f1"] })).toEqual({
+      id: "inv-keep",
+      feeIds: [],
+    });
+    forgetUnconfirmedInvoiceId(map, ["f1"]);
+    expect(peekUnconfirmedInvoiceId(map, ["f1"])).toBeNull();
   });
 });
 

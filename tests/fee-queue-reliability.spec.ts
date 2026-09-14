@@ -169,6 +169,25 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
     );
     expect(row[0]?.client_info?.clientPoNumber).toBe("PO-OLD");
     await expect(page.getByTestId("fee-save-pending")).toBeVisible({ timeout: 15_000 });
+
+    await continueParked(gate);
+    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
+    await expect.poll(async () => {
+      const saved = await rest.get<Array<{ client_info: { clientPoNumber?: string; clientTaskItems?: Array<{ clientPrice?: number }> } }>>(
+        `fees_visible?select=id,client_info&id=eq.${feeId}`,
+      );
+      return `${saved[0]?.client_info?.clientPoNumber}|${saved[0]?.client_info?.clientTaskItems?.[0]?.clientPrice}`;
+    }, { timeout: 20_000 }).toBe(`${nextPo}|8.5`);
+
+    await page.goto("/fees");
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("fee-client-po")).toHaveValue(nextPo, { timeout: 30_000 });
+    await expect(page.getByTestId("fee-client-price-0")).toHaveValue("8.5");
+    await page.reload({ waitUntil: "load" });
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("fee-client-po")).toHaveValue(nextPo, { timeout: 30_000 });
+    await expect(page.getByTestId("fee-client-price-0")).toHaveValue("8.5");
     await session.close();
   });
 
@@ -319,6 +338,65 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
     await expect(exec.page.getByTestId("fee-client-price-0")).toHaveValue("9.5", { timeout: 30_000 });
     await pm.close();
     await exec.close();
+  });
+
+  test("重查後寫入前他人改不同欄：不得用新版本把舊單價整包蓋回去", async ({ browser }) => {
+    const { email, password } = credPm();
+    const session = await loginAs(browser, email, password);
+    const page = session.page;
+    const { token, rest } = await restFor(page);
+    const stamp = Date.now();
+    const feeId = crypto.randomUUID();
+    const nextPo = `PO-REQ-${stamp}`;
+    await insertFee(page, token, {
+      id: feeId,
+      title: `ISO-FT07-REQ-${stamp}`,
+      status: "draft",
+      env: "test",
+      assignee: "ISO-FT07-REQ",
+      client_info: {
+        client: "ISO-FT07-CLIENT",
+        clientPoNumber: "PO-OLD",
+        clientTaskItems: [{ id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, clientPrice: 1 }],
+      },
+      task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, unitPrice: 1 }],
+    });
+
+    const before = await rest.get<Array<{ updated_at: string }>>(
+      `fees_visible?select=id,updated_at&id=eq.${feeId}`,
+    );
+    expect(before[0]?.updated_at).toBeTruthy();
+
+    const gate: Gate = { parked: [] };
+    await parkApplyFee(page, gate);
+    await page.goto(`/fees/${feeId}`);
+    await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("fee-client-po").fill(nextPo);
+    await page.getByTestId("fee-client-po").blur();
+    await expect.poll(() => gate.parked.length, { timeout: 15_000 }).toBeGreaterThan(0);
+
+    const other = await rest.rpc<{ ok?: boolean }>("apply_fee_update", {
+      p_fee_id: feeId,
+      p_expected_updated_at: before[0].updated_at,
+      p_patch: { client_info: { clientTaskItems: [{ id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, clientPrice: 9.5 }] } },
+    });
+    expect(other.ok, other.text).toBe(true);
+    expect(other.data?.ok).toBe(true);
+
+    await continueParked(gate);
+    await page.unroute("**/rest/v1/rpc/apply_fee_update*");
+    await expect.poll(async () => {
+      const row = await rest.get<Array<{ client_info: { clientPoNumber?: string; clientTaskItems?: Array<{ clientPrice?: number }> } }>>(
+        `fees_visible?select=id,client_info&id=eq.${feeId}`,
+      );
+      return `${row[0]?.client_info?.clientPoNumber}|${row[0]?.client_info?.clientTaskItems?.[0]?.clientPrice}`;
+    }, { timeout: 20_000 }).toMatch(/9\.5$/);
+    const after = await rest.get<Array<{ client_info: { clientPoNumber?: string; clientTaskItems?: Array<{ clientPrice?: number }> } }>>(
+      `fees_visible?select=id,client_info&id=eq.${feeId}`,
+    );
+    expect(after[0]?.client_info?.clientTaskItems?.[0]?.clientPrice).toBe(9.5);
+    expect(after[0]?.client_info?.clientPoNumber).not.toBe("PO-OLD");
+    await session.close();
   });
 
   test("兩個管理員改同一欄：後端保留先寫入的，另一人畫面保留輸入", async ({ browser }) => {

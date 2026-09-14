@@ -65,6 +65,37 @@ export function isInvoiceLinkAlreadyExists(error: unknown): boolean {
   return code === "23505";
 }
 
+export function feeGroupKey(feeIds: string[]): string {
+  return [...feeIds].sort().join(",");
+}
+
+export function rememberUnconfirmedInvoiceId(
+  map: Map<string, string>,
+  feeIds: string[],
+  invoiceId: string,
+): void {
+  if (feeIds.length === 0) return;
+  map.set(feeGroupKey(feeIds), invoiceId);
+}
+
+export function peekUnconfirmedInvoiceId(
+  map: Map<string, string>,
+  feeIds: string[],
+): string | null {
+  if (feeIds.length === 0) return null;
+  return map.get(feeGroupKey(feeIds)) ?? null;
+}
+
+export function forgetUnconfirmedInvoiceId(map: Map<string, string>, feeIds: string[]): void {
+  if (feeIds.length === 0) return;
+  map.delete(feeGroupKey(feeIds));
+}
+
+/** 關聯不明時不得把費用掛在本機單上，否則畫面會當成已收錄。 */
+export function invoiceWithoutClaimedFees<T extends { feeIds: string[] }>(invoice: T): T {
+  return { ...invoice, feeIds: [] };
+}
+
 /** 本機已為同一組費用建過單（含關聯不明而留下的單）→ 重試沿用。 */
 export function findLocalReusableInvoiceId(
   invoices: Array<{ id: string; feeIds?: string[] }>,

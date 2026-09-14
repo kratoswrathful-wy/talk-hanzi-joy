@@ -4,9 +4,12 @@ import {
   feeWriteStillProtected,
   shouldDropFeePendingAfterJob,
   hasExternalFeeFieldConflict,
+  feeClientInfoPatchAfterRequery,
   mergeFeeRemoteWithPending,
   nextFeeInFlightCount,
+  persistFeeWriteConfirmed,
   pickFeePersistExpectedUpdatedAt,
+  readJsonNumber,
   stripFeeServerOwnedKeys,
 } from "./fee-write";
 import { defaultClientInfo } from "@/data/fee-mock-data";
@@ -106,6 +109,62 @@ describe("fee in-flight protection", () => {
     };
     expect(hasExternalFeeFieldConflict(sameFieldRemote, queued, updates)).toBe(true);
     expect(hasExternalFeeFieldConflict(otherFieldRemote, queued, updates)).toBe(false);
+  });
+});
+
+describe("readJsonNumber", () => {
+  it("接受數字與數字字串，其它回 0", () => {
+    expect(readJsonNumber(8.5)).toBe(8.5);
+    expect(readJsonNumber("8.5")).toBe(8.5);
+    expect(readJsonNumber("")).toBe(0);
+    expect(readJsonNumber(undefined)).toBe(0);
+  });
+});
+
+describe("persistFeeWriteConfirmed", () => {
+  it("沒有 ok 或有錯誤都不得當已寫入", () => {
+    expect(persistFeeWriteConfirmed({ error: null, data: { ok: true } })).toBe(true);
+    expect(persistFeeWriteConfirmed({ error: null, data: null })).toBe(false);
+    expect(persistFeeWriteConfirmed({ error: new Error("abort"), data: { ok: true } })).toBe(false);
+  });
+});
+
+describe("feeClientInfoPatchAfterRequery", () => {
+  it("重查後版本變了但只改不同欄：只送 PO，不得帶舊整包任務列", () => {
+    const queued = {
+      updatedAt: "v1",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-1", clientTaskItems: defaultClientInfo.clientTaskItems },
+    };
+    const remote = {
+      updatedAt: "v2",
+      clientInfo: {
+        ...defaultClientInfo,
+        clientPoNumber: "PO-1",
+        clientTaskItems: [{ id: "ci-1", taskType: "翻譯" as const, billingUnit: "字" as const, unitCount: 10, clientPrice: 9.5 }],
+      },
+    };
+    const updates = {
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-MINE" },
+    };
+    expect(feeClientInfoPatchAfterRequery(remote, queued, updates)).toEqual({
+      conflict: false,
+      clientInfoPatch: { clientPoNumber: "PO-MINE" },
+    });
+  });
+
+  it("重查後同一欄已被他人改：衝突且不送出", () => {
+    const queued = {
+      updatedAt: "v1",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-1" },
+    };
+    const remote = {
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-OTHER" },
+    };
+    const updates = {
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-MINE" },
+    };
+    expect(feeClientInfoPatchAfterRequery(remote, queued, updates).conflict).toBe(true);
   });
 });
 

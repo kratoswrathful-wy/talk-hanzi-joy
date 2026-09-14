@@ -216,9 +216,18 @@ describeQ16("Q16 請款留言往返", () => {
     );
     const fileUrl = (readback[0]?.comments ?? []).flatMap((c) => c.fileUrls ?? []).find((f) => f.name === fileName)?.url;
     expect(fileUrl, "上傳成功後資料庫必須有檔案網址").toBeTruthy();
-    const downloaded = await page.request.get(fileUrl!);
-    expect(downloaded.ok(), `下載失敗 ${downloaded.status()}`).toBe(true);
-    expect(await downloaded.text()).toBe(fileBody);
+    const restDownloaded = await page.request.get(fileUrl!);
+    expect(restDownloaded.ok(), `補充直抓失敗 ${restDownloaded.status()}`).toBe(true);
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("comment-file-download").filter({ hasText: fileName }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(fileName);
+    const downloadPath = await download.path();
+    expect(downloadPath, "必須經 UI 下載按鈕取得檔案").toBeTruthy();
+    const { readFile } = await import("node:fs/promises");
+    expect(await readFile(downloadPath!, "utf8")).toBe(fileBody);
+    expect(await restDownloaded.text()).toBe(fileBody);
     await session.close();
   });
 });
