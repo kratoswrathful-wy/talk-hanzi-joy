@@ -395,6 +395,8 @@ function buildFeeRpcPatch(
 
 async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, prev: TranslatorFee | undefined) {
   // 入列當下的 prev.updatedAt 會過期；連續改多欄時必須用前一筆已落地的 store 版本。
+  // 雙人同時改不同欄時，先重查遠端，避免用過期版本號把後面的寫入擋掉。
+  await requeryFeeFromView(id);
   const latest = fees.find((f) => f.id === id);
   const remote = feeLastRemote.get(id);
   if (hasExternalFeeFieldConflict(remote, prev, updates)) {

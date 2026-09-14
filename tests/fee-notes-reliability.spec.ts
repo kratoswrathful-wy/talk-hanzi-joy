@@ -104,7 +104,7 @@ describeNotes("F-T03 費用相關備註附件", () => {
     const { email, password } = credPm();
     const session = await loginAs(browser, email, password);
     const page = session.page;
-    const { token } = await restFor(page);
+    const { token, rest } = await restFor(page);
     const stamp = Date.now();
     const feeId = crypto.randomUUID();
     const insert = await restMutate(page.request, token, "POST", "fees", {
@@ -136,9 +136,12 @@ describeNotes("F-T03 費用相關備註附件", () => {
     await page.goto("/fees");
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByText(fileName)).toBeVisible({ timeout: 30_000 });
-    const href = await page.getByRole("link", { name: fileName }).getAttribute("href");
-    expect(href, "上傳成功後必須有可下載連結").toBeTruthy();
-    const downloaded = await page.request.get(href!);
+    const readback = await rest.get<Array<{ notes: Array<{ fileUrls?: Array<{ name: string; url: string }> }> }>>(
+      `fees_visible?select=id,notes&id=eq.${feeId}`,
+    );
+    const fileUrl = (readback[0]?.notes ?? []).flatMap((n) => n.fileUrls ?? []).find((f) => f.name === fileName)?.url;
+    expect(fileUrl, "上傳成功後資料庫必須有檔案網址").toBeTruthy();
+    const downloaded = await page.request.get(fileUrl!);
     expect(downloaded.ok(), `下載失敗 ${downloaded.status()}`).toBe(true);
     expect(await downloaded.text()).toContain(`ISO-FT03-UI-${stamp}`);
     await session.close();

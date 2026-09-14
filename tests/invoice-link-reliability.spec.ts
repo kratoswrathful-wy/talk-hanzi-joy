@@ -232,14 +232,12 @@ describeLink("B1 請款關聯失敗", () => {
       task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, unitPrice: 1 }],
     });
 
-    let linkAttempts = 0;
+    const beforeIds = new Set(
+      (await rest.get<Array<{ id: string }>>("client_invoices?select=id")).map((row) => row.id),
+    );
+
     await parkClientInvoiceLinks(page, async (route) => {
-      linkAttempts += 1;
-      if (linkAttempts === 1) {
-        await route.abort("timedout");
-        return;
-      }
-      await route.continue();
+      await route.abort("timedout");
     });
 
     await page.goto(`/fees/${feeId}`);
@@ -247,14 +245,26 @@ describeLink("B1 請款關聯失敗", () => {
     await page.getByRole("button", { name: "收錄至客戶請款單" }).click();
     await page.getByRole("menuitem", { name: "新建請款單" }).click();
     await expect(page.getByText(/結果不明|請勿再按/).first()).toBeVisible({ timeout: 20_000 });
+    await page.unroute("**/rest/v1/client_invoice_fees*");
+
+    const midIds = (await rest.get<Array<{ id: string }>>("client_invoices?select=id"))
+      .map((row) => row.id)
+      .filter((id) => !beforeIds.has(id));
+    expect(midIds.length, "關聯不明時應留下已建的單").toBe(1);
 
     await page.getByRole("button", { name: "收錄至客戶請款單" }).click();
     await page.getByRole("menuitem", { name: "新建請款單" }).click();
 
     await expect.poll(async () => {
-      const created = await rest.get<Array<{ id: string }>>(`client_invoices?select=id,title&title=like.*ISO-B1-RETRY-${stamp}*`);
-      return created.length;
+      const links = await rest.get<Array<{ client_invoice_id: string }>>(
+        `client_invoice_fees?select=client_invoice_id,fee_id&fee_id=eq.${feeId}`,
+      );
+      return links.length;
     }, { timeout: 20_000 }).toBe(1);
+    const afterIds = (await rest.get<Array<{ id: string }>>("client_invoices?select=id"))
+      .map((row) => row.id)
+      .filter((id) => !beforeIds.has(id));
+    expect(afterIds, "重試不得再建第二張空單").toEqual(midIds);
     await session.close();
   });
 });

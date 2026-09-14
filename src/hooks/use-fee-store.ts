@@ -16,8 +16,8 @@ export function useFeesLoaded() {
 }
 
 export function useFee(id: string | undefined) {
-  const fees = useFees();
-  return id ? fees.find((f) => f.id === id) : undefined;
+  useFees();
+  return id ? feeStore.getFeeById(id) : undefined;
 }
 
 export { feeStore };
