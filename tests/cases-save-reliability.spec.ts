@@ -735,7 +735,7 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     const nextTitle = `ISO-ASSIGN-${stamp}`;
     const nextPo = `PO-ASSIGN-${stamp}`;
     const nextKeyword = `KW-ASSIGN-${stamp}`;
-    const caseId = await createDraftViaRpc(page, `ISO-ASSIGN-SEED-${stamp}`);
+    const caseId = await createInquiryViaRpc(page, `ISO-ASSIGN-SEED-${stamp}`);
     const rest = restClient(page.request, await accessToken(page));
     const t1Id = await userIdByEmail(rest, credT1().email);
 
