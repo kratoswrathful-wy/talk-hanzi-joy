@@ -766,7 +766,8 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await expect(translator, "譯者選單必須出現合成譯者，不得點到測試模式按鈕").toBeVisible({ timeout: 30_000 });
     await translator.click();
     await expect(translatorRow(page).getByText("譯者一（測試）")).toBeVisible();
-    await expect(page.getByRole("button", { name: "PM（測試）" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "PM（測試）", exact: true })).toBeVisible();
 
     await expect.poll(async () => {
       const row = await rest.get<Array<{ translator: string[] | null }>>(
