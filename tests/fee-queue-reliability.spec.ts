@@ -394,17 +394,13 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
 
     await continueParked(gate);
     await page.unroute("**/rest/v1/rpc/apply_fee_update*");
+    // 他人先寫入的 9.5 已在後端；必須等到自己的 PO 也寫入，不能只看到單價就結束。
     await expect.poll(async () => {
       const row = await rest.get<Array<{ client_info: { clientPoNumber?: string; clientTaskItems?: Array<{ clientPrice?: number }> } }>>(
         `fees_visible?select=id,client_info&id=eq.${feeId}`,
       );
       return `${row[0]?.client_info?.clientPoNumber}|${row[0]?.client_info?.clientTaskItems?.[0]?.clientPrice}`;
-    }, { timeout: 20_000 }).toMatch(/9\.5$/);
-    const after = await rest.get<Array<{ client_info: { clientPoNumber?: string; clientTaskItems?: Array<{ clientPrice?: number }> } }>>(
-      `fees_visible?select=id,client_info&id=eq.${feeId}`,
-    );
-    expect(after[0]?.client_info?.clientTaskItems?.[0]?.clientPrice).toBe(9.5);
-    expect(after[0]?.client_info?.clientPoNumber).not.toBe("PO-OLD");
+    }, { timeout: 20_000 }).toBe(`${nextPo}|9.5`);
     await session.close();
   });
 
