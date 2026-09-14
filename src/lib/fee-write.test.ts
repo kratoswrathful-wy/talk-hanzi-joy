@@ -8,6 +8,12 @@ import {
   mergeFeeRemoteWithPending,
   nextFeeInFlightCount,
   persistFeeWriteConfirmed,
+  isFeeStaleVersionError,
+  shouldRetryFeePersistAfterStale,
+  parseFeePendingRecords,
+  serializeFeePendingRecords,
+  upsertFeePendingRecord,
+  removeFeePendingRecord,
   pickFeePersistExpectedUpdatedAt,
   readJsonNumber,
   stripFeeServerOwnedKeys,
@@ -126,6 +132,42 @@ describe("persistFeeWriteConfirmed", () => {
     expect(persistFeeWriteConfirmed({ error: null, data: { ok: true } })).toBe(true);
     expect(persistFeeWriteConfirmed({ error: null, data: null })).toBe(false);
     expect(persistFeeWriteConfirmed({ error: new Error("abort"), data: { ok: true } })).toBe(false);
+  });
+});
+
+describe("stale version retry", () => {
+  it("只有 stale_updated_at 且他人改不同欄才准重試", () => {
+    const queued = {
+      updatedAt: "v1",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-1" },
+    };
+    const otherField = {
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-1", reconciled: true },
+    };
+    const sameField = {
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-OTHER" },
+    };
+    const updates = { clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-MINE" } };
+    const stale = { error: new Error("stale_updated_at"), data: { ok: false, error: "stale_updated_at" } };
+    expect(isFeeStaleVersionError(stale)).toBe(true);
+    expect(isFeeStaleVersionError({ error: new Error("abort"), data: null })).toBe(false);
+    expect(shouldRetryFeePersistAfterStale(stale, otherField, queued, updates)).toBe(true);
+    expect(shouldRetryFeePersistAfterStale(stale, sameField, queued, updates)).toBe(false);
+    expect(shouldRetryFeePersistAfterStale({ error: new Error("abort"), data: null }, otherField, queued, updates)).toBe(false);
+  });
+});
+
+describe("fee pending storage records", () => {
+  it("同一費用覆寫、成功後可刪，壞 JSON 當空", () => {
+    const first = { env: "test", id: "f1", updates: { title: "A" } };
+    const second = { env: "test", id: "f1", updates: { title: "B" } };
+    const kept = upsertFeePendingRecord([first], second);
+    expect(kept).toEqual([second]);
+    expect(removeFeePendingRecord(kept, "test", "f1")).toEqual([]);
+    expect(parseFeePendingRecords(serializeFeePendingRecords(kept))).toEqual(kept);
+    expect(parseFeePendingRecords("not-json")).toEqual([]);
   });
 });
 

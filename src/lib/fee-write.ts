@@ -168,6 +168,66 @@ export function persistFeeWriteConfirmed(result: {
   return !result.error && result.data?.ok === true;
 }
 
+export const FEE_PENDING_STORAGE_KEY = "lms-fee-pending-writes";
+
+export type FeePendingRecord = {
+  env: string;
+  id: string;
+  updates: Record<string, unknown>;
+  prev?: FeeConflictSlice | null;
+};
+
+export function parseFeePendingRecords(raw: string | null): FeePendingRecord[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row): row is FeePendingRecord => {
+      if (!row || typeof row !== "object") return false;
+      const rec = row as Partial<FeePendingRecord>;
+      return typeof rec.env === "string" && typeof rec.id === "string" && !!rec.updates && typeof rec.updates === "object";
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function serializeFeePendingRecords(records: FeePendingRecord[]): string {
+  return JSON.stringify(records);
+}
+
+export function upsertFeePendingRecord(records: FeePendingRecord[], next: FeePendingRecord): FeePendingRecord[] {
+  return [...records.filter((row) => !(row.env === next.env && row.id === next.id)), next];
+}
+
+export function removeFeePendingRecord(records: FeePendingRecord[], env: string, id: string): FeePendingRecord[] {
+  return records.filter((row) => !(row.env === env && row.id === id));
+}
+
+/** RPC 因版本對不上而拒寫；中斷／權限失敗不算。 */
+export function isFeeStaleVersionError(result: {
+  error: unknown;
+  data?: ApplyFeeWriteResult | null;
+}): boolean {
+  if (result.data?.error === "stale_updated_at") return true;
+  return result.error instanceof Error && result.error.message === "stale_updated_at";
+}
+
+/**
+ * 寫入前重查之後、真正送出前又被他人改不同欄：可再用新版本重試，只送自己改的鍵。
+ * 同一欄已被他人改、或不是版本衝突，不得重試。
+ */
+export function shouldRetryFeePersistAfterStale(
+  result: { error: unknown; data?: ApplyFeeWriteResult | null },
+  remote: FeeConflictSlice | undefined,
+  queuedPrev: FeeConflictSlice | undefined,
+  updates: FeeConflictSlice,
+): boolean {
+  if (persistFeeWriteConfirmed(result)) return false;
+  if (!isFeeStaleVersionError(result)) return false;
+  return !hasExternalFeeFieldConflict(remote, queuedPrev, updates);
+}
+
 export function stripFeeServerOwnedKeys(patch: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
