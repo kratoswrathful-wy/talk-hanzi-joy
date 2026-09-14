@@ -16,6 +16,7 @@ import {
   serializeFeePendingRecords,
   upsertFeePendingRecord,
   removeFeePendingRecord,
+  selectFeePendingForSession,
   pickFeePersistExpectedUpdatedAt,
   readJsonNumber,
   stripFeeServerOwnedKeys,
@@ -176,13 +177,32 @@ describe("stale version retry", () => {
 
 describe("fee pending storage records", () => {
   it("同一費用覆寫、成功後可刪，壞 JSON 當空", () => {
-    const first = { env: "test", id: "f1", updates: { title: "A" } };
-    const second = { env: "test", id: "f1", updates: { title: "B" } };
+    const first = { env: "test", userId: "u1", id: "f1", updates: { title: "A" } };
+    const second = { env: "test", userId: "u1", id: "f1", updates: { title: "B" } };
     const kept = upsertFeePendingRecord([first], second);
     expect(kept).toEqual([second]);
-    expect(removeFeePendingRecord(kept, "test", "f1")).toEqual([]);
+    expect(removeFeePendingRecord(kept, "test", "u1", "f1")).toEqual([]);
     expect(parseFeePendingRecords(serializeFeePendingRecords(kept))).toEqual(kept);
     expect(parseFeePendingRecords("not-json")).toEqual([]);
+  });
+
+  it("缺帳號的舊紀錄不重播；換帳號或換環境不得灌回", () => {
+    const mine = { env: "test", userId: "u1", id: "f1", updates: { title: "A" } };
+    const otherUser = { env: "test", userId: "u2", id: "f1", updates: { title: "B" } };
+    const otherEnv = { env: "production", userId: "u1", id: "f2", updates: { title: "C" } };
+    const parsed = parseFeePendingRecords(JSON.stringify([
+      mine,
+      otherUser,
+      otherEnv,
+      { env: "test", id: "f3", updates: { title: "legacy" } },
+    ]));
+    expect(parsed).toEqual([mine, otherUser, otherEnv]);
+    expect(selectFeePendingForSession(parsed, "test", "u1")).toEqual([mine]);
+    expect(selectFeePendingForSession(parsed, "test", "")).toEqual([]);
+    expect(selectFeePendingForSession(parsed, "test", "u2")).toEqual([otherUser]);
+    const both = upsertFeePendingRecord([mine], otherUser);
+    expect(both).toHaveLength(2);
+    expect(removeFeePendingRecord(both, "test", "u1", "f1")).toEqual([otherUser]);
   });
 });
 

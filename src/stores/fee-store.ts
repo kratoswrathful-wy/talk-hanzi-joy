@@ -2,7 +2,7 @@ import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditL
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
-import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
+import { AuthRecoverableError, getAuthSnapshot, getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import { createKeyedQueue } from "@/lib/case-write-queue";
 import {
@@ -24,6 +24,7 @@ import {
   serializeFeePendingRecords,
   upsertFeePendingRecord,
   removeFeePendingRecord,
+  selectFeePendingForSession,
   type FeePendingRecord,
 } from "@/lib/fee-write";
 import { notesFromJson, notesToJson } from "@/lib/fee-notes";
@@ -334,6 +335,24 @@ const feeInFlightCount = new Map<string, number>();
 const feeLastRemote = new Map<string, TranslatorFee>();
 const feePendingQueuedPrev = new Map<string, TranslatorFee>();
 let feePendingReplayStarted = false;
+let feePendingOwnerKey: string | null = null;
+
+function pendingOwnerKey(env: string, userId: string): string {
+  return `${env}:${userId}`;
+}
+
+function currentPendingOwner(): { env: string; userId: string } | null {
+  const userId = getAuthSnapshot().user?.id;
+  if (!userId) return null;
+  return { env: getEnvironment(), userId };
+}
+
+function resetFeePendingMemory() {
+  feeInFlight.clear();
+  feePendingQueuedPrev.clear();
+  feeInFlightCount.clear();
+  feePendingReplayStarted = false;
+}
 
 function readStoredFeePending(): FeePendingRecord[] {
   if (typeof sessionStorage === "undefined") return [];
@@ -356,10 +375,12 @@ function writeStoredFeePending(records: FeePendingRecord[]) {
 
 function rememberFeePending(id: string, updates: Partial<TranslatorFee>, prev?: TranslatorFee) {
   if (prev && !feePendingQueuedPrev.has(id)) feePendingQueuedPrev.set(id, prev);
-  const env = getEnvironment();
+  const owner = currentPendingOwner();
+  if (!owner) return;
   writeStoredFeePending(
     upsertFeePendingRecord(readStoredFeePending(), {
-      env,
+      env: owner.env,
+      userId: owner.userId,
       id,
       updates: { ...(feeInFlight.get(id) ?? {}) } as Record<string, unknown>,
       prev: feePendingQueuedPrev.get(id) ?? prev ?? null,
@@ -369,13 +390,19 @@ function rememberFeePending(id: string, updates: Partial<TranslatorFee>, prev?: 
 
 function forgetFeePending(id: string) {
   feePendingQueuedPrev.delete(id);
-  writeStoredFeePending(removeFeePendingRecord(readStoredFeePending(), getEnvironment(), id));
+  const owner = currentPendingOwner();
+  if (!owner) return;
+  writeStoredFeePending(removeFeePendingRecord(readStoredFeePending(), owner.env, owner.userId, id));
 }
 
-function hydrateFeePendingFromStorage() {
+function hydrateFeePendingFromStorage(userId: string) {
   const env = getEnvironment();
-  for (const rec of readStoredFeePending()) {
-    if (rec.env !== env) continue;
+  const ownerKey = pendingOwnerKey(env, userId);
+  if (feePendingOwnerKey !== ownerKey) {
+    resetFeePendingMemory();
+    feePendingOwnerKey = ownerKey;
+  }
+  for (const rec of selectFeePendingForSession(readStoredFeePending(), env, userId)) {
     if (feeInFlight.has(rec.id)) continue;
     feeInFlight.set(rec.id, rec.updates as Partial<TranslatorFee>);
     if (rec.prev && typeof rec.prev === "object") {
@@ -383,8 +410,6 @@ function hydrateFeePendingFromStorage() {
     }
   }
 }
-
-hydrateFeePendingFromStorage();
 
 function rememberRemoteFee(row: TranslatorFee) {
   feeLastRemote.set(row.id, row);
@@ -613,6 +638,8 @@ export const feeStore = {
           if (!user) {
             fees = [];
             loaded = false;
+            resetFeePendingMemory();
+            feePendingOwnerKey = null;
             notify();
             lastResult = { error: null };
             continue;
@@ -630,6 +657,7 @@ export const feeStore = {
             continue;
           }
           if (!error && data) {
+            hydrateFeePendingFromStorage(user.id);
             fees = (data as DbFee[]).map((row) => applyRemoteFeeRow(dbToApp(row)));
             loaded = true;
             notify();

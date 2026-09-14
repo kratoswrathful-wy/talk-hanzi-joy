@@ -172,10 +172,29 @@ export const FEE_PENDING_STORAGE_KEY = "lms-fee-pending-writes";
 
 export type FeePendingRecord = {
   env: string;
+  userId: string;
   id: string;
   updates: Record<string, unknown>;
   prev?: FeeConflictSlice | null;
 };
+
+export function isFeePendingOwnedBySession(
+  rec: Pick<FeePendingRecord, "env" | "userId">,
+  env: string,
+  userId: string,
+): boolean {
+  return rec.env === env && rec.userId === userId && userId.length > 0;
+}
+
+/** 只灌回目前登入者＋目前環境的待送；缺帳號或舊紀錄無 userId 一律不重播。 */
+export function selectFeePendingForSession(
+  records: FeePendingRecord[],
+  env: string,
+  userId: string,
+): FeePendingRecord[] {
+  if (!userId) return [];
+  return records.filter((row) => isFeePendingOwnedBySession(row, env, userId));
+}
 
 export function parseFeePendingRecords(raw: string | null): FeePendingRecord[] {
   if (!raw) return [];
@@ -185,7 +204,14 @@ export function parseFeePendingRecords(raw: string | null): FeePendingRecord[] {
     return parsed.filter((row): row is FeePendingRecord => {
       if (!row || typeof row !== "object") return false;
       const rec = row as Partial<FeePendingRecord>;
-      return typeof rec.env === "string" && typeof rec.id === "string" && !!rec.updates && typeof rec.updates === "object";
+      return (
+        typeof rec.env === "string" &&
+        typeof rec.userId === "string" &&
+        rec.userId.length > 0 &&
+        typeof rec.id === "string" &&
+        !!rec.updates &&
+        typeof rec.updates === "object"
+      );
     });
   } catch {
     return [];
@@ -197,11 +223,19 @@ export function serializeFeePendingRecords(records: FeePendingRecord[]): string 
 }
 
 export function upsertFeePendingRecord(records: FeePendingRecord[], next: FeePendingRecord): FeePendingRecord[] {
-  return [...records.filter((row) => !(row.env === next.env && row.id === next.id)), next];
+  return [
+    ...records.filter((row) => !(row.env === next.env && row.userId === next.userId && row.id === next.id)),
+    next,
+  ];
 }
 
-export function removeFeePendingRecord(records: FeePendingRecord[], env: string, id: string): FeePendingRecord[] {
-  return records.filter((row) => !(row.env === env && row.id === id));
+export function removeFeePendingRecord(
+  records: FeePendingRecord[],
+  env: string,
+  userId: string,
+  id: string,
+): FeePendingRecord[] {
+  return records.filter((row) => !(row.env === env && row.userId === userId && row.id === id));
 }
 
 /** RPC 因版本對不上而拒寫；中斷／權限失敗不算。 */
