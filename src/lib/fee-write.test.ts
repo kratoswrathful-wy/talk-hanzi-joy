@@ -9,6 +9,8 @@ import {
   nextFeeInFlightCount,
   persistFeeWriteConfirmed,
   isFeeStaleVersionError,
+  isFeeWriteInterrupted,
+  shouldKeepFeePendingAcrossReload,
   shouldRetryFeePersistAfterStale,
   parseFeePendingRecords,
   serializeFeePendingRecords,
@@ -132,6 +134,19 @@ describe("persistFeeWriteConfirmed", () => {
     expect(persistFeeWriteConfirmed({ error: null, data: { ok: true } })).toBe(true);
     expect(persistFeeWriteConfirmed({ error: null, data: null })).toBe(false);
     expect(persistFeeWriteConfirmed({ error: new Error("abort"), data: { ok: true } })).toBe(false);
+  });
+});
+
+describe("pending across reload", () => {
+  it("只有中斷才帶到下一頁；明確失敗清掉跨頁待送", () => {
+    const aborted = new Error("The operation was aborted.");
+    aborted.name = "AbortError";
+    expect(isFeeWriteInterrupted(aborted)).toBe(true);
+    expect(isFeeWriteInterrupted(new Error("Failed to fetch"))).toBe(true);
+    expect(isFeeWriteInterrupted(new Error("iso_ft03_forced_fail"))).toBe(false);
+    expect(shouldKeepFeePendingAcrossReload(true, new Error("Failed to fetch"))).toBe(true);
+    expect(shouldKeepFeePendingAcrossReload(true, new Error("iso_ft03_forced_fail"))).toBe(false);
+    expect(shouldKeepFeePendingAcrossReload(false, new Error("Failed to fetch"))).toBe(false);
   });
 });
 

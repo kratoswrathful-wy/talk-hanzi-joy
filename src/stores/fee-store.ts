@@ -15,6 +15,7 @@ import {
   mergeFeeRemoteWithPending,
   persistFeeWriteConfirmed,
   isFeeStaleVersionError,
+  shouldKeepFeePendingAcrossReload,
   readJsonNumber,
   nextFeeInFlightCount,
   pickFeePersistExpectedUpdatedAt,
@@ -516,6 +517,23 @@ async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, pre
   return null;
 }
 
+function finishFeeWriteJob(id: string, failed: boolean, jobError: unknown) {
+  const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
+  if (remaining > 0) {
+    feeInFlightCount.set(id, remaining);
+    return;
+  }
+  feeInFlightCount.delete(id);
+  if (shouldDropFeePendingAfterJob(remaining, failed)) {
+    feeInFlight.delete(id);
+    forgetFeePending(id);
+    return;
+  }
+  if (!shouldKeepFeePendingAcrossReload(failed, jobError)) {
+    forgetFeePending(id);
+  }
+}
+
 function replayHydratedFeeWrites() {
   if (feePendingReplayStarted) return;
   feePendingReplayStarted = true;
@@ -525,24 +543,18 @@ function replayHydratedFeeWrites() {
     feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
     void feeWriteQueue.enqueue(id, async () => {
       let failed = false;
+      let jobError: unknown = null;
       try {
         const err = await persistFeeUpdate(id, updates, prev);
         failed = !!err;
+        jobError = err;
         return err;
       } catch (error) {
         failed = true;
+        jobError = error;
         return error instanceof Error ? error : new Error("apply_fee_update_failed");
       } finally {
-        const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
-        if (remaining > 0) {
-          feeInFlightCount.set(id, remaining);
-        } else {
-          feeInFlightCount.delete(id);
-          if (shouldDropFeePendingAfterJob(remaining, failed)) {
-            feeInFlight.delete(id);
-            forgetFeePending(id);
-          }
-        }
+        finishFeeWriteJob(id, failed, jobError);
       }
     });
   }
@@ -651,24 +663,18 @@ export const feeStore = {
     notify();
     return feeWriteQueue.enqueue(id, async () => {
       let failed = false;
+      let jobError: unknown = null;
       try {
         const err = await persistFeeUpdate(id, updates, prev);
         failed = !!err;
+        jobError = err;
         return err;
       } catch (error) {
         failed = true;
+        jobError = error;
         return error instanceof Error ? error : new Error("apply_fee_update_failed");
       } finally {
-        const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
-        if (remaining > 0) {
-          feeInFlightCount.set(id, remaining);
-        } else {
-          feeInFlightCount.delete(id);
-          if (shouldDropFeePendingAfterJob(remaining, failed)) {
-            feeInFlight.delete(id);
-            forgetFeePending(id);
-          }
-        }
+        finishFeeWriteJob(id, failed, jobError);
       }
     });
   },

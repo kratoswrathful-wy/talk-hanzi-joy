@@ -217,6 +217,18 @@ export function isFeeStaleVersionError(result: {
  * 寫入前重查之後、真正送出前又被他人改不同欄：可再用新版本重試，只送自己改的鍵。
  * 同一欄已被他人改、或不是版本衝突，不得重試。
  */
+/** 中斷／離頁才把待送帶到下一頁；明確拒絕不得重載後再當待送去送。 */
+export function isFeeWriteInterrupted(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError" || error.name === "TimeoutError") return true;
+  return /abort|failed to fetch|networkerror|load failed|the operation was aborted/i.test(error.message);
+}
+
+export function shouldKeepFeePendingAcrossReload(failed: boolean, error: unknown): boolean {
+  if (!failed) return false;
+  return isFeeWriteInterrupted(error);
+}
+
 export function shouldRetryFeePersistAfterStale(
   result: { error: unknown; data?: ApplyFeeWriteResult | null },
   remote: FeeConflictSlice | undefined,

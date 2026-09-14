@@ -25,11 +25,19 @@ function credExec() {
   return { email: email!, password: password! };
 }
 
-type Gate = { parked: Route[] };
+type Gate = { parked: Route[]; passThrough: boolean };
+
+function newFeeGate(): Gate {
+  return { parked: [], passThrough: false };
+}
 
 async function parkApplyFee(page: Page, gate: Gate) {
   await page.route("**/rest/v1/rpc/apply_fee_update*", async (route) => {
     if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    if (gate.passThrough) {
       await route.continue();
       return;
     }
@@ -38,6 +46,7 @@ async function parkApplyFee(page: Page, gate: Gate) {
 }
 
 async function continueParked(gate: Gate) {
+  gate.passThrough = true;
   const batch = gate.parked.splice(0, gate.parked.length);
   await Promise.all(batch.map((route) => route.continue()));
 }
@@ -85,7 +94,7 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
       task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 100, unitPrice: 3 }],
     });
 
-    const gate: Gate = { parked: [] };
+    const gate = newFeeGate();
     await parkApplyFee(page, gate);
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
@@ -150,7 +159,7 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
       task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 100, unitPrice: 3 }],
     });
 
-    const gate: Gate = { parked: [] };
+    const gate = newFeeGate();
     await parkApplyFee(page, gate);
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
@@ -212,7 +221,7 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
       task_items: [{ id: "ti-1", taskType: "翻譯", billingUnit: "字", unitCount: 10, unitPrice: 1 }],
     });
 
-    const gate: Gate = { parked: [] };
+    const gate = newFeeGate();
     await parkApplyFee(page, gate);
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
@@ -259,7 +268,7 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
     );
     expect(before[0]?.updated_at).toBeTruthy();
 
-    const gate: Gate = { parked: [] };
+    const gate = newFeeGate();
     await parkApplyFee(page, gate);
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
@@ -367,7 +376,7 @@ describeQueue("F-T07／08／09 費用排隊與重載", () => {
     );
     expect(before[0]?.updated_at).toBeTruthy();
 
-    const gate: Gate = { parked: [] };
+    const gate = newFeeGate();
     await parkApplyFee(page, gate);
     await page.goto(`/fees/${feeId}`);
     await expect(page.getByText("費用相關備註")).toBeVisible({ timeout: 30_000 });
