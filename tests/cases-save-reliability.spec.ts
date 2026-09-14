@@ -767,8 +767,10 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     await translator.click();
 
     await expect.poll(async () => {
-      const people = await readParticipants(rest, caseId);
-      return people.some((row) => row.user_id === t1Id && !row.access_revoked_at);
+      const row = await rest.get<Array<{ translator: string[] | null }>>(
+        `cases_visible?select=translator&id=eq.${caseId}`,
+      );
+      return (row[0]?.translator ?? []).includes("譯者一（測試）");
     }, { timeout: 30_000 }).toBe(true);
 
     await page.getByRole("button", { name: "確定指派" }).click();
