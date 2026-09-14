@@ -244,6 +244,8 @@ export default function ColorSelect({
               {displayOptions.map((opt) => (
                 <div key={opt.id} className="relative group">
                   <button
+                    type="button"
+                    data-testid={fieldKey === "assignee" ? `assignee-option-${opt.label}` : undefined}
                     className={cn(
                       "flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm transition-colors hover:bg-accent hover:text-accent-foreground text-left",
                       value === opt.label && "bg-destructive/30"

@@ -762,9 +762,11 @@ describeSave("TASK-001 儲存可靠性隔離驗證", () => {
     const trigger = translatorRow(page).getByRole("button").first();
     await expect(trigger, "譯者指派入口必須可操作").toBeVisible({ timeout: 30_000 });
     await trigger.click();
-    const translator = page.getByText("譯者一（測試）", { exact: true }).first();
-    await expect(translator).toBeVisible({ timeout: 30_000 });
+    const translator = page.getByTestId("assignee-option-譯者一（測試）");
+    await expect(translator, "譯者選單必須出現合成譯者，不得點到測試模式按鈕").toBeVisible({ timeout: 30_000 });
     await translator.click();
+    await expect(translatorRow(page).getByText("譯者一（測試）")).toBeVisible();
+    await expect(page.getByRole("button", { name: "PM（測試）" })).toBeVisible();
 
     await expect.poll(async () => {
       const row = await rest.get<Array<{ translator: string[] | null }>>(
