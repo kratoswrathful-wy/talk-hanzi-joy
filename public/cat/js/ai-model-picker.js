@@ -12,17 +12,17 @@
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this, function () {
     'use strict';
 
-    var FALLBACK_MODEL_ID = 'gpt-4.1-mini';
-    var DEFAULT_MODEL_ID = 'gpt-5.5';
+    var FALLBACK_MODEL_ID = 'gpt-5.6-luna';
+    var DEFAULT_MODEL_ID = 'gpt-5.6-sol';
     var TEMPERATURE_HINT_ZH = '此模型需省略 temperature（CAT 呼叫時不送自訂 temperature）';
 
-    /** 2026-07-06 production 精選五模型；offline / RPC 失敗時使用。 */
+    /** 2026-09-19 精選四模型；offline / RPC 失敗時使用。正式 registry 未寫入前，線上仍可能看到舊清單。 */
     var OFFLINE_MANIFEST = [
         {
-            modelId: 'gpt-5.5',
-            displayNameZh: 'GPT-5.5',
+            modelId: 'gpt-5.6-sol',
+            displayNameZh: 'GPT-5.6 Sol',
             shortLabelZh: '高品質預設',
-            usageHintZh: '品質優先，適合正式譯稿、QA 複查與需較高語意準確度的句段。此模型呼叫時不送自訂 temperature。',
+            usageHintZh: '承接原高品質預設位置，適合正式譯稿、QA 複查與需較高語意準確度的句段。此模型呼叫時不送自訂 temperature。',
             enabled: true,
             isDefault: true,
             sortOrder: 10,
@@ -31,10 +31,10 @@
             providerAvailable: true
         },
         {
-            modelId: 'gpt-5.4-mini',
-            displayNameZh: 'GPT-5.4 mini',
-            shortLabelZh: '快速省用',
-            usageHintZh: '速度與成本較平衡，適合日常批次翻譯與大量句段初稿。',
+            modelId: 'gpt-5.6-terra',
+            displayNameZh: 'GPT-5.6 Terra',
+            shortLabelZh: '均衡',
+            usageHintZh: '品質與成本較平衡，適合日常批次翻譯與大量句段初稿。此模型呼叫時不送自訂 temperature。',
             enabled: true,
             isDefault: false,
             sortOrder: 20,
@@ -43,10 +43,10 @@
             providerAvailable: true
         },
         {
-            modelId: 'gpt-4.1',
-            displayNameZh: 'GPT-4.1',
-            shortLabelZh: '穩定通用',
-            usageHintZh: 'GPT-5 系列以外的穩定選項，輸出風格可預期，適合一般翻譯與確認作業。',
+            modelId: 'gpt-5.6-luna',
+            displayNameZh: 'GPT-5.6 Luna',
+            shortLabelZh: '低成本備援',
+            usageHintZh: '成本較低，適合大量預翻、初稿與可接受較輕量品質的批次；亦作系統備援模型。',
             enabled: true,
             isDefault: false,
             sortOrder: 30,
@@ -55,25 +55,13 @@
             providerAvailable: true
         },
         {
-            modelId: 'gpt-4.1-mini',
-            displayNameZh: 'GPT-4.1 mini',
-            shortLabelZh: '低成本備援',
-            usageHintZh: '成本最低，適合大量預翻、初稿與可接受較輕量品質的批次；亦作系統備援模型。',
+            modelId: 'gpt-6-astra',
+            displayNameZh: 'GPT-6 Astra',
+            shortLabelZh: '手動高品質',
+            usageHintZh: '手動選擇的高品質選項，不強迫全站預設升到 6。官方要求呼叫時不送 temperature。',
             enabled: true,
             isDefault: false,
             sortOrder: 40,
-            supportsChatCompletions: true,
-            supportsResponsesApi: true,
-            providerAvailable: true
-        },
-        {
-            modelId: 'gpt-5.5-pro',
-            displayNameZh: 'GPT-5.5 pro',
-            shortLabelZh: '最高品質',
-            usageHintZh: '最高品質手動選項，適合特別重要、成本不敏感或需要更強語意推理的譯稿與 QA 複查。此模型呼叫時不送自訂 temperature。',
-            enabled: true,
-            isDefault: false,
-            sortOrder: 50,
             supportsChatCompletions: true,
             supportsResponsesApi: true,
             providerAvailable: true
@@ -86,7 +74,9 @@
         }
         var id = String(modelId || '').trim().toLowerCase();
         if (!id) return false;
-        return /^gpt-5\.5(-pro)?(-\d{4}-\d{2}-\d{2})?$/.test(id);
+        return /^gpt-5\.5(-pro)?(-\d{4}-\d{2}-\d{2})?$/.test(id)
+            || /^gpt-5\.6(-sol|-terra|-luna)?(-\d{4}-\d{2}-\d{2})?$/.test(id)
+            || /^gpt-6-astra(-\d{4}-\d{2}-\d{2})?$/.test(id);
     }
 
     function sortRows(rows) {

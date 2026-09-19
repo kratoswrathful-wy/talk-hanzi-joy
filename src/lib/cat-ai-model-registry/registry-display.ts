@@ -1,6 +1,6 @@
 import { shouldOmitTemperature } from "./model-capabilities";
 
-export const FALLBACK_MODEL_ID = "gpt-4.1-mini";
+export const FALLBACK_MODEL_ID = "gpt-5.6-luna";
 
 export type RegistryRowFlags = {
   isDefault: boolean;
@@ -50,7 +50,7 @@ export function sortRegistryRows<T extends { sort_order: number; display_name_zh
   });
 }
 
-/** 精選模型選單預設值：優先 `is_default=true`（目前 gpt-5.5），否則取排序後第一筆。 */
+/** 精選模型選單預設值：優先 `is_default=true`（目前 gpt-5.6-sol），否則取排序後第一筆。 */
 export function pickDefaultModelOption<T extends { model_id: string; is_default: boolean }>(
   rows: T[],
 ): T | undefined {
@@ -59,13 +59,13 @@ export function pickDefaultModelOption<T extends { model_id: string; is_default:
 }
 
 /**
- * 保留已存 model（若在 enabled 清單內）；否則 fallback registry default（gpt-5.5）。
+ * 保留已存 model（若在 enabled 清單內）；否則 fallback registry default（gpt-5.6-sol）。
  * 不自動寫入 cat_ai_settings。
  */
 export function resolveSavedModelId(
   savedModel: string | null | undefined,
   options: Array<{ model_id: string; is_default: boolean }>,
-  fallbackModelId = "gpt-5.5",
+  fallbackModelId = "gpt-5.6-sol",
 ): string {
   const normalized = String(savedModel ?? "").trim();
   if (normalized && options.some((row) => row.model_id === normalized)) {

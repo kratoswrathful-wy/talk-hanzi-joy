@@ -9,6 +9,18 @@ describe("shouldOmitTemperature", () => {
     expect(shouldOmitTemperature("gpt-5.5-pro-2026-04-23")).toBe(true);
   });
 
+  it("matches GPT-6 Astra from official unsupported-temperature guidance", () => {
+    expect(shouldOmitTemperature("gpt-6-astra")).toBe(true);
+    expect(shouldOmitTemperature("gpt-6-astra-2026-09-03")).toBe(true);
+  });
+
+  it("matches GPT-5.6 family after live 400 on custom temperature", () => {
+    expect(shouldOmitTemperature("gpt-5.6")).toBe(true);
+    expect(shouldOmitTemperature("gpt-5.6-sol")).toBe(true);
+    expect(shouldOmitTemperature("gpt-5.6-terra")).toBe(true);
+    expect(shouldOmitTemperature("gpt-5.6-luna")).toBe(true);
+  });
+
   it("does not match other models", () => {
     expect(shouldOmitTemperature("gpt-4.1-mini")).toBe(false);
   });

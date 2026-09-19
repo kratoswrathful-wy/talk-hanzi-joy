@@ -32246,7 +32246,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (window.CatAiModelPicker && typeof window.CatAiModelPicker.getSelectedModelId === 'function') {
                 return window.CatAiModelPicker.getSelectedModelId(modelSelect);
             }
-            return modelSelect?.value || 'gpt-5.5';
+            return modelSelect?.value || (window.CatAiModelPicker && window.CatAiModelPicker.DEFAULT_MODEL_ID) || 'gpt-5.6-sol';
         }
 
         const saveBtn = document.getElementById('btnSaveAiSettings');

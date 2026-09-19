@@ -2120,7 +2120,7 @@ const DBService = {
             id: 1,
             apiKey: '',
             apiBaseUrl: '',
-            model: 'gpt-4.1-mini',
+            model: 'gpt-5.6-luna',
             batchSize: 20,
             preferOpenAiProxy: true,
             prompts: {

@@ -30,37 +30,41 @@ function loadCatAiModelPicker() {
 const picker = loadCatAiModelPicker();
 
 describe("CatAiModelPicker (cat-tool/js/ai-model-picker.js)", () => {
-  it("offline manifest has five curated models", () => {
-    expect(picker.OFFLINE_MANIFEST).toHaveLength(5);
+  it("offline manifest has four curated models", () => {
+    expect(picker.OFFLINE_MANIFEST).toHaveLength(4);
     expect(picker.OFFLINE_MANIFEST.map((row) => row.modelId)).toEqual([
-      "gpt-5.5",
-      "gpt-5.4-mini",
-      "gpt-4.1",
-      "gpt-4.1-mini",
-      "gpt-5.5-pro",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-6-astra",
     ]);
+    expect(picker.DEFAULT_MODEL_ID).toBe("gpt-5.6-sol");
   });
 
-  it("resolveSelectedModelId keeps gpt-4.1 when in list", () => {
-    const id = picker.resolveSelectedModelId("gpt-4.1", picker.OFFLINE_MANIFEST);
-    expect(id).toBe("gpt-4.1");
+  it("resolveSelectedModelId keeps gpt-5.6-terra when in list", () => {
+    const id = picker.resolveSelectedModelId("gpt-5.6-terra", picker.OFFLINE_MANIFEST);
+    expect(id).toBe("gpt-5.6-terra");
   });
 
-  it("resolveSelectedModelId falls back to gpt-5.5 when saved model disabled", () => {
-    const id = picker.resolveSelectedModelId("gpt-4o", picker.OFFLINE_MANIFEST);
-    expect(id).toBe("gpt-5.5");
+  it("resolveSelectedModelId falls back to gpt-5.6-sol when saved model unknown", () => {
+    const id = picker.resolveSelectedModelId("gpt-5.5", picker.OFFLINE_MANIFEST);
+    expect(id).toBe("gpt-5.6-sol");
   });
 
-  it("formatOptionLabel shows default and pro copy", () => {
+  it("formatOptionLabel shows default and astra copy", () => {
     const defaultRow = picker.OFFLINE_MANIFEST[0];
-    const proRow = picker.OFFLINE_MANIFEST[4];
+    const astraRow = picker.OFFLINE_MANIFEST[3];
     expect(picker.formatOptionLabel(defaultRow)).toContain("預設");
-    expect(picker.formatOptionLabel(proRow)).toContain("最高品質");
+    expect(picker.formatOptionLabel(astraRow)).toContain("手動高品質");
+    expect(picker.formatOptionLabel(picker.OFFLINE_MANIFEST[2])).toContain("備援");
   });
 
-  it("shouldOmitTemperature for gpt-5.5 and gpt-5.5-pro", () => {
+  it("shouldOmitTemperature for 5.5, 5.6 and Astra", () => {
     expect(picker.shouldOmitTemperature("gpt-5.5")).toBe(true);
     expect(picker.shouldOmitTemperature("gpt-5.5-pro")).toBe(true);
-    expect(picker.shouldOmitTemperature("gpt-4.1")).toBe(false);
+    expect(picker.shouldOmitTemperature("gpt-5.6-sol")).toBe(true);
+    expect(picker.shouldOmitTemperature("gpt-5.6-luna")).toBe(true);
+    expect(picker.shouldOmitTemperature("gpt-6-astra")).toBe(true);
+    expect(picker.shouldOmitTemperature("gpt-4.1-mini")).toBe(false);
   });
 });

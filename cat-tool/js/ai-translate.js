@@ -213,13 +213,18 @@
         if (window.CatAiModelTemperature && typeof window.CatAiModelTemperature.buildOpenAiChatBody === 'function') {
             return window.CatAiModelTemperature.buildOpenAiChatBody(settings, messages, extra);
         }
-        const model = settings.model || 'gpt-4.1-mini';
-        return {
-            model,
-            messages,
-            ...extra,
-            temperature: extra.temperature != null ? extra.temperature : 0.3
-        };
+        const model = settings.model || 'gpt-5.6-luna';
+        const body = { model, messages, ...extra };
+        const id = String(model || '').trim().toLowerCase();
+        const omitTemp = /^gpt-5\.5(-pro)?(-\d{4}-\d{2}-\d{2})?$/.test(id)
+            || /^gpt-5\.6(-sol|-terra|-luna)?(-\d{4}-\d{2}-\d{2})?$/.test(id)
+            || /^gpt-6-astra(-\d{4}-\d{2}-\d{2})?$/.test(id);
+        if (omitTemp) {
+            delete body.temperature;
+            return body;
+        }
+        body.temperature = extra.temperature != null ? extra.temperature : 0.3;
+        return body;
     }
 
     /**

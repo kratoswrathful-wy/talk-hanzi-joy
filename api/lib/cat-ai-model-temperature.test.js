@@ -34,6 +34,17 @@ describe("CatAiModelTemperature (cat-tool/js/ai-model-temperature.js)", () => {
       expect(shouldOmitTemperature("gpt-5.5-pro-2026-04-23")).toBe(true);
     });
 
+    it("omits GPT-6 Astra from official unsupported-temperature guidance", () => {
+      expect(shouldOmitTemperature("gpt-6-astra")).toBe(true);
+    });
+
+    it("omits GPT-5.6 family after live 400 on custom temperature", () => {
+      expect(shouldOmitTemperature("gpt-5.6")).toBe(true);
+      expect(shouldOmitTemperature("gpt-5.6-sol")).toBe(true);
+      expect(shouldOmitTemperature("gpt-5.6-terra")).toBe(true);
+      expect(shouldOmitTemperature("gpt-5.6-luna")).toBe(true);
+    });
+
     it("keeps temperature for other models", () => {
       expect(shouldOmitTemperature("gpt-4.1-mini")).toBe(false);
     });
@@ -57,6 +68,18 @@ describe("CatAiModelTemperature (cat-tool/js/ai-model-temperature.js)", () => {
 
     it("omits temperature for gpt-5.5-pro", () => {
       const body = buildOpenAiChatBody({ model: "gpt-5.5-pro" }, messages, {});
+      expect(body).not.toHaveProperty("temperature");
+    });
+
+    it("omits temperature for gpt-6-astra and uses selected model id", () => {
+      const body = buildOpenAiChatBody({ model: "gpt-6-astra" }, messages, {});
+      expect(body.model).toBe("gpt-6-astra");
+      expect(body).not.toHaveProperty("temperature");
+    });
+
+    it("uses luna when settings.model is empty and omits temperature", () => {
+      const body = buildOpenAiChatBody({}, messages, {});
+      expect(body.model).toBe("gpt-5.6-luna");
       expect(body).not.toHaveProperty("temperature");
     });
 
