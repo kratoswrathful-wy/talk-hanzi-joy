@@ -46,9 +46,37 @@ export function isDefiniteCaseCreateError(error: unknown): boolean {
   return error instanceof Error;
 }
 
+const CREATE_FAILED_REASON: Record<string, string> = {
+  missing_reviewer_user_id:
+    "後端已明確拒絕，未建立任何案件。審稿人員只有姓名、沒有對應帳號，請從選單點選既有人員，或先建空白案件再指定。這不是權限不足。",
+  missing_translator_user_id:
+    "後端已明確拒絕，未建立任何案件。譯者只有姓名、沒有對應帳號，請從選單點選既有人員，或先建空白案件再指定。這不是權限不足。",
+  hidden_reviewer_participant:
+    "後端已明確拒絕，未建立任何案件。審稿人員帳號與顯示名不一致，請重新從選單點選。",
+  not_authorized:
+    "後端已明確拒絕，未建立任何案件。目前身分沒有新增案件的權限。",
+};
+
+const KNOWN_CREATE_ERROR_CODES = Object.keys(CREATE_FAILED_REASON);
+
+export function caseCreateErrorCode(error: unknown): string | undefined {
+  const text = caseCreateErrorText(error);
+  return KNOWN_CREATE_ERROR_CODES.find((code) => text.includes(code));
+}
+
+export function describeOmittedCreateAssignments(labels: string[]): CaseCreateFeedback | null {
+  if (labels.length === 0) return null;
+  return {
+    navigateToCase: true,
+    title: "已新增案件",
+    description: `範本裡的${labels.join("、")}只有姓名、沒有帳號識別，本次未帶入。請在案件裡從選單點選人員。`,
+  };
+}
+
 export function describeCaseCreateOutcome(input: {
   kind: CaseCreateOutcomeKind;
   caseId?: string;
+  errorCode?: string;
 }): CaseCreateFeedback {
   const id = input.caseId ?? "";
   switch (input.kind) {
@@ -76,7 +104,11 @@ export function describeCaseCreateOutcome(input: {
       return {
         navigateToCase: false,
         title: "無法新增案件",
-        description: "後端已明確拒絕，未建立任何案件。請確認權限或稍後再試。",
+        description:
+          (input.errorCode && CREATE_FAILED_REASON[input.errorCode])
+          || (input.errorCode
+            ? `後端已明確拒絕，未建立任何案件。原因：${input.errorCode}。`
+            : "後端已明確拒絕，未建立任何案件。請確認權限或稍後再試。"),
         variant: "destructive",
       };
     case "no_session":
@@ -87,4 +119,22 @@ export function describeCaseCreateOutcome(input: {
         variant: "destructive",
       };
   }
+}
+
+/** 案件清單／詳情「新增」按鈕共用：成功時說明未帶入的範本人員，失敗時不再一律說成權限。 */
+export function feedbackForCaseCreateOutcome(input: {
+  kind: CaseCreateOutcomeKind;
+  caseId?: string;
+  errorCode?: string;
+  omittedAssignmentLabels?: string[];
+}): CaseCreateFeedback {
+  if (input.kind === "created") {
+    return describeOmittedCreateAssignments(input.omittedAssignmentLabels ?? [])
+      ?? describeCaseCreateOutcome({ kind: "created", caseId: input.caseId });
+  }
+  return describeCaseCreateOutcome({
+    kind: input.kind,
+    caseId: input.caseId,
+    errorCode: input.errorCode,
+  });
 }

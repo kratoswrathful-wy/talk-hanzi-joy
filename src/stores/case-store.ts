@@ -32,6 +32,7 @@ import { applyCaseUpdate } from "@/lib/apply-case-update";
 import {
   buildAdminCreateAssignmentMeta,
   casePartialHasAssignmentFields,
+  omitUntrustedCreateAssignments,
   splitDbCasePatch,
   wholeFileReviewerUserId,
 } from "@/lib/case-assignment-patch";
@@ -39,7 +40,7 @@ import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { adminWriteAccessFromRoles, createKeyedQueue, mergeOptimisticCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "@/lib/case-write-queue";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
-import { isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
+import { caseCreateErrorCode, isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
 import {
   acceptPublicInquiryCase as acceptPublicInquiryCaseRpc,
   acceptInquiryCollabRow as acceptInquiryCollabRowRpc,
@@ -808,9 +809,9 @@ async function probeCaseById(
 
 
 export type CaseCreateOutcome =
-  | { kind: "created"; id: string; record: CaseRecord }
+  | { kind: "created"; id: string; record: CaseRecord; omittedAssignmentLabels?: string[] }
   | { kind: "created_readback_failed"; id: string }
-  | { kind: "create_failed"; id: string }
+  | { kind: "create_failed"; id: string; errorCode?: string }
   | { kind: "create_unknown"; id: string }
   | { kind: "no_session" };
 
@@ -825,13 +826,15 @@ async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCrea
   });
   if (!user) return { kind: "no_session" };
   const id = crypto.randomUUID();
-  const rpcPayload = buildAdminCreateRpcPayload(toDb(partial));
-  const createMeta = buildAdminCreateAssignmentMeta(partial);
+  const prepared = omitUntrustedCreateAssignments(partial as Record<string, unknown>);
+  const createPartial = prepared.next as Partial<CaseRecord>;
+  const rpcPayload = buildAdminCreateRpcPayload(toDb(createPartial));
+  const createMeta = buildAdminCreateAssignmentMeta(prepared.next);
   if (createMeta.translatorUserId) {
     rpcPayload.translator_user_id = createMeta.translatorUserId;
   }
   const reviewerUid =
-    createMeta.reviewerUserId ?? wholeFileReviewerUserId(partial.reviewRows);
+    createMeta.reviewerUserId ?? wholeFileReviewerUserId(createPartial.reviewRows);
   if (reviewerUid) {
     rpcPayload.reviewer_user_id = reviewerUid;
   }
@@ -850,10 +853,10 @@ async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCrea
     const probe = await probeCaseById(id);
     if (probe.found === true) {
       adoptCreatedCase(probe.record);
-      return { kind: "created", id, record: probe.record };
+      return { kind: "created", id, record: probe.record, omittedAssignmentLabels: prepared.omittedLabels };
     }
     if (probe.found === false && isDefiniteCaseCreateError(createError)) {
-      return { kind: "create_failed", id };
+      return { kind: "create_failed", id, errorCode: caseCreateErrorCode(createError) };
     }
     return { kind: "create_unknown", id };
   }
@@ -866,13 +869,13 @@ async function createWithOutcome(partial: Partial<CaseRecord>): Promise<CaseCrea
   if (!error && data) {
     const record = fromDb(asDbCase(data));
     adoptCreatedCase(record);
-    return { kind: "created", id, record };
+    return { kind: "created", id, record, omittedAssignmentLabels: prepared.omittedLabels };
   }
   console.error("[case-store] create readback failed", errorMessage(error), { id });
   const probe = await probeCaseById(id);
   if (probe.found === true) {
     adoptCreatedCase(probe.record);
-    return { kind: "created", id, record: probe.record };
+    return { kind: "created", id, record: probe.record, omittedAssignmentLabels: prepared.omittedLabels };
   }
   // RPC 已成功，案件必然存在，只是讀不回來：保留識別，不得回報建案失敗。
   return { kind: "created_readback_failed", id };

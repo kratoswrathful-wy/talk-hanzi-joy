@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { describeCaseCreateOutcome, isDefiniteCaseCreateError } from "./case-create-outcome";
+import {
+  caseCreateErrorCode,
+  describeCaseCreateOutcome,
+  describeOmittedCreateAssignments,
+  feedbackForCaseCreateOutcome,
+  isDefiniteCaseCreateError,
+} from "./case-create-outcome";
 
 const ID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -40,6 +46,44 @@ describe("describeCaseCreateOutcome", () => {
     const feedback = describeCaseCreateOutcome({ kind: "no_session" });
     expect(feedback.description).toContain("登入狀態已失效");
     expect(feedback.description).toContain("未建立任何案件");
+  });
+
+  it("does not call a name-only reviewer rejection a permission error", () => {
+    const feedback = describeCaseCreateOutcome({
+      kind: "create_failed",
+      caseId: ID,
+      errorCode: "missing_reviewer_user_id",
+    });
+    expect(feedback.description).toContain("這不是權限不足");
+    expect(feedback.description).not.toContain("請確認權限");
+  });
+
+  it("extracts known create error codes from Error messages", () => {
+    expect(caseCreateErrorCode(new Error("missing_reviewer_user_id"))).toBe("missing_reviewer_user_id");
+    expect(caseCreateErrorCode(new Error("admin_create_case failed"))).toBeUndefined();
+  });
+
+  it("explains omitted name-only template assignees after a successful create", () => {
+    const feedback = describeOmittedCreateAssignments(["審稿人員"]);
+    expect(feedback?.description).toContain("本次未帶入");
+    expect(describeOmittedCreateAssignments([])).toBeNull();
+  });
+
+  it("feedbackForCaseCreateOutcome uses omitted copy on success and specific copy on known reject", () => {
+    const omitted = feedbackForCaseCreateOutcome({
+      kind: "created",
+      caseId: ID,
+      omittedAssignmentLabels: ["審稿人員"],
+    });
+    expect(omitted.navigateToCase).toBe(true);
+    expect(omitted.description).toContain("本次未帶入");
+
+    const failed = feedbackForCaseCreateOutcome({
+      kind: "create_failed",
+      caseId: ID,
+      errorCode: "missing_reviewer_user_id",
+    });
+    expect(failed.description).toContain("這不是權限不足");
   });
 });
 

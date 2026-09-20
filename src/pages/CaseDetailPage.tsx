@@ -32,7 +32,7 @@ import type { CaseCompleteness } from "@/lib/case-list-load";
 import { omittedKeysInPartial } from "@/lib/case-list-load";
 import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, type CaseSavePhase } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
-import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
+import { feedbackForCaseCreateOutcome } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
@@ -2237,9 +2237,11 @@ export default function CaseDetailPage() {
     setCreatingCase(true);
     try {
       const outcome = await caseStore.createWithOutcome({ title: "", ...templateValues });
-      const feedback = describeCaseCreateOutcome({
+      const feedback = feedbackForCaseCreateOutcome({
         kind: outcome.kind,
         caseId: outcome.kind === "no_session" ? undefined : outcome.id,
+        errorCode: outcome.kind === "create_failed" ? outcome.errorCode : undefined,
+        omittedAssignmentLabels: outcome.kind === "created" ? outcome.omittedAssignmentLabels : undefined,
       });
       if (feedback.navigateToCase && outcome.kind === "created") {
         navigate(`/cases/${outcome.id}`, { state: { autoFocusTitle: true } });

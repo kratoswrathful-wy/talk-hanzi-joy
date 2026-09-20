@@ -106,3 +106,68 @@ export function collabRowsHaveUserIds(rows: CollabRow[] | undefined): boolean {
     (r) => !String(r.translator || "").trim() || isTrustedUserId(r.translatorUserId),
   );
 }
+
+function hasNamedValue(value: unknown): boolean {
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.some((item) => String(item ?? "").trim().length > 0);
+  return false;
+}
+
+function reviewRowsHaveUntrustedNames(rows: unknown): boolean {
+  if (!Array.isArray(rows) || rows.length === 0) return false;
+  return rows.some((row) => {
+    if (!row || typeof row !== "object") return false;
+    const rec = row as ReviewCollabRow;
+    const named = String(rec.reviewer || "").trim().length > 0;
+    return named && !isTrustedUserId(rec.reviewerUserId);
+  });
+}
+
+/**
+ * 建案 payload 不得帶「只有姓名、沒有帳號識別」的譯者／審稿人員。
+ * 頁面範本的人員欄目前只存顯示名，後端 `admin_create_case` 會以
+ * `missing_reviewer_user_id`／`missing_translator_user_id` 拒絕整筆建案。
+ * 其餘範本欄位仍保留；被拿掉的人員請使用者在詳情從選單點選。
+ */
+export function omitUntrustedCreateAssignments(
+  partial: Record<string, unknown>,
+): { next: Record<string, unknown>; omittedLabels: string[] } {
+  const next: Record<string, unknown> = { ...partial };
+  const omittedLabels: string[] = [];
+
+  const reviewerUidRaw =
+    typeof next.reviewerUserId === "string" ? next.reviewerUserId.trim() : "";
+  const reviewerHasUidAttempt = reviewerUidRaw.length > 0;
+  const reviewerTrusted =
+    isTrustedUserId(reviewerUidRaw)
+    || !!wholeFileReviewerUserId(next.reviewRows as ReviewCollabRow[] | undefined);
+  // 只有「姓名、完全沒帶帳號」才拿掉（範本預填）。已填帳號但格式無效則留下，讓後端拒絕，不得默默略過仍報成功。
+  if (
+    (hasNamedValue(next.reviewer) && !reviewerHasUidAttempt && !reviewerTrusted)
+    || reviewRowsHaveUntrustedNames(next.reviewRows)
+  ) {
+    delete next.reviewer;
+    delete next.reviewerUserId;
+    delete next.reviewRows;
+    omittedLabels.push("審稿人員");
+  }
+
+  const translatorUidRaw =
+    typeof next.translatorUserId === "string" ? next.translatorUserId.trim() : "";
+  const translatorHasUidAttempt = translatorUidRaw.length > 0;
+  const translatorTrusted = isTrustedUserId(translatorUidRaw);
+  const collabUntrusted =
+    Array.isArray(next.collabRows) && next.collabRows.length > 0
+    && !collabRowsHaveUserIds(next.collabRows as CollabRow[]);
+  if (
+    (hasNamedValue(next.translator) && !translatorHasUidAttempt && !translatorTrusted)
+    || collabUntrusted
+  ) {
+    delete next.translator;
+    delete next.translatorUserId;
+    delete next.collabRows;
+    omittedLabels.push("譯者");
+  }
+
+  return { next, omittedLabels };
+}

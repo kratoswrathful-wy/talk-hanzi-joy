@@ -53,7 +53,7 @@ import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inqu
 import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSingleCaseFlowButtons";
 import { toast } from "@/hooks/use-toast";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
-import { describeCaseCreateOutcome } from "@/lib/case-create-outcome";
+import { feedbackForCaseCreateOutcome } from "@/lib/case-create-outcome";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
 import { listActiveTranslatorParticipantIds } from "@/lib/case-action-rpc";
@@ -682,9 +682,11 @@ export default function CasesPage() {
     setCreatingCase(true);
     try {
       const outcome = await caseStore.createWithOutcome({ title: "新案件", ...templateValues });
-      const feedback = describeCaseCreateOutcome({
+      const feedback = feedbackForCaseCreateOutcome({
         kind: outcome.kind,
         caseId: outcome.kind === "no_session" ? undefined : outcome.id,
+        errorCode: outcome.kind === "create_failed" ? outcome.errorCode : undefined,
+        omittedAssignmentLabels: outcome.kind === "created" ? outcome.omittedAssignmentLabels : undefined,
       });
       if (feedback.navigateToCase && outcome.kind === "created") {
         navigate(`/cases/${outcome.id}`, { state: { autoFocusTitle: true } });
