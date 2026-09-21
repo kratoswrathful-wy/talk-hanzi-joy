@@ -231,6 +231,14 @@
      * 優先走同源 /api/cat-openai（主站帶金鑰）；失敗或 4xx/5xx 則在具本機 Key 時改直連。
      */
     async function postChatCompletions(settings, openaiBody) {
+        try {
+            if (typeof window !== "undefined") {
+                window.__catAiLastChatRequest = {
+                    model: openaiBody && openaiBody.model ? String(openaiBody.model) : "",
+                    at: Date.now(),
+                };
+            }
+        } catch (_) { /* ignore */ }
         const useProxy = settings.preferOpenAiProxy !== false;
         const baseOrigin = (typeof location !== 'undefined' && location.origin) ? location.origin : '';
         if (useProxy) {

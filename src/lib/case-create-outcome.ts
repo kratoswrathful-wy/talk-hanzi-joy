@@ -20,6 +20,20 @@ export interface CaseCreateFeedback {
   variant?: "destructive";
 }
 
+/** 導頁後詳情已出現才顯示；停留長於搶拍窗口，重整不重播。 */
+export const CREATE_NOTICE_DURATION_MS = 10_000;
+
+export interface CaseCreateNotice {
+  title: string;
+  description: string;
+  durationMs: number;
+}
+
+export interface CreatedCaseNavigationState {
+  autoFocusTitle: true;
+  createNotice?: CaseCreateNotice;
+}
+
 const TRANSPORT_FAILURE_RE =
   /fetch|network|abort|timeout|load failed|failed to send|err_failed|net::/i;
 
@@ -137,4 +151,23 @@ export function feedbackForCaseCreateOutcome(input: {
     caseId: input.caseId,
     errorCode: input.errorCode,
   });
+}
+
+/** 成功且有「本次未帶入」說明時，把提醒交給詳情頁顯示，避免清單 toast 被導頁拆掉。 */
+export function createNoticeForCreatedCase(feedback: CaseCreateFeedback): CaseCreateNotice | null {
+  if (!feedback.navigateToCase || feedback.variant === "destructive") return null;
+  const description = feedback.description?.trim();
+  if (!description) return null;
+  return {
+    title: feedback.title,
+    description,
+    durationMs: CREATE_NOTICE_DURATION_MS,
+  };
+}
+
+export function createdCaseNavigationState(feedback: CaseCreateFeedback): CreatedCaseNavigationState {
+  const createNotice = createNoticeForCreatedCase(feedback);
+  return createNotice
+    ? { autoFocusTitle: true, createNotice }
+    : { autoFocusTitle: true };
 }

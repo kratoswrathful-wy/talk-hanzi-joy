@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   caseCreateErrorCode,
+  CREATE_NOTICE_DURATION_MS,
+  createNoticeForCreatedCase,
+  createdCaseNavigationState,
   describeCaseCreateOutcome,
   describeOmittedCreateAssignments,
   feedbackForCaseCreateOutcome,
@@ -84,6 +87,29 @@ describe("describeCaseCreateOutcome", () => {
       errorCode: "missing_reviewer_user_id",
     });
     expect(failed.description).toContain("這不是權限不足");
+  });
+
+  it("createNoticeForCreatedCase only attaches omitted copy for a successful navigate", () => {
+    const omitted = feedbackForCaseCreateOutcome({
+      kind: "created",
+      caseId: ID,
+      omittedAssignmentLabels: ["審稿人員"],
+    });
+    const notice = createNoticeForCreatedCase(omitted);
+    expect(notice?.title).toBe("已新增案件");
+    expect(notice?.description).toContain("本次未帶入");
+    expect(notice?.durationMs).toBe(CREATE_NOTICE_DURATION_MS);
+    expect(createdCaseNavigationState(omitted).createNotice).toEqual(notice);
+
+    const plain = feedbackForCaseCreateOutcome({ kind: "created", caseId: ID });
+    expect(createNoticeForCreatedCase(plain)).toBeNull();
+    expect(createdCaseNavigationState(plain)).toEqual({ autoFocusTitle: true });
+
+    const failed = feedbackForCaseCreateOutcome({
+      kind: "create_failed",
+      errorCode: "missing_reviewer_user_id",
+    });
+    expect(createNoticeForCreatedCase(failed)).toBeNull();
   });
 });
 

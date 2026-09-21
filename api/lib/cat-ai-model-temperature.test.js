@@ -93,6 +93,15 @@ describe("CatAiModelTemperature (cat-tool/js/ai-model-temperature.js)", () => {
       expect(body.response_format).toEqual({ type: "json_object" });
     });
 
+    it.each(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra"])(
+      "forwards settings.model %s unchanged into the request body",
+      (model) => {
+        const body = buildOpenAiChatBody({ model }, messages, { max_tokens: 16 });
+        expect(body.model).toBe(model);
+        expect(body).not.toHaveProperty("temperature");
+      },
+    );
+
     it("drops explicit extra.temperature for gpt-5.5", () => {
       const body = buildOpenAiChatBody(
         { model: "gpt-5.5" },

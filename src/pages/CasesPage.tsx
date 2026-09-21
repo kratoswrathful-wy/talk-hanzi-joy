@@ -53,7 +53,7 @@ import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inqu
 import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSingleCaseFlowButtons";
 import { toast } from "@/hooks/use-toast";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
-import { feedbackForCaseCreateOutcome } from "@/lib/case-create-outcome";
+import { createdCaseNavigationState, feedbackForCaseCreateOutcome } from "@/lib/case-create-outcome";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
 import { listActiveTranslatorParticipantIds } from "@/lib/case-action-rpc";
@@ -689,13 +689,7 @@ export default function CasesPage() {
         omittedAssignmentLabels: outcome.kind === "created" ? outcome.omittedAssignmentLabels : undefined,
       });
       if (feedback.navigateToCase && outcome.kind === "created") {
-        if (feedback.description) {
-          toast({
-            title: feedback.title,
-            description: feedback.description,
-          });
-        }
-        navigate(`/cases/${outcome.id}`, { state: { autoFocusTitle: true } });
+        navigate(`/cases/${outcome.id}`, { state: createdCaseNavigationState(feedback) });
         return;
       }
       toast({

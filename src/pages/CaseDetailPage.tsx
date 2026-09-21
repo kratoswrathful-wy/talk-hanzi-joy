@@ -32,7 +32,7 @@ import type { CaseCompleteness } from "@/lib/case-list-load";
 import { omittedKeysInPartial } from "@/lib/case-list-load";
 import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, type CaseSavePhase } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
-import { feedbackForCaseCreateOutcome } from "@/lib/case-create-outcome";
+import { createdCaseNavigationState, feedbackForCaseCreateOutcome, type CaseCreateNotice } from "@/lib/case-create-outcome";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
@@ -973,7 +973,11 @@ function caseDetailLoadTimeoutPromise(): Promise<never> {
   });
 }
 
-type CaseDetailLocationState = { autoFocusTitle?: boolean; duplicateExpectedTitle?: string };
+type CaseDetailLocationState = {
+  autoFocusTitle?: boolean;
+  duplicateExpectedTitle?: string;
+  createNotice?: CaseCreateNotice;
+};
 
 declare global {
   interface Window {
@@ -1187,6 +1191,7 @@ export default function CaseDetailPage() {
   const translatorParticipantRequestGen = useRef(0);
   const [creatingCase, setCreatingCase] = useState(false);
   const creatingCaseRef = useRef(false);
+  const shownCreateNoticeKeyRef = useRef<string | null>(null);
   const [savePhase, setSavePhase] = useState<CaseSavePhase>("idle");
   const savePhaseRef = useRef<CaseSavePhase>("idle");
   savePhaseRef.current = savePhase;
@@ -1347,8 +1352,35 @@ export default function CaseDetailPage() {
   useEffect(() => {
     if (!duplicateExpectedTitle || !caseData || caseData.id !== id) return;
     if (caseData.title !== duplicateExpectedTitle) return;
-    navigate(".", { replace: true, state: { autoFocusTitle: locState?.autoFocusTitle } });
-  }, [id, caseData?.id, caseData?.title, duplicateExpectedTitle, locState?.autoFocusTitle, navigate]);
+    navigate(".", {
+      replace: true,
+      state: {
+        autoFocusTitle: locState?.autoFocusTitle,
+        createNotice: locState?.createNotice,
+      },
+    });
+  }, [id, caseData?.id, caseData?.title, duplicateExpectedTitle, locState?.autoFocusTitle, locState?.createNotice, navigate]);
+
+  // 建案「本次未帶入」在詳情已出現後再顯示，避免清單 toast 被導頁拆掉；重整不重播。
+  useEffect(() => {
+    const notice = locState?.createNotice;
+    if (!notice || !caseData || caseData.id !== id) return;
+    const noticeKey = `${id}:${notice.title}:${notice.description}`;
+    if (shownCreateNoticeKeyRef.current === noticeKey) return;
+    shownCreateNoticeKeyRef.current = noticeKey;
+    toast({
+      title: notice.title,
+      description: notice.description,
+      duration: notice.durationMs,
+    });
+    navigate(".", {
+      replace: true,
+      state: {
+        autoFocusTitle: locState?.autoFocusTitle,
+        duplicateExpectedTitle: locState?.duplicateExpectedTitle,
+      },
+    });
+  }, [id, caseData?.id, locState?.createNotice, locState?.autoFocusTitle, locState?.duplicateExpectedTitle, navigate]);
 
   // W9 wave 2 C3：曝露目前實際渲染的案件 id，供 __lmsAgent.case.getCurrentId() 對照
   // URL 上的 id，偵測導覽後 React state 殘留（state bleed）。純讀取用途，不影響任何欄位渲染邏輯。
@@ -2244,13 +2276,7 @@ export default function CaseDetailPage() {
         omittedAssignmentLabels: outcome.kind === "created" ? outcome.omittedAssignmentLabels : undefined,
       });
       if (feedback.navigateToCase && outcome.kind === "created") {
-        if (feedback.description) {
-          toast({
-            title: feedback.title,
-            description: feedback.description,
-          });
-        }
-        navigate(`/cases/${outcome.id}`, { state: { autoFocusTitle: true } });
+        navigate(`/cases/${outcome.id}`, { state: createdCaseNavigationState(feedback) });
         return;
       }
       toast({
