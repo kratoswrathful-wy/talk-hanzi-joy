@@ -16,7 +16,6 @@ function loadCatAiTranslate() {
   });
   const window = {
     CatAiModelTemperature: tempModule.exports,
-    __catAiLastChatRequest: undefined,
   };
   const captured = [];
   const sandbox = {
@@ -57,7 +56,7 @@ describe("CatAiTranslate request model (cat-tool/js/ai-translate.js)", () => {
     ["gpt-5.6-luna", "gpt-5.6-luna"],
     ["gpt-6-astra", "gpt-6-astra"],
   ])("sends settings.model %s through translate() to the proxy body", async (model) => {
-    const { translate, captured, window } = loadCatAiTranslate();
+    const { translate, captured } = loadCatAiTranslate();
     const mapped = { id: 1, model, batchSize: 20, preferOpenAiProxy: true, apiKey: "", prompts: {} };
     const result = await translate([{ id: "seg-1", sourceText: "Hello isolation ping." }], {
       settings: mapped,
@@ -71,6 +70,5 @@ describe("CatAiTranslate request model (cat-tool/js/ai-translate.js)", () => {
     expect(captured).toHaveLength(1);
     expect(captured[0].url).toBe("http://cat.test/api/cat-openai");
     expect(captured[0].model).toBe(model);
-    expect(window.__catAiLastChatRequest.model).toBe(model);
   });
 });

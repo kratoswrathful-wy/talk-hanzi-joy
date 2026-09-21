@@ -183,4 +183,11 @@ function useToast() {
   };
 }
 
+/** 測試用：清掉模組級 toast 狀態與延遲移除計時器。 */
+export function resetToastStore() {
+  dispatch({ type: "REMOVE_TOAST" });
+  toastTimeouts.forEach((timeout) => clearTimeout(timeout));
+  toastTimeouts.clear();
+}
+
 export { useToast, toast };

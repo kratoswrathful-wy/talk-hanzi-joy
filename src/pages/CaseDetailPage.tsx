@@ -33,6 +33,7 @@ import { omittedKeysInPartial } from "@/lib/case-list-load";
 import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, type CaseSavePhase } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { createdCaseNavigationState, feedbackForCaseCreateOutcome, type CaseCreateNotice } from "@/lib/case-create-outcome";
+import { useCreatedCaseNotice } from "@/hooks/use-created-case-notice";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
   needsDuplicateSortDialog,
@@ -1191,7 +1192,6 @@ export default function CaseDetailPage() {
   const translatorParticipantRequestGen = useRef(0);
   const [creatingCase, setCreatingCase] = useState(false);
   const creatingCaseRef = useRef(false);
-  const shownCreateNoticeKeyRef = useRef<string | null>(null);
   const [savePhase, setSavePhase] = useState<CaseSavePhase>("idle");
   const savePhaseRef = useRef<CaseSavePhase>("idle");
   savePhaseRef.current = savePhase;
@@ -1361,26 +1361,14 @@ export default function CaseDetailPage() {
     });
   }, [id, caseData?.id, caseData?.title, duplicateExpectedTitle, locState?.autoFocusTitle, locState?.createNotice, navigate]);
 
-  // 建案「本次未帶入」在詳情已出現後再顯示，避免清單 toast 被導頁拆掉；重整不重播。
-  useEffect(() => {
-    const notice = locState?.createNotice;
-    if (!notice || !caseData || caseData.id !== id) return;
-    const noticeKey = `${id}:${notice.title}:${notice.description}`;
-    if (shownCreateNoticeKeyRef.current === noticeKey) return;
-    shownCreateNoticeKeyRef.current = noticeKey;
-    toast({
-      title: notice.title,
-      description: notice.description,
-      duration: notice.durationMs,
-    });
-    navigate(".", {
-      replace: true,
-      state: {
-        autoFocusTitle: locState?.autoFocusTitle,
-        duplicateExpectedTitle: locState?.duplicateExpectedTitle,
-      },
-    });
-  }, [id, caseData?.id, locState?.createNotice, locState?.autoFocusTitle, locState?.duplicateExpectedTitle, navigate]);
+  useCreatedCaseNotice({
+    caseId: id,
+    loadedCaseId: caseData?.id,
+    createNotice: locState?.createNotice,
+    autoFocusTitle: locState?.autoFocusTitle,
+    duplicateExpectedTitle: locState?.duplicateExpectedTitle,
+    navigate,
+  });
 
   // W9 wave 2 C3：曝露目前實際渲染的案件 id，供 __lmsAgent.case.getCurrentId() 對照
   // URL 上的 id，偵測導覽後 React state 殘留（state bleed）。純讀取用途，不影響任何欄位渲染邏輯。
