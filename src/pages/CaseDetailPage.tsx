@@ -2244,6 +2244,12 @@ export default function CaseDetailPage() {
         omittedAssignmentLabels: outcome.kind === "created" ? outcome.omittedAssignmentLabels : undefined,
       });
       if (feedback.navigateToCase && outcome.kind === "created") {
+        if (feedback.description) {
+          toast({
+            title: feedback.title,
+            description: feedback.description,
+          });
+        }
         navigate(`/cases/${outcome.id}`, { state: { autoFocusTitle: true } });
         return;
       }
