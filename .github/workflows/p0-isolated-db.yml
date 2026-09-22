@@ -88,8 +88,8 @@ jobs:
           elif [ "${SUITE}" = "pm-complete" ] || [ "${SUITE}" = "auth-identity" ] || [ "${SUITE}" = "backend-errors" ] || [ "${SUITE}" = "case-candidate" ]; then
             # 正式已具備的 migration 止於 20260907120000；此候選不含未正式費用 RPC
             echo "suite=${SUITE}" >> "$GITHUB_OUTPUT"
-            echo "expected_count=168" >> "$GITHUB_OUTPUT"
-            echo "expected_max=20260907120000" >> "$GITHUB_OUTPUT"
+            echo "expected_count=169" >> "$GITHUB_OUTPUT"
+            echo "expected_max=20260923050000" >> "$GITHUB_OUTPUT"
           else
             echo "suite=full" >> "$GITHUB_OUTPUT"
             echo "expected_count=166" >> "$GITHUB_OUTPUT"

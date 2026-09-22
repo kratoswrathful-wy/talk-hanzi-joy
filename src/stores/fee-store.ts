@@ -1,9 +1,34 @@
-import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditLogPhases, type FeeTaskItem, type Note, type EditLog, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
+import { type TranslatorFee, type ClientInfo, type ClientTaskItem, type FeeEditLogPhases, type FeeTaskItem, type EditLog, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createFeesVisiblePollFallback } from "@/lib/realtime-poll";
-import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
-import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { AuthRecoverableError, getAuthSnapshot, getAuthenticatedUser } from "@/lib/auth-ready";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import { createKeyedQueue } from "@/lib/case-write-queue";
+import {
+  applyFeeDelete,
+  applyFeeUpdate,
+  clientInfoChangedKeys,
+  feeWriteStillProtected,
+  shouldDropFeePendingAfterJob,
+  hasExternalFeeFieldConflict,
+  mergeFeeRemoteWithPending,
+  persistFeeWriteConfirmed,
+  isFeeStaleVersionError,
+  shouldKeepFeePendingAcrossReload,
+  readJsonNumber,
+  nextFeeInFlightCount,
+  pickFeePersistExpectedUpdatedAt,
+  FEE_PENDING_STORAGE_KEY,
+  parseFeePendingRecords,
+  serializeFeePendingRecords,
+  upsertFeePendingRecord,
+  removeFeePendingRecord,
+  selectFeePendingForSession,
+  type FeePendingRecord,
+} from "@/lib/fee-write";
+import { notesFromJson, notesToJson } from "@/lib/fee-notes";
+import { toast } from "sonner";
 
 const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 const BILLING_UNITS: BillingUnit[] = ["字", "小時"];
@@ -26,8 +51,8 @@ function taskItemsFromJson(raw: Json): FeeTaskItem[] {
       id: o.id,
       taskType: readTaskType(o.taskType),
       billingUnit: readBillingUnit(o.billingUnit),
-      unitCount: typeof o.unitCount === "number" ? o.unitCount : 0,
-      unitPrice: typeof o.unitPrice === "number" ? o.unitPrice : 0,
+      unitCount: readJsonNumber(o.unitCount),
+      unitPrice: readJsonNumber(o.unitPrice),
     });
   }
   return out;
@@ -54,8 +79,8 @@ function clientTaskItemsFromJson(raw: Json | undefined): ClientTaskItem[] {
       id: o.id,
       taskType: readTaskType(o.taskType),
       billingUnit: readBillingUnit(o.billingUnit),
-      unitCount: typeof o.unitCount === "number" ? o.unitCount : 0,
-      clientPrice: typeof o.clientPrice === "number" ? o.clientPrice : 0,
+      unitCount: readJsonNumber(o.unitCount),
+      clientPrice: readJsonNumber(o.clientPrice),
     });
   }
   return out;
@@ -111,27 +136,6 @@ function clientInfoToJson(ci: ClientInfo): Json {
     rateConfirmed: ci.rateConfirmed,
     invoiced: ci.invoiced,
   };
-}
-
-function notesFromJson(raw: Json): Note[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Note[] = [];
-  for (const x of raw) {
-    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
-    const o = x as Record<string, Json>;
-    if (typeof o.id !== "string") continue;
-    out.push({
-      id: o.id,
-      author: typeof o.author === "string" ? o.author : "",
-      text: typeof o.text === "string" ? o.text : "",
-      createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
-    });
-  }
-  return out;
-}
-
-function notesToJson(notes: Note[]): Json {
-  return notes.map((n) => ({ id: n.id, author: n.author, text: n.text, createdAt: n.createdAt }));
 }
 
 function editLogsFromJson(raw: Json): EditLog[] {
@@ -241,6 +245,7 @@ function dbToApp(row: DbFee): TranslatorFee {
     editLogPhases: parseEditLogPhases(row),
     createdBy: row.created_by || "",
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     finalizedBy: row.finalized_by || undefined,
     finalizedAt: row.finalized_at || undefined,
   };
@@ -258,8 +263,6 @@ function appToDb(fee: Partial<TranslatorFee>): Record<string, Json> {
   if (fee.notes !== undefined) m.notes = notesToJson(fee.notes);
   if (fee.editLogs !== undefined) m.edit_logs = editLogsToJson(fee.editLogs);
   if (fee.editLogPhases !== undefined) m.edit_log_phases = editLogPhasesToJson(fee.editLogPhases);
-  if (fee.finalizedBy !== undefined) m.finalized_by = fee.finalizedBy;
-  if (fee.finalizedAt !== undefined) m.finalized_at = fee.finalizedAt;
   return m;
 }
 
@@ -311,7 +314,7 @@ async function requeryFeeFromView(id: string) {
     }
     return;
   }
-  const updated = dbToApp(data as DbFee);
+  const updated = applyRemoteFeeRow(dbToApp(data as DbFee));
   if (fees.some((f) => f.id === updated.id)) {
     fees = fees.map((f) => (f.id === updated.id ? updated : f));
   } else {
@@ -325,6 +328,98 @@ type FeeChangeSignalRow = {
   env?: string;
   op?: string;
 };
+
+const feeWriteQueue = createKeyedQueue();
+const feeInFlight = new Map<string, Partial<TranslatorFee>>();
+const feeInFlightCount = new Map<string, number>();
+const feeLastRemote = new Map<string, TranslatorFee>();
+const feePendingQueuedPrev = new Map<string, TranslatorFee>();
+let feePendingReplayStarted = false;
+let feePendingOwnerKey: string | null = null;
+
+function pendingOwnerKey(env: string, userId: string): string {
+  return `${env}:${userId}`;
+}
+
+function currentPendingOwner(): { env: string; userId: string } | null {
+  const userId = getAuthSnapshot().user?.id;
+  if (!userId) return null;
+  return { env: getEnvironment(), userId };
+}
+
+function resetFeePendingMemory() {
+  feeInFlight.clear();
+  feePendingQueuedPrev.clear();
+  feeInFlightCount.clear();
+  feePendingReplayStarted = false;
+}
+
+function readStoredFeePending(): FeePendingRecord[] {
+  if (typeof sessionStorage === "undefined") return [];
+  try {
+    return parseFeePendingRecords(sessionStorage.getItem(FEE_PENDING_STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredFeePending(records: FeePendingRecord[]) {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    if (records.length === 0) sessionStorage.removeItem(FEE_PENDING_STORAGE_KEY);
+    else sessionStorage.setItem(FEE_PENDING_STORAGE_KEY, serializeFeePendingRecords(records));
+  } catch {
+    /* 配額或隱私模式：待送仍留在記憶體 */
+  }
+}
+
+function rememberFeePending(id: string, updates: Partial<TranslatorFee>, prev?: TranslatorFee) {
+  if (prev && !feePendingQueuedPrev.has(id)) feePendingQueuedPrev.set(id, prev);
+  const owner = currentPendingOwner();
+  if (!owner) return;
+  writeStoredFeePending(
+    upsertFeePendingRecord(readStoredFeePending(), {
+      env: owner.env,
+      userId: owner.userId,
+      id,
+      updates: { ...(feeInFlight.get(id) ?? {}) } as Record<string, unknown>,
+      prev: feePendingQueuedPrev.get(id) ?? prev ?? null,
+    }),
+  );
+}
+
+function forgetFeePending(id: string) {
+  feePendingQueuedPrev.delete(id);
+  const owner = currentPendingOwner();
+  if (!owner) return;
+  writeStoredFeePending(removeFeePendingRecord(readStoredFeePending(), owner.env, owner.userId, id));
+}
+
+function hydrateFeePendingFromStorage(userId: string) {
+  const env = getEnvironment();
+  const ownerKey = pendingOwnerKey(env, userId);
+  if (feePendingOwnerKey !== ownerKey) {
+    resetFeePendingMemory();
+    feePendingOwnerKey = ownerKey;
+  }
+  for (const rec of selectFeePendingForSession(readStoredFeePending(), env, userId)) {
+    if (feeInFlight.has(rec.id)) continue;
+    feeInFlight.set(rec.id, rec.updates as Partial<TranslatorFee>);
+    if (rec.prev && typeof rec.prev === "object") {
+      feePendingQueuedPrev.set(rec.id, rec.prev as TranslatorFee);
+    }
+  }
+}
+
+function rememberRemoteFee(row: TranslatorFee) {
+  feeLastRemote.set(row.id, row);
+}
+
+function applyRemoteFeeRow(row: TranslatorFee): TranslatorFee {
+  rememberRemoteFee(row);
+  if (!feeInFlight.has(row.id) && !feeWriteStillProtected(feeInFlightCount.get(row.id))) return row;
+  return mergeFeeRemoteWithPending(row, feeInFlight.get(row.id));
+}
 
 supabase
   .channel("fee-change-signals")
@@ -342,7 +437,9 @@ supabase
         }
         return;
       }
-      void requeryFeeFromView(row.fee_id);
+      if (!feeInFlight.has(row.fee_id) && !feeWriteStillProtected(feeInFlightCount.get(row.fee_id))) {
+        void requeryFeeFromView(row.fee_id);
+      }
     }
   )
   .subscribe();
@@ -351,6 +448,142 @@ supabase
 const feePoll = createFeesVisiblePollFallback(() => {
   if (loaded) feeStore.loadFees();
 }, 15000);
+
+async function resolveFeeUpdatedAt(id: string, current?: TranslatorFee | undefined): Promise<string | null> {
+  if (current?.updatedAt) return current.updatedAt;
+  const { data, error } = await supabase
+    .from("fees_visible")
+    .select("updated_at")
+    .eq("id", id)
+    .eq("env", getEnvironment())
+    .maybeSingle();
+  if (error || !data || typeof (data as { updated_at?: unknown }).updated_at !== "string") {
+    return null;
+  }
+  return (data as { updated_at: string }).updated_at;
+}
+
+function buildFeeRpcPatch(
+  prev: TranslatorFee | undefined,
+  updates: Partial<TranslatorFee>,
+): Record<string, unknown> {
+  const db = appToDb(updates);
+  const patch: Record<string, unknown> = { ...db };
+  if (updates.clientInfo !== undefined) {
+    const keys = clientInfoChangedKeys(prev?.clientInfo, updates.clientInfo);
+    if (Object.keys(keys).length === 0) {
+      delete patch.client_info;
+    } else {
+      patch.client_info = keys;
+    }
+  }
+  delete patch.edit_log_phases;
+  return patch;
+}
+
+async function persistFeeUpdateOnce(id: string, updates: Partial<TranslatorFee>, prev: TranslatorFee | undefined) {
+  // 入列當下的 prev.updatedAt 會過期；連續改多欄時必須用前一筆已落地的 store 版本。
+  // 雙人同時改不同欄時，先重查遠端，避免用過期版本號把後面的寫入擋掉。
+  await requeryFeeFromView(id);
+  const latest = fees.find((f) => f.id === id);
+  const remote = feeLastRemote.get(id);
+  if (hasExternalFeeFieldConflict(remote, prev, updates)) {
+    return { kind: "conflict" as const };
+  }
+  const picked = pickFeePersistExpectedUpdatedAt(remote ?? latest, prev);
+  const expected = picked ?? (await resolveFeeUpdatedAt(id, remote ?? latest ?? prev));
+  if (!expected) {
+    return { kind: "no-version" as const };
+  }
+  const patch = buildFeeRpcPatch(prev, updates);
+  if (Object.keys(patch).length === 0) return { kind: "empty" as const };
+  const result = await applyFeeUpdate(supabase, id, patch, expected);
+  return { kind: "rpc" as const, result };
+}
+
+async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, prev: TranslatorFee | undefined) {
+  let attempt = await persistFeeUpdateOnce(id, updates, prev);
+  if (attempt.kind === "rpc" && !persistFeeWriteConfirmed(attempt.result) && isFeeStaleVersionError(attempt.result)) {
+    // 重查後、送出前他人改了不同欄：再用新版本重試，不得把第一次失敗當終局。
+    attempt = await persistFeeUpdateOnce(id, updates, prev);
+  }
+  if (attempt.kind === "conflict") {
+    const err = new Error("費用已被他人更新同一欄位，本次未覆寫。已保留畫面輸入。");
+    toast.error(err.message);
+    return err;
+  }
+  if (attempt.kind === "no-version") {
+    const err = new Error("無法確認費用版本，尚未寫入。已保留畫面輸入。");
+    toast.error(err.message);
+    return err;
+  }
+  if (attempt.kind === "empty") return null;
+  const result = attempt.result;
+  if (!persistFeeWriteConfirmed(result)) {
+    const err = result.error instanceof Error ? result.error : new Error("apply_fee_update_failed");
+    toast.error("費用儲存失敗，已保留畫面輸入。請勿離開後當成已儲存。");
+    return err;
+  }
+  const nextUpdatedAt = result.data?.updated_at;
+  const nextStatus = result.data?.status as TranslatorFee["status"] | undefined;
+  fees = fees.map((f) => {
+    if (f.id !== id) return f;
+    const base = feeLastRemote.get(id) ?? prev ?? f;
+    const confirmed = {
+      ...base,
+      ...updates,
+      ...(nextStatus ? { status: nextStatus } : {}),
+      ...(nextUpdatedAt ? { updatedAt: nextUpdatedAt } : {}),
+    };
+    rememberRemoteFee(confirmed);
+    return mergeFeeRemoteWithPending(confirmed, feeInFlight.get(id));
+  });
+  notify();
+  return null;
+}
+
+function finishFeeWriteJob(id: string, failed: boolean, jobError: unknown) {
+  const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
+  if (remaining > 0) {
+    feeInFlightCount.set(id, remaining);
+    return;
+  }
+  feeInFlightCount.delete(id);
+  if (shouldDropFeePendingAfterJob(remaining, failed)) {
+    feeInFlight.delete(id);
+    forgetFeePending(id);
+    return;
+  }
+  if (!shouldKeepFeePendingAcrossReload(failed, jobError)) {
+    forgetFeePending(id);
+  }
+}
+
+function replayHydratedFeeWrites() {
+  if (feePendingReplayStarted) return;
+  feePendingReplayStarted = true;
+  for (const [id, updates] of feeInFlight.entries()) {
+    if (feeWriteStillProtected(feeInFlightCount.get(id))) continue;
+    const prev = feePendingQueuedPrev.get(id);
+    feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
+    void feeWriteQueue.enqueue(id, async () => {
+      let failed = false;
+      let jobError: unknown = null;
+      try {
+        const err = await persistFeeUpdate(id, updates, prev);
+        failed = !!err;
+        jobError = err;
+        return err;
+      } catch (error) {
+        failed = true;
+        jobError = error;
+        return error instanceof Error ? error : new Error("apply_fee_update_failed");
+      } finally {
+        finishFeeWriteJob(id, failed, jobError);
+      }
+    });
+  }
+}
 
 export const feeStore = {
   getFees: () => fees,
@@ -405,6 +638,8 @@ export const feeStore = {
           if (!user) {
             fees = [];
             loaded = false;
+            resetFeePendingMemory();
+            feePendingOwnerKey = null;
             notify();
             lastResult = { error: null };
             continue;
@@ -422,9 +657,11 @@ export const feeStore = {
             continue;
           }
           if (!error && data) {
-            fees = (data as DbFee[]).map(dbToApp);
+            hydrateFeePendingFromStorage(user.id);
+            fees = (data as DbFee[]).map((row) => applyRemoteFeeRow(dbToApp(row)));
             loaded = true;
             notify();
+            replayHydratedFeeWrites();
           }
           lastResult = { error };
         } while (reloadRequested);
@@ -444,35 +681,77 @@ export const feeStore = {
   },
 
   updateFee: (id: string, updates: Partial<TranslatorFee>) => {
-    fees = fees.map((f) => (f.id === id ? { ...f, ...updates } : f));
+    const prev = fees.find((f) => f.id === id);
+    const wroteStatus = updates.status !== undefined;
+    const display = wroteStatus ? { ...updates, status: prev?.status } : updates;
+    fees = fees.map((f) => (f.id === id ? { ...f, ...display } : f));
+    feeInFlight.set(id, { ...feeInFlight.get(id), ...updates });
+    feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
+    rememberFeePending(id, updates, prev);
     notify();
-
-    const dbUpdates = appToDb(updates);
-    if (Object.keys(dbUpdates).length === 0) return;
-
-    supabase
-      .from("fees")
-      .update(dbUpdates as TablesUpdate<"fees">)
-      .eq("id", id)
-      .then(({ error }) => {
-        if (error) console.error("Failed to update fee:", error);
-      });
+    return feeWriteQueue.enqueue(id, async () => {
+      let failed = false;
+      let jobError: unknown = null;
+      try {
+        const err = await persistFeeUpdate(id, updates, prev);
+        failed = !!err;
+        jobError = err;
+        return err;
+      } catch (error) {
+        failed = true;
+        jobError = error;
+        return error instanceof Error ? error : new Error("apply_fee_update_failed");
+      } finally {
+        finishFeeWriteJob(id, failed, jobError);
+      }
+    });
   },
 
   deleteFee: (id: string) => {
+    const snapshot = fees.find((f) => f.id === id);
     fees = fees.filter((f) => f.id !== id);
+    feeInFlight.set(id, { id } as Partial<TranslatorFee>);
+    feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
     notify();
-
-    supabase
-      .from("fees")
-      .delete()
-      .eq("id", id)
-      .then(({ error }) => {
-        if (error) console.error("Failed to delete fee:", error);
-      });
+    return feeWriteQueue.enqueue(id, async () => {
+      try {
+        const expected = await resolveFeeUpdatedAt(id, snapshot);
+        if (!expected) {
+          if (snapshot && !fees.some((f) => f.id === id)) {
+            fees = [snapshot, ...fees];
+            notify();
+          }
+          return new Error("無法確認費用是否已刪除。已保留畫面資料。");
+        }
+        const result = await applyFeeDelete(supabase, id, expected);
+        if (result.error) {
+          if (snapshot && !fees.some((f) => f.id === id)) {
+            fees = [snapshot, ...fees];
+            notify();
+          }
+          return result.error instanceof Error ? result.error : new Error("apply_fee_delete_failed");
+        }
+        return null;
+      } finally {
+        const remaining = nextFeeInFlightCount(feeInFlightCount.get(id), -1);
+        if (remaining > 0) {
+          feeInFlightCount.set(id, remaining);
+        } else {
+          feeInFlightCount.delete(id);
+          feeInFlight.delete(id);
+        }
+      }
+    });
   },
 
-  getFeeById: (id: string) => fees.find((f) => f.id === id),
+  getFeeById: (id: string) => {
+    const row = fees.find((f) => f.id === id);
+    if (!row) return undefined;
+    return mergeFeeRemoteWithPending(row, feeInFlight.get(id));
+  },
+
+  hasUnconfirmedWrite: (id: string) =>
+    feeInFlight.has(id) || feeWriteStillProtected(feeInFlightCount.get(id)),
 
   /** 單筆補抓（fees_visible）：供 agent.getFresh 在整表尚未含該列時使用。 */
   fetchFeeById: async (id: string): Promise<TranslatorFee | null> => {
@@ -483,7 +762,7 @@ export const feeStore = {
       .eq("env", getEnvironment())
       .maybeSingle();
     if (error || !data) return null;
-    const mapped = dbToApp(data as DbFee);
+    const mapped = applyRemoteFeeRow(dbToApp(data as DbFee));
     if (fees.some((f) => f.id === id)) {
       fees = fees.map((f) => (f.id === id ? mapped : f));
     } else {

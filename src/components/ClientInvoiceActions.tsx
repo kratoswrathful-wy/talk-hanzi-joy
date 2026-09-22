@@ -113,6 +113,8 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
     if (inv) {
       toast.success("已建立客戶請款單");
       navigate(`/client-invoices/${inv.id}`);
+    } else {
+      toast.error("收錄失敗：請款單或費用關聯未寫入。");
     }
     onDone();
   };
@@ -123,7 +125,11 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
       handleActionClick();
       return;
     }
-    await clientInvoiceStore.addFeesToInvoice(invoiceId, feeIds);
+    const { error } = await clientInvoiceStore.addFeesToInvoice(invoiceId, feeIds);
+    if (error) {
+      toast.error("收錄失敗：費用關聯未寫入。");
+      return;
+    }
     toast.success("已收錄至客戶請款單");
     onDone();
   };

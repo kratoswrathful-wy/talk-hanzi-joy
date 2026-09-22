@@ -1,3 +1,5 @@
+import type { InvoiceComment } from "@/lib/invoice-comments";
+
 export type ClientInvoiceStatus = "pending" | "partial_collected" | "collected";
 
 export const clientInvoiceStatusLabels: Record<ClientInvoiceStatus, string> = {
@@ -44,4 +46,6 @@ export interface ClientInvoice {
   adjustmentLines?: ClientInvoiceAdjustmentLine[];
   /** 非 null 時才寫入變更紀錄（建立後首次離開頁面，或自總表建立即啟用） */
   editLogStartedAt?: string;
+  /** 請款留言（DB comments）；與 note 分欄 */
+  comments?: InvoiceComment[];
 }

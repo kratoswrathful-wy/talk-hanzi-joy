@@ -4,11 +4,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import {
+  classifyInvoiceWriteCertainty,
+  decideInvoiceLinkCleanup,
+  findLocalReusableInvoiceId,
+  findReusableInvoiceId,
+  forgetUnconfirmedInvoiceId,
+  interpretInvoiceDeleteResult,
+  invoiceLinkFailureMessage,
+  invoiceWithoutClaimedFees,
+  isInvoiceLinkAlreadyExists,
+  peekUnconfirmedInvoiceId,
+  rememberUnconfirmedInvoiceId,
+} from "@/lib/invoice-link-write";
 import type { Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 type Listener = () => void;
 
 let invoices: Invoice[] = [];
+const unconfirmedInvoiceByFees = new Map<string, string>();
 let loaded = false;
 let loadPromise: Promise<{ error: unknown }> | null = null;
 let reloadRequested = false;
@@ -97,6 +113,7 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     payments: paymentsFromJson(row.payments),
     editLogStartedAt: row.edit_log_started_at || undefined,
     edit_logs: editLogsFromJson(row.edit_logs),
+    comments: invoiceCommentsFromJson(row.comments),
   };
 }
 
@@ -249,6 +266,43 @@ export const invoiceStore = {
     invoices = [newInvoice, ...invoices];
     notify();
 
+    if (feeIds.length > 0) {
+      const existing = await supabase
+        .from("invoice_fees")
+        .select("invoice_id, fee_id")
+        .in("fee_id", feeIds)
+        .eq("env", env);
+      if (!existing.error && existing.data) {
+        const reuseId = findReusableInvoiceId(
+          existing.data.map((row) => ({ invoiceId: row.invoice_id, feeId: row.fee_id })),
+          feeIds,
+        );
+        if (reuseId) {
+          invoices = invoices.filter((item) => item.id !== id);
+          notify();
+          return invoices.find((item) => item.id === reuseId) ?? (await invoiceStore.fetchInvoiceById(reuseId));
+        }
+      }
+      const localReuseId = findLocalReusableInvoiceId(invoices, feeIds, id)
+        ?? peekUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
+      if (localReuseId && invoices.some((item) => item.id === localReuseId)) {
+        invoices = invoices.filter((item) => item.id !== id);
+        notify();
+        const retryLinks = feeIds.map((feeId) => ({ invoice_id: localReuseId, fee_id: feeId, env }));
+        const { error: retryErr } = await supabase.from("invoice_fees").insert(retryLinks);
+        if (retryErr && !isInvoiceLinkAlreadyExists(retryErr)) {
+          toast.error(invoiceLinkFailureMessage(decideInvoiceLinkCleanup(retryErr)));
+          return null;
+        }
+        forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
+        invoices = invoices.map((item) =>
+          item.id === localReuseId ? { ...item, feeIds: [...new Set([...item.feeIds, ...feeIds])] } : item,
+        );
+        notify();
+        return invoices.find((item) => item.id === localReuseId) ?? (await invoiceStore.fetchInvoiceById(localReuseId));
+      }
+    }
+
     const { error } = await supabase.from("invoices").insert({
       id,
       title,
@@ -262,6 +316,10 @@ export const invoiceStore = {
 
     if (error) {
       console.error("Failed to create invoice:", error);
+      if (classifyInvoiceWriteCertainty(error) === "unknown") {
+        toast.error("新建請款單結果不明。請重整後核對，請勿再按一次新建。");
+        return null;
+      }
       invoices = invoices.filter((i) => i.id !== id);
       notify();
       return null;
@@ -270,7 +328,29 @@ export const invoiceStore = {
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId, env }));
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links);
-      if (linkErr) console.error("Failed to link fees:", linkErr);
+      if (linkErr && isInvoiceLinkAlreadyExists(linkErr)) {
+        forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
+        return newInvoice;
+      }
+      if (linkErr) {
+        console.error("Failed to link fees:", linkErr);
+        const decision = decideInvoiceLinkCleanup(linkErr);
+        if (decision.action === "keep") {
+          toast.error(invoiceLinkFailureMessage(decision));
+          invoices = invoices.map((item) => (item.id === id ? invoiceWithoutClaimedFees(item) : item));
+          rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, id);
+          notify();
+          return null;
+        }
+        const { data: deleted, error: delErr } = await supabase.from("invoices").delete().eq("id", id).select("id");
+        const deleteCheck = interpretInvoiceDeleteResult(delErr, deleted);
+        toast.error(invoiceLinkFailureMessage(decision, deleteCheck));
+        if (deleteCheck.kind === "deleted") {
+          invoices = invoices.filter((i) => i.id !== id);
+          notify();
+        }
+        return null;
+      }
     }
 
     // 並行 loadInvoices 可能在 insert 期間覆寫記憶體；寫入成功後再確保本機列存在
@@ -282,13 +362,16 @@ export const invoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt">> & Record<string, unknown>) => {
+  updateInvoice: async (
+    id: string,
+    updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt" | "comments">> & Record<string, unknown>,
+  ): Promise<{ error: unknown }> => {
     const existing = invoices.find((inv) => inv.id === id);
     if (!existing) {
-      // 並行 load 覆寫後 map 會變成 no-op；呼叫端應先 ensureLocal／fetch
       console.warn("[invoice-store] updateInvoice: 本地找不到 id=", id);
-      return;
+      return { error: new Error("找不到該筆請款") };
     }
+    const previous = existing;
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -298,19 +381,43 @@ export const invoiceStore = {
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
-    if (updates.comments !== undefined) dbUpdates.comments = updates.comments as Json;
+    if (updates.comments !== undefined) dbUpdates.comments = invoiceCommentsToJson(updates.comments);
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs as Json;
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
-    if (Object.keys(dbUpdates).length > 0) {
-      supabase
-        .from("invoices")
-        .update(dbUpdates as TablesUpdate<"invoices">)
-        .eq("id", id)
-        .then(({ error }) => {
-          if (error) console.error("Failed to update invoice:", error);
-        });
+    if (Object.keys(dbUpdates).length === 0) return { error: null };
+
+    const { data, error } = await supabase
+      .from("invoices")
+      .update(dbUpdates as TablesUpdate<"invoices">)
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error("Failed to update invoice:", error);
+      invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
+      notify();
+      return { error };
     }
+    if (!data) {
+      const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
+      console.error("Failed to update invoice:", blockedErr.message);
+      invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
+      notify();
+      return { error: blockedErr };
+    }
+
+    invoices = invoices.map((inv) =>
+      inv.id === id
+        ? {
+            ...dbToApp(data, previous.feeIds),
+            ...Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined)),
+          }
+        : inv,
+    );
+    notify();
+    return { error: null };
   },
 
   deleteInvoice: (id: string) => {
@@ -326,12 +433,12 @@ export const invoiceStore = {
       });
   },
 
-  addFeesToInvoice: async (invoiceId: string, feeIds: string[]) => {
+  addFeesToInvoice: async (invoiceId: string, feeIds: string[]): Promise<{ error: unknown }> => {
     const inv = invoices.find((i) => i.id === invoiceId);
-    if (!inv) return;
+    if (!inv) return { error: new Error("找不到該筆稿費請款") };
 
     const newFeeIds = feeIds.filter((fid) => !inv.feeIds.includes(fid));
-    if (newFeeIds.length === 0) return;
+    if (newFeeIds.length === 0) return { error: null };
 
     invoices = invoices.map((i) =>
       i.id === invoiceId ? { ...i, feeIds: [...i.feeIds, ...newFeeIds] } : i
@@ -340,7 +447,18 @@ export const invoiceStore = {
 
     const links = newFeeIds.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId, env: getEnvironment() }));
     const { error } = await supabase.from("invoice_fees").insert(links);
-    if (error) console.error("Failed to add fees to invoice:", error);
+    if (error) {
+      console.error("Failed to add fees to invoice:", error);
+      if (classifyInvoiceWriteCertainty(error) === "unknown") {
+        toast.error("收錄結果不明。請重整後核對，請勿再按一次。");
+        return { error };
+      }
+      invoices = invoices.map((i) =>
+        i.id === invoiceId ? { ...i, feeIds: i.feeIds.filter((fid) => !newFeeIds.includes(fid)) } : i
+      );
+      notify();
+    }
+    return { error };
   },
 
   removeFeeFromInvoice: async (invoiceId: string, feeId: string) => {
