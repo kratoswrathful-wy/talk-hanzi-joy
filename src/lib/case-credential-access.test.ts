@@ -97,4 +97,33 @@ describe("case credential access", () => {
     expect(access.peekDraft("case-1")?.tools?.[0].fieldValues).toEqual({ a: "draft" });
     expect(access.peekConfirmed("case-1")?.tools?.[0].fieldValues).toEqual({ a: "1" });
   });
+
+  it("身分尚未就緒仍會發讀取；失敗後換上使用者不會自動再讀", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "credential_access_failed" },
+    });
+    const access = createCaseCredentialAccess({ rpc } as never);
+    expect(access.getActiveUserId()).toBeNull();
+    await expect(access.load("case-1")).rejects.toMatchObject({ message: "credential_access_failed" });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(access.peekConfirmed("case-1")).toBeUndefined();
+    access.setActiveUser("u1");
+    expect(access.peekConfirmed("case-1")).toBeUndefined();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("請求過期與工作階段更換不是同一件事", async () => {
+    let resolveLoad: ((value: unknown) => void) | undefined;
+    const rpc = vi.fn().mockImplementation(() => new Promise((resolve) => {
+      resolveLoad = resolve;
+    }));
+    const access = createCaseCredentialAccess({ rpc } as never);
+    access.setActiveUser("u1");
+    const pending = access.load("case-1");
+    access.setActiveUser("u2");
+    resolveLoad?.({ data: sample("case-1", 1, "stale-secret"), error: null });
+    await expect(pending).rejects.toBeInstanceOf(CredentialLoadStaleError);
+    expect(access.peekConfirmed("case-1")).toBeUndefined();
+  });
 });

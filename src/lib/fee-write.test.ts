@@ -5,6 +5,8 @@ import {
   feeWriteStillProtected,
   shouldDropFeePendingAfterJob,
   hasExternalFeeFieldConflict,
+  feePersistValuesEqual,
+  classifyFeeSaveBanner,
   feeClientInfoPatchAfterRequery,
   mergeFeeRemoteWithPending,
   nextFeeInFlightCount,
@@ -138,6 +140,57 @@ describe("fee in-flight protection", () => {
     };
     expect(hasExternalFeeFieldConflict(sameFieldRemote, queued, updates)).toBe(true);
     expect(hasExternalFeeFieldConflict(otherFieldRemote, queued, updates)).toBe(false);
+  });
+
+  it("遠端只是把數字變成字串，不算外部衝突", () => {
+    const queued = {
+      updatedAt: "v1",
+      clientInfo: { ...defaultClientInfo, clientTaskItems: [{ ...defaultClientInfo.clientTaskItems[0], unitCount: 3, clientPrice: 1500 }] },
+    };
+    const remote = {
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientTaskItems: [{ ...defaultClientInfo.clientTaskItems[0], unitCount: "3" as unknown as number, clientPrice: "1500" as unknown as number }] },
+    };
+    const updates = {
+      clientInfo: { ...queued.clientInfo, clientPoNumber: "PO-2" },
+    };
+    expect(feePersistValuesEqual(remote.clientInfo.clientTaskItems, queued.clientInfo.clientTaskItems)).toBe(true);
+    expect(hasExternalFeeFieldConflict(remote, queued, updates)).toBe(false);
+  });
+
+  it("自己排隊中的寫入已到遠端，不算外部衝突", () => {
+    const queued = {
+      updatedAt: "v1",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-1" },
+    };
+    const remote = {
+      updatedAt: "v2",
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-2" },
+    };
+    const updates = {
+      clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-2" },
+    };
+    expect(hasExternalFeeFieldConflict(remote, queued, updates, updates)).toBe(false);
+  });
+});
+
+describe("classifyFeeSaveBanner", () => {
+  it("寫入中不是失敗警告", () => {
+    expect(classifyFeeSaveBanner({ inFlight: true }).kind).toBe("saving");
+  });
+
+  it("中斷是尚未確認，不是成功", () => {
+    expect(classifyFeeSaveBanner({ inFlight: false, lastError: "Failed to fetch", interrupted: true }).kind).toBe("unknown");
+  });
+
+  it("明確失敗保留錯誤文字", () => {
+    const banner = classifyFeeSaveBanner({ inFlight: false, lastError: "費用儲存失敗，已保留畫面輸入。" });
+    expect(banner.kind).toBe("failed");
+    expect(banner.message).toContain("已保留畫面輸入");
+  });
+
+  it("沒有待確認就隱藏", () => {
+    expect(classifyFeeSaveBanner({ inFlight: false }).kind).toBe("hidden");
   });
 });
 

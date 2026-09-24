@@ -11,6 +11,8 @@ import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, type EditLog, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
+import { applyFeeClientSelection } from "@/lib/fee-client-select";
+import { classifyFeeSaveBanner } from "@/lib/fee-write";
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { filterEditLogsFeeDetail } from "@/lib/edit-log-permission-filter";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
@@ -338,10 +340,16 @@ export default function TranslatorFeeDetail() {
   const feeData = useFee(id);
   const allFees = useFees();
   const feesLoaded = useFeesLoaded();
-  const feeUnconfirmed = useSyncExternalStore(
+  const feeWriteBanner = useSyncExternalStore(
     feeStore.subscribe,
-    () => (id ? feeStore.hasUnconfirmedWrite(id) : false),
+    () => (id ? feeStore.getWriteBanner(id) : { inFlight: false, lastError: null }),
   );
+  const feeSaveBanner = classifyFeeSaveBanner({
+    inFlight: feeWriteBanner.inFlight,
+    lastError: feeWriteBanner.lastError,
+    interrupted: !!feeWriteBanner.lastError && /abort|Failed to fetch|interrupted/i.test(feeWriteBanner.lastError),
+  });
+  const feeUnconfirmed = feeWriteBanner.inFlight;
   const allInvoices = useInvoices();
   const allClientInvoices = useClientInvoices();
   const { options: statusLabelOptions } = useSelectOptions("statusLabel");
@@ -492,8 +500,12 @@ export default function TranslatorFeeDetail() {
   useEffect(() => {
     if (!feeData) return;
     const next = feeData.clientInfo ?? { ...defaultClientInfo };
-    setClientInfo((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
-  }, [feeData?.id, feeData?.clientInfo]);
+    setClientInfo((prev) => {
+      if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+      if (prev.client && !next.client && feeUnconfirmed) return prev;
+      return next;
+    });
+  }, [feeData?.id, feeData?.clientInfo, feeUnconfirmed]);
 
   useEffect(() => {
     if (!feeData) return;
@@ -1670,11 +1682,23 @@ export default function TranslatorFeeDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {feeUnconfirmed ? (
-        <p data-testid="fee-save-pending" className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-          尚有未確認寫入，請勿當成已儲存。
-        </p>
-      ) : null}
+      <div className="min-h-[2.75rem]" aria-live="polite">
+        {feeSaveBanner.kind === "saving" ? (
+          <p data-testid="fee-save-pending" className="text-sm text-muted-foreground px-3 py-2">
+            {feeSaveBanner.message}
+          </p>
+        ) : null}
+        {feeSaveBanner.kind === "failed" ? (
+          <p data-testid="fee-save-failed" className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+            {feeSaveBanner.message}
+          </p>
+        ) : null}
+        {feeSaveBanner.kind === "unknown" ? (
+          <p data-testid="fee-save-unknown" className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            {feeSaveBanner.message}
+          </p>
+        ) : null}
+      </div>
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
@@ -2125,27 +2149,27 @@ export default function TranslatorFeeDetail() {
                     <div>
                       <ColorSelect
                         fieldKey="client"
-                        value={clientInfo.client}
+                        value={clientInfo.client || feeData.clientInfo?.client || ""}
                         disabled={!isManager || clientInfo.reconciled || linkedClientInvoices.length > 0}
                         onValueChange={(clientName) => {
                           trackChange("客戶", clientInfo.client, clientName);
-                          const updatedInfo = { ...clientInfo, client: clientName };
-                          if (clientName) {
-                            updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
-                              const price = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
-                              return price !== undefined ? { ...item, clientPrice: price } : item;
+                          const patch = applyFeeClientSelection({
+                            clientInfo,
+                            taskItems,
+                            clientName,
+                            getClientPrice: (name, taskType, billingUnit) =>
+                              defaultPricingStore.getClientPrice(name, taskType, billingUnit),
+                            getTranslatorPrice: (cp, taskType, billingUnit) =>
+                              defaultPricingStore.getTranslatorPrice(cp, taskType, billingUnit),
+                          });
+                          setClientInfo(patch.clientInfo);
+                          setTaskItems(patch.taskItems);
+                          if (id) {
+                            feeStore.updateFee(id, {
+                              clientInfo: patch.clientInfo,
+                              taskItems: patch.taskItems,
                             });
-                            const updatedTaskItems = taskItems.map(item => {
-                              const cp = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
-                              if (cp === undefined) return item;
-                              const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
-                              return tp !== undefined ? { ...item, unitPrice: tp } : item;
-                            });
-                            setTaskItems(updatedTaskItems);
-                            if (id) feeStore.updateFee(id, { taskItems: updatedTaskItems });
                           }
-                          setClientInfo(updatedInfo);
-                          if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
                         }}
                         placeholder="選擇客戶"
                       />

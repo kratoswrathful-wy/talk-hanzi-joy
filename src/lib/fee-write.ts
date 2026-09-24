@@ -133,14 +133,65 @@ type FeeConflictSlice = {
   taskItems?: unknown;
 };
 
+/** jsonb 數字與畫面字串視為同一值，避免自己剛寫入被當成外部衝突。 */
+export function feePersistValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  const leftNum = typeof left === "number" || (typeof left === "string" && left.trim() !== "")
+    ? Number(left)
+    : Number.NaN;
+  const rightNum = typeof right === "number" || (typeof right === "string" && right.trim() !== "")
+    ? Number(right)
+    : Number.NaN;
+  if (Number.isFinite(leftNum) && Number.isFinite(rightNum) && leftNum === rightNum) {
+    if (typeof left !== "object" && typeof right !== "object") return true;
+  }
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) return false;
+    return left.every((item, index) => feePersistValuesEqual(item, right[index]));
+  }
+  if (left && right && typeof left === "object" && typeof right === "object") {
+    const leftRec = left as Record<string, unknown>;
+    const rightRec = right as Record<string, unknown>;
+    const keys = new Set([...Object.keys(leftRec), ...Object.keys(rightRec)]);
+    for (const key of keys) {
+      if (!feePersistValuesEqual(leftRec[key], rightRec[key])) return false;
+    }
+    return true;
+  }
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export type FeeSaveBannerKind = "hidden" | "saving" | "failed" | "unknown";
+
+export function classifyFeeSaveBanner(input: {
+  inFlight: boolean;
+  lastError?: string | null;
+  interrupted?: boolean;
+}): { kind: FeeSaveBannerKind; message: string } {
+  if (input.inFlight && !input.lastError) {
+    return { kind: "saving", message: "正在儲存，請稍候。" };
+  }
+  if (input.interrupted || (input.lastError && /abort|Failed to fetch|interrupted/i.test(input.lastError))) {
+    return {
+      kind: "unknown",
+      message: "儲存結果尚未確認。請先核對這筆費用是不是你剛填的內容，不要再新增一張。",
+    };
+  }
+  if (input.lastError) {
+    return { kind: "failed", message: input.lastError };
+  }
+  return { kind: "hidden", message: "" };
+}
+
 /**
- * 遠端版本已變，且他人改過我們正要送出的欄位 → 衝突，不得用新版本號重送舊整包。
- * 他人只改不同欄位則不擋，呼叫端改用遠端版本＋只送使用者實際改動的鍵。
+ * 遠端版本已變，且正要送的欄被不是自己這次排隊的內容改過 → 衝突。
+ * 自己稍早成功、數字字串回聲、或遠端已是本次要寫的值，都不是外部衝突。
  */
 export function hasExternalFeeFieldConflict(
   remote: FeeConflictSlice | undefined,
   queuedPrev: FeeConflictSlice | undefined,
   updates: FeeConflictSlice,
+  ownPending?: FeeConflictSlice,
 ): boolean {
   if (!remote || !queuedPrev) return false;
   if (!remote.updatedAt || remote.updatedAt === queuedPrev.updatedAt) return false;
@@ -148,15 +199,19 @@ export function hasExternalFeeFieldConflict(
   if (updates.clientInfo !== undefined) {
     const changed = clientInfoChangedKeys(queuedPrev.clientInfo, updates.clientInfo);
     for (const key of Object.keys(changed) as FeeClientInfoKey[]) {
-      if (JSON.stringify(remote.clientInfo?.[key]) !== JSON.stringify(queuedPrev.clientInfo?.[key])) {
-        return true;
-      }
+      const remoteVal = remote.clientInfo?.[key];
+      const queuedVal = queuedPrev.clientInfo?.[key];
+      if (feePersistValuesEqual(remoteVal, queuedVal)) continue;
+      if (feePersistValuesEqual(remoteVal, changed[key])) continue;
+      if (ownPending?.clientInfo && feePersistValuesEqual(remoteVal, ownPending.clientInfo[key])) continue;
+      return true;
     }
   }
   if (updates.taskItems !== undefined) {
     if (
-      JSON.stringify(remote.taskItems) !== JSON.stringify(queuedPrev.taskItems) &&
-      JSON.stringify(updates.taskItems) !== JSON.stringify(remote.taskItems)
+      !feePersistValuesEqual(remote.taskItems, queuedPrev.taskItems) &&
+      !feePersistValuesEqual(updates.taskItems, remote.taskItems) &&
+      !(ownPending?.taskItems && feePersistValuesEqual(remote.taskItems, ownPending.taskItems))
     ) {
       return true;
     }

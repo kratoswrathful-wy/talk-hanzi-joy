@@ -334,6 +334,7 @@ const feeWriteQueue = createKeyedQueue();
 const feeInFlight = new Map<string, Partial<TranslatorFee>>();
 const feeInFlightCount = new Map<string, number>();
 const feeLastRemote = new Map<string, TranslatorFee>();
+const feeLastWriteError = new Map<string, string>();
 const feePendingQueuedPrev = new Map<string, TranslatorFee>();
 let feePendingReplayStarted = false;
 let feePendingOwnerKey: string | null = null;
@@ -488,7 +489,7 @@ async function persistFeeUpdateOnce(id: string, updates: Partial<TranslatorFee>,
   await requeryFeeFromView(id);
   const latest = fees.find((f) => f.id === id);
   const remote = feeLastRemote.get(id);
-  if (hasExternalFeeFieldConflict(remote, prev, updates)) {
+  if (hasExternalFeeFieldConflict(remote, prev, updates, feeInFlight.get(id))) {
     return { kind: "conflict" as const };
   }
   const picked = pickFeePersistExpectedUpdatedAt(remote ?? latest, prev);
@@ -509,12 +510,14 @@ async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, pre
     attempt = await persistFeeUpdateOnce(id, updates, prev);
   }
   if (attempt.kind === "conflict") {
-    const err = new Error("費用已被他人更新同一欄位，本次未覆寫。已保留畫面輸入。");
+    const err = new Error("此欄已有較新的儲存結果，本次未覆寫。已保留畫面輸入。");
+    feeLastWriteError.set(id, err.message);
     toast.error(err.message);
     return err;
   }
   if (attempt.kind === "no-version") {
     const err = new Error("無法確認費用版本，尚未寫入。已保留畫面輸入。");
+    feeLastWriteError.set(id, err.message);
     toast.error(err.message);
     return err;
   }
@@ -522,9 +525,11 @@ async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, pre
   const result = attempt.result;
   if (!persistFeeWriteConfirmed(result)) {
     const err = result.error instanceof Error ? result.error : new Error("apply_fee_update_failed");
-    toast.error("費用儲存失敗，已保留畫面輸入。請勿離開後當成已儲存。");
+    feeLastWriteError.set(id, "費用儲存失敗，已保留畫面輸入。請先核對這筆費用，不要再新增一張。");
+    toast.error("費用儲存失敗，已保留畫面輸入。請先核對這筆費用，不要再新增一張。");
     return err;
   }
+  feeLastWriteError.delete(id);
   const nextUpdatedAt = result.data?.updated_at;
   const nextStatus = result.data?.status as TranslatorFee["status"] | undefined;
   fees = fees.map((f) => {
@@ -553,11 +558,13 @@ function finishFeeWriteJob(id: string, failed: boolean, jobError: unknown) {
   if (shouldDropFeePendingAfterJob(remaining, failed)) {
     feeInFlight.delete(id);
     forgetFeePending(id);
+    notify();
     return;
   }
   if (!shouldKeepFeePendingAcrossReload(failed, jobError)) {
     forgetFeePending(id);
   }
+  notify();
 }
 
 function replayHydratedFeeWrites() {
@@ -756,6 +763,11 @@ export const feeStore = {
 
   hasUnconfirmedWrite: (id: string) =>
     feeInFlight.has(id) || feeWriteStillProtected(feeInFlightCount.get(id)),
+
+  getWriteBanner: (id: string) => ({
+    inFlight: feeInFlight.has(id) || feeWriteStillProtected(feeInFlightCount.get(id)),
+    lastError: feeLastWriteError.get(id) ?? null,
+  }),
 
   /** 單筆補抓（fees_visible）：供 agent.getFresh 在整表尚未含該列時使用。 */
   fetchFeeById: async (id: string): Promise<TranslatorFee | null> => {
