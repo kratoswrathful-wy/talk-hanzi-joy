@@ -96,6 +96,28 @@ describe("getFieldLock", () => {
     expect(getFieldLock(fee, "sameCase", ctx)).toEqual({ locked: false, reason: "" });
   });
 
+  it("taskItems：已勾選費率無誤時鎖定", () => {
+    const fee = baseFee({ clientInfo: { ...defaultClientInfo, rateConfirmed: true } });
+    const result = getFieldLock(fee, "taskItems", emptyCtx);
+    expect(result.locked).toBe(true);
+    expect(result.reason).toContain("費率");
+  });
+
+  it("taskItems：未勾選費率無誤時不鎖定", () => {
+    expect(getFieldLock(baseFee(), "task_items", emptyCtx).locked).toBe(false);
+  });
+
+  it("clientTaskItems：已列入客戶請款單或已對帳時鎖定", () => {
+    const ctx: FeeFieldLockContext = { linkedTranslatorInvoiceIds: [], linkedClientInvoiceIds: ["cinv-1"] };
+    expect(getFieldLock(baseFee(), "clientTaskItems", ctx).locked).toBe(true);
+    const reconciled = baseFee({ clientInfo: { ...defaultClientInfo, reconciled: true } });
+    expect(getFieldLock(reconciled, "clientTaskItems", emptyCtx).locked).toBe(true);
+  });
+
+  it("clientTaskItems：未對帳且未入客戶請款時不鎖定", () => {
+    expect(getFieldLock(baseFee(), "clientTaskItems", emptyCtx).locked).toBe(false);
+  });
+
   it("未知欄位名稱回傳未鎖定（default 分支）", () => {
     expect(getFieldLock(baseFee(), "不存在的欄位", emptyCtx)).toEqual({ locked: false, reason: "" });
   });

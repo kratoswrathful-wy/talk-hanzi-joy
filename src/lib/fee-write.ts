@@ -55,6 +55,35 @@ export function clientInfoChangedKeys(
   return out;
 }
 
+const FEE_UPDATE_COMPARE_SKIP = new Set(["id", "updatedAt"]);
+
+/**
+ * 畫面若用新物件重送完全相同的內容，仍呼叫 notify 會觸發更新深度爆炸。
+ * 無實際欄位差異時視為空操作，呼叫端不得再入列或通知。
+ */
+export function feeUpdateIsNoop(
+  prev: object | undefined,
+  updates: object | undefined,
+): boolean {
+  if (!prev || !updates) return false;
+  const prevRec = prev as Record<string, unknown>;
+  const updatesRec = updates as Record<string, unknown>;
+  const keys = Object.keys(updatesRec).filter((key) => !FEE_UPDATE_COMPARE_SKIP.has(key));
+  if (keys.length === 0) return true;
+  for (const key of keys) {
+    if (key === "clientInfo") {
+      const changed = clientInfoChangedKeys(
+        prevRec.clientInfo as Partial<ClientInfo> | undefined,
+        updatesRec.clientInfo as Partial<ClientInfo> | undefined,
+      );
+      if (Object.keys(changed).length > 0) return false;
+      continue;
+    }
+    if (JSON.stringify(prevRec[key]) !== JSON.stringify(updatesRec[key])) return false;
+  }
+  return true;
+}
+
 /** 連續寫入取目前 store 已落地的 updatedAt，不用入列當下的舊快照。 */
 export function pickFeePersistExpectedUpdatedAt(
   latest: { updatedAt?: string } | undefined,
@@ -294,6 +323,9 @@ export async function applyFeeUpdate(
   const p_patch = stripFeeServerOwnedKeys(patch);
   if (Object.keys(p_patch).length === 0) {
     return { data: null, error: new Error("empty_patch") };
+  }
+  if (p_patch.internal_note_url === null) {
+    return { data: { ok: false, error: "invalid_internal_note_url" }, error: new Error("invalid_internal_note_url") };
   }
   const { data, error } = await supabase.rpc("apply_fee_update", {
     p_fee_id: feeId,

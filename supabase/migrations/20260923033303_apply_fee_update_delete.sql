@@ -1,5 +1,6 @@
 -- TASK-001 費用隔離：管理端列明欄位更新／刪除。
--- 內容與 20260911164313 相同；改用本版號以便只套在已有較新 migration 的共用隔離，避免順手套入舊樹其他檔。
+-- 內容與歷史 20260911164313 相同。共用隔離實際套用版號為本檔 20260923033303（MCP apply_migration 名稱 apply_fee_update_delete）。
+-- 規劃檔名曾為 20260923050000；不得再以該版號覆寫已套用內容。鎖定補修另見後續 migration。
 -- 不 GRANT fees SELECT；不讓 fees_visible 可寫。只套核准後的隔離庫，非正式發布。不是全庫重置。
 
 create or replace function public.apply_fee_update(

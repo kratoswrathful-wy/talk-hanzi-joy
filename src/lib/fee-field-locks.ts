@@ -112,6 +112,21 @@ export function getFieldLock(
     case "sameCase":
       return UNLOCKED;
 
+    // ── 稿費金額（詳情頁：已勾費率無誤不得改） ──
+    case "taskItems":
+    case "task_items":
+      if (rateConfirmed) return { locked: true, reason: "已確認項目及費率，不得修改稿費內容" };
+      return UNLOCKED;
+
+    // ── 營收金額／客戶案件連結（詳情頁：對帳或已入客戶請款不得改） ──
+    case "clientTaskItems":
+    case "clientCaseLink":
+    case "isFirstFee":
+    case "notFirstFee":
+      if (inClientInvoice) return { locked: true, reason: "此費用已列入客戶請款單，不得修改營收內容" };
+      if (reconciled) return { locked: true, reason: "已對帳完成，不得修改營收內容" };
+      return UNLOCKED;
+
     default:
       return UNLOCKED;
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clientInfoChangedKeys,
+  feeUpdateIsNoop,
   feeWriteStillProtected,
   shouldDropFeePendingAfterJob,
   hasExternalFeeFieldConflict,
@@ -42,6 +43,25 @@ describe("clientInfoChangedKeys", () => {
   it("ignores keys omitted from the next patch", () => {
     const prev = { ...defaultClientInfo, client: "甲" };
     expect(clientInfoChangedKeys(prev, { clientPoNumber: "X" })).toEqual({ clientPoNumber: "X" });
+  });
+});
+
+describe("feeUpdateIsNoop", () => {
+  it("same clientInfo object with identical values is a no-op", () => {
+    const prev = { title: "A", clientInfo: { ...defaultClientInfo, client: "CCJK", reconciled: true } };
+    const updates = { clientInfo: { ...prev.clientInfo } };
+    expect(feeUpdateIsNoop(prev, updates)).toBe(true);
+  });
+
+  it("actual PO change is not a no-op", () => {
+    const prev = { title: "A", clientInfo: { ...defaultClientInfo, clientPoNumber: "OLD" } };
+    const updates = { clientInfo: { ...prev.clientInfo, clientPoNumber: "NEW" } };
+    expect(feeUpdateIsNoop(prev, updates)).toBe(false);
+  });
+
+  it("identical title is a no-op; different title is not", () => {
+    expect(feeUpdateIsNoop({ title: "A" }, { title: "A" })).toBe(true);
+    expect(feeUpdateIsNoop({ title: "A" }, { title: "B" })).toBe(false);
   });
 });
 
@@ -256,5 +276,11 @@ describe("stripFeeServerOwnedKeys", () => {
         assignee: undefined,
       }),
     ).toEqual({ title: "A" });
+  });
+
+  it("保留 internal_note_url 的 JSON null，不得改成省略或空字串", () => {
+    expect(stripFeeServerOwnedKeys({ internal_note_url: null })).toEqual({
+      internal_note_url: null,
+    });
   });
 });

@@ -18,6 +18,7 @@ import {
   shouldKeepFeePendingAcrossReload,
   readJsonNumber,
   nextFeeInFlightCount,
+  feeUpdateIsNoop,
   pickFeePersistExpectedUpdatedAt,
   FEE_PENDING_STORAGE_KEY,
   parseFeePendingRecords,
@@ -682,6 +683,9 @@ export const feeStore = {
 
   updateFee: (id: string, updates: Partial<TranslatorFee>) => {
     const prev = fees.find((f) => f.id === id);
+    if (prev && feeUpdateIsNoop(prev, updates)) {
+      return Promise.resolve(null);
+    }
     const wroteStatus = updates.status !== undefined;
     const display = wroteStatus ? { ...updates, status: prev?.status } : updates;
     fees = fees.map((f) => (f.id === id ? { ...f, ...display } : f));

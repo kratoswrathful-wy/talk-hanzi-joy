@@ -281,11 +281,17 @@ export default function ClientInfoSection({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={async () => {
-                            const inv = await clientInvoiceStore.createInvoice(clientInfo.client, [currentFeeId]);
-                            if (inv) {
-                              toast.success("已收錄至客戶請款單");
-                              setShowInvoiceNavPrompt({ invoiceId: inv.id });
-                              setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                            try {
+                              const inv = await clientInvoiceStore.createInvoice(clientInfo.client, [currentFeeId]);
+                              if (inv) {
+                                toast.success("已收錄至客戶請款單");
+                                setShowInvoiceNavPrompt({ invoiceId: inv.id });
+                                setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                              } else {
+                                toast.error("收錄失敗：請款單或費用關聯未寫入。");
+                              }
+                            } catch {
+                              toast.error("收錄失敗：請款單或費用關聯未寫入。");
                             }
                           }}
                         >
@@ -300,7 +306,11 @@ export default function ClientInfoSection({
                               <DropdownMenuItem
                                 key={inv.id}
                                 onClick={async () => {
-                                  await clientInvoiceStore.addFeesToInvoice(inv.id, [currentFeeId]);
+                                  const { error } = await clientInvoiceStore.addFeesToInvoice(inv.id, [currentFeeId]);
+                                  if (error) {
+                                    toast.error("收錄失敗：費用關聯未寫入。");
+                                    return;
+                                  }
                                   toast.success("已收錄至客戶請款單");
                                   setShowInvoiceNavPrompt({ invoiceId: inv.id });
                                   setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);

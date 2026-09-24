@@ -491,7 +491,8 @@ export default function TranslatorFeeDetail() {
   // 重掛或 store 合併待送欄後，輸入框必須跟已合併列，不能只在 id／status 變時灌一次。
   useEffect(() => {
     if (!feeData) return;
-    setClientInfo(feeData.clientInfo ?? { ...defaultClientInfo });
+    const next = feeData.clientInfo ?? { ...defaultClientInfo };
+    setClientInfo((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
   }, [feeData?.id, feeData?.clientInfo]);
 
   useEffect(() => {
