@@ -7,6 +7,8 @@ import {
   hasExternalFeeFieldConflict,
   feePersistValuesEqual,
   classifyFeeSaveBanner,
+  EMPTY_FEE_WRITE_BANNER,
+  reuseFeeWriteBannerSnapshot,
   feeClientInfoPatchAfterRequery,
   mergeFeeRemoteWithPending,
   nextFeeInFlightCount,
@@ -171,6 +173,26 @@ describe("fee in-flight protection", () => {
       clientInfo: { ...defaultClientInfo, clientPoNumber: "PO-2" },
     };
     expect(hasExternalFeeFieldConflict(remote, queued, updates, updates)).toBe(false);
+  });
+});
+
+describe("reuseFeeWriteBannerSnapshot", () => {
+  it("值沒變就回傳同一參考，避免 getSnapshot 造成 #185", () => {
+    const first = reuseFeeWriteBannerSnapshot(undefined, { inFlight: false, lastError: null });
+    const second = reuseFeeWriteBannerSnapshot(first, { inFlight: false, lastError: null });
+    const third = reuseFeeWriteBannerSnapshot(second, { inFlight: false, lastError: null });
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+    expect(EMPTY_FEE_WRITE_BANNER).toBe(EMPTY_FEE_WRITE_BANNER);
+  });
+
+  it("值變了才換新物件", () => {
+    const idle = reuseFeeWriteBannerSnapshot(undefined, { inFlight: false, lastError: null });
+    const saving = reuseFeeWriteBannerSnapshot(idle, { inFlight: true, lastError: null });
+    expect(saving).not.toBe(idle);
+    expect(saving.inFlight).toBe(true);
+    const savingAgain = reuseFeeWriteBannerSnapshot(saving, { inFlight: true, lastError: null });
+    expect(savingAgain).toBe(saving);
   });
 });
 

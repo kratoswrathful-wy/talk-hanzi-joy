@@ -20,6 +20,8 @@ import {
   nextFeeInFlightCount,
   feeUpdateIsNoop,
   pickFeePersistExpectedUpdatedAt,
+  reuseFeeWriteBannerSnapshot,
+  type FeeWriteBannerSnapshot,
   FEE_PENDING_STORAGE_KEY,
   parseFeePendingRecords,
   serializeFeePendingRecords,
@@ -335,6 +337,7 @@ const feeInFlight = new Map<string, Partial<TranslatorFee>>();
 const feeInFlightCount = new Map<string, number>();
 const feeLastRemote = new Map<string, TranslatorFee>();
 const feeLastWriteError = new Map<string, string>();
+const feeWriteBannerCache = new Map<string, FeeWriteBannerSnapshot>();
 const feePendingQueuedPrev = new Map<string, TranslatorFee>();
 let feePendingReplayStarted = false;
 let feePendingOwnerKey: string | null = null;
@@ -764,10 +767,15 @@ export const feeStore = {
   hasUnconfirmedWrite: (id: string) =>
     feeInFlight.has(id) || feeWriteStillProtected(feeInFlightCount.get(id)),
 
-  getWriteBanner: (id: string) => ({
-    inFlight: feeInFlight.has(id) || feeWriteStillProtected(feeInFlightCount.get(id)),
-    lastError: feeLastWriteError.get(id) ?? null,
-  }),
+  getWriteBanner: (id: string) => {
+    const next: FeeWriteBannerSnapshot = {
+      inFlight: feeInFlight.has(id) || feeWriteStillProtected(feeInFlightCount.get(id)),
+      lastError: feeLastWriteError.get(id) ?? null,
+    };
+    const reused = reuseFeeWriteBannerSnapshot(feeWriteBannerCache.get(id), next);
+    feeWriteBannerCache.set(id, reused);
+    return reused;
+  },
 
   /** 單筆補抓（fees_visible）：供 agent.getFresh 在整表尚未含該列時使用。 */
   fetchFeeById: async (id: string): Promise<TranslatorFee | null> => {

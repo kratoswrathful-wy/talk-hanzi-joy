@@ -163,6 +163,31 @@ export function feePersistValuesEqual(left: unknown, right: unknown): boolean {
 
 export type FeeSaveBannerKind = "hidden" | "saving" | "failed" | "unknown";
 
+export type FeeWriteBannerSnapshot = {
+  inFlight: boolean;
+  lastError: string | null;
+};
+
+/** 給 useSyncExternalStore：沒有費用 id 時也必須是穩定參考，不可每次 new。 */
+export const EMPTY_FEE_WRITE_BANNER: FeeWriteBannerSnapshot = {
+  inFlight: false,
+  lastError: null,
+};
+
+/**
+ * React 18 的 getSnapshot 若每次回傳新物件，會觸發 #185（Maximum update depth）。
+ * 值沒變就重用上一份參考。
+ */
+export function reuseFeeWriteBannerSnapshot(
+  prev: FeeWriteBannerSnapshot | undefined,
+  next: FeeWriteBannerSnapshot,
+): FeeWriteBannerSnapshot {
+  if (prev && prev.inFlight === next.inFlight && prev.lastError === next.lastError) {
+    return prev;
+  }
+  return next;
+}
+
 export function classifyFeeSaveBanner(input: {
   inFlight: boolean;
   lastError?: string | null;

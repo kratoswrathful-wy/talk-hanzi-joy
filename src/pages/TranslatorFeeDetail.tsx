@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, type EditLog, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
 import { applyFeeClientSelection } from "@/lib/fee-client-select";
-import { classifyFeeSaveBanner } from "@/lib/fee-write";
+import { classifyFeeSaveBanner, EMPTY_FEE_WRITE_BANNER } from "@/lib/fee-write";
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { filterEditLogsFeeDetail } from "@/lib/edit-log-permission-filter";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
@@ -342,7 +342,7 @@ export default function TranslatorFeeDetail() {
   const feesLoaded = useFeesLoaded();
   const feeWriteBanner = useSyncExternalStore(
     feeStore.subscribe,
-    () => (id ? feeStore.getWriteBanner(id) : { inFlight: false, lastError: null }),
+    () => (id ? feeStore.getWriteBanner(id) : EMPTY_FEE_WRITE_BANNER),
   );
   const feeSaveBanner = classifyFeeSaveBanner({
     inFlight: feeWriteBanner.inFlight,
