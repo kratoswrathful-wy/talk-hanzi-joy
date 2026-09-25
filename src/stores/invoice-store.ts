@@ -31,8 +31,21 @@ let reloadRequested = false;
 let _invoiceAuthUserId: string | null = null;
 const listeners = new Set<Listener>();
 
+let notifyDepth = 0;
+
 function notify() {
-  listeners.forEach((l) => l());
+  notifyDepth += 1;
+  try {
+    listeners.forEach((l) => {
+      try {
+        l();
+      } catch {
+        // 單一訂閱者丟錯不得擋其他訂閱或寫入收尾。
+      }
+    });
+  } finally {
+    notifyDepth -= 1;
+  }
 }
 
 // ── DB ↔ App mapping ──
@@ -373,7 +386,13 @@ export const invoiceStore = {
     }
     const previous = existing;
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
-    notify();
+    if (notifyDepth === 0) {
+      try {
+        notify();
+      } catch {
+        // 通知丟錯仍繼續寫入，避免畫面停在半更新。
+      }
+    }
 
     const dbUpdates: Record<string, Json> = {};
     if (updates.status !== undefined) dbUpdates.status = updates.status;

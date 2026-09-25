@@ -29,6 +29,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import { computeThenSet } from "@/lib/commit-latest-state";
 import { filterEditLogsTranslatorInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -277,8 +278,8 @@ export default function InvoiceDetailPage() {
     if (oldValue === newValue) return;
     if (!invoiceRefForUnmount.current?.editLogStartedAt) return;
     const authorName = profile?.display_name || profile?.email || "系統";
-    setEditLog((prev) => {
-      const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
+    const nextLogs = computeThenSet(setEditLog, (prev) => {
+      const { nextLogs: logs, nextBurstMap } = applyEditLogFieldChange({
         fieldKey: field,
         oldValue,
         newValue,
@@ -290,9 +291,9 @@ export default function InvoiceDetailPage() {
         burstMap: burstMapRef.current,
       });
       burstMapRef.current = nextBurstMap;
-      if (id) invoiceStore.updateInvoice(id, { edit_logs: nextLogs });
-      return nextLogs;
+      return logs;
     });
+    if (id) invoiceStore.updateInvoice(id, { edit_logs: nextLogs });
   }, [id, profile]);
 
   const forceCommitPending = useCallback(() => {}, []);
