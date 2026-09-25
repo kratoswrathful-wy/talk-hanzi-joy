@@ -190,8 +190,21 @@ let loadPromise: Promise<{ error: unknown }> | null = null;
 let reloadRequested = false;
 const listeners = new Set<Listener>();
 
+let notifyDepth = 0;
+
 function notify() {
-  listeners.forEach((l) => l());
+  notifyDepth += 1;
+  try {
+    listeners.forEach((l) => {
+      try {
+        l();
+      } catch {
+        // 單一訂閱者丟錯不得擋其他訂閱或寫入收尾。
+      }
+    });
+  } finally {
+    notifyDepth -= 1;
+  }
 }
 
 // ── DB ↔ App mapping ──
@@ -702,23 +715,31 @@ export const feeStore = {
     feeInFlight.set(id, { ...feeInFlight.get(id), ...updates });
     feeInFlightCount.set(id, nextFeeInFlightCount(feeInFlightCount.get(id), 1));
     rememberFeePending(id, updates, prev);
-    notify();
-    return feeWriteQueue.enqueue(id, async () => {
-      let failed = false;
-      let jobError: unknown = null;
+    const enqueueWrite = () =>
+      feeWriteQueue.enqueue(id, async () => {
+        let failed = false;
+        let jobError: unknown = null;
+        try {
+          const err = await persistFeeUpdate(id, updates, prev);
+          failed = !!err;
+          jobError = err;
+          return err;
+        } catch (error) {
+          failed = true;
+          jobError = error;
+          return error instanceof Error ? error : new Error("apply_fee_update_failed");
+        } finally {
+          finishFeeWriteJob(id, failed, jobError);
+        }
+      });
+    if (notifyDepth === 0) {
       try {
-        const err = await persistFeeUpdate(id, updates, prev);
-        failed = !!err;
-        jobError = err;
-        return err;
-      } catch (error) {
-        failed = true;
-        jobError = error;
-        return error instanceof Error ? error : new Error("apply_fee_update_failed");
-      } finally {
-        finishFeeWriteJob(id, failed, jobError);
+        notify();
+      } catch {
+        // 通知丟錯仍入列，避免「寫入中」只加不清。
       }
-    });
+    }
+    return enqueueWrite();
   },
 
   deleteFee: (id: string) => {

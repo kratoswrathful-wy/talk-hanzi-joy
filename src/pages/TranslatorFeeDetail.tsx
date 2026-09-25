@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, type EditLog, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
 import { applyFeeClientSelection } from "@/lib/fee-client-select";
 import { classifyFeeSaveBanner, EMPTY_FEE_WRITE_BANNER } from "@/lib/fee-write";
+import { computeThenSet } from "@/lib/commit-latest-state";
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { filterEditLogsFeeDetail } from "@/lib/edit-log-permission-filter";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
@@ -629,8 +630,8 @@ export default function TranslatorFeeDetail() {
       if (phase === "revenue" && !phases?.revenue) return;
       if (phase === "task" && !phases?.task) return;
       const authorName = roleLabels[currentRole];
-      setEditLog((prev) => {
-        const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
+      const nextLogs = computeThenSet(setEditLog, (prev) => {
+        const { nextLogs: logs, nextBurstMap } = applyEditLogFieldChange({
           fieldKey: field,
           oldValue,
           newValue,
@@ -642,9 +643,9 @@ export default function TranslatorFeeDetail() {
           burstMap: burstMapRef.current,
         });
         burstMapRef.current = nextBurstMap;
-        if (id) feeStore.updateFee(id, { editLogs: simpleToFeeEditLogs(nextLogs) });
-        return nextLogs;
+        return logs;
       });
+      if (id) feeStore.updateFee(id, { editLogs: simpleToFeeEditLogs(nextLogs) });
     },
     [currentRole, id]
   );
@@ -697,28 +698,24 @@ export default function TranslatorFeeDetail() {
         trackChange(label, oldItem[field], value);
       }
     }
-    setTaskItems((prev) => {
-      const updated = prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item));
-      if (id) feeStore.updateFee(id, { taskItems: updated });
-      return updated;
-    });
+    const updated = computeThenSet(setTaskItems, (prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item)),
+    );
+    if (id) feeStore.updateFee(id, { taskItems: updated });
   };
 
   const handleAddItem = () => {
-    setTaskItems((prev) => {
-      const updated = [
-        ...prev,
-        {
-          id: `item-new-${Date.now()}`,
-          taskType: "翻譯" as TaskType,
-          billingUnit: "字" as BillingUnit,
-          unitCount: 0,
-          unitPrice: 0,
-        },
-      ];
-      if (id) feeStore.updateFee(id, { taskItems: updated });
-      return updated;
-    });
+    const updated = computeThenSet(setTaskItems, (prev) => [
+      ...prev,
+      {
+        id: `item-new-${Date.now()}`,
+        taskType: "翻譯" as TaskType,
+        billingUnit: "字" as BillingUnit,
+        unitCount: 0,
+        unitPrice: 0,
+      },
+    ]);
+    if (id) feeStore.updateFee(id, { taskItems: updated });
     if (hasBeenSubmittedRef.current) {
       trackChange("新增任務項目", "-", "新項目已新增");
     }
@@ -731,11 +728,8 @@ export default function TranslatorFeeDetail() {
         trackChange("刪除任務項目", `${removedItem.taskType}`, "已刪除");
       }
     }
-    setTaskItems((prev) => {
-      const updated = prev.filter((i) => i.id !== itemId);
-      if (id) feeStore.updateFee(id, { taskItems: updated });
-      return updated;
-    });
+    const updated = computeThenSet(setTaskItems, (prev) => prev.filter((i) => i.id !== itemId));
+    if (id) feeStore.updateFee(id, { taskItems: updated });
   };
 
   const handleNumberBlur = (itemId: string, field: "unitPrice" | "unitCount", rawValue: string) => {
@@ -956,11 +950,10 @@ export default function TranslatorFeeDetail() {
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
-          setTaskItems((prev) => {
-            const updated = prev.map((item, idx) => idx === 0 ? { ...item, unitCount, billingUnit } : item);
-            if (id) feeStore.updateFee(id, { taskItems: updated });
-            return updated;
-          });
+          const updated = computeThenSet(setTaskItems, (prev) =>
+            prev.map((item, idx) => (idx === 0 ? { ...item, unitCount, billingUnit } : item)),
+          );
+          if (id) feeStore.updateFee(id, { taskItems: updated });
         }
 
         // Multi-translator: create additional fee pages
@@ -1234,19 +1227,19 @@ export default function TranslatorFeeDetail() {
           setTaskItems(mapped);
           if (id) feeStore.updateFee(id, { taskItems: mapped });
         } else if (feeRate !== null || unitCount !== null) {
-          setTaskItems((prev) => {
-            const updated = [...prev];
-            if (updated.length > 0) {
-              updated[0] = {
-                ...updated[0],
+          const updated = computeThenSet(setTaskItems, (prev) => {
+            const next = [...prev];
+            if (next.length > 0) {
+              next[0] = {
+                ...next[0],
                 billingUnit,
                 ...(unitCount !== null ? { unitCount } : {}),
                 ...(feeRate !== null ? { unitPrice: feeRate } : {}),
               };
             }
-            if (id) feeStore.updateFee(id, { taskItems: updated });
-            return updated;
+            return next;
           });
+          if (id) feeStore.updateFee(id, { taskItems: updated });
         }
 
         // Auto-create client/contact options if they don't exist
@@ -1571,11 +1564,10 @@ export default function TranslatorFeeDetail() {
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
-          setTaskItems((prev) => {
-            const updated = prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item);
-            if (id) feeStore.updateFee(id, { taskItems: updated });
-            return updated;
-          });
+          const updated = computeThenSet(setTaskItems, (prev) =>
+            prev.map((item, idx) => (idx === 0 ? { ...item, unitCount } : item)),
+          );
+          if (id) feeStore.updateFee(id, { taskItems: updated });
           // 同步計費單位數到客戶資訊
           setClientInfo((prev) => ({
             ...prev,
@@ -1830,11 +1822,10 @@ export default function TranslatorFeeDetail() {
                   if (id) feeStore.updateFee(id, { internalNote: nextInternalNote });
                 }
                 if (Object.keys(clientUpdates).length > 0) {
-                  setClientInfo((prev) => {
-                    const updated = mergeClientInfoTemplatePatch(prev, clientUpdates);
-                    if (id) feeStore.updateFee(id, { clientInfo: updated });
-                    return updated;
-                  });
+                  const updated = computeThenSet(setClientInfo, (prev) =>
+                    mergeClientInfoTemplatePatch(prev, clientUpdates),
+                  );
+                  if (id) feeStore.updateFee(id, { clientInfo: updated });
                 }
                 toast.success("已套用範本");
               }}
