@@ -1,18 +1,28 @@
 /**
- * 先用最新本地狀態算出下一筆，再交給 setState。
- * updater 只做計算，不得在裡面通知 store 或寫後端。
+ * 先用呼叫端持有的最新操作狀態算出下一筆，再交給 setState。
+ * 計算與持久化都在 updater 外；不得同步偷讀 React updater 副作用。
  */
-export function computeThenSet<T>(
-  setState: (updater: (prev: T) => T) => void,
-  compute: (prev: T) => T,
-): T {
-  let next: T | undefined;
-  setState((prev) => {
-    next = compute(prev);
+export type LatestBox<T> = { current: T };
+
+export function wrapLatestSetter<T>(
+  latest: LatestBox<T>,
+  setState: (next: NoInfer<T>) => void,
+): (action: T | ((prev: T) => T)) => T {
+  return (action) => {
+    const next = typeof action === "function" ? (action as (prev: T) => T)(latest.current) : action;
+    latest.current = next;
+    setState(next);
     return next;
-  });
-  if (next === undefined) {
-    throw new Error("setState updater did not run");
-  }
+  };
+}
+
+export function computeThenSet<T>(
+  latest: LatestBox<T>,
+  setState: (next: NoInfer<T>) => void,
+  compute: (prev: NoInfer<T>) => NoInfer<T>,
+): T {
+  const next = compute(latest.current);
+  latest.current = next;
+  setState(next);
   return next;
 }

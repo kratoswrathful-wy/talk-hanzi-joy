@@ -30,8 +30,9 @@ import { type ClientInvoice, type ClientInvoiceAdjustmentLine, type ClientInvoic
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
-import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
-import { computeThenSet } from "@/lib/commit-latest-state";
+import { type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import { wrapLatestSetter } from "@/lib/commit-latest-state";
+import { appendInvoiceEditLog, collectBufferedInvoiceFlushes, invoiceUpdatesWithOptionalLogs } from "@/lib/invoice-detail-commits";
 import { filterEditLogsClientInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -240,10 +241,15 @@ export default function ClientInvoiceDetailPage() {
   }, [autoFocusTitle]);
 
   // Edit history（即時寫入 + 五分鐘內回到錨點則撤銷）
-  const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
+  const [editLog, setEditLogState] = useState<EditLogEntry[]>([]);
+  const editLogLatest = useRef(editLog);
+  const setEditLog = wrapLatestSetter(editLogLatest, setEditLogState);
   const burstMapRef = useRef<BurstMap>({});
   const invoiceRefForUnmount = useRef(invoice);
   invoiceRefForUnmount.current = invoice;
+  const localTitleRef = useRef(invoice?.title || "");
+  const localInvoiceNumberRef = useRef(invoice?.invoiceNumber || "");
+  const localNoteRef = useRef(invoice?.note || "");
 
   const visibleEditLog = useMemo(
     () => filterEditLogsClientInvoice(editLog, checkPerm),
@@ -284,29 +290,46 @@ export default function ClientInvoiceDetailPage() {
     };
   }, [id, user?.id]);
 
-  const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
-    if (oldValue === newValue) return;
-    if (!invoiceRefForUnmount.current?.editLogStartedAt) return;
-    const authorName = profile?.display_name || profile?.email || "系統";
-    const nextLogs = computeThenSet(setEditLog, (prev) => {
-      const { nextLogs: logs, nextBurstMap } = applyEditLogFieldChange({
-        fieldKey: field,
-        oldValue,
-        newValue,
-        now: Date.now(),
-        author: authorName,
-        formatTimestamp,
-        fieldLabel: fieldLabels[field] || field,
-        existingLogs: prev,
-        burstMap: burstMapRef.current,
-      });
-      burstMapRef.current = nextBurstMap;
-      return logs;
+  const appendLog = useCallback((field: string, oldValue: string, newValue: string) => {
+    return appendInvoiceEditLog({
+      latest: editLogLatest,
+      setLogs: setEditLogState,
+      burstMap: burstMapRef,
+      started: !!invoiceRefForUnmount.current?.editLogStartedAt,
+      field,
+      fieldLabel: fieldLabels[field] || field,
+      oldValue,
+      newValue,
+      author: profile?.display_name || profile?.email || "系統",
+      formatTimestamp,
     });
-    if (id) clientInvoiceStore.updateInvoice(id, { edit_logs: editLogsToJson(nextLogs) });
-  }, [id, profile]);
+  }, [profile]);
 
-  const forceCommitPending = useCallback(() => {}, []);
+  const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
+    const nextLogs = appendLog(field, oldValue, newValue);
+    if (nextLogs && id) clientInvoiceStore.updateInvoice(id, { edit_logs: editLogsToJson(nextLogs) });
+    return nextLogs;
+  }, [appendLog, id]);
+
+  const commitBufferedFields = useCallback(() => {
+    const inv = invoiceRefForUnmount.current;
+    if (!id || !inv) return;
+    const pending = collectBufferedInvoiceFlushes({
+      title: { local: localTitleRef.current, persisted: inv.title || "" },
+      note: { local: localNoteRef.current, persisted: inv.note || "" },
+      invoiceNumber: { local: localInvoiceNumberRef.current, persisted: inv.invoiceNumber || "" },
+    });
+    for (const item of pending) {
+      const logs = appendLog(item.field, item.persisted, item.local);
+      const payload = invoiceUpdatesWithOptionalLogs({ [item.field]: item.local }, logs);
+      void clientInvoiceStore.updateInvoice(id, {
+        ...payload,
+        ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+      });
+    }
+  }, [appendLog, id]);
+
+  const forceCommitPending = commitBufferedFields;
 
   // Available fees (not linked to any client invoice)
   const allLinkedFeeIds = useMemo(() => {
@@ -387,9 +410,17 @@ export default function ClientInvoiceDetailPage() {
   const [localTitle, setLocalTitle] = useState(invoice?.title || "");
   const [localInvoiceNumber, setLocalInvoiceNumber] = useState(invoice?.invoiceNumber || "");
   const [localNote, setLocalNote] = useState(invoice?.note || "");
+  localTitleRef.current = localTitle;
+  localInvoiceNumberRef.current = localInvoiceNumber;
+  localNoteRef.current = localNote;
   useEffect(() => { if (invoice) setLocalTitle(invoice.title); }, [invoice?.id]);
   useEffect(() => { if (invoice) setLocalInvoiceNumber(invoice.invoiceNumber || ""); }, [invoice?.id]);
-  useEffect(() => { if (invoice) setLocalNote(invoice.note || ""); }, [invoice?.id, invoice?.note]);
+  useEffect(() => { if (invoice) setLocalNote(invoice.note || ""); }, [invoice?.id]);
+  useEffect(() => {
+    return () => {
+      commitBufferedFields();
+    };
+  }, [commitBufferedFields]);
 
   if (!invoice) {
     if (!clientInvoicesLoaded) {
@@ -482,16 +513,24 @@ export default function ClientInvoiceDetailPage() {
   const handleTitleBlur = () => {
     if (localTitle !== invoice.title) {
       const oldTitle = invoice.title;
-      clientInvoiceStore.updateInvoice(invoice.id, { title: localTitle });
-      trackChange("title", oldTitle, localTitle);
+      const logs = appendLog("title", oldTitle, localTitle);
+      const payload = invoiceUpdatesWithOptionalLogs({ title: localTitle }, logs);
+      void clientInvoiceStore.updateInvoice(invoice.id, {
+        ...payload,
+        ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+      });
     }
   };
 
   const handleInvoiceNumberBlur = () => {
     if (localInvoiceNumber !== (invoice.invoiceNumber || "")) {
       const old = invoice.invoiceNumber || "";
-      clientInvoiceStore.updateInvoice(invoice.id, { invoiceNumber: localInvoiceNumber });
-      trackChange("invoiceNumber", old, localInvoiceNumber);
+      const logs = appendLog("invoiceNumber", old, localInvoiceNumber);
+      const payload = invoiceUpdatesWithOptionalLogs({ invoiceNumber: localInvoiceNumber }, logs);
+      void clientInvoiceStore.updateInvoice(invoice.id, {
+        ...payload,
+        ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+      });
     }
   };
 
@@ -683,8 +722,12 @@ export default function ClientInvoiceDetailPage() {
 
   const handleNoteChange = (newNote: string) => {
     const oldNote = invoice.note;
-    clientInvoiceStore.updateInvoice(invoice.id, { note: newNote });
-    trackChange("note", oldNote || "(空)", newNote || "(空)");
+    const logs = appendLog("note", oldNote || "(空)", newNote || "(空)");
+    const payload = invoiceUpdatesWithOptionalLogs({ note: newNote }, logs);
+    void clientInvoiceStore.updateInvoice(invoice.id, {
+      ...payload,
+      ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+    });
   };
 
   const handleAddComment = async (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string): Promise<boolean> => {

@@ -64,13 +64,14 @@ async function seedClientInvoice() {
 function pageTrackInvoiceChange(
   store: { updateInvoice: (id: string, updates: Record<string, unknown>) => Promise<{ error: unknown }> },
   invoiceId: string,
-  setEditLog: (updater: (prev: ReturnType<typeof applyEditLogFieldChange>["nextLogs"]) => ReturnType<typeof applyEditLogFieldChange>["nextLogs"]) => void,
+  latest: { current: ReturnType<typeof applyEditLogFieldChange>["nextLogs"] },
+  setEditLog: (next: ReturnType<typeof applyEditLogFieldChange>["nextLogs"]) => void,
   burstBox: { current: Parameters<typeof applyEditLogFieldChange>[0]["burstMap"] },
   field: string,
   oldValue: string,
   newValue: string,
 ) {
-  const nextLogs = computeThenSet(setEditLog, (prev) => {
+  const nextLogs = computeThenSet(latest, setEditLog, (prev) => {
     const { nextLogs: logs, nextBurstMap } = applyEditLogFieldChange({
       fieldKey: field,
       oldValue,
@@ -123,28 +124,28 @@ describe("兩種請款明細頁＋真 store 修改紀錄", () => {
 
   it("稿費請款：紀錄開啟後連改兩欄，後值都在、不重入 updater", async () => {
     const invoice = seedTranslatorInvoice();
-    const logsBox = { value: [] as ReturnType<typeof applyEditLogFieldChange>["nextLogs"] };
-    const setEditLog = (updater: (prev: typeof logsBox.value) => typeof logsBox.value) => {
-      logsBox.value = updater(logsBox.value);
+    const latest = { current: [] as ReturnType<typeof applyEditLogFieldChange>["nextLogs"] };
+    const setEditLog = (next: typeof latest.current) => {
+      latest.current = next;
     };
     const burstBox = { current: {} as Parameters<typeof applyEditLogFieldChange>[0]["burstMap"] };
-    await pageTrackInvoiceChange(invoiceStore, invoice.id, setEditLog, burstBox, "名稱", invoice.title, "名稱後值");
-    await pageTrackInvoiceChange(invoiceStore, invoice.id, setEditLog, burstBox, "備註", "", "備註後值");
-    expect(logsBox.value.map((row) => row.fieldKey)).toEqual(["名稱", "備註"]);
-    expect(logsBox.value).toHaveLength(2);
+    await pageTrackInvoiceChange(invoiceStore, invoice.id, latest, setEditLog, burstBox, "名稱", invoice.title, "名稱後值");
+    await pageTrackInvoiceChange(invoiceStore, invoice.id, latest, setEditLog, burstBox, "備註", "", "備註後值");
+    expect(latest.current.map((row) => row.fieldKey)).toEqual(["名稱", "備註"]);
+    expect(latest.current).toHaveLength(2);
   });
 
   it("客戶請款：紀錄開啟後連改兩欄，後值都在、不重入 updater", async () => {
     const invoice = await seedClientInvoice();
-    const logsBox = { value: [] as ReturnType<typeof applyEditLogFieldChange>["nextLogs"] };
-    const setEditLog = (updater: (prev: typeof logsBox.value) => typeof logsBox.value) => {
-      logsBox.value = updater(logsBox.value);
+    const latest = { current: [] as ReturnType<typeof applyEditLogFieldChange>["nextLogs"] };
+    const setEditLog = (next: typeof latest.current) => {
+      latest.current = next;
     };
     const burstBox = { current: {} as Parameters<typeof applyEditLogFieldChange>[0]["burstMap"] };
-    await pageTrackInvoiceChange(clientInvoiceStore, invoice.id, setEditLog, burstBox, "名稱", invoice.title, "客戶名稱後值");
-    await pageTrackInvoiceChange(clientInvoiceStore, invoice.id, setEditLog, burstBox, "備註", "", "客戶備註後值");
-    expect(logsBox.value.map((row) => row.fieldKey)).toEqual(["名稱", "備註"]);
-    expect(logsBox.value).toHaveLength(2);
+    await pageTrackInvoiceChange(clientInvoiceStore, invoice.id, latest, setEditLog, burstBox, "名稱", invoice.title, "客戶名稱後值");
+    await pageTrackInvoiceChange(clientInvoiceStore, invoice.id, latest, setEditLog, burstBox, "備註", "", "客戶備註後值");
+    expect(latest.current.map((row) => row.fieldKey)).toEqual(["名稱", "備註"]);
+    expect(latest.current).toHaveLength(2);
   });
 
 });

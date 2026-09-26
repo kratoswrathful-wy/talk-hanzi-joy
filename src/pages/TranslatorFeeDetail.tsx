@@ -13,7 +13,7 @@ import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, type EditLog, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
 import { applyFeeClientSelection } from "@/lib/fee-client-select";
 import { classifyFeeSaveBanner, EMPTY_FEE_WRITE_BANNER } from "@/lib/fee-write";
-import { computeThenSet } from "@/lib/commit-latest-state";
+import { computeThenSet, wrapLatestSetter } from "@/lib/commit-latest-state";
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { filterEditLogsFeeDetail } from "@/lib/edit-log-permission-filter";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
@@ -360,11 +360,13 @@ export default function TranslatorFeeDetail() {
   const autoFocusTitle = readFeeDetailNavigationState(location.state).autoFocusTitle ?? false;
   const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(feeData?.title ?? "");
-  const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(
+  const [taskItems, setTaskItemsState] = useState<FeeTaskItem[]>(
     feeData?.taskItems && feeData.taskItems.length > 0
       ? feeData.taskItems
       : [{ id: `item-${Date.now()}`, taskType: "翻譯", billingUnit: "字", unitCount: 0, unitPrice: 0 }]
   );
+  const taskItemsLatest = useRef(taskItems);
+  const setTaskItems = wrapLatestSetter(taskItemsLatest, setTaskItemsState);
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
@@ -392,10 +394,14 @@ export default function TranslatorFeeDetail() {
   const [notionLoading, setNotionLoading] = useState(false);
   const [isNoFeeTranslator, setIsNoFeeTranslator] = useState(false);
   const [creatorName, setCreatorName] = useState(feeData?.createdBy || "");
-  const [clientInfo, setClientInfo] = useState<ClientInfo>(feeData?.clientInfo ?? { ...defaultClientInfo });
+  const [clientInfo, setClientInfoState] = useState<ClientInfo>(feeData?.clientInfo ?? { ...defaultClientInfo });
+  const clientInfoLatest = useRef(clientInfo);
+  const setClientInfo = wrapLatestSetter(clientInfoLatest, setClientInfoState);
 
   // Edit history（即時寫入 + burst 內回到錨點則撤銷）
-  const [editLog, setEditLog] = useState<SimplePersistedLog[]>(() => feeEditLogsToSimple(feeData?.editLogs ?? []));
+  const [editLog, setEditLogState] = useState<SimplePersistedLog[]>(() => feeEditLogsToSimple(feeData?.editLogs ?? []));
+  const editLogLatest = useRef(editLog);
+  const setEditLog = wrapLatestSetter(editLogLatest, setEditLogState);
   const burstMapRef = useRef<BurstMap>({});
   const phasesRef = useRef<FeeEditLogPhases | undefined>(undefined);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
@@ -630,7 +636,7 @@ export default function TranslatorFeeDetail() {
       if (phase === "revenue" && !phases?.revenue) return;
       if (phase === "task" && !phases?.task) return;
       const authorName = roleLabels[currentRole];
-      const nextLogs = computeThenSet(setEditLog, (prev) => {
+      const nextLogs = computeThenSet(editLogLatest, setEditLogState, (prev) => {
         const { nextLogs: logs, nextBurstMap } = applyEditLogFieldChange({
           fieldKey: field,
           oldValue,
@@ -698,14 +704,14 @@ export default function TranslatorFeeDetail() {
         trackChange(label, oldItem[field], value);
       }
     }
-    const updated = computeThenSet(setTaskItems, (prev) =>
+    const updated = computeThenSet(taskItemsLatest, setTaskItemsState, (prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item)),
     );
     if (id) feeStore.updateFee(id, { taskItems: updated });
   };
 
   const handleAddItem = () => {
-    const updated = computeThenSet(setTaskItems, (prev) => [
+    const updated = computeThenSet(taskItemsLatest, setTaskItemsState, (prev) => [
       ...prev,
       {
         id: `item-new-${Date.now()}`,
@@ -728,7 +734,7 @@ export default function TranslatorFeeDetail() {
         trackChange("刪除任務項目", `${removedItem.taskType}`, "已刪除");
       }
     }
-    const updated = computeThenSet(setTaskItems, (prev) => prev.filter((i) => i.id !== itemId));
+    const updated = computeThenSet(taskItemsLatest, setTaskItemsState, (prev) => prev.filter((i) => i.id !== itemId));
     if (id) feeStore.updateFee(id, { taskItems: updated });
   };
 
@@ -950,7 +956,7 @@ export default function TranslatorFeeDetail() {
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
-          const updated = computeThenSet(setTaskItems, (prev) =>
+          const updated = computeThenSet(taskItemsLatest, setTaskItemsState, (prev) =>
             prev.map((item, idx) => (idx === 0 ? { ...item, unitCount, billingUnit } : item)),
           );
           if (id) feeStore.updateFee(id, { taskItems: updated });
@@ -1227,7 +1233,7 @@ export default function TranslatorFeeDetail() {
           setTaskItems(mapped);
           if (id) feeStore.updateFee(id, { taskItems: mapped });
         } else if (feeRate !== null || unitCount !== null) {
-          const updated = computeThenSet(setTaskItems, (prev) => {
+          const updated = computeThenSet(taskItemsLatest, setTaskItemsState, (prev) => {
             const next = [...prev];
             if (next.length > 0) {
               next[0] = {
@@ -1564,7 +1570,7 @@ export default function TranslatorFeeDetail() {
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
-          const updated = computeThenSet(setTaskItems, (prev) =>
+          const updated = computeThenSet(taskItemsLatest, setTaskItemsState, (prev) =>
             prev.map((item, idx) => (idx === 0 ? { ...item, unitCount } : item)),
           );
           if (id) feeStore.updateFee(id, { taskItems: updated });
@@ -1822,7 +1828,7 @@ export default function TranslatorFeeDetail() {
                   if (id) feeStore.updateFee(id, { internalNote: nextInternalNote });
                 }
                 if (Object.keys(clientUpdates).length > 0) {
-                  const updated = computeThenSet(setClientInfo, (prev) =>
+                  const updated = computeThenSet(clientInfoLatest, setClientInfoState, (prev) =>
                     mergeClientInfoTemplatePatch(prev, clientUpdates),
                   );
                   if (id) feeStore.updateFee(id, { clientInfo: updated });

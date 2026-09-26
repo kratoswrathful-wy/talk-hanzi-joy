@@ -19,6 +19,8 @@ import {
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { createKeyedQueue } from "@/lib/case-write-queue";
+import { keepLocalInvoiceAfterAck, revertUnchangedJobFields } from "@/lib/invoice-write-merge";
 
 type Listener = () => void;
 
@@ -31,6 +33,7 @@ let _clientInvoiceAuthUserId: string | null = null;
 const listeners = new Set<Listener>();
 
 let notifyDepth = 0;
+const clientInvoiceWriteQueue = createKeyedQueue();
 
 function notify() {
   notifyDepth += 1;
@@ -443,48 +446,44 @@ export const clientInvoiceStore = {
 
     if (Object.keys(dbUpdates).length === 0) return { error: null };
 
-    const { data, error } = await supabase
-      .from("client_invoices")
-      .update(dbUpdates)
-      .eq("id", id)
-      .select()
-      .maybeSingle();
+    return clientInvoiceWriteQueue.enqueue(id, async () => {
+      const { data, error } = await supabase
+        .from("client_invoices")
+        .update(dbUpdates)
+        .eq("id", id)
+        .select()
+        .maybeSingle();
 
-    if (error) {
-      console.error("Failed to update client invoice:", errorMessage(error));
-      if (previous) {
-        invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
-        notify();
+      if (error) {
+        console.error("Failed to update client invoice:", errorMessage(error));
+        if (previous) {
+          invoices = invoices.map((inv) =>
+            inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+          );
+          notify();
+        }
+        return { error };
       }
-      return { error };
-    }
-    if (!data) {
-      const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
-      console.error("Failed to update client invoice:", blockedErr.message);
-      if (previous) {
-        invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
-        notify();
+      if (!data) {
+        const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
+        console.error("Failed to update client invoice:", blockedErr.message);
+        if (previous) {
+          invoices = invoices.map((inv) =>
+            inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+          );
+          notify();
+        }
+        return { error: blockedErr };
       }
-      return { error: blockedErr };
-    }
 
-    const feeIds = previous?.feeIds ?? [];
-    // 以 SELECT 權威列為底，再疊這次明確寫入的 updates，避免 replica／select
-    // 短暫缺欄時把樂觀寫入沖掉（setChannel／title 等 bridge 回讀會因此假失敗）。
-    const fromDb = dbToApp(data, feeIds);
-    invoices = invoices.map((inv) =>
-      inv.id === id
-        ? {
-            ...fromDb,
-            ...Object.fromEntries(
-              Object.entries(updates).filter(([, v]) => v !== undefined),
-            ),
-          }
-        : inv,
-    );
-    notify();
-
-    return { error: null };
+      const current = invoices.find((inv) => inv.id === id);
+      const fromDb = dbToApp(data, current?.feeIds ?? previous?.feeIds ?? []);
+      invoices = invoices.map((inv) =>
+        inv.id === id ? keepLocalInvoiceAfterAck(current ?? inv, fromDb) : inv,
+      );
+      notify();
+      return { error: null };
+    });
   },
 
   deleteInvoice: async (id: string): Promise<{ error: unknown }> => {

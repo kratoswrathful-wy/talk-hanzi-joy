@@ -28,8 +28,9 @@ import type { Json } from "@/integrations/supabase/types";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
-import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
-import { computeThenSet } from "@/lib/commit-latest-state";
+import { type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import { wrapLatestSetter } from "@/lib/commit-latest-state";
+import { appendInvoiceEditLog, collectBufferedInvoiceFlushes, invoiceUpdatesWithOptionalLogs } from "@/lib/invoice-detail-commits";
 import { filterEditLogsTranslatorInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -204,10 +205,18 @@ export default function InvoiceDetailPage() {
   const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
 
   // Edit history（即時寫入 + 五分鐘內回到錨點則撤銷）
-  const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
+  const [editLog, setEditLogState] = useState<EditLogEntry[]>([]);
+  const editLogLatest = useRef(editLog);
+  const setEditLog = wrapLatestSetter(editLogLatest, setEditLogState);
   const burstMapRef = useRef<BurstMap>({});
   const invoiceRefForUnmount = useRef(invoice);
   invoiceRefForUnmount.current = invoice;
+  const [localTitle, setLocalTitle] = useState(invoice?.title || "");
+  const localTitleRef = useRef(localTitle);
+  localTitleRef.current = localTitle;
+  useEffect(() => {
+    if (invoice) setLocalTitle(invoice.title);
+  }, [invoice?.id]);
 
   const visibleEditLog = useMemo(
     () => filterEditLogsTranslatorInvoice(editLog, checkPerm),
@@ -274,29 +283,46 @@ export default function InvoiceDetailPage() {
     };
   }, [id, user?.id]);
 
-  const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
-    if (oldValue === newValue) return;
-    if (!invoiceRefForUnmount.current?.editLogStartedAt) return;
-    const authorName = profile?.display_name || profile?.email || "系統";
-    const nextLogs = computeThenSet(setEditLog, (prev) => {
-      const { nextLogs: logs, nextBurstMap } = applyEditLogFieldChange({
-        fieldKey: field,
-        oldValue,
-        newValue,
-        now: Date.now(),
-        author: authorName,
-        formatTimestamp,
-        fieldLabel: fieldLabels[field] || field,
-        existingLogs: prev,
-        burstMap: burstMapRef.current,
-      });
-      burstMapRef.current = nextBurstMap;
-      return logs;
+  const appendLog = useCallback((field: string, oldValue: string, newValue: string) => {
+    return appendInvoiceEditLog({
+      latest: editLogLatest,
+      setLogs: setEditLogState,
+      burstMap: burstMapRef,
+      started: !!invoiceRefForUnmount.current?.editLogStartedAt,
+      field,
+      fieldLabel: fieldLabels[field] || field,
+      oldValue,
+      newValue,
+      author: profile?.display_name || profile?.email || "系統",
+      formatTimestamp,
     });
-    if (id) invoiceStore.updateInvoice(id, { edit_logs: nextLogs });
-  }, [id, profile]);
+  }, [profile]);
 
-  const forceCommitPending = useCallback(() => {}, []);
+  const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
+    const nextLogs = appendLog(field, oldValue, newValue);
+    if (nextLogs && id) invoiceStore.updateInvoice(id, { edit_logs: nextLogs });
+    return nextLogs;
+  }, [appendLog, id]);
+
+  const commitTitleIfDirty = useCallback(() => {
+    const inv = invoiceRefForUnmount.current;
+    if (!id || !inv) return;
+    const nextTitle = localTitleRef.current;
+    const pending = collectBufferedInvoiceFlushes({
+      title: { local: nextTitle, persisted: inv.title || "" },
+    });
+    if (pending.length === 0) return;
+    const logs = appendLog("title", inv.title || "", nextTitle);
+    void invoiceStore.updateInvoice(id, invoiceUpdatesWithOptionalLogs({ title: nextTitle }, logs));
+  }, [appendLog, id]);
+
+  const forceCommitPending = commitTitleIfDirty;
+
+  useEffect(() => {
+    return () => {
+      commitTitleIfDirty();
+    };
+  }, [commitTitleIfDirty]);
 
   // Unlinked fees for this translator
   const allLinkedFeeIds = useMemo(() => {
@@ -393,10 +419,8 @@ export default function InvoiceDetailPage() {
     toast.success("已刪除請款單");
   };
 
-  const handleTitleChange = (newTitle: string) => {
-    const oldTitle = invoice.title;
-    invoiceStore.updateInvoice(invoice.id, { title: newTitle });
-    trackChange("title", oldTitle, newTitle);
+  const handleTitleBlur = () => {
+    commitTitleIfDirty();
   };
 
   const handleFullPayment = () => {
@@ -587,8 +611,9 @@ export default function InvoiceDetailPage() {
             ) : (
               <Input
                 ref={titleInputRef}
-                value={invoice.title}
-                onChange={(e) => handleTitleChange(e.target.value)}
+                value={localTitle}
+                onChange={(e) => setLocalTitle(e.target.value)}
+                onBlur={handleTitleBlur}
                 onFocus={(e) => e.target.select()}
                 placeholder="請款單標題"
                 className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
