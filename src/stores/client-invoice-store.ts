@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import { editLogsFromJson, editLogsToJson } from "@/lib/invoice-edit-logs";
 import {
   classifyInvoiceWriteCertainty,
   decideInvoiceLinkCleanup,
@@ -80,8 +81,13 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     expectedCollectionDate: row.expected_collection_date || undefined,
     adjustmentLines: parseAdjustmentLines(row.adjustment_lines),
     editLogStartedAt: row.edit_log_started_at || undefined,
+    edit_logs: editLogsFromJson(row.edit_logs),
     comments: invoiceCommentsFromJson(row.comments),
   };
+}
+
+export function clientInvoiceFromDb(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
+  return dbToApp(row, feeIds);
 }
 
 function paymentsFromJson(raw: Json | null | undefined): ClientPaymentRecord[] {
@@ -411,10 +417,9 @@ export const clientInvoiceStore = {
         | "adjustmentLines"
         | "editLogStartedAt"
         | "comments"
+        | "edit_logs"
       >
-    > & {
-      edit_logs?: Json;
-    }
+    > & Record<string, unknown>
   ): Promise<{ error: unknown }> => {
     const existing = invoices.find((inv) => inv.id === id);
     const previous = existing;
@@ -435,7 +440,7 @@ export const clientInvoiceStore = {
     if (updates.invoiceNumber !== undefined) dbUpdates.invoice_number = updates.invoiceNumber;
     if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
     if (updates.comments !== undefined) dbUpdates.comments = invoiceCommentsToJson(updates.comments);
-    if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
+    if (updates.edit_logs !== undefined) dbUpdates.edit_logs = editLogsToJson(updates.edit_logs);
     if (updates.isRecordOnly !== undefined) dbUpdates.is_record_only = updates.isRecordOnly;
     if (updates.recordAmount !== undefined) dbUpdates.record_amount = updates.recordAmount;
     if (updates.recordCurrency !== undefined) dbUpdates.record_currency = updates.recordCurrency;
@@ -458,7 +463,7 @@ export const clientInvoiceStore = {
         console.error("Failed to update client invoice:", errorMessage(error));
         if (previous) {
           invoices = invoices.map((inv) =>
-            inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+            inv.id === id ? revertUnchangedJobFields<ClientInvoice>(inv, previous, updates) : inv,
           );
           notify();
         }
@@ -469,7 +474,7 @@ export const clientInvoiceStore = {
         console.error("Failed to update client invoice:", blockedErr.message);
         if (previous) {
           invoices = invoices.map((inv) =>
-            inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+            inv.id === id ? revertUnchangedJobFields<ClientInvoice>(inv, previous, updates) : inv,
           );
           notify();
         }

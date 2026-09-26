@@ -23,7 +23,6 @@ import { useClientInvoice, clientInvoiceStore, useClientInvoicesLoaded } from "@
 import { useSelectOptions, type SelectOption } from "@/stores/select-options-store";
 import { useFees } from "@/hooks/use-fee-store";
 import type { TranslatorFee, ClientTaskItem } from "@/data/fee-mock-data";
-import type { Json } from "@/integrations/supabase/types";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useCurrencies } from "@/stores/currency-store";
 import { type ClientInvoice, type ClientInvoiceAdjustmentLine, type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
@@ -33,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { wrapLatestSetter } from "@/lib/commit-latest-state";
 import { appendInvoiceEditLog, collectBufferedInvoiceFlushes, invoiceUpdatesWithOptionalLogs } from "@/lib/invoice-detail-commits";
+import { hydrateInvoiceEditLogsOnOpen } from "@/lib/invoice-edit-logs";
 import { filterEditLogsClientInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -135,41 +135,6 @@ interface CommentEntry {
 
 type EditLogEntry = SimplePersistedLog;
 
-function editLogsToJson(logs: EditLogEntry[]): Json {
-  return logs.map((l) => ({
-    id: l.id,
-    changedBy: l.changedBy,
-    description: l.description,
-    timestamp: l.timestamp,
-    ...(l.fieldKey ? { fieldKey: l.fieldKey } : {}),
-  }));
-}
-
-function editLogEntryFromJson(x: Json): EditLogEntry | undefined {
-  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
-  if (typeof x.id !== "string" || typeof x.changedBy !== "string" || typeof x.description !== "string" || typeof x.timestamp !== "string") {
-    return undefined;
-  }
-  return {
-    id: x.id,
-    changedBy: x.changedBy,
-    description: x.description,
-    timestamp: x.timestamp,
-    ...(typeof x.fieldKey === "string" ? { fieldKey: x.fieldKey } : {}),
-  };
-}
-
-function editLogEntriesFromJson(raw: unknown): EditLogEntry[] {
-  if (!Array.isArray(raw)) return [];
-  const out: EditLogEntry[] = [];
-  for (const item of raw) {
-    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
-    const entry = editLogEntryFromJson(item as Json);
-    if (entry) out.push(entry);
-  }
-  return out;
-}
-
 const fieldLabels: Record<string, string> = {
   title: "標題",
   invoiceNumber: "請款單編號",
@@ -271,14 +236,17 @@ export default function ClientInvoiceDetailPage() {
       });
   }, [invoice?.createdBy]);
 
-  // Initialize from invoice data（留言走正式 comments 欄；edit_logs 仍為附加欄）
+  // 留言與紀錄分開灌入：comments 更新不得清掉已顯示的 edit_logs。
   useEffect(() => {
     if (!invoice) return;
-    const invWithLegacyFields = invoice as ClientInvoice & { edit_logs?: unknown };
     setComments(invoice.comments ?? []);
-    setEditLog(editLogEntriesFromJson(invWithLegacyFields.edit_logs));
-    burstMapRef.current = {};
   }, [invoice?.id, invoice?.comments]);
+
+  useEffect(() => {
+    if (!invoice) return;
+    setEditLog(hydrateInvoiceEditLogsOnOpen(invoice.id, invoice.edit_logs));
+    burstMapRef.current = {};
+  }, [invoice?.id]);
 
   /** 建立者首次離開本頁後才開始記錄（總表批次建立已帶 editLogStartedAt 者除外） */
   useEffect(() => {
@@ -307,7 +275,7 @@ export default function ClientInvoiceDetailPage() {
 
   const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
     const nextLogs = appendLog(field, oldValue, newValue);
-    if (nextLogs && id) clientInvoiceStore.updateInvoice(id, { edit_logs: editLogsToJson(nextLogs) });
+    if (nextLogs && id) clientInvoiceStore.updateInvoice(id, { edit_logs: nextLogs });
     return nextLogs;
   }, [appendLog, id]);
 
@@ -324,7 +292,7 @@ export default function ClientInvoiceDetailPage() {
       const payload = invoiceUpdatesWithOptionalLogs({ [item.field]: item.local }, logs);
       void clientInvoiceStore.updateInvoice(id, {
         ...payload,
-        ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+        ...(payload.edit_logs ? { edit_logs: payload.edit_logs } : {}),
       });
     }
   }, [appendLog, id]);
@@ -517,7 +485,7 @@ export default function ClientInvoiceDetailPage() {
       const payload = invoiceUpdatesWithOptionalLogs({ title: localTitle }, logs);
       void clientInvoiceStore.updateInvoice(invoice.id, {
         ...payload,
-        ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+        ...(payload.edit_logs ? { edit_logs: payload.edit_logs } : {}),
       });
     }
   };
@@ -529,7 +497,7 @@ export default function ClientInvoiceDetailPage() {
       const payload = invoiceUpdatesWithOptionalLogs({ invoiceNumber: localInvoiceNumber }, logs);
       void clientInvoiceStore.updateInvoice(invoice.id, {
         ...payload,
-        ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+        ...(payload.edit_logs ? { edit_logs: payload.edit_logs } : {}),
       });
     }
   };
@@ -726,7 +694,7 @@ export default function ClientInvoiceDetailPage() {
     const payload = invoiceUpdatesWithOptionalLogs({ note: newNote }, logs);
     void clientInvoiceStore.updateInvoice(invoice.id, {
       ...payload,
-      ...(payload.edit_logs ? { edit_logs: editLogsToJson(payload.edit_logs) } : {}),
+      ...(payload.edit_logs ? { edit_logs: payload.edit_logs } : {}),
     });
   };
 

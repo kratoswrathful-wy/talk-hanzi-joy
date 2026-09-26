@@ -1,3 +1,4 @@
+import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import type { InvoiceComment } from "@/lib/invoice-comments";
 
 export type ClientInvoiceStatus = "pending" | "partial_collected" | "collected";
@@ -46,6 +47,8 @@ export interface ClientInvoice {
   adjustmentLines?: ClientInvoiceAdjustmentLine[];
   /** 非 null 時才寫入變更紀錄（建立後首次離開頁面，或自總表建立即啟用） */
   editLogStartedAt?: string;
+  /** 變更紀錄（jsonb）；與稿費請款同一契約 */
+  edit_logs?: SimplePersistedLog[];
   /** 請款留言（DB comments）；與 note 分欄 */
   comments?: InvoiceComment[];
 }

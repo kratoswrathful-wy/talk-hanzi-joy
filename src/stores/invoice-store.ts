@@ -1,5 +1,6 @@
 import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import { editLogsFromJson } from "@/lib/invoice-edit-logs";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
@@ -67,25 +68,6 @@ interface DbInvoice {
   comments?: Json;
   edit_log_started_at?: string | null;
   edit_logs?: Json | null;
-}
-
-function editLogsFromJson(raw: Json | null | undefined): SimplePersistedLog[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const out: SimplePersistedLog[] = [];
-  for (const x of raw) {
-    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
-    const o = x as Record<string, Json>;
-    if (typeof o.id !== "string" || typeof o.changedBy !== "string") continue;
-    if (typeof o.description !== "string" || typeof o.timestamp !== "string") continue;
-    out.push({
-      id: o.id,
-      changedBy: o.changedBy,
-      description: o.description,
-      timestamp: o.timestamp,
-      ...(typeof o.fieldKey === "string" ? { fieldKey: o.fieldKey } : {}),
-    });
-  }
-  return out;
 }
 
 function paymentsFromJson(raw: Json): PaymentRecord[] {
