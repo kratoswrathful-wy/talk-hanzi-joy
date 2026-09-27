@@ -36,4 +36,6 @@ export interface Invoice {
   edit_logs?: SimplePersistedLog[];
   /** 請款留言（DB comments）；與 note 分欄 */
   comments?: InvoiceComment[];
+  /** 稿費請款內部備註（獨立表）；PM+ 才有值 */
+  internalComments?: InvoiceComment[];
 }

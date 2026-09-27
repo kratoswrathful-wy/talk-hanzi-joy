@@ -244,9 +244,7 @@ export default function InvoiceDetailPage() {
   // Initialize from invoice data
   useEffect(() => {
     if (!invoice) return;
-    const invWithLegacyFields = invoice as Invoice & { internalComments?: unknown };
     setComments(invoice.comments ?? []);
-    setInternalComments(commentEntriesFromJson(invWithLegacyFields.internalComments));
     const rawEditLogs = invoice.edit_logs;
     if (Array.isArray(rawEditLogs)) {
       setEditLog(rawEditLogs.map((l) => ({
@@ -258,7 +256,15 @@ export default function InvoiceDetailPage() {
       })));
     }
     burstMapRef.current = {};
-  }, [invoice?.id]); // Only on initial load
+  }, [invoice?.id]);
+
+  useEffect(() => {
+    if (!invoice) return;
+    const invWithLegacyFields = invoice as Invoice & { internalComments?: unknown };
+    setInternalComments(
+      invoice.internalComments ?? commentEntriesFromJson(invWithLegacyFields.internalComments),
+    );
+  }, [invoice?.id, invoice?.internalComments]);
 
   // Load translator profile
   useEffect(() => {
@@ -533,7 +539,7 @@ export default function InvoiceDetailPage() {
     return true;
   };
 
-  const handleAddInternalComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
+  const handleAddInternalComment = async (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string): Promise<boolean> => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `icomment-${Date.now()}`,
@@ -544,11 +550,15 @@ export default function InvoiceDetailPage() {
       replyTo,
       timestamp: formatTimestamp(new Date()),
     };
+    if (!id) return false;
     const updated = [...internalComments, newComment];
-    setInternalComments(updated);
-    if (id) {
-      invoiceStore.updateInvoice(id, { comments: [...comments], internalComments: updated });
+    const { error } = await invoiceStore.updateInvoice(id, { internalComments: updated });
+    if (error) {
+      toast.error("內部備註儲存失敗，已保留輸入。");
+      return false;
     }
+    setInternalComments(updated);
+    return true;
   };
 
   const handleAddFees = async () => {
@@ -914,7 +924,7 @@ export default function InvoiceDetailPage() {
                       ))}
                       {internalReplyingTo === c.id && (
                         <div className="ml-6">
-                          <CommentInput draft={internalCommentDraft} setDraft={setInternalCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={(content, imageUrls, fileUrls) => { handleAddInternalComment(content, imageUrls, fileUrls, c.id); setInternalReplyingTo(null); }} />
+                          <CommentInput draft={internalCommentDraft} setDraft={setInternalCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={async (content, imageUrls, fileUrls) => { const ok = await handleAddInternalComment(content, imageUrls, fileUrls, c.id); if (ok) setInternalReplyingTo(null); return ok; }} />
                         </div>
                       )}
                     </div>

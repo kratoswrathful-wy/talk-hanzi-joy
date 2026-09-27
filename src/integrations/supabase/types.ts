@@ -2928,6 +2928,38 @@ export type Database = {
           },
         ]
       }
+      invoice_internal_comments: {
+        Row: {
+          comments: Json
+          env: string
+          invoice_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          comments?: Json
+          env: string
+          invoice_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          comments?: Json
+          env?: string
+          invoice_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_internal_comments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: true
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           comments: Json

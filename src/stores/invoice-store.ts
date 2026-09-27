@@ -6,6 +6,7 @@ import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import { attachInvoiceInternalComments } from "@/lib/invoice-internal-comments";
 import {
   classifyInvoiceWriteCertainty,
   decideInvoiceLinkCleanup,
@@ -112,7 +113,18 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     editLogStartedAt: row.edit_log_started_at || undefined,
     edit_logs: editLogsFromJson(row.edit_logs),
     comments: invoiceCommentsFromJson(row.comments),
+    internalComments: [],
   };
+}
+
+async function fetchInternalCommentRows(invoiceIds: string[]) {
+  if (invoiceIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("invoice_internal_comments")
+    .select("invoice_id, comments")
+    .in("invoice_id", invoiceIds);
+  if (error || !data) return [];
+  return data;
 }
 
 function generateDefaultTitle(translator: string): string {
@@ -219,9 +231,11 @@ export const invoiceStore = {
             }
           }
 
-          invoices = (invData as DbInvoice[]).map((row) =>
+          const mapped = (invData as DbInvoice[]).map((row) =>
             dbToApp(row, feeMap.get(row.id) || [])
           );
+          const internalRows = await fetchInternalCommentRows(mapped.map((row) => row.id));
+          invoices = attachInvoiceInternalComments(mapped, internalRows);
           loaded = true;
           notify();
           lastResult = { error: null };
@@ -258,6 +272,7 @@ export const invoiceStore = {
       updatedAt: now,
       feeIds,
       payments: [],
+      internalComments: [],
       ...(started ? { editLogStartedAt: started } : {}),
     };
 
@@ -362,7 +377,7 @@ export const invoiceStore = {
 
   updateInvoice: async (
     id: string,
-    updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt" | "comments">> & Record<string, unknown>,
+    updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt" | "comments" | "internalComments">> & Record<string, unknown>,
   ): Promise<{ error: unknown }> => {
     const existing = invoices.find((inv) => inv.id === id);
     if (!existing) {
@@ -389,39 +404,66 @@ export const invoiceStore = {
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs as Json;
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
-    if (Object.keys(dbUpdates).length === 0) return { error: null };
+    const hasInvoiceRow = Object.keys(dbUpdates).length > 0;
+    const hasInternal = updates.internalComments !== undefined;
+    if (!hasInvoiceRow && !hasInternal) return { error: null };
 
     return invoiceWriteQueue.enqueue(id, async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .update(dbUpdates as TablesUpdate<"invoices">)
-        .eq("id", id)
-        .select()
-        .maybeSingle();
+      if (hasInvoiceRow) {
+        const { data, error } = await supabase
+          .from("invoices")
+          .update(dbUpdates as TablesUpdate<"invoices">)
+          .eq("id", id)
+          .select()
+          .maybeSingle();
 
-      if (error) {
-        console.error("Failed to update invoice:", error);
+        if (error) {
+          console.error("Failed to update invoice:", error);
+          invoices = invoices.map((inv) =>
+            inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+          );
+          notify();
+          return { error };
+        }
+        if (!data) {
+          const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
+          console.error("Failed to update invoice:", blockedErr.message);
+          invoices = invoices.map((inv) =>
+            inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+          );
+          notify();
+          return { error: blockedErr };
+        }
+
+        const current = invoices.find((inv) => inv.id === id);
+        const fromDb = dbToApp(data, current?.feeIds ?? previous.feeIds);
         invoices = invoices.map((inv) =>
-          inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+          inv.id === id ? keepLocalInvoiceAfterAck(current ?? inv, fromDb) : inv,
         );
-        notify();
-        return { error };
-      }
-      if (!data) {
-        const blockedErr = new Error("更新未套用（可能被權限規則擋下或找不到該筆請款）");
-        console.error("Failed to update invoice:", blockedErr.message);
-        invoices = invoices.map((inv) =>
-          inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
-        );
-        notify();
-        return { error: blockedErr };
       }
 
-      const current = invoices.find((inv) => inv.id === id);
-      const fromDb = dbToApp(data, current?.feeIds ?? previous.feeIds);
-      invoices = invoices.map((inv) =>
-        inv.id === id ? keepLocalInvoiceAfterAck(current ?? inv, fromDb) : inv,
-      );
+      if (hasInternal) {
+        const env = getEnvironment();
+        const uid = await getUserId();
+        const { error: internalError } = await supabase
+          .from("invoice_internal_comments")
+          .upsert({
+            invoice_id: id,
+            env,
+            comments: invoiceCommentsToJson(updates.internalComments ?? []),
+            updated_at: new Date().toISOString(),
+            updated_by: uid,
+          }, { onConflict: "invoice_id" });
+        if (internalError) {
+          console.error("Failed to update invoice internal comments:", internalError);
+          invoices = invoices.map((inv) =>
+            inv.id === id ? revertUnchangedJobFields(inv, previous, updates) : inv,
+          );
+          notify();
+          return { error: internalError };
+        }
+      }
+
       notify();
       return { error: null };
     });
@@ -508,13 +550,18 @@ export const invoiceStore = {
       .eq("env", env);
     const feeIds = (linkData ?? []).map((l) => l.fee_id);
     const mapped = dbToApp(data as DbInvoice, feeIds);
+    const [withInternal] = attachInvoiceInternalComments(
+      [mapped],
+      await fetchInternalCommentRows([id]),
+    );
+    const resolved = withInternal ?? mapped;
     if (invoices.some((i) => i.id === id)) {
-      invoices = invoices.map((i) => (i.id === id ? mapped : i));
+      invoices = invoices.map((i) => (i.id === id ? resolved : i));
     } else {
-      invoices = [mapped, ...invoices];
+      invoices = [resolved, ...invoices];
     }
     notify();
-    return mapped;
+    return resolved;
   },
 
   getLinkedFeeIds: (): Set<string> => {
