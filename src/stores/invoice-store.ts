@@ -6,13 +6,12 @@ import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
-import {
-  applyInternalCommentsFetch,
-  shouldRefuseInternalCommentWrite,
-  type InternalCommentsFetchResult,
-  type InvoiceInternalCommentRow,
-} from "@/lib/invoice-internal-comments";
+import { shouldRefuseInternalCommentWrite } from "@/lib/invoice-internal-comments";
 import { persistInvoiceInternalComments } from "@/lib/invoice-internal-comments-write";
+import {
+  createInvoiceInternalCommentsAdapter,
+  resolveInvoiceInternalComments,
+} from "@/lib/invoice-internal-comments-adapter";
 import {
   classifyInvoiceWriteCertainty,
   decideInvoiceLinkCleanup,
@@ -124,35 +123,6 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
   };
 }
 
-async function fetchInternalCommentRows(invoiceIds: string[]): Promise<InternalCommentsFetchResult> {
-  if (invoiceIds.length === 0) return { ok: true, rows: [] };
-  const { data, error } = await supabase
-    .from("invoice_internal_comments")
-    .select("invoice_id, comments")
-    .in("invoice_id", invoiceIds);
-  if (error) return { ok: false, error };
-  return { ok: true, rows: (data ?? []) as InvoiceInternalCommentRow[] };
-}
-
-async function fetchInternalCommentRowForWrite(id: string): Promise<
-  | { ok: true; comments: ReturnType<typeof invoiceCommentsFromJson>; updatedAt: string | null; exists: boolean }
-  | { ok: false; error: unknown }
-> {
-  const { data, error } = await supabase
-    .from("invoice_internal_comments")
-    .select("invoice_id, comments, updated_at")
-    .eq("invoice_id", id)
-    .maybeSingle();
-  if (error) return { ok: false, error };
-  if (!data) return { ok: true, comments: [], updatedAt: null, exists: false };
-  return {
-    ok: true,
-    comments: invoiceCommentsFromJson(data.comments),
-    updatedAt: data.updated_at,
-    exists: true,
-  };
-}
-
 function generateDefaultTitle(translator: string): string {
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -261,8 +231,7 @@ export const invoiceStore = {
             dbToApp(row, feeMap.get(row.id) || [])
           );
           const previousById = new Map(invoices.map((inv) => [inv.id, inv]));
-          const internalFetch = await fetchInternalCommentRows(mapped.map((row) => row.id));
-          invoices = applyInternalCommentsFetch(mapped, previousById, internalFetch);
+          invoices = await resolveInvoiceInternalComments(supabase, mapped, previousById);
           loaded = true;
           notify();
           lastResult = { error: null };
@@ -481,44 +450,7 @@ export const invoiceStore = {
         const uid = await getUserId();
         const persisted = await persistInvoiceInternalComments({
           incoming: updates.internalComments ?? [],
-          fetchRemote: () => fetchInternalCommentRowForWrite(id),
-          insertRow: async ({ comments, updatedAt }) => {
-            const { error: insertError } = await supabase.from("invoice_internal_comments").insert({
-              invoice_id: id,
-              env,
-              comments: invoiceCommentsToJson(comments),
-              updated_at: updatedAt,
-              updated_by: uid,
-            });
-            if (!insertError) return { ok: true };
-            const code = typeof insertError === "object" && insertError && "code" in insertError
-              ? String((insertError as { code?: string }).code)
-              : "";
-            return { ok: false, error: insertError, conflict: code === "23505" };
-          },
-          casUpdate: async ({ comments, updatedAt, expectedUpdatedAt }) => {
-            const { data: casRow, error: casError } = await supabase
-              .from("invoice_internal_comments")
-              .update({
-                comments: invoiceCommentsToJson(comments),
-                updated_at: updatedAt,
-                updated_by: uid,
-              })
-              .eq("invoice_id", id)
-              .eq("updated_at", expectedUpdatedAt)
-              .select("invoice_id")
-              .maybeSingle();
-            if (casError) return { ok: false, error: casError };
-            if (!casRow) {
-              return {
-                ok: false,
-                error: new Error("內部備註同時有其他人更新，請再送一次"),
-                conflict: true,
-                wrote: false,
-              };
-            }
-            return { ok: true, wrote: true };
-          },
+          ...createInvoiceInternalCommentsAdapter(supabase, { invoiceId: id, env, uid }),
         });
         if (persisted.ok === false) {
           console.error("Failed to update invoice internal comments:", persisted.error);
@@ -622,11 +554,7 @@ export const invoiceStore = {
     const feeIds = (linkData ?? []).map((l) => l.fee_id);
     const mapped = dbToApp(data as DbInvoice, feeIds);
     const previousById = new Map(invoices.map((inv) => [inv.id, inv]));
-    const [resolved] = applyInternalCommentsFetch(
-      [mapped],
-      previousById,
-      await fetchInternalCommentRows([id]),
-    );
+    const [resolved] = await resolveInvoiceInternalComments(supabase, [mapped], previousById);
     if (invoices.some((i) => i.id === id)) {
       invoices = invoices.map((i) => (i.id === id ? resolved : i));
     } else {

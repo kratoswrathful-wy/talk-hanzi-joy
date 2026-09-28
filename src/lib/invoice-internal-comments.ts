@@ -52,10 +52,10 @@ export function shouldRefuseInternalCommentWrite(known: boolean | undefined): bo
   return known === false;
 }
 
-/** 未知結果重試必須沿用同一則 id，避免同內容再新增一筆。 */
+/** 未知結果重試必須沿用同一則 id，避免同內容再新增一筆。新則不可只靠同一毫秒。 */
 export function allocateInternalCommentId(pendingId: string | null | undefined): string {
   if (pendingId && pendingId.trim()) return pendingId;
-  return `icomment-${Date.now()}`;
+  return `icomment-${crypto.randomUUID()}`;
 }
 
 /** 後端已有列優先，再接前端多出的新則；同 id 不重複、不互蓋。 */

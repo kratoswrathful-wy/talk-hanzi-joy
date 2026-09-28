@@ -19,7 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { allocateInternalCommentId } from "@/lib/invoice-internal-comments";
+import { createInternalCommentSubmitSession } from "@/lib/invoice-internal-comment-submit";
 import { useInvoice, invoiceStore, useInvoicesLoaded } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import type { FeeTaskItem } from "@/data/fee-mock-data";
@@ -204,7 +204,7 @@ export default function InvoiceDetailPage() {
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
-  const pendingInternalCommentId = useRef<string | null>(null);
+  const internalCommentSubmit = useRef(createInternalCommentSubmitSession());
 
   // Edit history（即時寫入 + 五分鐘內回到錨點則撤銷）
   const [editLog, setEditLogState] = useState<EditLogEntry[]>([]);
@@ -543,30 +543,29 @@ export default function InvoiceDetailPage() {
 
   const handleAddInternalComment = async (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string): Promise<boolean> => {
     const authorName = profile?.display_name || profile?.email || "使用者";
-    const commentId = allocateInternalCommentId(pendingInternalCommentId.current);
-    pendingInternalCommentId.current = commentId;
-    const newComment: CommentEntry = {
-      id: commentId,
-      author: authorName,
-      content,
-      imageUrls,
-      fileUrls,
-      replyTo,
-      timestamp: formatTimestamp(new Date()),
-    };
     if (!id) return false;
-    if (invoice?.internalCommentsKnown === false) {
-      toast.error("內部備註讀取未完成，已保留輸入。請重試或重整後再送。");
+    const result = await internalCommentSubmit.current.submit({
+      input: {
+        content,
+        author: authorName,
+        timestamp: formatTimestamp(new Date()),
+        imageUrls,
+        fileUrls,
+        replyTo,
+      },
+      known: invoice?.internalCommentsKnown,
+      currentComments: internalComments,
+      persist: (incoming) => invoiceStore.updateInvoice(id, { internalComments: incoming }),
+    });
+    if (result.ok === false) {
+      toast.error(
+        result.refused
+          ? "內部備註讀取未完成，已保留輸入。請重試或重整後再送。"
+          : "內部備註儲存失敗，已保留輸入。",
+      );
       return false;
     }
-    const updated = [...internalComments, newComment];
-    const { error } = await invoiceStore.updateInvoice(id, { internalComments: updated });
-    if (error) {
-      toast.error("內部備註儲存失敗，已保留輸入。");
-      return false;
-    }
-    pendingInternalCommentId.current = null;
-    setInternalComments(updated);
+    setInternalComments(result.comments);
     return true;
   };
 

@@ -103,6 +103,7 @@ describe("shouldRefuseInternalCommentWrite / allocateInternalCommentId", () => {
     const first = allocateInternalCommentId(null);
     expect(first.startsWith("icomment-")).toBe(true);
     expect(allocateInternalCommentId(first)).toBe(first);
+    expect(allocateInternalCommentId(null)).not.toBe(first);
   });
 });
 
