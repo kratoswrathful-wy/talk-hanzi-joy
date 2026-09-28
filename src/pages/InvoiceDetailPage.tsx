@@ -19,6 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { allocateInternalCommentId } from "@/lib/invoice-internal-comments";
 import { useInvoice, invoiceStore, useInvoicesLoaded } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import type { FeeTaskItem } from "@/data/fee-mock-data";
@@ -203,6 +204,7 @@ export default function InvoiceDetailPage() {
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
+  const pendingInternalCommentId = useRef<string | null>(null);
 
   // Edit history（即時寫入 + 五分鐘內回到錨點則撤銷）
   const [editLog, setEditLogState] = useState<EditLogEntry[]>([]);
@@ -541,8 +543,10 @@ export default function InvoiceDetailPage() {
 
   const handleAddInternalComment = async (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string): Promise<boolean> => {
     const authorName = profile?.display_name || profile?.email || "使用者";
+    const commentId = allocateInternalCommentId(pendingInternalCommentId.current);
+    pendingInternalCommentId.current = commentId;
     const newComment: CommentEntry = {
-      id: `icomment-${Date.now()}`,
+      id: commentId,
       author: authorName,
       content,
       imageUrls,
@@ -551,12 +555,17 @@ export default function InvoiceDetailPage() {
       timestamp: formatTimestamp(new Date()),
     };
     if (!id) return false;
+    if (invoice?.internalCommentsKnown === false) {
+      toast.error("內部備註讀取未完成，已保留輸入。請重試或重整後再送。");
+      return false;
+    }
     const updated = [...internalComments, newComment];
     const { error } = await invoiceStore.updateInvoice(id, { internalComments: updated });
     if (error) {
       toast.error("內部備註儲存失敗，已保留輸入。");
       return false;
     }
+    pendingInternalCommentId.current = null;
     setInternalComments(updated);
     return true;
   };
@@ -897,6 +906,20 @@ export default function InvoiceDetailPage() {
             <Separator />
             <div className="space-y-3">
               <Label className="text-sm font-medium">稿費請款內部備註</Label>
+              {invoice.internalCommentsKnown === false && (
+                <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                  <span>內部備註讀取未完成，送出已暫停，草稿仍保留。</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => { void invoiceStore.fetchInvoiceById(invoice.id); }}
+                  >
+                    重試讀取
+                  </Button>
+                </div>
+              )}
               <div className="space-y-2">
                 {(() => {
                   const topLevel = internalComments.filter((c) => !c.replyTo);
@@ -924,14 +947,14 @@ export default function InvoiceDetailPage() {
                       ))}
                       {internalReplyingTo === c.id && (
                         <div className="ml-6">
-                          <CommentInput draft={internalCommentDraft} setDraft={setInternalCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={async (content, imageUrls, fileUrls) => { const ok = await handleAddInternalComment(content, imageUrls, fileUrls, c.id); if (ok) setInternalReplyingTo(null); return ok; }} />
+                          <CommentInput draft={internalCommentDraft} setDraft={setInternalCommentDraft} placeholder={`回覆 ${c.author}...`} attachmentScope="invoice-internal" onSubmit={async (content, imageUrls, fileUrls) => { const ok = await handleAddInternalComment(content, imageUrls, fileUrls, c.id); if (ok) setInternalReplyingTo(null); return ok; }} />
                         </div>
                       )}
                     </div>
                   ));
                 })()}
               </div>
-              <CommentInput draft={internalReplyingTo ? "" : internalCommentDraft} setDraft={(v) => { if (!internalReplyingTo) setInternalCommentDraft(v); }} placeholder="輸入稿費請款內部備註..." onSubmit={handleAddInternalComment} />
+              <CommentInput draft={internalReplyingTo ? "" : internalCommentDraft} setDraft={(v) => { if (!internalReplyingTo) setInternalCommentDraft(v); }} placeholder="輸入稿費請款內部備註..." attachmentScope="invoice-internal" onSubmit={handleAddInternalComment} />
             </div>
           </>
         )}

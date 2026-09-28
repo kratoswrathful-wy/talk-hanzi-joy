@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { buildCaseFilePathWithPrefix } from "@/lib/storage-case-files";
+import { uploadInvoiceInternalFile } from "@/lib/invoice-internal-files";
 
 interface MentionPage {
   id: string;
@@ -27,10 +28,12 @@ export function CommentInput({
   setDraft,
   placeholder,
   onSubmit,
+  attachmentScope = "shared",
 }: {
   draft: string;
   setDraft: (v: string) => void;
   placeholder: string;
+  attachmentScope?: "shared" | "invoice-internal";
   onSubmit: (
     content: string,
     imageUrls?: string[],
@@ -140,6 +143,11 @@ export function CommentInput({
   };
 
   const handleAttachFile = async (file: File) => {
+    if (attachmentScope === "invoice-internal") {
+      const uploaded = await uploadInvoiceInternalFile(file);
+      if (uploaded) setFileAttachments((prev) => [...prev, uploaded]);
+      return;
+    }
     const path = buildCaseFilePathWithPrefix("comment-files", file);
     const { error } = await supabase.storage.from("case-files").upload(path, file);
     if (error) return;

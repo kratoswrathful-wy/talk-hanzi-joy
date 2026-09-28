@@ -38,4 +38,6 @@ export interface Invoice {
   comments?: InvoiceComment[];
   /** 稿費請款內部備註（獨立表）；PM+ 才有值 */
   internalComments?: InvoiceComment[];
+  /** false：最近一次內部備註讀取失敗，不得把空白當真相寫回 */
+  internalCommentsKnown?: boolean;
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Paperclip, Download, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { downloadFile } from "@/lib/download-file";
+import { resolveInvoiceInternalFileUrl } from "@/lib/invoice-internal-files";
 import { useAuth } from "@/hooks/use-auth";
 import { useFees } from "@/hooks/use-fee-store";
 
@@ -149,13 +150,16 @@ export function CommentContent({
                 void (async () => {
                   setDownloadingFileIdx(idx);
                   try {
-                    await downloadFile(f.url, f.name);
+                    const href = await resolveInvoiceInternalFileUrl(f.url);
+                    await downloadFile(href, f.name);
                   } catch (e) {
                     console.error(e);
                     toast.error("下載失敗", {
                       description: e instanceof Error ? e.message : "請稍後再試。",
                     });
-                    window.open(f.url, "_blank", "noopener,noreferrer");
+                    if (!f.url.startsWith("invoice-internal:")) {
+                      window.open(f.url, "_blank", "noopener,noreferrer");
+                    }
                   } finally {
                     setDownloadingFileIdx(null);
                   }
