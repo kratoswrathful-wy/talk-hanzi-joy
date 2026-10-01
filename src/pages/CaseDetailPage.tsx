@@ -115,7 +115,13 @@ import {
   persistToolBlockPatch,
   createDisplayedToolIntentSession,
 } from "@/lib/case-tool-credentials-persist";
-import { applyToolTemplatePatch, toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
+import {
+  applyToolTemplatePatch,
+  shouldPersistResolvedToolFields,
+  toolChangePersistPatch,
+  toolFieldValuePatch,
+  toolFileValuePatch,
+} from "@/lib/case-tool-credentials-guard";
 import { canMemberRemoveCaseFile, filePersistUserMessage, pickMemberPermittedChanges } from "@/lib/case-attachment-acl";
 import { canToggleClientQuestionForm } from "@/lib/case-comment-acl";
 
@@ -611,7 +617,7 @@ function ToolInstance({
   resolvedFieldsRef.current = resolvedFields;
   useEffect(() => {
     if (!structurePersistEnabled) return;
-    if (!entry.fields && resolvedFieldsRef.current.length > 0) {
+    if (shouldPersistResolvedToolFields(entry.fields, resolvedFieldsRef.current.length)) {
       onUpdateRef.current({ fields: resolvedFieldsRef.current });
     }
     // resolvedFields 每次 render 重算為新陣列參考，故意只用 .length 當觸發條件（避免
@@ -711,9 +717,8 @@ function ToolInstance({
   const handleToolChange = (newTool: string) => {
     const newToolOpt = toolOptions.find((o) => o.label === newTool);
     const defaultFields = (newToolOpt?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: (f.type || "text") as "text" | "file" }));
-    // Pre-fill with tool's default field values if available
     const defaultValues = newToolOpt?.defaultFieldValues || {};
-    onUpdate({ tool: newTool, fields: defaultFields, fieldValues: { ...defaultValues }, fileValues: {} });
+    onUpdate(toolChangePersistPatch({ newTool, defaultFields, defaultValues }));
   };
 
   const handleAddField = () => {

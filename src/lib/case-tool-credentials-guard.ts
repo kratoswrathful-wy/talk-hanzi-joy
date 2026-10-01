@@ -101,6 +101,31 @@ export function buildNextToolsFromWritableBase(input: {
   return { ok: true, next };
 }
 
+/** 空陣列不算已保存欄位定義；否則選工具時會把範本「帳號」列存成空清單，重整後欄位消失。 */
+export function shouldPersistResolvedToolFields(
+  entryFields: ToolEntry["fields"] | null | undefined,
+  resolvedCount: number,
+): boolean {
+  return resolvedCount > 0 && (!entryFields || entryFields.length === 0);
+}
+
+/** 選工具時若範本欄尚未載入，不要把 fields 寫成 []。 */
+export function toolChangePersistPatch(input: {
+  newTool: string;
+  defaultFields: NonNullable<ToolEntry["fields"]>;
+  defaultValues: Record<string, string>;
+}): Partial<ToolEntry> {
+  if (input.defaultFields.length === 0) {
+    return { tool: input.newTool };
+  }
+  return {
+    tool: input.newTool,
+    fields: input.defaultFields,
+    fieldValues: { ...input.defaultValues },
+    fileValues: {},
+  };
+}
+
 export function rejectMaskedFallbackWrite(input: {
   credentialsReady: boolean;
   usedPublicFallback: boolean;

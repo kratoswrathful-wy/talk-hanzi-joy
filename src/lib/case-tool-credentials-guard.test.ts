@@ -5,6 +5,8 @@ import {
   looksLikeMaskedPublicTools,
   mergeToolEntryUpdates,
   rejectMaskedFallbackWrite,
+  shouldPersistResolvedToolFields,
+  toolChangePersistPatch,
 } from "./case-tool-credentials-guard";
 import type { ToolEntry } from "@/data/case-types";
 
@@ -55,6 +57,31 @@ describe("case-tool-credentials-guard", () => {
       expect(built.next[0].fieldValues).toEqual({ a: "edited", b: "also" });
       expect(built.next[1].fieldValues).toEqual({ c: "vpn" });
     }
+  });
+
+  it("空欄位清單仍要回寫已載入的範本欄，避免帳號列重整後消失", () => {
+    expect(shouldPersistResolvedToolFields(undefined, 2)).toBe(true);
+    expect(shouldPersistResolvedToolFields([], 2)).toBe(true);
+    expect(shouldPersistResolvedToolFields([{ id: "a", label: "帳號", type: "text" }], 2)).toBe(false);
+    expect(shouldPersistResolvedToolFields([], 0)).toBe(false);
+  });
+
+  it("選工具時範本欄未載入不得寫入空 fields", () => {
+    expect(toolChangePersistPatch({ newTool: "memoQ", defaultFields: [], defaultValues: {} })).toEqual({
+      tool: "memoQ",
+    });
+    expect(
+      toolChangePersistPatch({
+        newTool: "memoQ",
+        defaultFields: [{ id: "u", label: "帳號", type: "text" }],
+        defaultValues: { u: "" },
+      }),
+    ).toEqual({
+      tool: "memoQ",
+      fields: [{ id: "u", label: "帳號", type: "text" }],
+      fieldValues: { u: "" },
+      fileValues: {},
+    });
   });
 
   it("rejects write when credentials are not ready", () => {
