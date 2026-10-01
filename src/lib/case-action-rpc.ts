@@ -223,6 +223,22 @@ export async function getCaseCredentials(
   return rpc(client, "get_case_credentials", { p_case_id: caseId });
 }
 
+export async function updateCaseSocialFields(
+  client: SupabaseClient,
+  caseId: string,
+  expectedRevision: number,
+  changes: Record<string, unknown>,
+): Promise<RpcResponse<CaseActionResult>> {
+  const invalid = requireCaseAndRevision(caseId, expectedRevision);
+  if (invalid) return invalid;
+  if (Object.keys(changes).length === 0) return localValidationError("empty changes");
+  return rpc(client, "update_case_social_fields", {
+    p_case_id: caseId,
+    p_expected_revision: expectedRevision,
+    p_changes: changes,
+  });
+}
+
 export async function updateCaseCredentials(
   client: SupabaseClient,
   caseId: string,

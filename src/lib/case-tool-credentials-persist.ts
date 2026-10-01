@@ -94,11 +94,14 @@ export async function persistToolBlockPatch(input: {
   draftCredentials: CaseCredentials | null;
   credentialsReady: boolean;
   usedPublicFallback: boolean;
+  /** 未傳視為可寫（呼叫端已擋）；明確 false 時拒絕。 */
+  canWrite?: boolean;
   deps: ToolCredentialsPersistDeps;
 }): Promise<PersistToolBlockResult> {
   const blocked = rejectMaskedFallbackWrite({
     credentialsReady: input.credentialsReady,
     usedPublicFallback: input.usedPublicFallback,
+    canWrite: input.canWrite,
   });
   if (blocked) {
     return refuse({

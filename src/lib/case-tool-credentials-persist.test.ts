@@ -125,6 +125,27 @@ describe("persistToolBlockPatch cross-case and draft isolation", () => {
     expect(updateCredentials).not.toHaveBeenCalled();
   });
 
+  it("refuses member write even when credentials are ready", async () => {
+    const access = createCaseCredentialAccess({ rpc: vi.fn() } as never);
+    access.setActiveUser("u1");
+    const updateCredentials = vi.fn(async () => null);
+    const result = await persistToolBlockPatch({
+      caseId: "case-1",
+      userId: "u1",
+      generation: access.generation("case-1"),
+      block: "tools",
+      updater: (c) => c,
+      draftCredentials: cred("case-1", [{ id: "te-default", tool: "memoQ", fieldValues: { a: "1" } }]),
+      credentialsReady: true,
+      usedPublicFallback: false,
+      canWrite: false,
+      deps: makeDeps(access, { updateCredentials }),
+    });
+    expect(result.status).toBe("rejected");
+    expect(result.error?.message).toMatch(/不能修改/);
+    expect(updateCredentials).not.toHaveBeenCalled();
+  });
+
   it("refuses when only foreign draft is present and confirmed is missing", async () => {
     const access = createCaseCredentialAccess({ rpc: vi.fn() } as never);
     access.setActiveUser("u1");

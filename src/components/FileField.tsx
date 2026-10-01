@@ -52,6 +52,7 @@ export interface FileItem {
   name: string;
   url: string;
   size?: number; // bytes, only for uploaded files
+  uploadedBy?: string;
 }
 
 interface FileFieldProps {
@@ -61,9 +62,20 @@ interface FileFieldProps {
   externalAdd?: boolean;
   /** Ref callback to expose the expand toggle for external + button */
   addButtonRef?: React.MutableRefObject<(() => void) | null>;
+  canAdd?: boolean;
+  canRemoveItem?: (item: FileItem, index: number) => boolean;
+  actorId?: string | null;
 }
 
-export default function FileField({ value, onChange, externalAdd, addButtonRef }: FileFieldProps) {
+export default function FileField({
+  value,
+  onChange,
+  externalAdd,
+  addButtonRef,
+  canAdd = true,
+  canRemoveItem,
+  actorId,
+}: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -90,7 +102,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
   onChangeRef.current = onChange;
 
   const uploadFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
+    if (!canAdd || files.length === 0) return;
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -126,17 +138,19 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
         failures.push({ name: file.name, message: error.message });
       } else {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
-        newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
+        newItems.push({
+          name: file.name,
+          url: urlData.publicUrl,
+          size: file.size,
+          ...(actorId ? { uploadedBy: actorId } : {}),
+        });
       }
       doneBytes += file.size;
       setUploadedBytes(doneBytes);
     }
     if (newItems.length > 0 && !cancelRef.current) {
       onChangeRef.current([...valueRef.current, ...newItems]);
-      toast.success(`已加入 ${newItems.length} 個檔案`, {
-        description: "檔案列在上方；若未看到請往上捲動。",
-      });
-      // 收合新增面板，避免使用者視線留在下方進度區而誤以為未加入（多為顯示／版面問題，非未上傳成功）
+      // 物件進檔案區 ≠ 案件列已寫入；由呼叫端依 save 結果提示。
       setActionsExpanded(false);
     }
     if (failures.length > 0 && !cancelRef.current) {
@@ -151,7 +165,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
       );
     }
     setUploading(false);
-  }, []);
+  }, [actorId, canAdd]);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -314,6 +328,8 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
                   )}
                 </>
               )}
+              {(canRemoveItem?.(item, idx) ?? true) && (
+                <>
               <button
                 onClick={() => { setEditingIdx(idx); setEditName(item.name); }}
                 className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0 opacity-0 group-hover:opacity-100"
@@ -324,9 +340,12 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
               <button
                 onClick={() => removeItem(idx)}
                 className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 opacity-0 group-hover:opacity-100"
+                title="移除檔案"
               >
                 <X className="h-3 w-3" />
               </button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -364,7 +383,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
       />
 
       {/* Collapsed: single add button / Expanded: overlay toolbar */}
-      {!actionsExpanded && !uploading ? (
+      {!canAdd ? null : !actionsExpanded && !uploading ? (
         !externalAdd ? (
           <Button
             type="button"

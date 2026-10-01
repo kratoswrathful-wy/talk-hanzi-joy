@@ -4,14 +4,15 @@
 -- 對齊 migration：20260830122401_p0a_case_credentials.sql
 --                 20260830122356_p0a_case_action_rpcs.sql（revoke_case_participant_access）
 --
+-- 對齊 20260930120000_case_credentials_readable_by_case_viewers.sql
+--       20260930120100_case_pm_private_fields_admin_only.sql
 -- 覆蓋（註解＋斷言）：
---   - anon / 未指派 / 跨 env / 跨案拒絕 get_case_credentials
---   - participant 僅本人案可讀憑證
+--   - anon／跨 env 拒絕 get_case_credentials
+--   - 本 env 未受派、跨案（同 env）、撤權後、僅 unresolved 仍可讀（不再以 participant 設讀取門檻）
 --   - credential mask（view 空值＋tools allowlist 重建）
---   - revoke 後拒絕
+--   - 成員 cases_visible 不得見客戶／關鍵字／PO／內部備註；計費單位與數量可見
 --   - 遮罩值不得經 update_case_permitted_fields / 非 admin update_case_credentials 回寫
 --   - PUBLIC EXECUTE；authenticated 不得 SELECT 基表 cases
---   - A2：僅 unresolved 無 participant → credential_access_denied
 --
 -- 執行：隔離 branch／本機 DB；全程 BEGIN…ROLLBACK。
 
@@ -55,7 +56,7 @@ begin
   )
   values
     (
-      v_case, '[P0-A R1-E] credential fixture', 'dispatched', 'client',
+      v_case, '[P0-A R1-E] credential fixture', 'dispatched', 'secret-client',
       '[]'::jsonb, 'test', v_pm,
       'account-secret', 'password-secret', 'other-secret',
       '{"token":"root-secret"}'::jsonb,
@@ -77,7 +78,20 @@ begin
         "unknownArray":[{"futureSecret":"secret"}]
       }]'::jsonb,
       now(), now()
-    ),
+    );
+  update public.cases set
+    keyword = 'secret-keyword',
+    client_po_number = 'PO-SECRET',
+    internal_comments = '[{"id":"ic-1","content":"pm-only"}]'::jsonb,
+    billing_unit = '字',
+    unit_count = 120
+  where id = v_case;
+  insert into public.cases (
+    id, title, status, client, translator, env, created_by,
+    login_account, login_password, other_login_info,
+    tool_field_values, tools, question_tools, created_at, updated_at
+  )
+  values
     (
       v_case_other, '[P0-A R1-E] cred other', 'dispatched', 'other',
       '[]'::jsonb, 'test', v_pm,
@@ -172,7 +186,13 @@ begin
     other_login_info,
     tool_field_values,
     tools,
-    question_tools
+    question_tools,
+    client,
+    keyword,
+    client_po_number,
+    internal_comments,
+    billing_unit,
+    unit_count
   into v_visible
   from public.cases_visible
   where id = v_case;
@@ -190,6 +210,17 @@ begin
     or v_visible.other_login_info <> ''
     or v_visible.tool_field_values <> '{}'::jsonb then
     raise exception 'direct credential columns were not masked';
+  end if;
+  if v_visible.client <> ''
+    or v_visible.keyword <> ''
+    or v_visible.client_po_number <> ''
+    or v_visible.internal_comments <> '[]'::jsonb then
+    raise exception 'member saw PM-private fields in cases_visible: % % % %',
+      v_visible.client, v_visible.keyword, v_visible.client_po_number, v_visible.internal_comments;
+  end if;
+  if v_visible.billing_unit <> '字' or v_visible.unit_count <> 120 then
+    raise exception 'member must still see billing_unit/unit_count: % %',
+      v_visible.billing_unit, v_visible.unit_count;
   end if;
   if v_visible.tools <> '[{
       "id":"tool-1",
@@ -216,40 +247,49 @@ begin
     or v_credentials #>> '{tools,0,fieldValues,token}' <> 'tool-secret' then
     raise exception 'authorized credential RPC did not return full values';
   end if;
+  if v_credentials ? 'client' or v_credentials ? 'keyword' or v_credentials ? 'internalComments' then
+    raise exception 'credential RPC leaked PM-private keys: %', v_credentials;
+  end if;
 
-  -- ── 未指派 ──
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  select keyword, client into v_visible from public.cases_visible where id = v_case;
+  reset role;
+  if v_visible.keyword <> 'secret-keyword' or v_visible.client <> 'secret-client' then
+    raise exception 'admin must see PM-private fields: % %', v_visible.keyword, v_visible.client;
+  end if;
+
+  -- ── 未指派：同 env 可讀（不再拒絕）──
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_t2::text, 'role', 'authenticated')::text,
     true
   );
   set local role authenticated;
-  begin
-    perform public.get_case_credentials(v_case);
-  exception when sqlstate '42501' then
-    v_unassigned_denied := true;
-  end;
+  v_credentials := public.get_case_credentials(v_case);
   reset role;
-  if not v_unassigned_denied then
-    raise exception 'unassigned credential read was not denied';
+  if v_credentials ->> 'loginPassword' <> 'password-secret' then
+    raise exception 'unassigned same-env member must read credentials';
   end if;
+  v_unassigned_denied := false;
 
-  -- ── 跨案（t1 不得讀 t2 的案）──
+  -- ── 跨案同 env：可讀 ──
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
     true
   );
   set local role authenticated;
-  begin
-    perform public.get_case_credentials(v_case_other);
-  exception when sqlstate '42501' then
-    v_cross_case_denied := true;
-  end;
+  v_credentials := public.get_case_credentials(v_case_other);
   reset role;
-  if not v_cross_case_denied then
-    raise exception 'cross-case credential read was not denied';
+  if v_credentials ->> 'loginPassword' <> 'other-password' then
+    raise exception 'same-env member must read other visible case credentials';
   end if;
+  v_cross_case_denied := false;
 
   -- ── 跨 env ──
   set local role authenticated;
@@ -286,15 +326,12 @@ begin
     true
   );
   set local role authenticated;
-  begin
-    perform public.get_case_credentials(v_case);
-  exception when sqlstate '42501' then
-    v_a2_denied := true;
-  end;
+  v_credentials := public.get_case_credentials(v_case);
   reset role;
-  if not v_a2_denied then
-    raise exception 'A2 unresolved candidate retained credential access';
+  if v_credentials ->> 'loginPassword' <> 'password-secret' then
+    raise exception 'A2 unresolved same-env member must still read credentials';
   end if;
+  v_a2_denied := false;
 
   -- ── 遮罩值不得經 field RPC 回寫（憑證鍵不在 registry → 42501）──
   delete from public.permission_settings where env = 'test';
@@ -346,7 +383,7 @@ begin
     raise exception 'non-admin update_case_credentials was not denied';
   end if;
 
-  -- ── PM 撤權後 t1 不得再讀 ──
+  -- ── PM 撤權後：同 env 仍可讀（讀取不再綁 participant）──
   select revision into v_revision from public.cases where id = v_case;
   perform set_config(
     'request.jwt.claims',
@@ -366,14 +403,10 @@ begin
     true
   );
   set local role authenticated;
-  begin
-    perform public.get_case_credentials(v_case);
-  exception when sqlstate '42501' then
-    v_revoked_denied := true;
-  end;
+  v_credentials := public.get_case_credentials(v_case);
   reset role;
-  if not v_revoked_denied then
-    raise exception 'revoked participant retained future credential access';
+  if v_credentials ->> 'loginPassword' <> 'password-secret' then
+    raise exception 'revoked same-env member must still read credentials';
   end if;
 
   raise notice 'p0_case_credentials_acl_check PASS';

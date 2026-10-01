@@ -269,4 +269,13 @@ describe("describeCaseWriteFailure", () => {
     expect(described.kind).toBe("identity");
     expect(described.title).toBe("無法確認身分");
   });
+
+  it("maps comment wipe and social field deny without claiming saved", () => {
+    const wipe = describeCaseWriteFailure(new Error("comment_not_deletable"));
+    expect(wipe.title).toBe("留言未寫入");
+    expect(wipe.description).toMatch(/不能刪除/);
+    const deny = describeCaseWriteFailure(new Error("field_not_permitted"));
+    expect(deny.title).toBe("尚未寫入");
+    expect(deny.description).not.toMatch(/已寫入/);
+  });
 });

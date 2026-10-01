@@ -104,7 +104,11 @@ export function buildNextToolsFromWritableBase(input: {
 export function rejectMaskedFallbackWrite(input: {
   credentialsReady: boolean;
   usedPublicFallback: boolean;
+  canWrite?: boolean;
 }): string | null {
+  if (input.canWrite === false) {
+    return "目前身分不能修改工具資料。";
+  }
   if (!input.credentialsReady) {
     return "完整工具資料尚未載入，無法儲存（避免以遮罩空值覆寫）。";
   }

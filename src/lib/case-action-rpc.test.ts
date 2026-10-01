@@ -7,6 +7,7 @@ import {
   getCaseCredentials,
   updateCaseCredentials,
   updateCasePermittedFields,
+  updateCaseSocialFields,
 } from "./case-action-rpc";
 
 describe("case action RPC client", () => {
@@ -97,6 +98,27 @@ describe("case action RPC client", () => {
       p_expected_revision: 2,
       p_credentials: { loginPassword: "new" },
     });
+  });
+
+  it("keeps comments and client question form on the social RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { caseId: "c", revision: 4 }, error: null });
+    const result = await updateCaseSocialFields({ rpc } as never, "c", 3, {
+      comments: [{ id: "n1" }],
+      clientQuestionForm: true,
+    });
+    expect(rpc).toHaveBeenCalledWith("update_case_social_fields", {
+      p_case_id: "c",
+      p_expected_revision: 3,
+      p_changes: { comments: [{ id: "n1" }], clientQuestionForm: true },
+    });
+    expect(result.data?.revision).toBe(4);
+  });
+
+  it("does not permit an empty social field patch", async () => {
+    const rpc = vi.fn();
+    const result = await updateCaseSocialFields({ rpc } as never, "c", 1, {});
+    expect(result.error?.message).toBe("empty changes");
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
 

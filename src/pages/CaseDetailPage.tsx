@@ -105,11 +105,19 @@ import { caseCredentialAccess } from "@/lib/case-credential-store";
 import type { CaseCredentials } from "@/lib/case-action-rpc";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
+  classifyCredentialLoadError,
+  credentialLoadUserMessage,
+  sanitizeCaseCredentialsPayload,
+  shouldToastCredentialLoadFailure,
+} from "@/lib/case-credential-load";
+import {
   isPersistResultCurrent,
   persistToolBlockPatch,
   createDisplayedToolIntentSession,
 } from "@/lib/case-tool-credentials-persist";
 import { applyToolTemplatePatch, toolFieldValuePatch, toolFileValuePatch } from "@/lib/case-tool-credentials-guard";
+import { canMemberRemoveCaseFile, filePersistUserMessage, pickMemberPermittedChanges } from "@/lib/case-attachment-acl";
+import { canToggleClientQuestionForm } from "@/lib/case-comment-acl";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -261,7 +269,7 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
 }
 
 /** Number input with local state buffer to prevent fast-typing race conditions */
-function BufferedNumberInput({ value, onSave, className }: { value: number; onSave: (v: number) => void; className?: string }) {
+function BufferedNumberInput({ value, onSave, className, disabled }: { value: number; onSave: (v: number) => void; className?: string; disabled?: boolean }) {
   const [local, setLocal] = useState(String(value || ""));
   const [focused, setFocused] = useState(false);
 
@@ -273,10 +281,12 @@ function BufferedNumberInput({ value, onSave, className }: { value: number; onSa
     <Input
       type="number"
       value={local}
+      disabled={disabled}
       onChange={(e) => setLocal(e.target.value)}
-      onFocus={() => setFocused(true)}
+      onFocus={() => { if (!disabled) setFocused(true); }}
       onBlur={() => {
         setFocused(false);
+        if (disabled) return;
         const num = Number(local) || 0;
         if (num !== value) onSave(num);
       }}
@@ -404,12 +414,27 @@ function Field({ label, children, className, action }: { label: string; children
 }
 
 /** Wrapper that renders a FileField with the + button next to the label */
-function FileFieldRow({ label, value, onChange }: { label: string; value: FileItem[]; onChange: (v: FileItem[]) => void }) {
+function FileFieldRow({
+  label,
+  value,
+  onSave,
+  canAdd = true,
+  canRemoveItem,
+  actorId,
+}: {
+  label: string;
+  value: FileItem[];
+  onSave: (v: FileItem[]) => Promise<Error | null>;
+  canAdd?: boolean;
+  canRemoveItem?: (item: FileItem) => boolean;
+  actorId?: string | null;
+}) {
   const addRef = useRef<(() => void) | null>(null);
   return (
     <Field
       label={label}
       action={
+        canAdd ? (
         <button
           type="button"
           onClick={() => addRef.current?.()}
@@ -417,9 +442,25 @@ function FileFieldRow({ label, value, onChange }: { label: string; value: FileIt
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
+        ) : undefined
       }
     >
-      <FileField value={Array.isArray(value) ? value : []} onChange={onChange} externalAdd addButtonRef={addRef} />
+      <FileField
+        value={Array.isArray(value) ? value : []}
+        onChange={(v) => {
+          void onSave(v).then((err) => {
+            const msg = filePersistUserMessage(err);
+            if (msg.ok) {
+              toast({ title: msg.title, description: msg.description });
+            }
+          });
+        }}
+        externalAdd
+        addButtonRef={addRef}
+        canAdd={canAdd}
+        canRemoveItem={canRemoveItem ? (item) => canRemoveItem(item) : undefined}
+        actorId={actorId}
+      />
     </Field>
   );
 }
@@ -726,7 +767,7 @@ function ToolInstance({
                           variant="outline"
                           size="sm"
                           className="h-8 text-xs shrink-0"
-                          disabled={!hasToolSelected || !structurePersistEnabled}
+                          disabled={!canEditTool || !hasToolSelected || !structurePersistEnabled}
                         >
                           範本
                         </Button>
@@ -779,7 +820,7 @@ function ToolInstance({
                 canRemoveField={canRemoveField}
                 onDeleteField={() => setDeleteFieldId(f.id)}
                 testId={toolFieldTestId(f.label, f.id)}
-                disabled={!structurePersistEnabled}
+                disabled={!canEditTool || !structurePersistEnabled}
               />
             );
           }
@@ -789,7 +830,7 @@ function ToolInstance({
                 <IMESafeInput
                   value={values[f.id] || ""}
                   onSave={(v) => onUpdate(toolFieldValuePatch(f.id, v))}
-                  disabled={!structurePersistEnabled}
+                  disabled={!canEditTool || !structurePersistEnabled}
                   className="flex-1 min-h-0 h-auto !py-px !leading-snug"
                   minRows={1}
                   maxRows={undefined}
@@ -1452,7 +1493,7 @@ export default function CaseDetailPage() {
         if (!active) return;
         if ((user?.id ?? null) !== uid) return;
         if (id !== viewingId) return;
-        setCaseCredentials(credentials);
+        setCaseCredentials(sanitizeCaseCredentialsPayload(credentials));
         setCredentialsStatus("ready");
       })
       .catch((err) => {
@@ -1460,16 +1501,20 @@ export default function CaseDetailPage() {
         if (err instanceof CredentialLoadStaleError) return;
         if (id !== viewingId) return;
         // 讀取失敗：同案保留上一份畫面並標 error，勿把拒絕讀取轉成可保存空值
+        const kind = classifyCredentialLoadError(err);
         setCredentialsStatus("error");
         if (!caseCredentialAccess.peekConfirmed(viewingId)) {
           // 僅在完全無 confirmed 時才清空畫面
           setCaseCredentials((prev) => (prev?.caseId === viewingId ? prev : null));
         }
-        toast({
-          title: "工具憑證載入失敗",
-          description: err instanceof Error ? err.message : "請稍後重試，系統不會以空值覆寫。",
-          variant: "destructive",
-        });
+        if (shouldToastCredentialLoadFailure(kind)) {
+          const msg = credentialLoadUserMessage(kind);
+          toast({
+            title: msg.title,
+            description: msg.description,
+            variant: "destructive",
+          });
+        }
       });
     return () => {
       active = false;
@@ -1498,26 +1543,53 @@ export default function CaseDetailPage() {
       .then((credentials) => {
         if ((user?.id ?? null) !== uid) return;
         if (id !== viewingId) return;
-        setCaseCredentials(credentials);
+        setCaseCredentials(sanitizeCaseCredentialsPayload(credentials));
         setCredentialsStatus("ready");
       })
       .catch((err) => {
         if (err instanceof CredentialLoadStaleError) return;
         if (id !== viewingId) return;
+        const kind = classifyCredentialLoadError(err);
         setCredentialsStatus("error");
-        toast({
-          title: "工具憑證重新載入失敗",
-          description: err instanceof Error ? err.message : "請手動重新整理。已保留畫面資料，不會自動寫空。",
-          variant: "destructive",
-        });
+        if (shouldToastCredentialLoadFailure(kind)) {
+          const msg = credentialLoadUserMessage(kind);
+          toast({
+            title: msg.title,
+            description: msg.description,
+            variant: "destructive",
+          });
+        }
       });
   }), [id, user?.id]);
 
   const save = useCallback(
     async (partial: Partial<CaseRecord>): Promise<Error | null> => {
       if (!id) return new Error("missing id");
+      let incoming = partial;
+      if (!isManager) {
+        const socialKeep: Partial<CaseRecord> = {};
+        if (incoming.comments !== undefined) socialKeep.comments = incoming.comments;
+        if (incoming.clientQuestionForm !== undefined) {
+          socialKeep.clientQuestionForm = incoming.clientQuestionForm;
+        }
+        const rest = { ...incoming } as Record<string, unknown>;
+        delete rest.comments;
+        delete rest.clientQuestionForm;
+        incoming = {
+          ...pickMemberPermittedChanges(rest),
+          ...socialKeep,
+        } as Partial<CaseRecord>;
+        if (Object.keys(incoming).length === 0) {
+          toast({
+            title: "尚未寫入",
+            description: "這個欄位目前不能改。",
+            variant: "destructive",
+          });
+          return new Error("field_not_permitted");
+        }
+      }
       const completeness = caseStore.getCompleteness(id);
-      if (omittedKeysInPartial(partial).length > 0 && completeness !== "full") {
+      if (omittedKeysInPartial(incoming).length > 0 && completeness !== "full") {
         toast({
           title: "完整內容尚未載入或已過期",
           description: "請重新載入成功後再儲存內文或附件，以免用舊內容覆寫新資料。",
@@ -1529,7 +1601,7 @@ export default function CaseDetailPage() {
       const resolved = resolveIntendedCaseWrite(
         caseDataRef.current,
         caseStore.getById(id),
-        partial,
+        incoming,
       );
       if (resolved.status !== "ready") {
         setSavePhase("failed");
@@ -1541,18 +1613,22 @@ export default function CaseDetailPage() {
         return new Error(resolved.message);
       }
       let nextWrite: Partial<CaseRecord> = resolved.write;
+      const socialSnapshot = {
+        comments: caseDataRef.current?.comments,
+        clientQuestionForm: caseDataRef.current?.clientQuestionForm,
+      };
       setCaseData((pagePrev) => {
         const prev = pagePrev ?? resolved.base;
         if (!prev) return pagePrev;
-        let merged: Partial<CaseRecord> = partial;
+        let merged: Partial<CaseRecord> = incoming;
         if (completeness === "full" && prev.changeLogEnabledAt && profile) {
           const author = profile.display_name || profile.email || "系統";
           let logs = [...(prev.edit_logs || [])];
           let burst = caseEditBurstRef.current;
-          for (const key of Object.keys(partial) as (keyof CaseRecord)[]) {
+          for (const key of Object.keys(incoming) as (keyof CaseRecord)[]) {
             if (CASE_LOG_SKIP_KEYS.has(key as string)) continue;
             const oldV = prev[key];
-            const newV = partial[key];
+            const newV = incoming[key];
             if (newV === undefined) continue;
             if (JSON.stringify(normDateForCompare(oldV)) === JSON.stringify(normDateForCompare(newV))) continue;
             const label = CASE_FIELD_LABELS[key] ?? String(key);
@@ -1764,6 +1840,18 @@ export default function CaseDetailPage() {
           description: described.description,
           variant: "destructive",
         });
+        if (nextWrite.comments !== undefined || nextWrite.clientQuestionForm !== undefined) {
+          setCaseData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              ...(nextWrite.comments !== undefined ? { comments: socialSnapshot.comments ?? [] } : {}),
+              ...(nextWrite.clientQuestionForm !== undefined
+                ? { clientQuestionForm: socialSnapshot.clientQuestionForm }
+                : {}),
+            };
+          });
+        }
         return error instanceof Error ? error : new Error(described.description);
       }
       setSavePhase(nextSavePhaseAfterWrite({
@@ -1772,7 +1860,7 @@ export default function CaseDetailPage() {
       }));
       return null;
     },
-    [id, profile]
+    [id, profile, isManager]
   );
 
   saveRef.current = save;
@@ -1871,7 +1959,7 @@ export default function CaseDetailPage() {
   }, [caseData?.id, user?.id]);
 
   const patchTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
-    if (!caseData) return;
+    if (!caseData || !canEditToolSelect) return;
     const draft =
       caseCredentials && caseCredentials.caseId === caseData.id
         ? caseCredentials
@@ -1886,6 +1974,7 @@ export default function CaseDetailPage() {
       draftCredentials: draft,
       credentialsReady,
       usedPublicFallback: usedPublicToolsFallback,
+      canWrite: canEditToolSelect,
       deps: toolPersistDeps,
     }).then(applyPersistResultToUi);
   }, [
@@ -1893,6 +1982,7 @@ export default function CaseDetailPage() {
     caseCredentials,
     credentialsReady,
     usedPublicToolsFallback,
+    canEditToolSelect,
     toolPersistDeps,
     user?.id,
     applyPersistResultToUi,
@@ -1942,7 +2032,7 @@ export default function CaseDetailPage() {
   // 若日後加回 UI，須走 caseStore.updateCredentials，禁止 save()／caseStore.update。
 
   const patchQuestionTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
-    if (!caseData) return;
+    if (!caseData || !canEditToolSelect) return;
     const draft =
       caseCredentials && caseCredentials.caseId === caseData.id
         ? caseCredentials
@@ -1960,12 +2050,14 @@ export default function CaseDetailPage() {
         && Array.isArray(draft.questionTools)
         && !!caseCredentialAccess.peekConfirmed(caseData.id),
       usedPublicFallback: usedPublicQuestionToolsFallback,
+      canWrite: canEditToolSelect,
       deps: toolPersistDeps,
     }).then(applyPersistResultToUi);
   }, [
     caseData,
     caseCredentials,
     usedPublicQuestionToolsFallback,
+    canEditToolSelect,
     toolPersistDeps,
     user?.id,
     applyPersistResultToUi,
@@ -2147,6 +2239,8 @@ export default function CaseDetailPage() {
   
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
+  const canEditCaseBasics = isPmOrAbove && contentWritable;
+  const canSeePmPrivate = isPmOrAbove;
   const showReviewSegmentBlock = shouldShowReviewSegmentBlock({
     multiCollab: caseData.multiCollab,
     reviewRows: caseData.reviewRows,
@@ -2920,7 +3014,7 @@ export default function CaseDetailPage() {
                 value={caseData.title}
                 onSave={(v) => save({ title: v })}
                 autoFocusSelect={autoFocusTitle}
-                readOnly={!contentWritable}
+                readOnly={!canEditCaseBasics}
               />
             </div>
           </div>
@@ -2958,7 +3052,7 @@ export default function CaseDetailPage() {
               value={caseData.title}
               onSave={(v) => save({ title: v })}
               autoFocusSelect={autoFocusTitle}
-              readOnly={!contentWritable}
+              readOnly={!canEditCaseBasics}
             />
           </div>
         </div>
@@ -3042,7 +3136,7 @@ export default function CaseDetailPage() {
         return (
           <div className="space-y-1">
             <Field label="內容性質">
-              <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
+              <ColorSelect fieldKey="caseCategory" value={caseData.category} disabled={!isPmOrAbove} onValueChange={(v) => save({ category: v })} />
             </Field>
             {workGroups.map((g, idx) => (
               <div key={g.id} className="grid grid-cols-[100px_1fr] items-center gap-3 py-1">
@@ -3053,6 +3147,7 @@ export default function CaseDetailPage() {
                     value={g.workType}
                     onValueChange={(v) => updateGroup(idx, { workType: v })}
                     className="flex-1 min-w-0"
+                    disabled={!isPmOrAbove}
                   />
                   <span className="text-sm text-muted-foreground shrink-0">計費單位</span>
                   <ColorSelect
@@ -3060,14 +3155,16 @@ export default function CaseDetailPage() {
                     value={g.billingUnit}
                     onValueChange={(v) => updateGroup(idx, { billingUnit: v })}
                     className="flex-1 min-w-0"
+                    disabled={!isPmOrAbove}
                   />
                   <span className="text-sm text-muted-foreground shrink-0">計費單位數</span>
                   <BufferedNumberInput
                     value={g.unitCount || 0}
                     onSave={(v) => updateGroup(idx, { unitCount: v })}
+                    disabled={!isPmOrAbove}
                     className="w-[80px] shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  {workGroups.length > 1 ? (
+                  {isPmOrAbove && workGroups.length > 1 ? (
                     <button
                       type="button"
                       className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors shrink-0"
@@ -3082,6 +3179,7 @@ export default function CaseDetailPage() {
                 </div>
               </div>
             ))}
+            {isPmOrAbove && (
             <div className="grid grid-cols-[100px_1fr] items-center gap-3 py-0.5">
               <span />
               <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground h-7 px-2 w-fit" onClick={addGroup}>
@@ -3089,6 +3187,7 @@ export default function CaseDetailPage() {
                 新增工作類型
               </Button>
             </div>
+            )}
           </div>
         );
       })()}
@@ -3368,12 +3467,12 @@ export default function CaseDetailPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4">
-        {checkPerm("case_management", "case_detail_client", "view") && (
+        {canSeePmPrivate && (
           <Field label="客戶">
             <ColorSelect fieldKey="client" value={caseData.client} disabled={!checkPerm("case_management", "case_detail_client", "edit")} onValueChange={(v) => save({ client: v })} />
           </Field>
         )}
-        {checkPerm("case_management", "case_detail_contact", "view") && (
+        {canSeePmPrivate && (
           <Field label="聯絡人">
             <ColorSelect fieldKey="contact" value={caseData.contact} disabled={!checkPerm("case_management", "case_detail_contact", "edit")} onValueChange={(v) => save({ contact: v })} />
           </Field>
@@ -3381,7 +3480,7 @@ export default function CaseDetailPage() {
       </div>
 
       {/* 關鍵字 & 客戶 PO# — PM+ only */}
-      {checkPerm("case_management", "case_detail_keyword", "view") && (
+      {canSeePmPrivate && (
         <div className="grid grid-cols-2 gap-4">
           <Field label="關鍵字">
             <div className="flex items-center gap-1">
@@ -3399,7 +3498,7 @@ export default function CaseDetailPage() {
       )}
 
       {/* 派案來源 + 客戶案件單連結 — PM+ only */}
-      {checkPerm("case_management", "case_detail_keyword", "view") && (
+      {canSeePmPrivate && (
         <div className="grid grid-cols-2 gap-4">
           <Field label="派案來源">
             <ColorSelect
@@ -3702,7 +3801,7 @@ export default function CaseDetailPage() {
             onRemove={() => removeTool(idx)}
             showRemove={caseData ? canRemoveCaseTool(caseData) : false}
             canEditTool={canEditToolSelect}
-            structurePersistEnabled={credentialsReady}
+            structurePersistEnabled={credentialsReady && canEditToolSelect}
             canRemoveTool={canRemoveTool}
             canAddField={canAddToolField}
             canRemoveField={canRemoveToolField}
@@ -3774,17 +3873,25 @@ export default function CaseDetailPage() {
           <Label className="text-sm font-medium text-muted-foreground">客戶提問表單</Label>
           {/* 有填寫客戶提問表單 checkbox */}
           {(() => {
-            const canUseClientQForm = isPmOrAbove || isCurrentUserTranslator;
-            return canUseClientQForm ? (
+            const canEditClientQForm = canToggleClientQuestionForm({
+              isAdmin: isPmOrAbove,
+              actorId: user?.id,
+              translatorUserIds: activeTranslatorUserIds,
+            });
+            return (
               <LabeledCheckbox
                 id="clientQuestionForm"
                 checked={caseData.clientQuestionForm ?? false}
-                onCheckedChange={(v) => save({ clientQuestionForm: v })}
+                disabled={!canEditClientQForm}
+                onCheckedChange={(v) => {
+                  if (!canEditClientQForm) return;
+                  save({ clientQuestionForm: v });
+                }}
                 labelClassName="text-sm"
               >
                 有填寫客戶提問表單
               </LabeledCheckbox>
-            ) : null;
+            );
           })()}
           {questionTools.map((entry, idx) => (
             <ToolInstance
@@ -3801,7 +3908,7 @@ export default function CaseDetailPage() {
               canAddField={canAddToolField}
               canRemoveField={canRemoveToolField}
               canUseTemplate={canUseToolTemplate}
-              structurePersistEnabled={credentialsReady}
+              structurePersistEnabled={credentialsReady && canEditToolSelect}
             />
           ))}
           {canAddTool && (
@@ -3824,22 +3931,46 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         {/* Left column */}
         <div className="space-y-1">
-          <FileFieldRow label="客戶準則" value={caseData.clientGuidelines} onChange={(v) => save({ clientGuidelines: v })} />
-          <FileFieldRow label="系列參考" value={caseData.seriesReferenceMaterials} onChange={(v) => save({ seriesReferenceMaterials: v })} />
-          <FileFieldRow label="本案資料" value={caseData.caseReferenceMaterials} onChange={(v) => save({ caseReferenceMaterials: v })} />
-          <FileFieldRow label="原文檔" value={caseData.sourceFiles} onChange={(v) => save({ sourceFiles: v })} />
+          <FileFieldRow label="客戶準則" value={caseData.clientGuidelines} onSave={(v) => save({ clientGuidelines: v })} canAdd={isPmOrAbove} canRemoveItem={() => isPmOrAbove} actorId={user?.id} />
+          <FileFieldRow label="系列參考" value={caseData.seriesReferenceMaterials} onSave={(v) => save({ seriesReferenceMaterials: v })} canAdd={isPmOrAbove} canRemoveItem={() => isPmOrAbove} actorId={user?.id} />
+          <FileFieldRow label="本案資料" value={caseData.caseReferenceMaterials} onSave={(v) => save({ caseReferenceMaterials: v })} canAdd={isPmOrAbove} canRemoveItem={() => isPmOrAbove} actorId={user?.id} />
+          <FileFieldRow label="原文檔" value={caseData.sourceFiles} onSave={(v) => save({ sourceFiles: v })} canAdd={isPmOrAbove} canRemoveItem={() => isPmOrAbove} actorId={user?.id} />
         </div>
         {/* Right column */}
         <div className="space-y-1">
-          <FileFieldRow label="自製準則" value={caseData.customGuidelinesUrl} onChange={(v) => save({ customGuidelinesUrl: v })} />
+          <FileFieldRow label="自製準則" value={caseData.customGuidelinesUrl} onSave={(v) => save({ customGuidelinesUrl: v })} canAdd={isPmOrAbove} canRemoveItem={() => isPmOrAbove} actorId={user?.id} />
           <FileFieldRow
             label="常用資訊"
             value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as { name?: string; label?: string }).name || item.label || "", url: item.url }))}
-            onChange={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
+            onSave={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
+            canAdd={isPmOrAbove}
+            canRemoveItem={() => isPmOrAbove}
+            actorId={user?.id}
           />
-          <FileFieldRow label="譯者完稿" value={caseData.translatorFinal} onChange={(v) => save({ translatorFinal: v })} />
-          <FileFieldRow label="內審完稿" value={caseData.internalReviewFinal} onChange={(v) => save({ internalReviewFinal: v })} />
-          <FileFieldRow label="追蹤修訂" value={caseData.trackChanges} onChange={(v) => save({ trackChanges: v })} />
+          <FileFieldRow
+            label="譯者完稿"
+            value={caseData.translatorFinal}
+            onSave={(v) => save({ translatorFinal: v })}
+            canAdd
+            canRemoveItem={(item) => isPmOrAbove || canMemberRemoveCaseFile(item, user?.id ?? "")}
+            actorId={user?.id}
+          />
+          <FileFieldRow
+            label="內審完稿"
+            value={caseData.internalReviewFinal}
+            onSave={(v) => save({ internalReviewFinal: v })}
+            canAdd
+            canRemoveItem={(item) => isPmOrAbove || canMemberRemoveCaseFile(item, user?.id ?? "")}
+            actorId={user?.id}
+          />
+          <FileFieldRow
+            label="追蹤修訂"
+            value={caseData.trackChanges}
+            onSave={(v) => save({ trackChanges: v })}
+            canAdd
+            canRemoveItem={(item) => isPmOrAbove || canMemberRemoveCaseFile(item, user?.id ?? "")}
+            actorId={user?.id}
+          />
         </div>
       </div>
 
@@ -3867,7 +3998,11 @@ export default function CaseDetailPage() {
                 <RichTextEditor
                   key={caseData.id}
                   initialContent={safeBodyContent}
-                  onChange={(blocks) => bodyWriteSchedulerRef.current.schedule(blocks)}
+                  editable={isPmOrAbove}
+                  onChange={(blocks) => {
+                    if (!isPmOrAbove) return;
+                    bodyWriteSchedulerRef.current.schedule(blocks);
+                  }}
                 />
               </div>
             </Suspense>
@@ -3994,7 +4129,7 @@ export default function CaseDetailPage() {
       </div>
 
       {/* 案件內部備註 — PM+ only（§9.2／Permissions） */}
-      {checkPerm("case_management", "case_detail_internalComments", "view") && (
+      {canSeePmPrivate && (
         <>
           <Separator />
           <div className="space-y-3">

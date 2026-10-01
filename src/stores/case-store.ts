@@ -52,10 +52,13 @@ import {
   updateCaseCredentials as updateCaseCredentialsRpc,
   getCaseCredentials,
   updateCasePermittedFields,
+  updateCaseSocialFields,
   caseRpcErrorKind,
   type CaseCredentials,
   type DeclineInquiryInput,
 } from "@/lib/case-action-rpc";
+import { copyFileItemsKeepUploaders, memberPersistShouldRefuse, pickMemberPermittedChanges } from "@/lib/case-attachment-acl";
+import { mergeCaseComments } from "@/lib/case-comment-acl";
 import { caseCredentialAccess } from "@/lib/case-credential-store";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
@@ -119,10 +122,16 @@ function toTypedArray<T>(value: Json | null | undefined, toItem: (x: Json) => T 
   return out;
 }
 
-function nameUrlFromJson(x: Json): { name: string; url: string } | undefined {
+function nameUrlFromJson(x: Json): { name: string; url: string; size?: number; uploadedBy?: string } | undefined {
   if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
   if (typeof x.name !== "string" || typeof x.url !== "string") return undefined;
-  return { name: x.name, url: x.url };
+  const item: { name: string; url: string; size?: number; uploadedBy?: string } = {
+    name: x.name,
+    url: x.url,
+  };
+  if (typeof x.size === "number" && Number.isFinite(x.size)) item.size = x.size;
+  if (typeof x.uploadedBy === "string" && x.uploadedBy.length > 0) item.uploadedBy = x.uploadedBy;
+  return item;
 }
 
 function labelUrlFromJson(x: Json): { label: string; url: string } | undefined {
@@ -1058,14 +1067,59 @@ async function persistQueuedUpdate(
         changes[key] = JSON.parse(JSON.stringify(value));
       }
     }
-    const result = await updateCasePermittedFields(
-      supabase,
-      id,
-      liveRevision,
-      changes,
-    );
-    error = result.error;
-    nextRevision = result.data?.revision;
+    const memberChanges = pickMemberPermittedChanges(changes);
+    const social: Record<string, unknown> = {};
+    if (merged.comments !== undefined) {
+      const commentMerge = mergeCaseComments({
+        current: live?.comments,
+        incoming: merged.comments,
+        isAdmin: false,
+      });
+      if (commentMerge.status === "forbidden") {
+        error = new Error(commentMerge.reason);
+      } else {
+        social.comments = JSON.parse(JSON.stringify(commentMerge.next));
+      }
+    }
+    if (!error && merged.clientQuestionForm !== undefined) {
+      social.clientQuestionForm = merged.clientQuestionForm;
+    }
+    if (
+      !error
+      && memberPersistShouldRefuse({
+        beforeFilter: changes,
+        afterFilter: memberChanges,
+        hasSocial: Object.keys(social).length > 0,
+      })
+    ) {
+      error = new Error("field_not_permitted");
+    }
+    let revision = liveRevision;
+    if (!error && Object.keys(memberChanges).length > 0) {
+      const result = await updateCasePermittedFields(
+        supabase,
+        id,
+        revision,
+        memberChanges,
+      );
+      error = result.error;
+      if (!error && typeof result.data?.revision === "number") {
+        revision = result.data.revision;
+        nextRevision = revision;
+      }
+    }
+    if (!error && Object.keys(social).length > 0) {
+      const socialResult = await updateCaseSocialFields(
+        supabase,
+        id,
+        revision,
+        social,
+      );
+      error = socialResult.error;
+      if (!error && typeof socialResult.data?.revision === "number") {
+        nextRevision = socialResult.data.revision;
+      }
+    }
     if (!error) rememberConfirmedRevision(id, nextRevision);
   }
 
@@ -1840,6 +1894,9 @@ async function retryDuplicateTools(newCaseId: string): Promise<DuplicateToolsRet
 function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
   return {
     ...data,
+    clientGuidelines: copyFileItemsKeepUploaders(data.clientGuidelines),
+    seriesReferenceMaterials: copyFileItemsKeepUploaders(data.seriesReferenceMaterials),
+    customGuidelinesUrl: copyFileItemsKeepUploaders(data.customGuidelinesUrl),
     status: "draft" as CaseStatus,
     multiCollab: false,
     collabCount: 0,

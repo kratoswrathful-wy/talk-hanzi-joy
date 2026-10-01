@@ -94,5 +94,10 @@ describe("case-tool-credentials-guard", () => {
       .toMatch(/公開遮罩/);
     expect(rejectMaskedFallbackWrite({ credentialsReady: true, usedPublicFallback: false }))
       .toBeNull();
+    expect(rejectMaskedFallbackWrite({
+      credentialsReady: true,
+      usedPublicFallback: false,
+      canWrite: false,
+    })).toMatch(/不能修改/);
   });
 });

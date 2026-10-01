@@ -211,6 +211,20 @@ export function describeCaseWriteFailure(error: unknown): {
       description: message,
     };
   }
+  if (/comment_not_deletable/.test(message)) {
+    return {
+      kind: "failed",
+      title: "留言未寫入",
+      description: "不能刪除其他人的留言。已保留畫面上既有內容。",
+    };
+  }
+  if (/field_not_permitted|invalid_social_payload/.test(message)) {
+    return {
+      kind: "failed",
+      title: "尚未寫入",
+      description: "這個欄位目前不能改。畫面若已先亮起，離開或重整後應恢復原值。",
+    };
+  }
   return {
     kind: "failed",
     title: "儲存失敗",

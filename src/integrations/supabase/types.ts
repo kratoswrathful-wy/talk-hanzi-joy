@@ -4018,6 +4018,14 @@ export type Database = {
         }
         Returns: Json
       }
+      update_case_social_fields: {
+        Args: {
+          p_case_id: string
+          p_changes: Json
+          p_expected_revision: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "member" | "pm" | "executive"
