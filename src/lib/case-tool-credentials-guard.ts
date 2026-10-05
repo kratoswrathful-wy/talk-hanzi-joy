@@ -101,12 +101,30 @@ export function buildNextToolsFromWritableBase(input: {
   return { ok: true, next };
 }
 
-/** 空陣列不算已保存欄位定義；否則選工具時會把範本「帳號」列存成空清單，重整後欄位消失。 */
+/** 已寫入空清單＝主管明確刪完欄；缺欄／尚未寫入才算「範本未載入」。 */
+export function isExplicitEmptyToolFields(
+  entryFields: ToolEntry["fields"] | null | undefined,
+): boolean {
+  return Array.isArray(entryFields) && entryFields.length === 0;
+}
+
+/** 只有尚未寫入欄位定義時才回寫已載入的範本欄。空清單不回寫，避免已刪欄復活。 */
 export function shouldPersistResolvedToolFields(
   entryFields: ToolEntry["fields"] | null | undefined,
   resolvedCount: number,
 ): boolean {
-  return resolvedCount > 0 && (!entryFields || entryFields.length === 0);
+  return resolvedCount > 0 && entryFields == null;
+}
+
+/** 畫面欄位：已保存的非空清單優先；尚未寫入才用執行工具預設欄；空清單維持空白。 */
+export function resolveDisplayedToolFields(
+  entryFields: ToolEntry["fields"] | null | undefined,
+  optionFields: NonNullable<ToolEntry["fields"]> | null | undefined,
+): NonNullable<ToolEntry["fields"]> {
+  if (entryFields && entryFields.length > 0) return entryFields;
+  if (isExplicitEmptyToolFields(entryFields)) return [];
+  if (optionFields && optionFields.length > 0) return optionFields;
+  return [];
 }
 
 /** 選工具時若範本欄尚未載入，不要把 fields 寫成 []。 */

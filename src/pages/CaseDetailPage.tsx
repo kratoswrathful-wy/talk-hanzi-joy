@@ -117,6 +117,8 @@ import {
 } from "@/lib/case-tool-credentials-persist";
 import {
   applyToolTemplatePatch,
+  isExplicitEmptyToolFields,
+  resolveDisplayedToolFields,
   shouldPersistResolvedToolFields,
   toolChangePersistPatch,
   toolFieldValuePatch,
@@ -338,15 +340,20 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
     <MultilineInput
       value={local}
       onChange={(e) => {
+        if (disabled) return;
         localRef.current = e.target.value;
         setLocal(e.target.value);
       }}
       onBlur={() => {
         setFocused(false);
+        if (disabled) return;
         const next = localRef.current;
         if (next !== value) onSave(next);
       }}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        if (disabled) return;
+        setFocused(true);
+      }}
       className={className || "max-w-md"}
       minRows={minRows ?? 1}
       maxRows={maxRows}
@@ -599,15 +606,23 @@ function ToolInstance({
   onUpdateRef.current = onUpdate;
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
-  const computedFields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
+  const computedFields: ToolEntryField[] = resolveDisplayedToolFields(
+    entry.fields,
+    selectedTool?.toolFields?.map((f) => ({ ...f, type: (f.type || "text") as "text" | "file" })),
+  );
+  const fieldsExplicitlyEmpty = isExplicitEmptyToolFields(entry.fields);
 
-  // If computed fields are non-empty, update stable ref
-  if (computedFields.length > 0) {
+  if (fieldsExplicitlyEmpty) {
+    lastFieldsRef.current = [];
+  } else if (computedFields.length > 0) {
     lastFieldsRef.current = computedFields;
   }
 
-  // Use computed if available, otherwise fall back to last known fields (avoids empty flash)
-  const resolvedFields = computedFields.length > 0 ? computedFields : lastFieldsRef.current;
+  const resolvedFields = computedFields.length > 0
+    ? computedFields
+    : fieldsExplicitlyEmpty
+      ? []
+      : lastFieldsRef.current;
 
   const values = entry.fieldValues || {};
   const fileValues = entry.fileValues || {};
@@ -1267,13 +1282,13 @@ export default function CaseDetailPage() {
   // Permission for publish prompt on leave
   const canSeePublishPrompt = checkPerm("case_management", "case_draft_publish_prompt", "view");
 
-  // Tool permissions
-  const canEditToolSelect = checkPerm("case_management", "case_detail_toolSelect", "edit");
-  const canAddTool = checkPerm("case_management", "case_detail_toolAdd", "edit");
-  const canRemoveTool = checkPerm("case_management", "case_detail_toolRemove", "edit");
-  const canAddToolField = checkPerm("case_management", "case_detail_toolFieldAdd", "edit");
-  const canRemoveToolField = checkPerm("case_management", "case_detail_toolFieldRemove", "edit");
-  const canUseToolTemplate = checkPerm("case_management", "case_detail_toolTemplate", "edit");
+  // 產品：只有主管以上可改工具。權限表若給成員 edit，畫面仍須唯讀。
+  const canEditToolSelect = isManager && checkPerm("case_management", "case_detail_toolSelect", "edit");
+  const canAddTool = isManager && checkPerm("case_management", "case_detail_toolAdd", "edit");
+  const canRemoveTool = isManager && checkPerm("case_management", "case_detail_toolRemove", "edit");
+  const canAddToolField = isManager && checkPerm("case_management", "case_detail_toolFieldAdd", "edit");
+  const canRemoveToolField = isManager && checkPerm("case_management", "case_detail_toolFieldRemove", "edit");
+  const canUseToolTemplate = isManager && checkPerm("case_management", "case_detail_toolTemplate", "edit");
   const { options: assigneeOptions } = useSelectOptions("assignee");
   const allInternalNotes = useInternalNotes(); // reactive
   const allFees = useFees(); // reactive - for linked fees

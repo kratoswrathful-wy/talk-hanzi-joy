@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   applyToolTemplatePatch,
   buildNextToolsFromWritableBase,
+  isExplicitEmptyToolFields,
   looksLikeMaskedPublicTools,
   mergeToolEntryUpdates,
   rejectMaskedFallbackWrite,
+  resolveDisplayedToolFields,
   shouldPersistResolvedToolFields,
   toolChangePersistPatch,
 } from "./case-tool-credentials-guard";
@@ -59,11 +61,27 @@ describe("case-tool-credentials-guard", () => {
     }
   });
 
-  it("空欄位清單仍要回寫已載入的範本欄，避免帳號列重整後消失", () => {
+  it("只有尚未寫入欄位定義時才回寫已載入的範本欄；空清單不復活", () => {
     expect(shouldPersistResolvedToolFields(undefined, 2)).toBe(true);
-    expect(shouldPersistResolvedToolFields([], 2)).toBe(true);
+    expect(shouldPersistResolvedToolFields(null, 2)).toBe(true);
+    expect(shouldPersistResolvedToolFields([], 2)).toBe(false);
     expect(shouldPersistResolvedToolFields([{ id: "a", label: "帳號", type: "text" }], 2)).toBe(false);
+    expect(shouldPersistResolvedToolFields(undefined, 0)).toBe(false);
     expect(shouldPersistResolvedToolFields([], 0)).toBe(false);
+  });
+
+  it("缺欄才顯示執行工具預設帳號列；空清單維持已刪、不補回", () => {
+    const optionFields = [{ id: "u", label: "帳號", type: "text" as const }];
+    expect(isExplicitEmptyToolFields([])).toBe(true);
+    expect(isExplicitEmptyToolFields(undefined)).toBe(false);
+    expect(isExplicitEmptyToolFields(null)).toBe(false);
+    expect(resolveDisplayedToolFields(undefined, optionFields)).toEqual(optionFields);
+    expect(resolveDisplayedToolFields(null, optionFields)).toEqual(optionFields);
+    expect(resolveDisplayedToolFields([], optionFields)).toEqual([]);
+    expect(resolveDisplayedToolFields([{ id: "c", label: "自訂", type: "text" }], optionFields)).toEqual([
+      { id: "c", label: "自訂", type: "text" },
+    ]);
+    expect(resolveDisplayedToolFields([], [])).toEqual([]);
   });
 
   it("選工具時範本欄未載入不得寫入空 fields", () => {
