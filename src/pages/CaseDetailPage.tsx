@@ -851,7 +851,7 @@ function ToolInstance({
                   value={values[f.id] || ""}
                   onSave={(v) => onUpdate(toolFieldValuePatch(f.id, v))}
                   disabled={!canEditTool || !structurePersistEnabled}
-                  className="flex-1 min-h-0 h-auto !py-px !leading-snug"
+                  className="flex-1 min-h-0 h-auto !py-px !leading-snug disabled:opacity-100 disabled:text-foreground"
                   minRows={1}
                   maxRows={undefined}
                   borderless
