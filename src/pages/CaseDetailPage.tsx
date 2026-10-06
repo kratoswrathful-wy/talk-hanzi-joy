@@ -98,6 +98,8 @@ import {
 } from "@/lib/review-rows";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
+import { CaseBodyOmittedPreview } from "@/components/CaseBodyOmittedPreview";
+import { extractBlockText } from "@/lib/extract-block-text";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
 import { canRemoveCaseTool, countCaseTools } from "@/lib/case-tool-count";
 import { syncCatWorkflowAssignmentsForCase } from "@/lib/cat-workflow-dispatch";
@@ -1108,20 +1110,6 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   seriesReferenceMaterials: "系列參考資料",
   caseReferenceMaterials: "案件參考資料",
 };
-
-/** Recursively extract plain text from a BlockNote block */
-function extractBlockText(block: unknown): string {
-  if (!block || typeof block !== "object") return "";
-  const b = block as { content?: unknown[]; children?: unknown[] };
-  const inline = (b.content || [])
-    .map((n: unknown) => {
-      const node = n as { type?: string; text?: string };
-      return node?.type === "text" ? (node.text || "") : "";
-    })
-    .join("");
-  const childText = (b.children || []).map(extractBlockText).join("\n");
-  return [inline, childText].filter(Boolean).join("\n");
-}
 
 /** Translate raw status codes in old log descriptions to Chinese labels for display */
 function localizeLogDescription(desc: string): string {
@@ -2246,8 +2234,6 @@ export default function CaseDetailPage() {
   }
 
   const contentWritable = recordCompleteness === "full";
-  const omittedPreview = safeBodyContent.map(extractBlockText).filter(Boolean).join("\n")
-    || (caseData.processNote || "").trim();
 
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
@@ -4004,8 +3990,8 @@ export default function CaseDetailPage() {
             void bodyWriteSchedulerRef.current.flush();
           }}
         >案件說明</h2>
-        {contentWritable ? (
-          <CaseBodyEditorBoundary caseId={caseData.id}>
+        <CaseBodyEditorBoundary caseId={caseData.id}>
+          {contentWritable ? (
             <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
               <div
                 data-testid="case-body-editor"
@@ -4026,15 +4012,13 @@ export default function CaseDetailPage() {
                 />
               </div>
             </Suspense>
-          </CaseBodyEditorBoundary>
-        ) : (
-          <div
-            data-testid="case-detail-omitted-preview"
-            className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm whitespace-pre-wrap min-h-[4rem]"
-          >
-            {omittedPreview || "（完整內容尚未重新讀取，未開放編輯）"}
-          </div>
-        )}
+          ) : (
+            <CaseBodyOmittedPreview
+              body={safeBodyContent}
+              fallbackNote={caseData.processNote}
+            />
+          )}
+        </CaseBodyEditorBoundary>
       </div>
 
       <Separator />

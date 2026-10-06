@@ -105,4 +105,16 @@ grant execute on function public.update_case_social_fields(uuid,bigint,jsonb)
   to authenticated,service_role;
 
 comment on function public.update_case_social_fields(uuid,bigint,jsonb) is
-  '1C：一般留言可追加；提問勾選僅本案譯者或 admin。';
+  '1C：一般留言可追加；提問勾選僅本案譯者或 admin。公開入口須先走維護守門。';
+
+do $wrap$
+begin
+  if to_regprocedure('private.install_maintenance_write_wrapper(text, text)') is null then
+    raise exception using errcode='P0001',
+      message='maintenance_wrapper_missing: install_maintenance_write_wrapper required before update_case_social_fields';
+  end if;
+  perform private.install_maintenance_write_wrapper(
+    'update_case_social_fields', 'uuid, bigint, jsonb'
+  );
+end
+$wrap$;

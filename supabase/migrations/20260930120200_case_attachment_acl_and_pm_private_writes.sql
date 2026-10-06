@@ -93,7 +93,7 @@ update private.case_field_acl_registry
 set permission_key = 'case_detail_finalFiles'
 where field_key in ('translatorFinal','internalReviewFinal','trackChanges');
 
-create or replace function public.update_case_permitted_fields(
+create or replace function private.update_case_permitted_fields_impl(
   p_case_id uuid, p_expected_revision bigint, p_changes jsonb
 ) returns jsonb language plpgsql security definer set search_path = pg_catalog
 as $$
@@ -253,10 +253,20 @@ begin
 end;
 $$;
 
-revoke all on function public.update_case_permitted_fields(uuid,bigint,jsonb)
-  from public,anon;
-grant execute on function public.update_case_permitted_fields(uuid,bigint,jsonb)
-  to authenticated,service_role;
+revoke all on function private.update_case_permitted_fields_impl(uuid,bigint,jsonb)
+  from public,anon,authenticated,service_role;
 
-comment on function public.update_case_permitted_fields(uuid,bigint,jsonb) is
-  '1A/1B：主管私有與基本欄僅 admin；完稿三欄可合併上傳並只刪自己的檔；準則／原文僅 admin。';
+comment on function private.update_case_permitted_fields_impl(uuid,bigint,jsonb) is
+  '1A/1B 內部實作：主管私有與基本欄僅 admin；完稿三欄可合併上傳並只刪自己的檔；準則／原文僅 admin。公開入口須先走維護守門。';
+
+do $wrap$
+begin
+  if to_regprocedure('private.install_maintenance_write_wrapper(text, text)') is null then
+    raise exception using errcode='P0001',
+      message='maintenance_wrapper_missing: install_maintenance_write_wrapper required before update_case_permitted_fields';
+  end if;
+  perform private.install_maintenance_write_wrapper(
+    'update_case_permitted_fields', 'uuid, bigint, jsonb'
+  );
+end
+$wrap$;
