@@ -204,7 +204,7 @@ begin
   end loop;
 
   if v_case.revision <> p_expected_revision then
-    raise exception using errcode='40001', message='case_revision_conflict';
+    raise exception using errcode='P0001', message='case_revision_conflict';
   end if;
 
   update public.cases c set
@@ -244,7 +244,7 @@ begin
     updated_at=now()
   where c.id=p_case_id and c.env=v_env and c.revision=p_expected_revision
   returning c.revision into v_revision;
-  if not found then raise exception using errcode='40001', message='case_revision_conflict'; end if;
+  if not found then raise exception using errcode='P0001', message='case_revision_conflict'; end if;
   perform private.record_case_mutation(
     p_case_id,v_env,v_actor,'update_case_permitted_fields',
     array(select jsonb_object_keys(v_changes)),p_expected_revision,v_revision
