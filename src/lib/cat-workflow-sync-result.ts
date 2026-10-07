@@ -63,3 +63,35 @@ export function acceptCatSyncShouldFail(input: {
   if (input.linkedFileCount > 0 && input.written === 0) return true;
   return false;
 }
+
+export type CollabFileAssignRow = {
+  accepted?: boolean;
+  translatorUserId?: string | null;
+  translator?: string | null;
+  linkedCatFileId?: string | null;
+};
+
+export type CollabFileAssignPair = {
+  userId?: string;
+  name?: string;
+  fileId: string;
+};
+
+/** 詢案／草稿只寫已承接列；已派出寫全部列。多人不得把譯者交叉掛到別人的檔。 */
+export function collabFileAssignmentPairs(input: {
+  status: string;
+  rows: CollabFileAssignRow[];
+}): CollabFileAssignPair[] {
+  const requireAccepted = input.status === "draft" || input.status === "inquiry";
+  const pairs: CollabFileAssignPair[] = [];
+  for (const row of input.rows) {
+    if (requireAccepted && !row.accepted) continue;
+    const fileId = row.linkedCatFileId?.trim() ?? "";
+    if (!fileId) continue;
+    const userId = row.translatorUserId?.trim() ?? "";
+    const name = row.translator?.trim() ?? "";
+    if (userId) pairs.push({ userId, fileId });
+    else if (name) pairs.push({ name, fileId });
+  }
+  return pairs;
+}

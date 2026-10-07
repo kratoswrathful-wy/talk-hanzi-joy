@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   acceptCatSyncShouldFail,
+  collabFileAssignmentPairs,
   parseCatWorkflowSyncPayload,
 } from "./cat-workflow-sync-result";
 
@@ -66,5 +67,45 @@ describe("acceptCatSyncShouldFail", () => {
 
   it("passes when at least one assignment was written", () => {
     expect(acceptCatSyncShouldFail({ found: true, written: 1, linkedFileCount: 1 })).toBe(false);
+  });
+});
+
+describe("collabFileAssignmentPairs", () => {
+  const rows = [
+    {
+      accepted: true,
+      translatorUserId: "u1",
+      translator: "譯者一（測試）",
+      linkedCatFileId: "file-1",
+    },
+    {
+      accepted: false,
+      translatorUserId: "u2",
+      translator: "譯者二（測試）",
+      linkedCatFileId: "file-2",
+    },
+  ];
+
+  it("while inquiry, only writes the accepted row onto its own file", () => {
+    expect(collabFileAssignmentPairs({ status: "inquiry", rows })).toEqual([
+      { userId: "u1", fileId: "file-1" },
+    ]);
+  });
+
+  it("after dispatch, writes each accepted row only to its own file", () => {
+    const dispatched = rows.map((row) => ({ ...row, accepted: true }));
+    expect(collabFileAssignmentPairs({ status: "dispatched", rows: dispatched })).toEqual([
+      { userId: "u1", fileId: "file-1" },
+      { userId: "u2", fileId: "file-2" },
+    ]);
+  });
+
+  it("does not invent a pair when the row has no linked file", () => {
+    expect(
+      collabFileAssignmentPairs({
+        status: "dispatched",
+        rows: [{ accepted: true, translatorUserId: "u1", linkedCatFileId: "" }],
+      }),
+    ).toEqual([]);
   });
 });
