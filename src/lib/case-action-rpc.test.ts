@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ACCEPT_CAT_SYNC_USER_MESSAGE,
   acceptInquiryCollabRow,
   acceptPublicInquiryCase,
   caseRpcErrorKind,
+  remapAcceptCatSyncError,
   declinePublicInquiryCase,
   getCaseCredentials,
   updateCaseCredentials,
@@ -128,8 +130,18 @@ describe("caseRpcErrorKind", () => {
     [{ code: "42501", message: "not_authorized" }, "forbidden"],
     [{ code: "P0002", message: "case_unavailable" }, "unavailable"],
     [{ code: "22023", message: "invalid_payload" }, "invalid"],
+    [{ code: "P0003", message: "cat_sync_wrote_zero" }, "sync"],
+    [{ code: "XX000", message: "cat_sync_unknown_result" }, "sync"],
     [{ code: "XX000", message: "boom" }, "unknown"],
   ] as const)("classifies PostgREST errors", (error, expected) => {
     expect(caseRpcErrorKind(error as never)).toBe(expected);
+  });
+
+  it("rewrites accept CAT sync failures into a user-facing message", () => {
+    const remapped = remapAcceptCatSyncError({
+      code: "P0003",
+      message: "cat_sync_wrote_zero",
+    } as never);
+    expect(remapped?.message).toBe(ACCEPT_CAT_SYNC_USER_MESSAGE);
   });
 });

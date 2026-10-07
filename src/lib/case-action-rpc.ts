@@ -24,7 +24,11 @@ export type CaseRpcErrorKind =
   | "forbidden"
   | "unavailable"
   | "invalid"
+  | "sync"
   | "unknown";
+
+export const ACCEPT_CAT_SYNC_USER_MESSAGE =
+  "CAT 指派未能一併建立，承接未完成，請再試一次。";
 
 type RpcResponse<T> = {
   data?: T | null;
@@ -67,7 +71,18 @@ export function caseRpcErrorKind(
   }
   if (code === "P0002" || message.includes("unavailable")) return "unavailable";
   if (code === "22023" || message.includes("invalid_")) return "invalid";
+  if (code === "P0003" || message.includes("cat_sync_")) return "sync";
   return "unknown";
+}
+
+export function remapAcceptCatSyncError(
+  error: PostgrestError | Error | null | undefined,
+): PostgrestError | Error | null {
+  if (!error) return error ?? null;
+  if (caseRpcErrorKind(error) !== "sync") return error;
+  return Object.assign(new Error(ACCEPT_CAT_SYNC_USER_MESSAGE), {
+    code: "code" in error && typeof error.code === "string" ? error.code : "P0003",
+  });
 }
 
 export async function acceptPublicInquiryCase(

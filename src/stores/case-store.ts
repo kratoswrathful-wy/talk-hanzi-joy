@@ -54,6 +54,7 @@ import {
   updateCasePermittedFields,
   updateCaseSocialFields,
   caseRpcErrorKind,
+  remapAcceptCatSyncError,
   type CaseCredentials,
   type DeclineInquiryInput,
 } from "@/lib/case-action-rpc";
@@ -1148,8 +1149,8 @@ async function persistQueuedUpdate(
 
   if (!error && shouldSyncCatWorkflowAssignments) {
     try {
-      await syncCatWorkflowAssignmentsForCase(supabase, id);
-      broadcastCatWorkflowAssignmentsSynced(id);
+      const report = await syncCatWorkflowAssignmentsForCase(supabase, id);
+      if (report) broadcastCatWorkflowAssignmentsSynced(id);
     } catch (e) {
       console.warn("[case-store] sync CAT workflow assignments skipped:", e);
     }
@@ -1194,9 +1195,10 @@ async function acceptPublicInquiry(id: string) {
   );
   if (!result.error) {
     applyActionResult(id, result.data);
+    broadcastCatWorkflowAssignmentsSynced(id);
     await refreshAfterCaseAction(id);
   }
-  return result.error;
+  return remapAcceptCatSyncError(result.error);
 }
 
 async function declinePublicInquiry(id: string, decline: DeclineInquiryInput) {
@@ -1224,9 +1226,10 @@ async function acceptInquiryCollabRow(id: string, rowId: string) {
   );
   if (!result.error) {
     applyActionResult(id, result.data);
+    broadcastCatWorkflowAssignmentsSynced(id);
     await refreshAfterCaseAction(id);
   }
-  return result.error;
+  return remapAcceptCatSyncError(result.error);
 }
 
 async function completeCaseCollabRow(id: string, rowId: string) {
