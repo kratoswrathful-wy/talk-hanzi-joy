@@ -315,15 +315,15 @@ const mapSegmentRow = (r: any) => {
 
 const mapFileWorkflowStageRow = (r: any) => ({
   id: r.id,
-  fileId: r.file_id,
-  stageOrder: r.stage_order,
-  stageKind: r.stage_kind,
+  fileId: r.fileId ?? r.file_id,
+  stageOrder: r.stageOrder ?? r.stage_order,
+  stageKind: r.stageKind ?? r.stage_kind,
   label: r.label,
   status: r.status,
-  startedAt: r.started_at ?? null,
-  completedAt: r.completed_at ?? null,
-  createdAt: r.created_at,
-  updatedAt: r.updated_at,
+  startedAt: r.startedAt ?? r.started_at ?? null,
+  completedAt: r.completedAt ?? r.completed_at ?? null,
+  createdAt: r.createdAt ?? r.created_at,
+  updatedAt: r.updatedAt ?? r.updated_at,
 });
 
 const mapStageAssignmentRow = (r: any) => ({

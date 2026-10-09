@@ -28,8 +28,10 @@ describe("CAT 開檔句段單次載入契約", () => {
       "await _loadFileWorkflowContext(fileId, { loadLineNoCache: false });",
     );
     expect(workflowLoader).toContain(
-      "if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fileId);",
+      "if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fid);",
     );
+    expect(workflowLoader).toContain("getFileWorkflowStages(fid)");
+    expect(workflowLoader).toContain("ensureFileWorkflowStages(fid)");
   });
 
   it("openEditor 只直接載入一輪句段", () => {

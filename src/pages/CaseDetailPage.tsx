@@ -128,6 +128,7 @@ import {
 } from "@/lib/case-tool-credentials-guard";
 import { canMemberRemoveCaseFile, filePersistUserMessage, pickMemberPermittedChanges } from "@/lib/case-attachment-acl";
 import { canToggleClientQuestionForm } from "@/lib/case-comment-acl";
+import { prepNotReadyWarningDescription } from "@/lib/prep-not-ready-warning";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -154,9 +155,7 @@ function showPrepNotReadyWarningIfNeeded(
         .map((r) => String(r.file_name || r.file_id))
         .filter(Boolean);
       if (names.length === 0) return;
-      const description = isPmOrAbove
-        ? `以下 CAT 檔案尚未標記準備完成：${names.join("、")}。指派已完成，但譯者開啟後將看到句段鎖定。確認就緒後，請至 CAT 工具標記準備完成。`
-        : "本案 CAT 作業檔尚未準備完成，開啟後句段為鎖定狀態，暫時無法編輯。如有疑問，請通知專案管理人員至 CAT 工具完成標記。";
+      const description = prepNotReadyWarningDescription(isPmOrAbove, names);
       toastFn({ title: "注意：CAT 檔案準備未完成", description });
     } catch (e) {
       console.warn("[CaseDetailPage] prep not ready check failed:", e);

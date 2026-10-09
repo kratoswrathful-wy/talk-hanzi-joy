@@ -3116,7 +3116,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _isFilePrepIncomplete(stages) {
-        const prep = (Array.isArray(stages) ? stages : []).find((s) => s.stageKind === 'prep');
+        if (window.WfDisplayStatus && typeof window.WfDisplayStatus.isPrepIncomplete === 'function') {
+            return window.WfDisplayStatus.isPrepIncomplete(stages);
+        }
+        const prep = (Array.isArray(stages) ? stages : []).find((s) => (s.stageKind || s.stage_kind) === 'prep');
         return !!(prep && prep.status !== 'completed');
     }
 
@@ -3126,17 +3129,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _workflowActiveStage(stages) {
+        if (window.WfDisplayStatus && typeof window.WfDisplayStatus.resolveWorkflowWorkStage === 'function') {
+            return window.WfDisplayStatus.resolveWorkflowWorkStage(stages, null);
+        }
         const arr = Array.isArray(stages) ? stages : [];
-        const active = arr.find((s) => s.status === 'active');
+        const work = arr.filter((s) => (s.stageKind || s.stage_kind) === 'translate' || (s.stageKind || s.stage_kind) === 'review');
+        const active = work.find((s) => s.status === 'active');
         if (active) return active;
-        return arr.find((s) => s.status !== 'completed') || null;
+        return work.find((s) => s.status !== 'completed') || null;
     }
 
-    /** B-4 A：依 session 工作步驟取對應 stage（無 session 時沿用 active） */
+    /** B-4 A：依 session 工作步驟取對應 stage（無 session 時沿用翻譯／審稿，略過準備） */
     function _workflowSessionStage(stages) {
+        if (window.WfDisplayStatus && typeof window.WfDisplayStatus.resolveWorkflowWorkStage === 'function') {
+            return window.WfDisplayStatus.resolveWorkflowWorkStage(stages, currentWfSessionKind);
+        }
         const arr = Array.isArray(stages) ? stages : [];
-        if (currentWfSessionKind) {
-            const hit = arr.find((s) => s.stageKind === currentWfSessionKind);
+        if (currentWfSessionKind === 'translate' || currentWfSessionKind === 'review') {
+            const hit = arr.find((s) => (s.stageKind || s.stage_kind) === currentWfSessionKind);
             if (hit) return hit;
         }
         return _workflowActiveStage(arr);
@@ -3217,8 +3227,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const msg = `「${name}」仍在準備中。是否要將狀態改為準備完成？（不會阻擋本次編輯）`;
         const ok = await openCatConfirmModal(msg, { title: '檔案準備中' });
         if (ok) {
-            const stages = window._currentFileWorkflowStages || [];
-            const prep = stages.find((s) => s.stageKind === 'prep');
+            const stages = _workflowStagesForCurrentFile();
+            const prep = window.WfDisplayStatus && typeof window.WfDisplayStatus.wfStageByKind === 'function'
+                ? window.WfDisplayStatus.wfStageByKind(stages, 'prep')
+                : (stages || []).find((s) => (s.stageKind || s.stage_kind) === 'prep');
             if (prep) await _pmMarkPrepReady(currentFileId, prep.id);
         }
         return true;
@@ -3387,6 +3399,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 let stages = await DBService.getFileWorkflowStages(fid);
                 if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                if (window.WfDisplayStatus && typeof window.WfDisplayStatus.normalizeWorkflowStages === 'function') {
+                    stages = window.WfDisplayStatus.normalizeWorkflowStages(stages);
+                }
                 const assignments = await DBService.listStageAssignmentsForFile(fid);
                 byFile[fid] = { stages: stages || [], assignments: assignments || [] };
             } catch (e) {
@@ -3419,9 +3434,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function _workflowStagesForCurrentFile(segmentFileId) {
+        if (window.WfDisplayStatus && typeof window.WfDisplayStatus.resolveWorkflowStagesForFile === 'function') {
+            return window.WfDisplayStatus.resolveWorkflowStagesForFile({
+                currentFileId,
+                currentViewId: _currentViewId,
+                fileStages: window._currentFileWorkflowStages,
+                stagesByFileId: window._currentFileWorkflowStagesByFileId,
+                segmentFileId,
+            });
+        }
+        if (_currentViewId && segmentFileId != null) {
+            const map = window._currentFileWorkflowStagesByFileId || {};
+            return map[String(segmentFileId)] || [];
+        }
+        const flat = window._currentFileWorkflowStages || [];
+        if (flat.length) return flat;
+        const fid = currentFileId != null ? String(currentFileId) : '';
+        const map = window._currentFileWorkflowStagesByFileId || {};
+        return (fid && map[fid]) || flat;
+    }
+
     function _currentFilePrepActive() {
-        const stages = window._currentFileWorkflowStages || [];
-        const prep = stages.find((s) => s.stageKind === 'prep');
+        const stages = _workflowStagesForCurrentFile();
+        if (window.WfDisplayStatus && typeof window.WfDisplayStatus.isPrepActive === 'function') {
+            return window.WfDisplayStatus.isPrepActive(stages);
+        }
+        const prep = (stages || []).find((s) => (s.stageKind || s.stage_kind) === 'prep');
         return !!(prep && prep.status === 'active');
     }
 
@@ -3450,19 +3489,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!_isCatPmOrExecutive()) return true;
         const names = await _findPrepActiveFileNamesInProject(projectId || currentProjectId);
         if (!names.length) return true;
-        const msg = names.length === 1
-            ? `「${names[0]}」仍在準備中，請先標記準備完成後再離開。`
-            : `以下檔案仍在準備中，請先標記準備完成後再離開：\n${names.map((n) => `· ${n}`).join('\n')}`;
-        await openCatConfirmModal(msg, { title: '尚有檔案準備中' });
-        return false;
+        const unlock = window.WfPrepUnlock;
+        const msg = unlock && typeof unlock.projectPrepLeaveMessage === 'function'
+            ? unlock.projectPrepLeaveMessage(names)
+            : (names.length === 1
+                ? `「${names[0]}」仍在準備中。確定後將保持準備中並離開；取消則留在此頁。`
+                : `以下檔案仍在準備中。確定後將保持準備中並離開；取消則留在此頁：\n${names.map((n) => `· ${n}`).join('\n')}`);
+        const ok = await openCatConfirmModal(msg, { title: '尚有檔案準備中' });
+        return unlock && typeof unlock.shouldLeaveKeepingPrep === 'function'
+            ? unlock.shouldLeaveKeepingPrep(ok)
+            : ok === true;
     }
 
     async function _ensurePmEditorPrepLeaveAllowed() {
         if (!_isCatPmOrExecutive()) return true;
         if (!_currentFilePrepActive()) return true;
         const name = (editorFileName && editorFileName.textContent) ? editorFileName.textContent.trim() : '目前檔案';
-        await openCatConfirmModal(`「${name}」仍在準備中，請先標記準備完成後再離開。`, { title: '檔案準備中' });
-        return false;
+        const unlock = window.WfPrepUnlock;
+        const msg = unlock && typeof unlock.editorPrepLeaveMessage === 'function'
+            ? unlock.editorPrepLeaveMessage(name)
+            : `「${name}」仍在準備中。確定後將保持準備中並離開；取消則留在此頁。`;
+        const ok = await openCatConfirmModal(msg, { title: '檔案準備中' });
+        return unlock && typeof unlock.shouldLeaveKeepingPrep === 'function'
+            ? unlock.shouldLeaveKeepingPrep(ok)
+            : ok === true;
     }
 
     async function _pmMarkPrepReady(fileId, prepStageId) {
@@ -3477,19 +3527,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!(await openCatConfirmModal(msg, { title: '準備完成' }))) return false;
         try {
             const updated = await DBService.updateFileWorkflowStageStatus(prepStageId, 'completed');
-            const stages = window._currentFileWorkflowStages || [];
+            const fid = String(fileId);
+            const stages = (_workflowStagesForCurrentFile() || []).map((s) => ({ ...s }));
             const idx = stages.findIndex((s) => String(s.id) === String(prepStageId));
-            if (idx >= 0 && String(currentFileId) === String(fileId)) {
-                stages[idx] = { ...stages[idx], ...updated };
-            }
-            const translateStage = stages.find((s) => s.stageKind === 'translate');
+            if (idx >= 0) stages[idx] = { ...stages[idx], ...updated };
+            const translateStage = stages.find((s) => (s.stageKind || s.stage_kind) === 'translate');
             if (translateStage) {
                 const updatedTr = await DBService.updateFileWorkflowStageStatus(translateStage.id, 'pending');
                 const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
                 if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updatedTr };
             }
-            if (String(currentFileId) === String(fileId)) {
+            if (String(currentFileId) === fid) {
                 window._currentFileWorkflowStages = stages;
+                const map = { ...(window._currentFileWorkflowStagesByFileId || {}) };
+                map[fid] = stages;
+                window._currentFileWorkflowStagesByFileId = map;
             }
             await enqueueStageSnapshot(fileId, prepStageId, 'baseline_before_translate');
             showCatToast('已標記準備完成', 'info');
@@ -3511,8 +3563,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             showCatToast('請先開啟檔案', 'info');
             return;
         }
-        const stages = window._currentFileWorkflowStages || [];
-        const prep = stages.find((s) => s.stageKind === 'prep');
+        const stages = _workflowStagesForCurrentFile();
+        const prep = window.WfDisplayStatus && typeof window.WfDisplayStatus.wfStageByKind === 'function'
+            ? window.WfDisplayStatus.wfStageByKind(stages, 'prep')
+            : (stages || []).find((s) => (s.stageKind || s.stage_kind) === 'prep');
         if (!prep) {
             showCatToast('找不到準備步驟', 'error');
             return;
@@ -3527,6 +3581,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const idx = stages.findIndex((s) => String(s.id) === String(prep.id));
             if (idx >= 0) stages[idx] = { ...stages[idx], ...updated };
             window._currentFileWorkflowStages = stages;
+            const map = { ...(window._currentFileWorkflowStagesByFileId || {}) };
+            map[fileId] = stages;
+            window._currentFileWorkflowStagesByFileId = map;
             showCatToast('已改回準備中', 'info');
             refreshWfTaskCompleteToolbar();
             if (window._lastFilesListForProject) {
@@ -5977,24 +6034,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    let _wfFileContextLoadGen = 0;
+
     async function _loadFileWorkflowContext(fileId, opts) {
+        const loadGen = ++_wfFileContextLoadGen;
+        const fid = fileId != null && fileId !== '' ? String(fileId) : '';
         _fullListLineNoBySegId = {};
-        window._currentFileWorkflowStagesByFileId = {};
+        if (fid && currentFileId != null && String(currentFileId) === fid) {
+            window._currentFileWorkflowStages = [];
+            window._currentFileWorkflowStagesByFileId = {};
+        }
         let stages = [];
         let assignments = [];
         const loadLineNoCache = !opts || opts.loadLineNoCache !== false;
         try {
-            stages = await DBService.ensureFileWorkflowStages(fileId);
-            assignments = await DBService.listStageAssignmentsForFile(fileId);
-            if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fileId);
+            if (fid) {
+                stages = await DBService.getFileWorkflowStages(fid);
+                if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                assignments = await DBService.listStageAssignmentsForFile(fid);
+                if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fid);
+            }
         } catch (wfErr) {
             console.warn('[workflow] loadFileWorkflowContext', wfErr);
+            try {
+                if (fid && (!stages || !stages.length)) {
+                    stages = await DBService.getFileWorkflowStages(fid);
+                }
+            } catch (getErr) {
+                console.warn('[workflow] loadFileWorkflowContext get', getErr);
+            }
         }
-        window._currentFileWorkflowStages = stages;
-        window._currentFileStageAssignments = assignments;
+        const apply = window.WfDisplayStatus && typeof window.WfDisplayStatus.shouldApplyWorkflowContextLoad === 'function'
+            ? window.WfDisplayStatus.shouldApplyWorkflowContextLoad({
+                loadGen,
+                currentGen: _wfFileContextLoadGen,
+                loadFileId: fid,
+                currentFileId,
+            })
+            : (loadGen === _wfFileContextLoadGen && fid && (!currentFileId || String(currentFileId) === fid));
+        if (!apply) return { stages: [], assignments: [], stale: true };
+        if (window.WfDisplayStatus && typeof window.WfDisplayStatus.normalizeWorkflowStages === 'function') {
+            stages = window.WfDisplayStatus.normalizeWorkflowStages(stages);
+        }
+        window._currentFileWorkflowStages = stages || [];
+        window._currentFileStageAssignments = assignments || [];
+        window._currentFileWorkflowStagesByFileId = fid ? { [fid]: window._currentFileWorkflowStages } : {};
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
         if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
-        return { stages, assignments };
+        return { stages: window._currentFileWorkflowStages, assignments };
     }
 
     async function _loadViewWorkflowContext(fileIds, viewSegmentIds) {
@@ -6006,6 +6093,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 let stages = await DBService.getFileWorkflowStages(fid);
                 if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                if (window.WfDisplayStatus && typeof window.WfDisplayStatus.normalizeWorkflowStages === 'function') {
+                    stages = window.WfDisplayStatus.normalizeWorkflowStages(stages);
+                }
                 stagesByFile[fid] = stages || [];
                 const assigns = await DBService.listStageAssignmentsForFile(fid);
                 allAssigns.push(...(assigns || []));
@@ -6027,10 +6117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _getStagesForAssignment(a) {
-        if (_currentViewId) {
-            return (window._currentFileWorkflowStagesByFileId || {})[String(a.fileId)] || [];
-        }
-        return window._currentFileWorkflowStages || [];
+        return _workflowStagesForCurrentFile(a && a.fileId != null ? a.fileId : undefined);
     }
 
     function _workflowStageById(stages, stageId) {
@@ -6672,9 +6759,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const list = document.getElementById('wfAdjustStatusList');
         const bulk = document.getElementById('wfAdjustBulkBar');
         if (!modal || !list) return;
-        const stages = window._currentFileWorkflowStages || [];
-        const hasTranslateStage = stages.some((s) => s.stageKind === 'translate');
-        const hasReviewStage = stages.some((s) => s.stageKind === 'review');
+        const stages = _workflowStagesForCurrentFile();
+        const hasTranslateStage = stages.some((s) => (s.stageKind || s.stage_kind) === 'translate');
+        const hasReviewStage = stages.some((s) => (s.stageKind || s.stage_kind) === 'review');
         const translateAssigns = _dedupeTranslateAssignmentsByCollabRow(
             _wfTranslateAssignmentsInContext({ includeAll: true })
         );
@@ -7160,7 +7247,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 整檔正式檔會「點了沒反應」。
         if (_currentFilePrepActive()) {
             const fileId = currentFileId != null ? String(currentFileId) : null;
-            const prep = (window._currentFileWorkflowStages || []).find((s) => s.stageKind === 'prep');
+            const stages = _workflowStagesForCurrentFile();
+            const prep = window.WfDisplayStatus && typeof window.WfDisplayStatus.wfStageByKind === 'function'
+                ? window.WfDisplayStatus.wfStageByKind(stages, 'prep')
+                : (stages || []).find((s) => (s.stageKind || s.stage_kind) === 'prep');
             if (fileId && prep) await _pmMarkPrepReady(fileId, prep.id);
             return;
         }
@@ -7278,11 +7368,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _workflowStagesForSegment(seg) {
-        if (_currentViewId && seg && seg.fileId != null) {
-            const map = window._currentFileWorkflowStagesByFileId || {};
-            return map[String(seg.fileId)] || [];
-        }
-        return window._currentFileWorkflowStages || [];
+        return _workflowStagesForCurrentFile(seg && seg.fileId != null ? seg.fileId : undefined);
     }
 
     function _segFullListLineNo(seg) {
@@ -7299,7 +7385,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!seg) return false;
         if (_isCatPmOrExecutive()) return false;
         const stages = _workflowStagesForSegment(seg);
-        if (_isFilePrepIncomplete(stages)) return true;
+        const prepBlocksEdit = typeof window.WfPrepUnlock?.prepIncompleteForbidsAssignedEdit === 'function'
+            ? window.WfPrepUnlock.prepIncompleteForbidsAssignedEdit()
+            : true;
+        if (prepBlocksEdit && _isFilePrepIncomplete(stages)) return true;
         if (_workflowAllStagesCompleted(stages)) return false;
         if (!isTeamMode()) return false;
 
@@ -16894,7 +16983,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (!_isCatPmOrExecutive()) {
             const stages = _workflowStagesForSegment(seg);
-            if (_isFilePrepIncomplete(stages)) return '禁止編輯，檔案準備中';
+            const prepBlocksEdit = typeof window.WfPrepUnlock?.prepIncompleteForbidsAssignedEdit === 'function'
+                ? window.WfPrepUnlock.prepIncompleteForbidsAssignedEdit()
+                : true;
+            if (prepBlocksEdit && _isFilePrepIncomplete(stages)) return '禁止編輯，檔案準備中';
         }
         if (computeSegmentEditForbidden(seg)) return '禁止編輯：不在您受派的列範圍內';
         if (_fileUnassignedReadOnly) return '禁止編輯：未受指派，無法編輯檔案';

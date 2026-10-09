@@ -5,8 +5,63 @@
 (function (global) {
     'use strict';
 
+    function stageKindOf(s) {
+        if (!s || typeof s !== 'object') return null;
+        return s.stageKind || s.stage_kind || null;
+    }
+
     function wfStageByKind(stages, kind) {
-        return (stages || []).find((s) => s.stageKind === kind) || null;
+        return (stages || []).find((s) => stageKindOf(s) === kind) || null;
+    }
+
+    function normalizeWorkflowStage(row) {
+        if (!row || typeof row !== 'object') return row;
+        const stageKind = stageKindOf(row);
+        const fileId = row.fileId || row.file_id || null;
+        if (row.stageKind === stageKind && (fileId == null || row.fileId === fileId)) return row;
+        return { ...row, stageKind, fileId: row.fileId || fileId };
+    }
+
+    function normalizeWorkflowStages(stages) {
+        return Array.isArray(stages) ? stages.map(normalizeWorkflowStage) : [];
+    }
+
+    /**
+     * 編輯器／清單共用：取「目前這個檔」的工作階段。
+     * 空陣列＝沒載到，不當成準備中；不拿別檔的階段來用。
+     */
+    function resolveWorkflowStagesForFile(input) {
+        const currentFileId = input && input.currentFileId != null && input.currentFileId !== ''
+            ? String(input.currentFileId)
+            : '';
+        const currentViewId = input && input.currentViewId;
+        const segmentFileId = input && input.segmentFileId != null && input.segmentFileId !== ''
+            ? String(input.segmentFileId)
+            : '';
+        const byFile = (input && input.stagesByFileId) || {};
+        const flat = Array.isArray(input && input.fileStages) ? input.fileStages : [];
+        if (currentViewId && segmentFileId) {
+            return Array.isArray(byFile[segmentFileId]) ? byFile[segmentFileId] : [];
+        }
+        if (currentFileId && Array.isArray(byFile[currentFileId]) && byFile[currentFileId].length) {
+            return byFile[currentFileId];
+        }
+        if (flat.length) return flat;
+        if (currentFileId && Array.isArray(byFile[currentFileId])) return byFile[currentFileId];
+        return flat;
+    }
+
+    /** 晚回／換檔：載入序號或檔 id 對不上就丟棄，避免 B-1 結果寫到 B-2。 */
+    function shouldApplyWorkflowContextLoad(input) {
+        if (!input) return false;
+        if (Number(input.loadGen) !== Number(input.currentGen)) return false;
+        const loadFileId = input.loadFileId != null && input.loadFileId !== '' ? String(input.loadFileId) : '';
+        const currentFileId = input.currentFileId != null && input.currentFileId !== ''
+            ? String(input.currentFileId)
+            : '';
+        if (!loadFileId) return false;
+        if (!currentFileId) return true;
+        return loadFileId === currentFileId;
     }
 
     function wfStageById(stages, id) {
@@ -22,6 +77,26 @@
     function isPrepActive(stages) {
         const prep = wfStageByKind(stages, 'prep');
         return !!(prep && prep.status === 'active');
+    }
+
+    function isWorkStageKind(kind) {
+        return kind === 'translate' || kind === 'review';
+    }
+
+    /**
+     * 翻譯／審稿工作階段。準備中只是檔案閘門，不能拿來對指派或鎖編輯。
+     */
+    function resolveWorkflowWorkStage(stages, sessionKind) {
+        const arr = Array.isArray(stages) ? stages : [];
+        const kind = sessionKind === 'translate' || sessionKind === 'review' ? sessionKind : null;
+        if (kind) {
+            const hit = arr.find((s) => stageKindOf(s) === kind);
+            if (hit) return hit;
+        }
+        const work = arr.filter((s) => isWorkStageKind(stageKindOf(s)));
+        const active = work.find((s) => s.status === 'active');
+        if (active) return active;
+        return work.find((s) => s.status !== 'completed') || null;
     }
 
     function assignmentFirstEditedAt(assignment) {
@@ -276,5 +351,12 @@
         isPrepActive,
         assignmentFirstEditedAt,
         reviewTranslateGatePassed,
+        stageKindOf,
+        wfStageByKind,
+        normalizeWorkflowStages,
+        resolveWorkflowStagesForFile,
+        shouldApplyWorkflowContextLoad,
+        isWorkStageKind,
+        resolveWorkflowWorkStage,
     };
 })(typeof window !== 'undefined' ? window : globalThis);
