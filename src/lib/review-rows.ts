@@ -7,6 +7,77 @@ export function deriveReviewerSummary(rows: ReviewCollabRow[] | undefined | null
   return names.join("、");
 }
 
+function validDeadlineIso(value: string | null | undefined): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const ts = new Date(raw).getTime();
+  return Number.isNaN(ts) ? null : new Date(ts).toISOString();
+}
+
+function pickDeadlineIso(
+  rows: ReviewCollabRow[],
+  mode: "earliest" | "latest",
+): string | null {
+  const stamps = rows
+    .map((r) => validDeadlineIso(r.reviewDeadline))
+    .filter((v): v is string => Boolean(v))
+    .map((v) => new Date(v).getTime());
+  if (!stamps.length) return null;
+  const ts = mode === "earliest" ? Math.min(...stamps) : Math.max(...stamps);
+  return new Date(ts).toISOString();
+}
+
+/**
+ * 總表審稿人員：按帳號去重。有 reviewerUserId 的列以帳號為準，
+ * 同名不同帳號分開；沒有帳號的列才用顯示名去重。不虛構人員。
+ */
+export function listReviewerLabels(rows: ReviewCollabRow[] | undefined | null): string {
+  if (!Array.isArray(rows) || !rows.length) return "";
+  const seenIds = new Set<string>();
+  const seenNamesWithoutId = new Set<string>();
+  const labels: string[] = [];
+  for (const r of rows) {
+    const name = String(r.reviewer || "").trim();
+    const id = String(r.reviewerUserId || "").trim();
+    if (id) {
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+      if (name) labels.push(name);
+      continue;
+    }
+    if (!name || seenNamesWithoutId.has(name)) continue;
+    seenNamesWithoutId.add(name);
+    labels.push(name);
+  }
+  return labels.join("、");
+}
+
+/** 總表顯示：有審稿列用人名彙整，否則沿用案件舊欄。不寫回資料。 */
+export function caseListReviewerText(input: {
+  reviewRows?: ReviewCollabRow[] | null;
+  reviewer?: string | null;
+}): string {
+  return listReviewerLabels(input.reviewRows) || String(input.reviewer || "").trim();
+}
+
+/**
+ * 總表審稿交期：全部未完成列中最早的有效日期（含逾期）。
+ * 仍有未完成但都沒日期 → 空白，不捏造、不改用已完成列。
+ * 全部完成 → 沿用現有「已完成列最晚日期」當歷史代表。
+ * 沒有審稿列 → 沿用案件舊欄。
+ */
+export function pickReviewDeadlineForList(input: {
+  reviewRows?: ReviewCollabRow[] | null;
+  fallbackDeadline?: string | null;
+}): string | null {
+  const rows = Array.isArray(input.reviewRows) ? input.reviewRows : [];
+  if (!rows.length) return validDeadlineIso(input.fallbackDeadline);
+
+  const uncompleted = rows.filter((r) => !r.taskCompleted);
+  if (uncompleted.length) return pickDeadlineIso(uncompleted, "earliest");
+  return pickDeadlineIso(rows, "latest");
+}
+
 export function newReviewRowId(suffix?: string | number): string {
   return `rr_${Date.now().toString(36)}${suffix != null ? String(suffix) : ""}${Math.random().toString(36).slice(2, 6)}`;
 }

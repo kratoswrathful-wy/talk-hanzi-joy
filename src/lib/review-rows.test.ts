@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   areAllReviewAssignmentsCompleted,
+  caseListReviewerText,
   deriveReviewerSummary,
   isReviewRowsSegmented,
+  listReviewerLabels,
+  pickReviewDeadlineForList,
   shouldShowReviewSegmentBlock,
   writeThroughWholeFileReviewDeadline,
   writeThroughWholeFileReviewer,
@@ -100,6 +103,106 @@ describe("isReviewRowsSegmented / shouldShowReviewSegmentBlock", () => {
         ],
       }),
     ).toBe(true);
+  });
+});
+
+describe("listReviewerLabels / caseListReviewerText", () => {
+  it("有帳號時按帳號去重，同名不同帳號分開", () => {
+    expect(
+      listReviewerLabels([
+        row({ id: "1", reviewer: "甲", reviewerUserId: "uid-a" }),
+        row({ id: "2", reviewer: "甲", reviewerUserId: "uid-b" }),
+        row({ id: "3", reviewer: "甲", reviewerUserId: "uid-a" }),
+      ]),
+    ).toBe("甲、甲");
+  });
+
+  it("沒有帳號才用顯示名去重", () => {
+    expect(
+      listReviewerLabels([
+        row({ id: "1", reviewer: "甲" }),
+        row({ id: "2", reviewer: "乙" }),
+        row({ id: "3", reviewer: "甲" }),
+      ]),
+    ).toBe("甲、乙");
+  });
+
+  it("有審稿列時不用舊欄；空列才沿用舊欄", () => {
+    expect(
+      caseListReviewerText({
+        reviewRows: [row({ id: "1", reviewer: "乙", reviewerUserId: "uid-b" })],
+        reviewer: "舊欄甲",
+      }),
+    ).toBe("乙");
+    expect(caseListReviewerText({ reviewRows: [], reviewer: "舊欄甲" })).toBe("舊欄甲");
+    expect(caseListReviewerText({ reviewRows: [], reviewer: "" })).toBe("");
+  });
+});
+
+describe("pickReviewDeadlineForList", () => {
+  it("未完成列取最早有效日期，含逾期；空日期不捏造", () => {
+    expect(
+      pickReviewDeadlineForList({
+        reviewRows: [
+          row({ id: "1", reviewer: "甲", reviewDeadline: "2026-10-20T00:00:00.000Z" }),
+          row({ id: "2", reviewer: "乙", reviewDeadline: "2026-09-01T00:00:00.000Z" }),
+          row({ id: "3", reviewer: "丙", reviewDeadline: null }),
+        ],
+      }),
+    ).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+  it("仍有未完成但都沒日期 → 空白，不改用已完成列", () => {
+    expect(
+      pickReviewDeadlineForList({
+        reviewRows: [
+          row({ id: "1", reviewer: "甲", reviewDeadline: null }),
+          row({
+            id: "2",
+            reviewer: "乙",
+            reviewDeadline: "2026-08-01T00:00:00.000Z",
+            taskCompleted: true,
+          }),
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it("完成最早一段後改顯示下一筆未完成", () => {
+    const rows = [
+      row({ id: "1", reviewer: "甲", reviewDeadline: "2026-09-01T00:00:00.000Z" }),
+      row({ id: "2", reviewer: "乙", reviewDeadline: "2026-10-20T00:00:00.000Z" }),
+    ];
+    expect(pickReviewDeadlineForList({ reviewRows: rows })).toBe("2026-09-01T00:00:00.000Z");
+    rows[0].taskCompleted = true;
+    expect(pickReviewDeadlineForList({ reviewRows: rows })).toBe("2026-10-20T00:00:00.000Z");
+  });
+
+  it("全部完成保留最晚歷史交期；沒有審稿列沿用舊欄", () => {
+    expect(
+      pickReviewDeadlineForList({
+        reviewRows: [
+          row({
+            id: "1",
+            reviewer: "甲",
+            reviewDeadline: "2026-09-01T00:00:00.000Z",
+            taskCompleted: true,
+          }),
+          row({
+            id: "2",
+            reviewer: "乙",
+            reviewDeadline: "2026-10-20T00:00:00.000Z",
+            taskCompleted: true,
+          }),
+        ],
+      }),
+    ).toBe("2026-10-20T00:00:00.000Z");
+    expect(
+      pickReviewDeadlineForList({
+        reviewRows: [],
+        fallbackDeadline: "2026-07-01T00:00:00.000Z",
+      }),
+    ).toBe("2026-07-01T00:00:00.000Z");
   });
 });
 

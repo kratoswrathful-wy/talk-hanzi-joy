@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow, DeclineRecord } from "@/data/case-types";
+import { caseListReviewerText, pickReviewDeadlineForList } from "@/lib/review-rows";
 import type { TemplateFieldValue } from "@/stores/page-template-store";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -127,32 +128,36 @@ function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: Col
   return <DeadlineText value={pickLatestDeadline(collabRows, "translationDeadline")} showIcon={showIcon} />;
 }
 
-function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
-  const { profile } = useAuth();
-  const displayName = profile?.display_name || "";
-  const isDraftOrInquiry = status === "draft" || status === "inquiry";
-  const showIcon = !isDraftOrInquiry && status !== "delivered";
-
-  if (isDraftOrInquiry) {
-    return <DeadlineText value={pickEarliestDeadline(collabRows, "reviewDeadline")} />;
-  }
-
-  const isReviewer = collabRows.some(r => r.reviewer === displayName);
-
-  if (isReviewer) {
-    const myRows = collabRows.filter(r => r.reviewer === displayName);
-    const myUncompleted = myRows.filter(r => !r.delivered);
-    if (myUncompleted.length > 0) {
-      return <DeadlineText value={pickEarliestDeadline(myUncompleted, "reviewDeadline")} showIcon={showIcon} />;
-    }
-    return <DeadlineText value={pickLatestDeadline(myRows, "reviewDeadline")} showIcon={showIcon} />;
-  }
-
-  const uncompleted = collabRows.filter(r => !r.delivered);
-  if (uncompleted.length > 0) {
-    return <DeadlineText value={pickEarliestDeadline(uncompleted, "reviewDeadline")} showIcon={showIcon} />;
-  }
-  return <DeadlineText value={pickLatestDeadline(collabRows, "reviewDeadline")} showIcon={showIcon} />;
+function ReviewDeadlineListCell({
+  caseRecord,
+  editable,
+  onCommit,
+}: {
+  caseRecord: CaseRecord;
+  editable: boolean;
+  onCommit: (v: string) => void;
+}) {
+  const value = pickReviewDeadlineForList({
+    reviewRows: caseRecord.reviewRows,
+    fallbackDeadline: caseRecord.reviewDeadline,
+  });
+  const showIcon =
+    caseRecord.status !== "draft" &&
+    caseRecord.status !== "inquiry" &&
+    caseRecord.status !== "delivered";
+  const hasReviewRows = Array.isArray(caseRecord.reviewRows) && caseRecord.reviewRows.length > 0;
+  const display = (
+    <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+      {formatDateTime(value)}
+      {showIcon && <DeadlineProximityIcon deadline={value} />}
+    </span>
+  );
+  if (hasReviewRows) return display;
+  return (
+    <InlineEditCell value={caseRecord.reviewDeadline} type="datetime" editable={editable} onCommit={onCommit}>
+      {display}
+    </InlineEditCell>
+  );
 }
 
 const caseStatusLabels: Record<CaseStatus, string> = {
@@ -429,7 +434,7 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 90,
     render: (c, { editable, onCommit }) => (
       <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" assigneeRole="reviewer" editable={editable} onCommit={(v, meta) => onCommit("reviewer", v, meta)}>
-        <AssigneeLabel value={c.reviewer} />
+        <AssigneeLabel value={caseListReviewerText({ reviewRows: c.reviewRows, reviewer: c.reviewer })} />
       </InlineEditCell>
     ),
   },
@@ -437,20 +442,13 @@ const allColumnDefs: ColumnDef[] = [
     key: "reviewDeadline",
     label: "審稿交期",
     minWidth: 110,
-    render: (c, { editable, onCommit }) => {
-      if (c.multiCollab && c.collabRows?.length > 0) {
-        return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
-      }
-      const showIcon = c.status !== "draft" && c.status !== "inquiry" && c.status !== "delivered";
-      return (
-        <InlineEditCell value={c.reviewDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("reviewDeadline", v)}>
-          <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
-            {formatDateTime(c.reviewDeadline)}
-            {showIcon && <DeadlineProximityIcon deadline={c.reviewDeadline} />}
-          </span>
-        </InlineEditCell>
-      );
-    },
+    render: (c, { editable, onCommit }) => (
+      <ReviewDeadlineListCell
+        caseRecord={c}
+        editable={editable}
+        onCommit={(v) => onCommit("reviewDeadline", v)}
+      />
+    ),
   },
   {
     key: "executionTool",

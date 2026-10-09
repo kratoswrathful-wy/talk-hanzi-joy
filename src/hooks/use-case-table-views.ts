@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { type CaseRecord } from "@/data/case-types";
 import { getStatusSortIndex, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
+import { caseListReviewerText, pickReviewDeadlineForList } from "@/lib/review-rows";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
@@ -65,6 +66,13 @@ function getCaseDeadlineForSort(
   field: DeadlineField,
   viewerDisplayName?: string
 ): string {
+  if (field === "reviewDeadline") {
+    return pickReviewDeadlineForList({
+      reviewRows: c.reviewRows,
+      fallbackDeadline: c.reviewDeadline,
+    }) || "";
+  }
+
   if (!c.multiCollab || !c.collabRows?.length) {
     return c[field] || "";
   }
@@ -94,22 +102,7 @@ function getCaseDeadlineForSort(
     ) || "";
   }
 
-  if (viewerDisplayName && rows.some((r) => r.reviewer === viewerDisplayName)) {
-    const myRows = rows.filter((r) => r.reviewer === viewerDisplayName);
-    const myUncompleted = myRows.filter((r) => !r.delivered);
-    return (
-      myUncompleted.length > 0
-        ? pickCollabDeadline(myUncompleted, field, "earliest")
-        : pickCollabDeadline(myRows, field, "latest")
-    ) || "";
-  }
-
-  const uncompleted = rows.filter((r) => !r.delivered);
-  return (
-    uncompleted.length > 0
-      ? pickCollabDeadline(uncompleted, field, "earliest")
-      : pickCollabDeadline(rows, field, "latest")
-  ) || "";
+  return c[field] || "";
 }
 
 function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string): string | number | boolean {
@@ -122,7 +115,7 @@ function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string)
     case "unitCount": return c.unitCount;
     case "translator": return (c.translator || []).join(", ");
     case "translationDeadline": return getCaseDeadlineForSort(c, "translationDeadline", viewerDisplayName);
-    case "reviewer": return c.reviewer;
+    case "reviewer": return caseListReviewerText({ reviewRows: c.reviewRows, reviewer: c.reviewer });
     case "reviewDeadline": return getCaseDeadlineForSort(c, "reviewDeadline", viewerDisplayName);
     case "createdBy": return c.createdBy;
     case "client": return c.client;
