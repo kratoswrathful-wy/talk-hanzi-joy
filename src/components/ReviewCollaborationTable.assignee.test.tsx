@@ -4,6 +4,10 @@ import ReviewCollaborationTable from "@/components/ReviewCollaborationTable";
 
 const uuidB = "660e8400-e29b-41d4-a716-446655440001";
 
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({

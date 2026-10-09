@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,6 +15,11 @@ import type { ReviewCollabRow } from "@/data/case-types";
 import { newReviewRowId } from "@/lib/review-rows";
 import { reviewRowFromSelection } from "@/lib/assignee-select";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  decideCatFileOptionsCommit,
+  subscribeCatCaseFilesChanged,
+} from "@/lib/cat-case-file-options";
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   rows: ReviewCollabRow[];
@@ -30,19 +35,59 @@ type CatBindOption = {
 };
 
 export default function ReviewCollaborationTable({ rows, onChange, caseId, caseStatus }: Props) {
+  const { toast } = useToast();
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  const caseIdRef = useRef(caseId);
+  caseIdRef.current = caseId;
+  const catOptionsGenRef = useRef(0);
   const [catFiles, setCatFiles] = useState<CatBindOption[]>([]);
+  const [catBindLoadError, setCatBindLoadError] = useState<string | null>(null);
+  const [catOptionsReload, setCatOptionsReload] = useState(0);
   const showTaskCompleted = caseStatus !== "draft" && caseStatus !== "inquiry";
 
   useEffect(() => {
-    if (!caseId) return;
+    return subscribeCatCaseFilesChanged(caseId, () => {
+      setCatOptionsReload((n) => n + 1);
+    });
+  }, [caseId]);
+
+  useEffect(() => {
+    if (!caseId) {
+      catOptionsGenRef.current += 1;
+      setCatFiles([]);
+      setCatBindLoadError(null);
+      return;
+    }
+    const requestCaseId = caseId;
+    const requestGeneration = ++catOptionsGenRef.current;
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("cat_files")
         .select("id, name")
-        .eq("related_lms_case_id", caseId)
+        .eq("related_lms_case_id", requestCaseId)
         .order("name");
       if (cancelled) return;
+      const decided = decideCatFileOptionsCommit({
+        requestCaseId,
+        currentCaseId: caseIdRef.current,
+        requestGeneration,
+        currentGeneration: catOptionsGenRef.current,
+        fetchError: error,
+      });
+      if (decided.apply === false) {
+        if (decided.reason === "fetch_error") {
+          setCatBindLoadError(decided.message || "無法載入 CAT 檔案選單");
+          toastRef.current({
+            title: "無法載入 CAT 檔案選單",
+            description: decided.message,
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+      setCatBindLoadError(null);
       setCatFiles(
         ((data as { id: string; name: string }[] | null) ?? []).map((f) => ({
           kind: "file" as const,
@@ -54,7 +99,7 @@ export default function ReviewCollaborationTable({ rows, onChange, caseId, caseS
     return () => {
       cancelled = true;
     };
-  }, [caseId]);
+  }, [caseId, catOptionsReload]);
 
   const updateRow = useCallback(
     (idx: number, patch: Partial<ReviewCollabRow>) => {
@@ -122,7 +167,7 @@ export default function ReviewCollaborationTable({ rows, onChange, caseId, caseS
                   }}
                 >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="整案未連結檔" />
+                    <SelectValue placeholder={catBindLoadError && catFiles.length === 0 ? "無法載入 CAT 檔案選單" : "整案未連結檔"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— 未連結 —</SelectItem>

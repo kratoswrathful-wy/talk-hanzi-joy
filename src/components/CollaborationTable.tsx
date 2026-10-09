@@ -29,6 +29,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildCatDeepLink } from "@/lib/cat-deep-link";
 import { collabTranslatorFromSelection } from "@/lib/assignee-select";
 import { countUnconfirmedSegmentsInCollabRange } from "@/lib/cat-collab-task-complete";
+import {
+  decideCatFileOptionsCommit,
+  subscribeCatCaseFilesChanged,
+} from "@/lib/cat-case-file-options";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props {
@@ -88,22 +92,39 @@ function CopyTextButton({ value }: { value: string }) {
 export default function CollaborationTable({ rows, onChange, caseStatus, caseId }: Props) {
   const { primaryRole, profile } = useAuth();
   const { toast } = useToast();
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
   const displayName = profile?.display_name || "";
   const scrollRef = useRef<HTMLDivElement>(null);
+  const caseIdRef = useRef(caseId);
+  caseIdRef.current = caseId;
+  const catOptionsGenRef = useRef(0);
   const [catBindOptions, setCatBindOptions] = useState<CatBindOption[]>([]);
+  const [catBindLoadError, setCatBindLoadError] = useState<string | null>(null);
+  const [catOptionsReload, setCatOptionsReload] = useState(0);
+
+  useEffect(() => {
+    return subscribeCatCaseFilesChanged(caseId, () => {
+      setCatOptionsReload((n) => n + 1);
+    });
+  }, [caseId]);
 
   useEffect(() => {
     if (!caseId) {
+      catOptionsGenRef.current += 1;
       setCatBindOptions([]);
+      setCatBindLoadError(null);
       return;
     }
+    const requestCaseId = caseId;
+    const requestGeneration = ++catOptionsGenRef.current;
     let cancelled = false;
     (async () => {
-      const { data: files } = await supabase
+      const { data: files, error: filesError } = await supabase
         .from("cat_files")
         .select("id, name, project_id")
-        .eq("related_lms_case_id", caseId);
+        .eq("related_lms_case_id", requestCaseId);
       const fileRows = files ?? [];
       const projectIds = [...new Set(fileRows.map((f) => f.project_id).filter(Boolean))];
       const options: CatBindOption[] = fileRows.map((f) => ({
@@ -113,12 +134,14 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
         projectId: f.project_id ?? undefined,
         linkFileId: f.id,
       }));
+      let viewsError: { message?: string } | null = null;
       if (projectIds.length) {
-        const { data: views } = await supabase
+        const viewsResult = await supabase
           .from("cat_views")
           .select("id, name, project_id, file_ids")
           .in("project_id", projectIds);
-        ((views ?? []) as { id: string; name: string; project_id: string; file_ids?: string[] }[]).forEach((v) => {
+        viewsError = viewsResult.error;
+        ((viewsResult.data ?? []) as { id: string; name: string; project_id: string; file_ids?: string[] }[]).forEach((v) => {
           const firstFileId = Array.isArray(v.file_ids) && v.file_ids.length ? v.file_ids[0] : undefined;
           options.push({
             kind: "view",
@@ -129,12 +152,32 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
           });
         });
       }
-      if (!cancelled) setCatBindOptions(options);
+      if (cancelled) return;
+      const decided = decideCatFileOptionsCommit({
+        requestCaseId,
+        currentCaseId: caseIdRef.current,
+        requestGeneration,
+        currentGeneration: catOptionsGenRef.current,
+        fetchError: filesError || viewsError,
+      });
+      if (decided.apply === false) {
+        if (decided.reason === "fetch_error") {
+          setCatBindLoadError(decided.message || "無法載入 CAT 檔案選單");
+          toastRef.current({
+            title: "無法載入 CAT 檔案選單",
+            description: decided.message,
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+      setCatBindLoadError(null);
+      setCatBindOptions(options);
     })();
     return () => {
       cancelled = true;
     };
-  }, [caseId]);
+  }, [caseId, catOptionsReload]);
 
   const canEditBindFields = isPmOrAbove;
 
@@ -334,6 +377,9 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
               style={{ gridTemplateColumns: gridTemplate }}
             >
               <div className="px-1.5 py-1 flex flex-col gap-1">
+                {caseId && catBindLoadError && catBindOptions.length === 0 && (
+                  <p className="text-[10px] text-destructive px-0.5">無法載入 CAT 檔案選單</p>
+                )}
                 {caseId && catBindOptions.length > 0 && (
                   <div className="flex items-center gap-1">
                     <Select

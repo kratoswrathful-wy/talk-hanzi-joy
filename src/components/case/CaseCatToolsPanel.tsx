@@ -18,6 +18,7 @@ import {
   syncCatWorkflowAssignmentsForCase,
   broadcastCatWorkflowAssignmentsSynced,
 } from "@/lib/cat-workflow-dispatch";
+import { broadcastCatCaseFilesChanged } from "@/lib/cat-case-file-options";
 import { buildCatDeepLink, buildCatProjectLink } from "@/lib/cat-deep-link";
 import {
   CatProjectFilePickerModal,
@@ -123,6 +124,7 @@ export function CaseCatToolsPanel({
       const byId = new Map<string, LinkedFileRow>();
       rows.forEach((r) => byId.set(r.id, r));
       setLinkedFiles([...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-TW")));
+      broadcastCatCaseFilesChanged(caseId);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       toast({ title: "無法載入 CAT 連結", description: msg, variant: "destructive" });
