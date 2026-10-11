@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { type CaseRecord } from "@/data/case-types";
 import { getStatusSortIndex, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import { caseListReviewerText, pickReviewDeadlineForList } from "@/lib/review-rows";
+import { caseListTranslatorText } from "@/lib/collab-translator-list";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
@@ -113,7 +114,10 @@ function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string)
     case "workType": return (c.workType || []).join(", ");
     case "billingUnit": return c.billingUnit;
     case "unitCount": return c.unitCount;
-    case "translator": return (c.translator || []).join(", ");
+    case "translator": return caseListTranslatorText({
+      collabRows: c.collabRows,
+      translator: c.translator,
+    });
     case "translationDeadline": return getCaseDeadlineForSort(c, "translationDeadline", viewerDisplayName);
     case "reviewer": return caseListReviewerText({ reviewRows: c.reviewRows, reviewer: c.reviewer });
     case "reviewDeadline": return getCaseDeadlineForSort(c, "reviewDeadline", viewerDisplayName);

@@ -41,6 +41,7 @@ import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow, DeclineRecord } from "@/data/case-types";
 import { caseListReviewerText, pickReviewDeadlineForList } from "@/lib/review-rows";
+import { caseListTranslatorText, hasCollabTranslatorArrangement } from "@/lib/collab-translator-list";
 import type { TemplateFieldValue } from "@/stores/page-template-store";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -386,18 +387,23 @@ const allColumnDefs: ColumnDef[] = [
     label: "譯者",
     minWidth: 90,
     render: (c, { editable, onCommit }) => {
-      const translatorName = (c.translator || [])[0] || "";
+      const translatorText = caseListTranslatorText({
+        collabRows: c.collabRows,
+        translator: c.translator,
+      });
+      const canEditFromList = editable && !hasCollabTranslatorArrangement(c.collabRows);
+      const editorValue = (c.translator || [])[0] || "";
       return (
         <InlineEditCell
-          value={translatorName}
+          value={editorValue}
           type="colorSelect"
           fieldKey="assignee"
-          editable={editable}
+          editable={canEditFromList}
           assigneeRole="translator"
           onCommit={(v, meta) => onCommit("translator", v ? [String(v)] : [], meta)}
         >
-          {translatorName ? (
-            <AssigneeLabel value={translatorName} />
+          {translatorText ? (
+            <AssigneeLabel value={translatorText} />
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
           )}
