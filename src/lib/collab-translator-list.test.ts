@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { smartCompare } from "./filter-types";
 import {
   caseListTranslatorText,
   hasCollabTranslatorArrangement,
@@ -101,5 +102,40 @@ describe("caseListTranslatorText", () => {
         translator: ["舊欄甲"],
       }),
     ).toBe("");
+  });
+});
+
+describe("譯者欄排序用完整彙整值", () => {
+  const multiText = caseListTranslatorText({
+    collabRows: [
+      row({ id: "1", translator: "譯者二（測試）", translatorUserId: "uid-b" }),
+      row({ id: "2", translator: "譯者一（測試）", translatorUserId: "uid-a" }),
+      row({ id: "3", translator: "譯者一（測試）", translatorUserId: "uid-a" }),
+    ],
+    translator: ["譯者一（測試）"],
+  });
+  const singleText = caseListTranslatorText({
+    translator: ["譯者二（測試）"],
+  });
+
+  it("彙整值是完整名單，不是第一人或舊欄", () => {
+    expect(multiText).toBe("譯者二（測試）、譯者一（測試）");
+    expect(singleText).toBe("譯者二（測試）");
+    expect(multiText).not.toBe("譯者二（測試）");
+    expect(multiText).not.toBe("譯者一（測試）");
+  });
+
+  it("升序：單人「譯者二」在多人「譯者二、譯者一」之前（既有 zh-Hant-TW）", () => {
+    expect(smartCompare(singleText, multiText, "select")).toBeLessThan(0);
+    expect(smartCompare(multiText, singleText, "select")).toBeGreaterThan(0);
+  });
+
+  it("若只比第一人或舊欄，順序會跟完整彙整不同", () => {
+    const firstPersonOnly = "譯者二（測試）";
+    const oldFieldOnly = "譯者一（測試）";
+    expect(smartCompare(firstPersonOnly, singleText, "select")).toBe(0);
+    expect(smartCompare(oldFieldOnly, singleText, "select")).toBeLessThan(0);
+    expect(smartCompare(multiText, singleText, "select")).not.toBe(0);
+    expect(smartCompare(multiText, singleText, "select")).toBeGreaterThan(0);
   });
 });
