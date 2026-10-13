@@ -3398,7 +3398,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await Promise.all(ids.map(async (fid) => {
             try {
                 let stages = await DBService.getFileWorkflowStages(fid);
-                if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                const needsEnsure = window.WfAdjustStatusAction
+                    && typeof window.WfAdjustStatusAction.shouldEnsureFileWorkflowStages === 'function'
+                    ? window.WfAdjustStatusAction.shouldEnsureFileWorkflowStages(stages)
+                    : !(stages && stages.length);
+                if (needsEnsure) stages = await DBService.ensureFileWorkflowStages(fid);
                 if (window.WfDisplayStatus && typeof window.WfDisplayStatus.normalizeWorkflowStages === 'function') {
                     stages = window.WfDisplayStatus.normalizeWorkflowStages(stages);
                 }
@@ -6051,7 +6055,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             if (fid) {
                 stages = await DBService.getFileWorkflowStages(fid);
-                if (!stages || !stages.length) stages = await DBService.ensureFileWorkflowStages(fid);
+                const needsEnsure = window.WfAdjustStatusAction
+                    && typeof window.WfAdjustStatusAction.shouldEnsureFileWorkflowStages === 'function'
+                    ? window.WfAdjustStatusAction.shouldEnsureFileWorkflowStages(stages)
+                    : !(stages && stages.length);
+                if (needsEnsure) stages = await DBService.ensureFileWorkflowStages(fid);
                 assignments = await DBService.listStageAssignmentsForFile(fid);
                 if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fid);
             }
@@ -6824,12 +6832,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const stageLabel = (kind) => (kind === 'review' ? '審稿' : '翻譯');
         const placeholderHtml = (kind) => {
             // 工項 E：0 筆指派仍顯示佔位列（整檔補指派＋三態）
+            const st = stages.find((s) => (s.stageKind || s.stage_kind) === kind);
+            const api = window.WfAdjustStatusAction;
+            const wfFromStage = api && typeof api.mapStageStatusToAdjustWorkflowStatus === 'function'
+                ? api.mapStageStatusToAdjustWorkflowStatus(st && st.status)
+                : ((st && st.status) === 'completed' ? 'completed'
+                    : (st && st.status) === 'active' ? 'in_progress' : 'assigned');
             return `<div class="wf-adjust-placeholder-row" data-stage-kind="${esc(kind)}" data-placeholder="1" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;padding:0.4rem 0.5rem;border:1px dashed #cbd5e1;border-radius:6px;background:#f8fafc;">`
                 + `<span style="font-size:0.84rem;min-width:7.5rem;">${esc(stageLabel(kind))}（尚未指派）</span>`
                 + `<select class="form-input wf-adjust-placeholder-assignee" data-stage-kind="${esc(kind)}" style="width:auto;min-width:140px;height:28px;font-size:0.8rem;padding:0 0.35rem;">`
                 + _wfAdjustAssigneeOptionsHtml()
                 + `</select>`
-                + _wfAdjustStatusSelectHtml(kind, null, 'assigned', true)
+                + _wfAdjustStatusSelectHtml(kind, null, wfFromStage, true)
                 + `<span style="font-size:0.75rem;color:#94a3b8;">整檔</span>`
                 + `</div>`;
         };

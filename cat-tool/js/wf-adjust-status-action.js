@@ -76,6 +76,42 @@ export function mapAdjustWorkflowStatusToStageStatus(wfStatus) {
   return "pending";
 }
 
+const DEFAULT_WORKFLOW_STAGE_KINDS = ["prep", "translate", "review"];
+
+/**
+ * 缺哪步就該呼叫補齊；已有任一步不算「完全沒資料」。
+ * @param {Array<{ stageKind?: string, stage_kind?: string }>|null|undefined} stages
+ * @returns {string[]}
+ */
+export function missingWorkflowStageKinds(stages) {
+  const have = new Set(
+    (stages || [])
+      .map((s) => String((s && (s.stageKind || s.stage_kind)) || "").trim())
+      .filter(Boolean),
+  );
+  return DEFAULT_WORKFLOW_STAGE_KINDS.filter((kind) => !have.has(kind));
+}
+
+/**
+ * @param {unknown[]} [stages]
+ * @returns {boolean}
+ */
+export function shouldEnsureFileWorkflowStages(stages) {
+  return missingWorkflowStageKinds(stages).length > 0;
+}
+
+/**
+ * 未指派佔位列應帶出目前步驟狀態，不能一律顯示待開始。
+ * @param {string|null|undefined} status
+ * @returns {'assigned'|'in_progress'|'completed'}
+ */
+export function mapStageStatusToAdjustWorkflowStatus(status) {
+  const s = String(status || "");
+  if (s === "completed") return "completed";
+  if (s === "active") return "in_progress";
+  return "assigned";
+}
+
 /**
  * 載入結果：失敗不可冒充「沒有段落」。
  * @param {{ stages?: unknown[], error?: unknown }} [input]
@@ -172,6 +208,9 @@ const WfAdjustStatusAction = {
   resolvePlaceholderApplyAction,
   resolveUnassignedAdjustApplyAction,
   mapAdjustWorkflowStatusToStageStatus,
+  missingWorkflowStageKinds,
+  shouldEnsureFileWorkflowStages,
+  mapStageStatusToAdjustWorkflowStatus,
   classifyWorkflowStageLoad,
   shouldShowAdjustBulkForStage,
   resolveAdjustBulkRowKinds,
