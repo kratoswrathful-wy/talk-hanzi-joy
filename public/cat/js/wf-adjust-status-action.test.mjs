@@ -3,6 +3,9 @@ import {
   resolvePmAdjustStatusClickAction,
   formatWorkflowScopeSuffix,
   resolvePlaceholderApplyAction,
+  resolveUnassignedAdjustApplyAction,
+  classifyWorkflowStageLoad,
+  mapAdjustWorkflowStatusToStageStatus,
   shouldShowAdjustBulkForStage,
   resolveAdjustBulkRowKinds,
   formatAdjustWorkflowStatusLabel,
@@ -38,7 +41,7 @@ describe("formatWorkflowScopeSuffix（工項 E 整檔標示）", () => {
 });
 
 describe("resolvePlaceholderApplyAction", () => {
-  it("未選人 → skip", () => {
+  it("未選人 → skip（不新建指派）", () => {
     expect(resolvePlaceholderApplyAction({})).toBe("skip");
     expect(resolvePlaceholderApplyAction({ assigneeUserId: "" })).toBe("skip");
     expect(resolvePlaceholderApplyAction({ assigneeUserId: "  " })).toBe("skip");
@@ -46,6 +49,27 @@ describe("resolvePlaceholderApplyAction", () => {
 
   it("已選人 → insert（狀態預設待開始亦可寫入）", () => {
     expect(resolvePlaceholderApplyAction({ assigneeUserId: "user-1" })).toBe("insert");
+  });
+});
+
+describe("未指派整檔狀態與載入分流", () => {
+  it("未選人且狀態不同 → 只改步驟", () => {
+    expect(
+      resolveUnassignedAdjustApplyAction({
+        wantedWfStatus: "completed",
+        currentStageStatus: "pending",
+      }),
+    ).toBe("stage-only");
+  });
+
+  it("載入失敗不是空段落", () => {
+    expect(classifyWorkflowStageLoad({ stages: [], error: new Error("denied") })).toBe("error");
+    expect(classifyWorkflowStageLoad({ stages: [] })).toBe("empty");
+  });
+
+  it("三態對到步驟狀態", () => {
+    expect(mapAdjustWorkflowStatusToStageStatus("assigned")).toBe("pending");
+    expect(mapAdjustWorkflowStatusToStageStatus("in_progress")).toBe("active");
   });
 });
 

@@ -3681,6 +3681,27 @@ export type Database = {
         Args: { p_assignee_user_id: string; p_view_id: string }
         Returns: Json
       }
+      cat_pm_ensure_file_workflow_stages: {
+        Args: { p_file_id: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          file_id: string
+          id: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "cat_file_workflow_stages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       cat_pm_update_file_workflow_stage_status: {
         Args: { p_stage_id: string; p_status: string }
         Returns: {

@@ -1,4 +1,5 @@
 import type { ReviewCollabRow } from "@/data/case-types";
+import type { CaseListPerson } from "@/lib/collab-translator-list";
 
 /** 由 review_rows 去重審稿人顯示名（案件層級 reviewer 衍生） */
 export function deriveReviewerSummary(rows: ReviewCollabRow[] | undefined | null): string {
@@ -31,25 +32,41 @@ function pickDeadlineIso(
  * 總表審稿人員：按帳號去重。有 reviewerUserId 的列以帳號為準，
  * 同名不同帳號分開；沒有帳號的列才用顯示名去重。不虛構人員。
  */
-export function listReviewerLabels(rows: ReviewCollabRow[] | undefined | null): string {
-  if (!Array.isArray(rows) || !rows.length) return "";
+export function listReviewerPeople(rows: ReviewCollabRow[] | undefined | null): CaseListPerson[] {
+  if (!Array.isArray(rows) || !rows.length) return [];
   const seenIds = new Set<string>();
   const seenNamesWithoutId = new Set<string>();
-  const labels: string[] = [];
+  const people: CaseListPerson[] = [];
   for (const r of rows) {
     const name = String(r.reviewer || "").trim();
     const id = String(r.reviewerUserId || "").trim();
     if (id) {
       if (seenIds.has(id)) continue;
       seenIds.add(id);
-      if (name) labels.push(name);
+      if (name) people.push({ userId: id, label: name });
       continue;
     }
     if (!name || seenNamesWithoutId.has(name)) continue;
     seenNamesWithoutId.add(name);
-    labels.push(name);
+    people.push({ userId: "", label: name });
   }
-  return labels.join("、");
+  return people;
+}
+
+export function listReviewerLabels(rows: ReviewCollabRow[] | undefined | null): string {
+  return listReviewerPeople(rows)
+    .map((p) => p.label)
+    .join("、");
+}
+
+export function caseListReviewerPeople(input: {
+  reviewRows?: ReviewCollabRow[] | null;
+  reviewer?: string | null;
+}): CaseListPerson[] {
+  const fromRows = listReviewerPeople(input.reviewRows);
+  if (fromRows.length) return fromRows;
+  const fallback = String(input.reviewer || "").trim();
+  return fallback ? [{ userId: "", label: fallback }] : [];
 }
 
 /** 總表顯示：有審稿列用人名彙整，否則沿用案件舊欄。不寫回資料。 */
@@ -57,7 +74,9 @@ export function caseListReviewerText(input: {
   reviewRows?: ReviewCollabRow[] | null;
   reviewer?: string | null;
 }): string {
-  return listReviewerLabels(input.reviewRows) || String(input.reviewer || "").trim();
+  return caseListReviewerPeople(input)
+    .map((p) => p.label)
+    .join("、");
 }
 
 /**

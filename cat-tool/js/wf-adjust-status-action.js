@@ -36,7 +36,7 @@ export function formatWorkflowScopeSuffix(a) {
 }
 
 /**
- * 無指派佔位列套用：未選人不寫入；已選人 → insert upsert。
+ * 無指派佔位列套用：未選人不寫入指派；已選人 → insert upsert。
  * @param {{ assigneeUserId?: string|null }} [input]
  * @returns {'skip'|'insert'}
  */
@@ -44,6 +44,48 @@ export function resolvePlaceholderApplyAction(input) {
   const uid = String(input?.assigneeUserId || "").trim();
   if (!uid) return "skip";
   return "insert";
+}
+
+/**
+ * 未指派整檔狀態：未選人只改步驟，不偷偷新建指派。
+ * @param {{
+ *   assigneeUserId?: string|null,
+ *   wantedWfStatus?: string|null,
+ *   currentStageStatus?: string|null,
+ * }} [input]
+ * @returns {'insert'|'stage-only'|'skip'}
+ */
+export function resolveUnassignedAdjustApplyAction(input) {
+  const uid = String(input?.assigneeUserId || "").trim();
+  if (uid) return "insert";
+  const wanted = String(input?.wantedWfStatus || "");
+  const next = wanted === "completed" ? "completed" : wanted === "in_progress" ? "active" : "pending";
+  const current = String(input?.currentStageStatus || "").trim();
+  if (current && next === current) return "skip";
+  return "stage-only";
+}
+
+/**
+ * @param {string|null|undefined} wfStatus
+ * @returns {'pending'|'active'|'completed'}
+ */
+export function mapAdjustWorkflowStatusToStageStatus(wfStatus) {
+  const s = String(wfStatus || "");
+  if (s === "completed") return "completed";
+  if (s === "in_progress") return "active";
+  return "pending";
+}
+
+/**
+ * 載入結果：失敗不可冒充「沒有段落」。
+ * @param {{ stages?: unknown[], error?: unknown }} [input]
+ * @returns {'ok'|'empty'|'error'}
+ */
+export function classifyWorkflowStageLoad(input) {
+  const stages = input && Array.isArray(input.stages) ? input.stages : [];
+  if (input && input.error && !stages.length) return "error";
+  if (stages.length) return "ok";
+  return "empty";
 }
 
 /**
@@ -128,6 +170,9 @@ const WfAdjustStatusAction = {
   resolvePmAdjustStatusClickAction,
   formatWorkflowScopeSuffix,
   resolvePlaceholderApplyAction,
+  resolveUnassignedAdjustApplyAction,
+  mapAdjustWorkflowStatusToStageStatus,
+  classifyWorkflowStageLoad,
   shouldShowAdjustBulkForStage,
   resolveAdjustBulkRowKinds,
   formatAdjustWorkflowStatusLabel,

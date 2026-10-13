@@ -10,6 +10,7 @@ import { mapEnabledModelOptionsToRpc } from "@/lib/cat-ai-model-registry/rpc-ena
 import { sortMappedCatSegmentsByImportOrder } from "@/lib/cat-segment-import-order";
 import { CAT_PAGE_SIZE, nextKeysetCursor } from "@/lib/cat-keyset-pagination";
 import { CAT_TB_LIST_COLUMNS } from "@/lib/cat-tb-list-columns";
+import { workflowStagesInitFailedError } from "@/lib/wf-ensure-stages";
 
 type RpcPayload = Record<string, any>;
 
@@ -824,7 +825,10 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .single();
       if (error) throw error;
       await supabase.from("cat_projects").update({ last_modified: nowIso() } as any).eq("id", projectId);
-      await supabase.rpc("ensure_cat_file_workflow_stages" as any, { p_file_id: fileId } as any);
+      const { error: ensErr } = await supabase.rpc("cat_pm_ensure_file_workflow_stages", {
+        p_file_id: fileId,
+      });
+      if (ensErr) throw workflowStagesInitFailedError(fileId, ensErr);
       return data.id;
     }
     case "db.getFiles": {
@@ -2518,10 +2522,14 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return data;
     }
     case "db.ensureFileWorkflowStages": {
-      const { error: ensErr } = await supabase.rpc("ensure_cat_file_workflow_stages" as any, {
-        p_file_id: payload.fileId,
-      } as any);
+      const { data: ensured, error: ensErr } = await supabase.rpc(
+        "cat_pm_ensure_file_workflow_stages",
+        { p_file_id: payload.fileId },
+      );
       if (ensErr) throw ensErr;
+      if (ensured?.length) {
+        return ensured.map(mapFileWorkflowStageRow);
+      }
       const { data, error } = await supabase
         .from("cat_file_workflow_stages" as any)
         .select("*")

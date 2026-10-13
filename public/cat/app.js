@@ -3406,7 +3406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 byFile[fid] = { stages: stages || [], assignments: assignments || [] };
             } catch (e) {
                 console.warn('[workflow] meta', fid, e);
-                byFile[fid] = { stages: [], assignments: [] };
+                if (!byFile[fid]) byFile[fid] = { stages: [], assignments: [], error: e };
             }
         }));
         return byFile;
@@ -6041,11 +6041,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fid = fileId != null && fileId !== '' ? String(fileId) : '';
         _fullListLineNoBySegId = {};
         if (fid && currentFileId != null && String(currentFileId) === fid) {
-            window._currentFileWorkflowStages = [];
-            window._currentFileWorkflowStagesByFileId = {};
+            window._currentFileWorkflowLoadState = 'loading';
+            window._currentFileWorkflowLoadError = null;
         }
         let stages = [];
         let assignments = [];
+        let loadError = null;
         const loadLineNoCache = !opts || opts.loadLineNoCache !== false;
         try {
             if (fid) {
@@ -6055,6 +6056,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (loadLineNoCache) await _buildFullListLineNoCacheForFile(fid);
             }
         } catch (wfErr) {
+            loadError = wfErr;
             console.warn('[workflow] loadFileWorkflowContext', wfErr);
             try {
                 if (fid && (!stages || !stages.length)) {
@@ -6062,6 +6064,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } catch (getErr) {
                 console.warn('[workflow] loadFileWorkflowContext get', getErr);
+                if (!loadError) loadError = getErr;
             }
         }
         const apply = window.WfDisplayStatus && typeof window.WfDisplayStatus.shouldApplyWorkflowContextLoad === 'function'
@@ -6073,9 +6076,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             })
             : (loadGen === _wfFileContextLoadGen && fid && (!currentFileId || String(currentFileId) === fid));
         if (!apply) return { stages: [], assignments: [], stale: true };
+        const classify = window.WfAdjustStatusAction && typeof window.WfAdjustStatusAction.classifyWorkflowStageLoad === 'function'
+            ? window.WfAdjustStatusAction.classifyWorkflowStageLoad
+            : null;
+        const loadState = classify
+            ? classify({ stages, error: loadError })
+            : (loadError && !(stages && stages.length) ? 'error' : (stages && stages.length ? 'ok' : 'empty'));
+        if (loadState === 'error') {
+            window._currentFileWorkflowLoadState = 'error';
+            window._currentFileWorkflowLoadError = loadError;
+            if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+            if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
+            return {
+                stages: window._currentFileWorkflowStages || [],
+                assignments: window._currentFileStageAssignments || [],
+                error: loadError,
+            };
+        }
         if (window.WfDisplayStatus && typeof window.WfDisplayStatus.normalizeWorkflowStages === 'function') {
             stages = window.WfDisplayStatus.normalizeWorkflowStages(stages);
         }
+        window._currentFileWorkflowLoadState = loadState;
+        window._currentFileWorkflowLoadError = null;
         window._currentFileWorkflowStages = stages || [];
         window._currentFileStageAssignments = assignments || [];
         window._currentFileWorkflowStagesByFileId = fid ? { [fid]: window._currentFileWorkflowStages } : {};
@@ -6101,7 +6123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allAssigns.push(...(assigns || []));
             } catch (e) {
                 console.warn('[workflow] loadViewWorkflowContext', fid, e);
-                stagesByFile[fid] = [];
+                if (stagesByFile[fid] == null) stagesByFile[fid] = [];
             }
         }));
         if (_currentViewId && Array.isArray(viewSegmentIds) && viewSegmentIds.length) {
@@ -6759,6 +6781,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const list = document.getElementById('wfAdjustStatusList');
         const bulk = document.getElementById('wfAdjustBulkBar');
         if (!modal || !list) return;
+        const loadState = window._currentFileWorkflowLoadState;
+        const loadError = window._currentFileWorkflowLoadError;
+        if (loadState === 'loading') {
+            if (bulk) bulk.innerHTML = '';
+            list.innerHTML = '<div style="padding:0.5rem;color:#64748b;font-size:0.84rem;">正在載入流程狀態…</div>';
+            modal.classList.remove('hidden');
+            return;
+        }
+        if (loadState === 'error' || loadError) {
+            if (bulk) bulk.innerHTML = '';
+            list.innerHTML = '<div style="padding:0.5rem;font-size:0.84rem;color:#b45309;">無法載入流程狀態，請重試。這不是「沒有可調整的段落」。</div>'
+                + '<button type="button" class="secondary-btn btn-sm" id="btnWfAdjustStatusRetry" style="margin:0.35rem 0.5rem 0.7rem;">重試</button>';
+            const retry = list.querySelector('#btnWfAdjustStatusRetry');
+            if (retry) {
+                retry.addEventListener('click', () => { void _onWfAdjustStatusRetry(); });
+            }
+            modal.classList.remove('hidden');
+            return;
+        }
         const stages = _workflowStagesForCurrentFile();
         const hasTranslateStage = stages.some((s) => (s.stageKind || s.stage_kind) === 'translate');
         const hasReviewStage = stages.some((s) => (s.stageKind || s.stage_kind) === 'review');
@@ -7045,15 +7086,43 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const isPlaceholder = sel.getAttribute('data-placeholder') === '1';
                 const wfStatus = _normalizeAdjustWorkflowStatus(sel.value);
                 if (isPlaceholder) {
-                    // 工項 E：未選人不寫入；已選人 → 整檔 upsert（須仍在確認清單內）
                     const row = sel.closest('.wf-adjust-placeholder-row');
                     const kind = sel.getAttribute('data-stage-kind') || (row && row.getAttribute('data-stage-kind')) || '';
                     const assigneeSel = row && row.querySelector('.wf-adjust-placeholder-assignee');
                     const uid = assigneeSel && assigneeSel.value ? String(assigneeSel.value).trim() : '';
-                    if (!uid || !fileId || (kind !== 'translate' && kind !== 'review')) continue;
-                    if (!createKey.has(`${kind}:${uid}`)) continue;
-                    const created = await _pmUpsertWholeFileAdjustAssignment(kind, fileId, uid, wfStatus);
-                    if (created) hits.push({ ...created, workflowStatus: wfStatus });
+                    if (!fileId || (kind !== 'translate' && kind !== 'review')) continue;
+                    const stagesNow = window._currentFileWorkflowStages || [];
+                    const stage = stagesNow.find((s) => (s.stageKind || s.stage_kind) === kind);
+                    const api = window.WfAdjustStatusAction;
+                    const action = api && typeof api.resolveUnassignedAdjustApplyAction === 'function'
+                        ? api.resolveUnassignedAdjustApplyAction({
+                            assigneeUserId: uid,
+                            wantedWfStatus: wfStatus,
+                            currentStageStatus: stage && stage.status,
+                        })
+                        : (uid ? 'insert' : 'skip');
+                    if (action === 'insert') {
+                        if (!uid || !createKey.has(`${kind}:${uid}`)) continue;
+                        const created = await _pmUpsertWholeFileAdjustAssignment(kind, fileId, uid, wfStatus);
+                        if (created) hits.push({ ...created, workflowStatus: wfStatus });
+                        continue;
+                    }
+                    if (action === 'stage-only' && stage) {
+                        const nextStatus = api && typeof api.mapAdjustWorkflowStatusToStageStatus === 'function'
+                            ? api.mapAdjustWorkflowStatusToStageStatus(wfStatus)
+                            : (wfStatus === 'completed' ? 'completed' : wfStatus === 'in_progress' ? 'active' : 'pending');
+                        const updated = await DBService.updateFileWorkflowStageStatus(stage.id, nextStatus);
+                        const sIdx = stagesNow.findIndex((s) => String(s.id) === String(stage.id));
+                        if (sIdx >= 0) stagesNow[sIdx] = { ...stagesNow[sIdx], ...updated };
+                        window._currentFileWorkflowStages = stagesNow;
+                        hits.push({
+                            fileId,
+                            fileWorkflowStageId: stage.id,
+                            workflowStatus: wfStatus,
+                            stageKind: kind,
+                            stageOnly: true,
+                        });
+                    }
                     continue;
                 }
                 const id = sel.getAttribute('data-assignment-id');
@@ -7096,6 +7165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showCatToast('仍有審稿分段為「完成」，翻譯已維持鎖定；請先將全部審稿改為非完成後再降翻譯', 'info');
             }
             for (const h of hits) {
+                if (h && h.stageOnly) continue;
                 const allowStageDowngrade = _isTranslateStageAssignment(h)
                     && h.workflowStatus !== 'completed';
                 await _reconcileStageStatusFromAssignments(
@@ -7240,13 +7310,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         _openWfTaskCompleteDropdownForAssignments(pending);
     }
 
+    async function _onWfAdjustStatusRetry() {
+        const fileId = currentFileId != null ? String(currentFileId) : null;
+        if (!fileId) return;
+        try {
+            await _loadFileWorkflowContext(fileId);
+        } catch (e) {
+            console.warn('[workflow] adjust status retry', e);
+        }
+        _openWfAdjustStatusModal();
+    }
+
     async function _onWfAdjustStatusClick() {
         if (!_isCatPmOrExecutive()) return;
         // 契約見 js/wf-adjust-status-action.js：非 prep 一律開三態 modal（含整檔）。
         // 舊路徑在 !_hasSplitWorkflowAssignments 時改走下拉，但 PM 工具列隱藏箭頭，
         // 整檔正式檔會「點了沒反應」。
+        const fileId = currentFileId != null ? String(currentFileId) : null;
+        if (fileId && (window._currentFileWorkflowLoadState === 'error' || window._currentFileWorkflowLoadError)) {
+            await _onWfAdjustStatusRetry();
+            return;
+        }
         if (_currentFilePrepActive()) {
-            const fileId = currentFileId != null ? String(currentFileId) : null;
             const stages = _workflowStagesForCurrentFile();
             const prep = window.WfDisplayStatus && typeof window.WfDisplayStatus.wfStageByKind === 'function'
                 ? window.WfDisplayStatus.wfStageByKind(stages, 'prep')

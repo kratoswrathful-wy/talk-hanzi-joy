@@ -96,6 +96,11 @@ import {
   writeThroughWholeFileReviewDeadline,
   writeThroughWholeFileReviewer,
 } from "@/lib/review-rows";
+import {
+  leftoverUnpairedReviewRows,
+  partitionReviewRowsByCollab,
+  projectCollabReviewIntoReviewRows,
+} from "@/lib/collab-review-pair";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseBodyOmittedPreview } from "@/components/CaseBodyOmittedPreview";
@@ -2250,6 +2255,7 @@ export default function CaseDetailPage() {
     multiCollab: caseData.multiCollab,
     reviewRows: caseData.reviewRows,
   });
+  const leftoverReviewRows = leftoverUnpairedReviewRows(caseData.collabRows, caseData.reviewRows);
 
   const handleDecline = async () => {
     const decline = {
@@ -3303,6 +3309,7 @@ export default function CaseDetailPage() {
           </div>
           <CollaborationTable
             rows={caseData.collabRows}
+            reviewRows={caseData.reviewRows}
             caseId={caseData.id}
             onChange={(newRows) => {
               if (isMember) {
@@ -3327,14 +3334,35 @@ export default function CaseDetailPage() {
                     .then((error) => {
                       if (error) toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
                     });
+                  return;
+                }
+                const completedReview = newRows.find((row) => {
+                  const previous = previousRows.find((item) => item.id === row.id);
+                  return !!row.reviewTaskCompleted && !previous?.reviewTaskCompleted;
+                });
+                if (completedReview) {
+                  const pair = partitionReviewRowsByCollab(
+                    previousRows,
+                    caseData.reviewRows,
+                  ).uniqueByCollabId.get(completedReview.id);
+                  if (pair) {
+                    void caseStore.completeCaseReviewRow(caseData.id, pair.id)
+                      .then((error) => {
+                        if (error) toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
+                      });
+                  }
                 }
                 return;
               }
               const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
               const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
               const allDelivered = newRows.length > 0 && newRows.every((r) => r.delivered);
-              
-              const updates: Partial<CaseRecord> = { collabRows: newRows };
+              const reviewRows = projectCollabReviewIntoReviewRows(newRows, caseData.reviewRows);
+              const updates: Partial<CaseRecord> = {
+                collabRows: newRows,
+                reviewRows,
+                reviewer: deriveReviewerSummary(reviewRows),
+              };
               
               const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
               updates.translator = collabTranslators;
@@ -3393,32 +3421,43 @@ export default function CaseDetailPage() {
             }}
             caseStatus={caseData.status}
           />
-          {showReviewSegmentBlock && (
-            <ReviewCollaborationTable
-              rows={caseData.reviewRows || []}
-              caseId={caseData.id}
-              caseStatus={caseData.status}
-              onChange={(newRows) => {
-                if (isMember) {
-                  const previousRows = caseData.reviewRows || [];
-                  const completedRow = newRows.find((row) => {
-                    const previous = previousRows.find((item) => item.id === row.id);
-                    return row.taskCompleted && !previous?.taskCompleted;
-                  });
-                  if (completedRow) {
-                    void caseStore.completeCaseReviewRow(caseData.id, completedRow.id)
-                      .then((error) => {
-                        if (error) toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
-                      });
+          {leftoverReviewRows.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                以下舊審稿安排無法對應到同一檔案與範圍，仍可在此檢視或修改，不會自動合併。
+              </p>
+              <ReviewCollaborationTable
+                rows={leftoverReviewRows}
+                caseId={caseData.id}
+                caseStatus={caseData.status}
+                onChange={(newLeftovers) => {
+                  const leftoverNow = leftoverReviewRows;
+                  if (isMember) {
+                    const completedRow = newLeftovers.find((row) => {
+                      const previous = leftoverNow.find((item) => item.id === row.id);
+                      return row.taskCompleted && !previous?.taskCompleted;
+                    });
+                    if (completedRow) {
+                      void caseStore.completeCaseReviewRow(caseData.id, completedRow.id)
+                        .then((error) => {
+                          if (error) toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
+                        });
+                    }
+                    return;
                   }
-                  return;
-                }
-                save({
-                  reviewRows: newRows,
-                  reviewer: deriveReviewerSummary(newRows),
-                });
-              }}
-            />
+                  const projected = projectCollabReviewIntoReviewRows(caseData.collabRows, caseData.reviewRows);
+                  const leftoverIds = new Set(leftoverNow.map((r) => r.id));
+                  const merged = [
+                    ...projected.filter((r) => !leftoverIds.has(r.id)),
+                    ...newLeftovers,
+                  ];
+                  save({
+                    reviewRows: merged,
+                    reviewer: deriveReviewerSummary(merged),
+                  });
+                }}
+              />
+            </div>
           )}
         </div>
       )}
