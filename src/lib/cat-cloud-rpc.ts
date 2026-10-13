@@ -2888,7 +2888,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         typeof (caseRow as { revision?: number }).revision === "number"
           ? (caseRow as { revision: number }).revision
           : 0;
-      const casePatch: Record<string, unknown> = { collab_rows: collabRows, updated_at: nowIso() };
+      const casePatch: Record<string, unknown> = { collab_rows: collabRows };
       if (reviewRows) {
         casePatch.review_rows = reviewRows;
         const names = [

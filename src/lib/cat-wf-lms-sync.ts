@@ -41,7 +41,7 @@ export async function setCollabRowTaskCompletedFromCat(
   caseId: string,
   collabRowId: string,
   taskCompleted: boolean,
-  updatedAt: string,
+  _updatedAt: string,
 ): Promise<{ ok: boolean; allTaskCompleted?: boolean; error?: string }> {
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
@@ -63,7 +63,7 @@ export async function setCollabRowTaskCompletedFromCat(
   const inReview = reviewRows.some((r) => String(r.id) === String(collabRowId));
   if (!inCollab && !inReview) return { ok: false, error: "collab/review row not found" };
 
-  const updates: Record<string, unknown> = { updated_at: updatedAt };
+  const updates: Record<string, unknown> = {};
   let allTaskCompleted = false;
 
   if (inCollab) {
@@ -98,7 +98,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   supabase: SupabaseClient,
   caseId: string,
   updates: { collabRowId: string; taskCompleted: boolean }[],
-  updatedAt: string,
+  _updatedAt: string,
 ): Promise<{ ok: boolean; allTaskCompleted?: boolean; error?: string }> {
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
@@ -131,7 +131,6 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   const patch: Record<string, unknown> = {
     collab_rows: updatedRows,
     review_rows: updatedReviewRows,
-    updated_at: updatedAt,
   };
   const status = (caseRow as { status?: string }).status;
   if (canUpgradeCaseToTaskCompleted(status) && allTaskCompleted) {
