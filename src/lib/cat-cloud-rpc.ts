@@ -11,6 +11,8 @@ import { sortMappedCatSegmentsByImportOrder } from "@/lib/cat-segment-import-ord
 import { CAT_PAGE_SIZE, nextKeysetCursor } from "@/lib/cat-keyset-pagination";
 import { CAT_TB_LIST_COLUMNS } from "@/lib/cat-tb-list-columns";
 import { workflowStagesInitFailedError } from "@/lib/wf-ensure-stages";
+import { mergeCatCollabSavePayload } from "@/lib/collab-review-pair";
+import type { CollabRow, ReviewCollabRow } from "@/data/case-types";
 
 type RpcPayload = Record<string, any>;
 
@@ -2888,13 +2890,17 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         typeof (caseRow as { revision?: number }).revision === "number"
           ? (caseRow as { revision: number }).revision
           : 0;
-      const casePatch: Record<string, unknown> = { collab_rows: collabRows };
+      const merged = mergeCatCollabSavePayload(
+        collabRows as CollabRow[],
+        (reviewRows ?? []) as ReviewCollabRow[],
+      );
+      const casePatch: Record<string, unknown> = { collab_rows: merged.collabRows };
       if (reviewRows) {
-        casePatch.review_rows = reviewRows;
+        casePatch.review_rows = merged.reviewRows;
         const names = [
           ...new Set(
-            reviewRows
-              .map((r: { reviewer?: string }) => String(r?.reviewer || "").trim())
+            merged.reviewRows
+              .map((r) => String(r?.reviewer || "").trim())
               .filter(Boolean),
           ),
         ];

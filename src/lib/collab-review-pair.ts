@@ -75,6 +75,39 @@ export function leftoverUnpairedReviewRows(
   return partitionReviewRowsByCollab(collabRows, reviewRows).leftoverReviewRows;
 }
 
+/**
+ * CAT 審稿區寫的是 review_rows。案件頁同段讀 collab_rows.reviewer。
+ * 一對一才把審稿人寫回主列；交叉／一對多不猜。
+ */
+export function applyPairedReviewRowsToCollab(
+  collabRows: CollabRow[] | undefined | null,
+  reviewRows: ReviewCollabRow[] | undefined | null,
+): CollabRow[] {
+  const collabs = Array.isArray(collabRows) ? collabRows : [];
+  const { uniqueByCollabId } = partitionReviewRowsByCollab(collabs, reviewRows);
+  return collabs.map((collab) => {
+    const pair = uniqueByCollabId.get(collab.id);
+    if (!pair) return collab;
+    return {
+      ...collab,
+      reviewer: String(pair.reviewer || "").trim(),
+      reviewerUserId: pair.reviewerUserId ?? null,
+    };
+  });
+}
+
+/** CAT「儲存並同步」先把成對審稿寫回主列，再投影回 review_rows。 */
+export function mergeCatCollabSavePayload(
+  collabRows: CollabRow[] | undefined | null,
+  reviewRows: ReviewCollabRow[] | undefined | null,
+): { collabRows: CollabRow[]; reviewRows: ReviewCollabRow[] } {
+  const mergedCollab = applyPairedReviewRowsToCollab(collabRows, reviewRows);
+  return {
+    collabRows: mergedCollab,
+    reviewRows: projectCollabReviewIntoReviewRows(mergedCollab, reviewRows),
+  };
+}
+
 function hasReviewer(row: { reviewer?: string | null; reviewerUserId?: string | null }): boolean {
   return Boolean(String(row.reviewer || "").trim() || String(row.reviewerUserId || "").trim());
 }

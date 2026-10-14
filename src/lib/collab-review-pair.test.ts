@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CollabRow, ReviewCollabRow } from "@/data/case-types";
 import {
+  applyPairedReviewRowsToCollab,
   collabReviewScopeKey,
   leftoverUnpairedReviewRows,
+  mergeCatCollabSavePayload,
   partitionReviewRowsByCollab,
   projectCollabReviewIntoReviewRows,
 } from "./collab-review-pair";
@@ -134,5 +136,85 @@ describe("projectCollabReviewIntoReviewRows", () => {
     const again = projectCollabReviewIntoReviewRows(rows, written);
     expect(again).toHaveLength(1);
     expect(again[0]?.id).toBe("c1");
+  });
+});
+
+describe("applyPairedReviewRowsToCollab / mergeCatCollabSavePayload", () => {
+  const file = "5e85226f-576e-42f3-8520-5175918974a5";
+
+  it("CAT 改一對一審稿後，案件主列也換成同一人", () => {
+    const collabs = [
+      collab({
+        id: "cr-2",
+        linkedCatFileId: file,
+        lineRange: "9-13",
+        reviewer: "譯者二（測試）",
+        reviewerUserId: "uid-t2",
+        translator: "譯者一（測試）",
+      }),
+    ];
+    const reviews = [
+      review({
+        id: "cr-2",
+        linkedCatFileId: file,
+        lineRange: "9-13",
+        reviewer: "譯者一（測試）",
+        reviewerUserId: "uid-t1",
+      }),
+    ];
+    const next = applyPairedReviewRowsToCollab(collabs, reviews);
+    expect(next[0]).toEqual(
+      expect.objectContaining({
+        id: "cr-2",
+        reviewer: "譯者一（測試）",
+        reviewerUserId: "uid-t1",
+        translator: "譯者一（測試）",
+      }),
+    );
+  });
+
+  it("一對多不猜，主列審稿維持原值", () => {
+    const next = applyPairedReviewRowsToCollab(
+      [
+        collab({ id: "c1", linkedCatFileId: file, lineRange: "1-10", reviewer: "甲" }),
+        collab({ id: "c2", linkedCatFileId: file, lineRange: "1-10", reviewer: "乙" }),
+      ],
+      [review({ id: "r1", reviewer: "丙", linkedCatFileId: file, lineRange: "1-10" })],
+    );
+    expect(next.map((r) => r.reviewer)).toEqual(["甲", "乙"]);
+  });
+
+  it("儲存合併後主列與 review_rows 同一人，無法配對舊列仍在", () => {
+    const leftover = review({
+      id: "old",
+      reviewer: "舊",
+      linkedCatFileId: "other",
+      lineRange: "99-100",
+    });
+    const merged = mergeCatCollabSavePayload(
+      [
+        collab({
+          id: "cr-2",
+          linkedCatFileId: file,
+          lineRange: "9-13",
+          reviewer: "譯者二（測試）",
+          reviewerUserId: "uid-t2",
+        }),
+      ],
+      [
+        leftover,
+        review({
+          id: "cr-2",
+          linkedCatFileId: file,
+          lineRange: "9-13",
+          reviewer: "譯者一（測試）",
+          reviewerUserId: "uid-t1",
+        }),
+      ],
+    );
+    expect(merged.collabRows[0]).toEqual(
+      expect.objectContaining({ reviewer: "譯者一（測試）", reviewerUserId: "uid-t1" }),
+    );
+    expect(merged.reviewRows.map((r) => r.reviewer)).toEqual(["舊", "譯者一（測試）"]);
   });
 });
