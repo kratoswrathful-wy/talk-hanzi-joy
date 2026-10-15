@@ -3,6 +3,12 @@ import {
   resolvePmAdjustStatusClickAction,
   formatWorkflowScopeSuffix,
   resolvePlaceholderApplyAction,
+  resolveUnassignedAdjustApplyAction,
+  classifyWorkflowStageLoad,
+  mapAdjustWorkflowStatusToStageStatus,
+  missingWorkflowStageKinds,
+  shouldEnsureFileWorkflowStages,
+  mapStageStatusToAdjustWorkflowStatus,
   shouldShowAdjustBulkForStage,
   resolveAdjustBulkRowKinds,
   formatAdjustWorkflowStatusLabel,
@@ -38,7 +44,7 @@ describe("formatWorkflowScopeSuffix（工項 E 整檔標示）", () => {
 });
 
 describe("resolvePlaceholderApplyAction", () => {
-  it("未選人 → skip", () => {
+  it("未選人 → skip（不新建指派）", () => {
     expect(resolvePlaceholderApplyAction({})).toBe("skip");
     expect(resolvePlaceholderApplyAction({ assigneeUserId: "" })).toBe("skip");
     expect(resolvePlaceholderApplyAction({ assigneeUserId: "  " })).toBe("skip");
@@ -46,6 +52,48 @@ describe("resolvePlaceholderApplyAction", () => {
 
   it("已選人 → insert（狀態預設待開始亦可寫入）", () => {
     expect(resolvePlaceholderApplyAction({ assigneeUserId: "user-1" })).toBe("insert");
+  });
+});
+
+describe("未指派整檔狀態與載入分流", () => {
+  it("未選人且狀態不同 → 只改步驟", () => {
+    expect(
+      resolveUnassignedAdjustApplyAction({
+        wantedWfStatus: "completed",
+        currentStageStatus: "pending",
+      }),
+    ).toBe("stage-only");
+  });
+
+  it("載入失敗不是空段落", () => {
+    expect(classifyWorkflowStageLoad({ stages: [], error: new Error("denied") })).toBe("error");
+    expect(classifyWorkflowStageLoad({ stages: [] })).toBe("empty");
+  });
+
+  it("三態對到步驟狀態", () => {
+    expect(mapAdjustWorkflowStatusToStageStatus("assigned")).toBe("pending");
+    expect(mapAdjustWorkflowStatusToStageStatus("in_progress")).toBe("active");
+  });
+
+  it("僅有翻譯步驟仍要補準備與審稿", () => {
+    expect(missingWorkflowStageKinds([{ stageKind: "translate", status: "completed" }])).toEqual([
+      "prep",
+      "review",
+    ]);
+    expect(shouldEnsureFileWorkflowStages([{ stageKind: "translate" }])).toBe(true);
+    expect(
+      shouldEnsureFileWorkflowStages([
+        { stageKind: "prep" },
+        { stageKind: "translate" },
+        { stageKind: "review" },
+      ]),
+    ).toBe(false);
+  });
+
+  it("未指派佔位列帶出目前步驟，不一律待開始", () => {
+    expect(mapStageStatusToAdjustWorkflowStatus("active")).toBe("in_progress");
+    expect(mapStageStatusToAdjustWorkflowStatus("completed")).toBe("completed");
+    expect(mapStageStatusToAdjustWorkflowStatus("pending")).toBe("assigned");
   });
 });
 

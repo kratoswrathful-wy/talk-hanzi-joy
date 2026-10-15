@@ -40,8 +40,9 @@ import { cn } from "@/lib/utils";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow, DeclineRecord } from "@/data/case-types";
-import { caseListReviewerText, pickReviewDeadlineForList } from "@/lib/review-rows";
-import { caseListTranslatorText, hasCollabTranslatorArrangement } from "@/lib/collab-translator-list";
+import { caseListReviewerPeople, pickReviewDeadlineForList } from "@/lib/review-rows";
+import { caseListTranslatorPeople, hasCollabTranslatorArrangement } from "@/lib/collab-translator-list";
+import CaseListPeopleCell from "@/components/cases/CaseListPeopleCell";
 import type { TemplateFieldValue } from "@/stores/page-template-store";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -247,13 +248,6 @@ function BillingUnitLabel({ value }: { value: string }) {
   );
 }
 
-function AssigneeLabel({ value }: { value: string }) {
-  const { options } = useSelectOptions("assignee");
-  if (!value) return <span className="text-sm text-muted-foreground">—</span>;
-  const opt = options.find((o) => o.label === value);
-  return <AssigneeTag label={value} avatarUrl={opt?.avatarUrl} />;
-}
-
 function AssigneeLabelById({ id }: { id: string }) {
   const { options } = useSelectOptions("assignee");
   if (!id) return <span className="text-sm text-muted-foreground">—</span>;
@@ -385,9 +379,9 @@ const allColumnDefs: ColumnDef[] = [
   {
     key: "translator",
     label: "譯者",
-    minWidth: 90,
+    minWidth: 148,
     render: (c, { editable, onCommit }) => {
-      const translatorText = caseListTranslatorText({
+      const people = caseListTranslatorPeople({
         collabRows: c.collabRows,
         translator: c.translator,
       });
@@ -402,11 +396,7 @@ const allColumnDefs: ColumnDef[] = [
           assigneeRole="translator"
           onCommit={(v, meta) => onCommit("translator", v ? [String(v)] : [], meta)}
         >
-          {translatorText ? (
-            <AssigneeLabel value={translatorText} />
-          ) : (
-            <span className="text-sm text-muted-foreground">—</span>
-          )}
+          <CaseListPeopleCell people={people} />
         </InlineEditCell>
       );
     },
@@ -437,10 +427,10 @@ const allColumnDefs: ColumnDef[] = [
   {
     key: "reviewer",
     label: "審稿人員",
-    minWidth: 90,
+    minWidth: 148,
     render: (c, { editable, onCommit }) => (
       <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" assigneeRole="reviewer" editable={editable} onCommit={(v, meta) => onCommit("reviewer", v, meta)}>
-        <AssigneeLabel value={caseListReviewerText({ reviewRows: c.reviewRows, reviewer: c.reviewer })} />
+        <CaseListPeopleCell people={caseListReviewerPeople({ reviewRows: c.reviewRows, reviewer: c.reviewer })} />
       </InlineEditCell>
     ),
   },
@@ -1494,7 +1484,13 @@ export default function CasesPage() {
                     <td
                       key={col.key}
                       style={{ width: activeView.columnWidths[col.key] ?? 100, maxWidth: activeView.columnWidths[col.key] ?? 100 }}
-                      className={cn("px-3 py-1.5 overflow-hidden", col.key === "unitCount" && "text-center")}
+                      className={cn(
+                        "px-3 py-1.5 align-top",
+                        col.key === "translator" || col.key === "reviewer"
+                          ? "overflow-visible"
+                          : "overflow-hidden",
+                        col.key === "unitCount" && "text-center",
+                      )}
                     >
                       {col.render(c, {
                         editable: editableFields.has(col.key),

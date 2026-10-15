@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   areAllReviewAssignmentsCompleted,
+  caseListReviewerPeople,
   caseListReviewerText,
   deriveReviewerSummary,
+  listReviewerPeople,
   isReviewRowsSegmented,
   listReviewerLabels,
   pickReviewDeadlineForList,
@@ -136,6 +138,33 @@ describe("listReviewerLabels / caseListReviewerText", () => {
     ).toBe("乙");
     expect(caseListReviewerText({ reviewRows: [], reviewer: "舊欄甲" })).toBe("舊欄甲");
     expect(caseListReviewerText({ reviewRows: [], reviewer: "" })).toBe("");
+  });
+});
+
+describe("listReviewerPeople / caseListReviewerPeople", () => {
+  it("每人各一筆，同帳號去重、同名不同帳號分開", () => {
+    expect(
+      listReviewerPeople([
+        row({ id: "1", reviewer: "甲", reviewerUserId: "uid-a" }),
+        row({ id: "2", reviewer: "甲", reviewerUserId: "uid-b" }),
+        row({ id: "3", reviewer: "甲", reviewerUserId: "uid-a" }),
+      ]),
+    ).toEqual([
+      { userId: "uid-a", label: "甲" },
+      { userId: "uid-b", label: "甲" },
+    ]);
+  });
+
+  it("有審稿列時不回退舊欄；空列才沿用舊欄單人", () => {
+    expect(
+      caseListReviewerPeople({
+        reviewRows: [row({ id: "1", reviewer: "乙", reviewerUserId: "uid-b" })],
+        reviewer: "舊欄甲",
+      }),
+    ).toEqual([{ userId: "uid-b", label: "乙" }]);
+    expect(caseListReviewerPeople({ reviewRows: [], reviewer: "舊欄甲" })).toEqual([
+      { userId: "", label: "舊欄甲" },
+    ]);
   });
 });
 

@@ -36,7 +36,7 @@ export function formatWorkflowScopeSuffix(a) {
 }
 
 /**
- * 無指派佔位列套用：未選人不寫入；已選人 → insert upsert。
+ * 無指派佔位列套用：未選人不寫入指派；已選人 → insert upsert。
  * @param {{ assigneeUserId?: string|null }} [input]
  * @returns {'skip'|'insert'}
  */
@@ -44,6 +44,84 @@ export function resolvePlaceholderApplyAction(input) {
   const uid = String(input?.assigneeUserId || "").trim();
   if (!uid) return "skip";
   return "insert";
+}
+
+/**
+ * 未指派整檔狀態：未選人只改步驟，不偷偷新建指派。
+ * @param {{
+ *   assigneeUserId?: string|null,
+ *   wantedWfStatus?: string|null,
+ *   currentStageStatus?: string|null,
+ * }} [input]
+ * @returns {'insert'|'stage-only'|'skip'}
+ */
+export function resolveUnassignedAdjustApplyAction(input) {
+  const uid = String(input?.assigneeUserId || "").trim();
+  if (uid) return "insert";
+  const wanted = String(input?.wantedWfStatus || "");
+  const next = wanted === "completed" ? "completed" : wanted === "in_progress" ? "active" : "pending";
+  const current = String(input?.currentStageStatus || "").trim();
+  if (current && next === current) return "skip";
+  return "stage-only";
+}
+
+/**
+ * @param {string|null|undefined} wfStatus
+ * @returns {'pending'|'active'|'completed'}
+ */
+export function mapAdjustWorkflowStatusToStageStatus(wfStatus) {
+  const s = String(wfStatus || "");
+  if (s === "completed") return "completed";
+  if (s === "in_progress") return "active";
+  return "pending";
+}
+
+const DEFAULT_WORKFLOW_STAGE_KINDS = ["prep", "translate", "review"];
+
+/**
+ * 缺哪步就該呼叫補齊；已有任一步不算「完全沒資料」。
+ * @param {Array<{ stageKind?: string, stage_kind?: string }>|null|undefined} stages
+ * @returns {string[]}
+ */
+export function missingWorkflowStageKinds(stages) {
+  const have = new Set(
+    (stages || [])
+      .map((s) => String((s && (s.stageKind || s.stage_kind)) || "").trim())
+      .filter(Boolean),
+  );
+  return DEFAULT_WORKFLOW_STAGE_KINDS.filter((kind) => !have.has(kind));
+}
+
+/**
+ * @param {unknown[]} [stages]
+ * @returns {boolean}
+ */
+export function shouldEnsureFileWorkflowStages(stages) {
+  return missingWorkflowStageKinds(stages).length > 0;
+}
+
+/**
+ * 未指派佔位列應帶出目前步驟狀態，不能一律顯示待開始。
+ * @param {string|null|undefined} status
+ * @returns {'assigned'|'in_progress'|'completed'}
+ */
+export function mapStageStatusToAdjustWorkflowStatus(status) {
+  const s = String(status || "");
+  if (s === "completed") return "completed";
+  if (s === "active") return "in_progress";
+  return "assigned";
+}
+
+/**
+ * 載入結果：失敗不可冒充「沒有段落」。
+ * @param {{ stages?: unknown[], error?: unknown }} [input]
+ * @returns {'ok'|'empty'|'error'}
+ */
+export function classifyWorkflowStageLoad(input) {
+  const stages = input && Array.isArray(input.stages) ? input.stages : [];
+  if (input && input.error && !stages.length) return "error";
+  if (stages.length) return "ok";
+  return "empty";
 }
 
 /**
@@ -128,6 +206,12 @@ const WfAdjustStatusAction = {
   resolvePmAdjustStatusClickAction,
   formatWorkflowScopeSuffix,
   resolvePlaceholderApplyAction,
+  resolveUnassignedAdjustApplyAction,
+  mapAdjustWorkflowStatusToStageStatus,
+  missingWorkflowStageKinds,
+  shouldEnsureFileWorkflowStages,
+  mapStageStatusToAdjustWorkflowStatus,
+  classifyWorkflowStageLoad,
   shouldShowAdjustBulkForStage,
   resolveAdjustBulkRowKinds,
   formatAdjustWorkflowStatusLabel,

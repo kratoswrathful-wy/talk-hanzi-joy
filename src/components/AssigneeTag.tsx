@@ -5,13 +5,14 @@ interface AssigneeTagProps {
   avatarUrl?: string | null;
   size?: "sm" | "md";
   onClick?: () => void;
+  wrap?: boolean;
 }
 
 /**
  * Black-background tag with avatar + display name for translator/assignee display.
  */
-export default function AssigneeTag({ label, avatarUrl, size = "sm", onClick }: AssigneeTagProps) {
-  const avatarSize = size === "sm" ? "h-8 w-8" : "h-9 w-9";
+export default function AssigneeTag({ label, avatarUrl, size = "sm", onClick, wrap = false }: AssigneeTagProps) {
+  const avatarSize = size === "sm" ? "h-8 w-8 shrink-0" : "h-9 w-9 shrink-0";
   const textSize = size === "sm" ? "text-xs" : "text-xs";
   const padding = size === "sm" ? "pl-0.5 pr-2 py-0.5" : "pl-0.5 pr-2.5 py-0.5";
 
@@ -19,7 +20,7 @@ export default function AssigneeTag({ label, avatarUrl, size = "sm", onClick }: 
     <span
       role={onClick ? "button" : undefined}
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full ${padding} ${textSize} font-medium ${onClick ? "cursor-pointer hover:opacity-80" : ""}`}
+      className={`inline-flex items-center gap-1.5 rounded-full max-w-full min-w-0 ${padding} ${textSize} font-medium ${onClick ? "cursor-pointer hover:opacity-80" : ""}`}
       style={{ backgroundColor: "#1a1a1a", color: "#D1DAEA" }}
     >
       <Avatar className={avatarSize}>
@@ -28,7 +29,7 @@ export default function AssigneeTag({ label, avatarUrl, size = "sm", onClick }: 
           {label.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="truncate">{label}</span>
+      <span className={wrap ? "whitespace-normal break-words min-w-0" : "truncate"}>{label}</span>
     </span>
   );
 }

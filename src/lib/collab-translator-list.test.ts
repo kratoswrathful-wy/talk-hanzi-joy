@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { smartCompare } from "./filter-types";
 import {
+  caseListTranslatorPeople,
   caseListTranslatorText,
   hasCollabTranslatorArrangement,
   listTranslatorLabels,
+  listTranslatorPeople,
 } from "./collab-translator-list";
 import type { CollabRow } from "@/data/case-types";
 
@@ -102,6 +104,44 @@ describe("caseListTranslatorText", () => {
         translator: ["舊欄甲"],
       }),
     ).toBe("");
+  });
+});
+
+describe("listTranslatorPeople / caseListTranslatorPeople", () => {
+  it("每人各一筆，同帳號去重、同名不同帳號分開", () => {
+    expect(
+      listTranslatorPeople([
+        row({ id: "1", translator: "甲", translatorUserId: "uid-a" }),
+        row({ id: "2", translator: "甲", translatorUserId: "uid-b" }),
+        row({ id: "3", translator: "甲", translatorUserId: "uid-a" }),
+        row({ id: "4", translator: "乙", translatorUserId: "uid-c" }),
+      ]),
+    ).toEqual([
+      { userId: "uid-a", label: "甲" },
+      { userId: "uid-b", label: "甲" },
+      { userId: "uid-c", label: "乙" },
+    ]);
+  });
+
+  it("有分段空列時不回退舊欄，也不虛構人員", () => {
+    expect(
+      caseListTranslatorPeople({
+        collabRows: [row({ id: "1", translator: "" })],
+        translator: ["舊欄甲"],
+      }),
+    ).toEqual([]);
+  });
+
+  it("陣列標籤串接與既有彙整文字相同，供排序沿用", () => {
+    const input = {
+      collabRows: [
+        row({ id: "1", translator: "譯者二", translatorUserId: "uid-b" }),
+        row({ id: "2", translator: "譯者一", translatorUserId: "uid-a" }),
+      ],
+      translator: ["舊欄"],
+    };
+    const people = caseListTranslatorPeople(input);
+    expect(people.map((p) => p.label).join("、")).toBe(caseListTranslatorText(input));
   });
 });
 

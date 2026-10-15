@@ -974,21 +974,31 @@ const DBService = {
     async ensureFileWorkflowStages(fileId) {
         const fid = toDexieLocalId(fileId);
         const existing = await db.fileWorkflowStages.where('fileId').equals(fid).sortBy('stageOrder');
-        if (existing.length > 0) return existing;
         const file = await db.files.get(fid);
-        if (!file) return [];
+        if (!file) return existing || [];
+        const have = new Set((existing || []).map((s) => s.stageKind));
+        const missing = CAT_WORKFLOW_DEFAULT_STAGES.filter((st) => !have.has(st.stageKind));
+        if (!missing.length) return existing;
         await DBService.ensureProjectWorkflowTemplate(file.projectId);
         const now = new Date().toISOString();
-        const rows = [];
-        for (const st of CAT_WORKFLOW_DEFAULT_STAGES) {
+        const siblingProgressed = (existing || []).some((s) =>
+            (s.stageKind === 'translate' || s.stageKind === 'review') && s.status !== 'pending'
+        );
+        for (const st of missing) {
             let status = 'pending';
             let startedAt = null;
             let completedAt = null;
             if (st.stageKind === 'prep') {
-                status = 'active';
-                startedAt = now;
+                if (siblingProgressed) {
+                    status = 'completed';
+                    startedAt = now;
+                    completedAt = now;
+                } else {
+                    status = 'active';
+                    startedAt = now;
+                }
             }
-            const id = await db.fileWorkflowStages.add({
+            await db.fileWorkflowStages.add({
                 fileId: fid,
                 stageOrder: st.stageOrder,
                 stageKind: st.stageKind,
@@ -999,18 +1009,8 @@ const DBService = {
                 createdAt: now,
                 updatedAt: now,
             });
-            rows.push({
-                id,
-                fileId: fid,
-                stageOrder: st.stageOrder,
-                stageKind: st.stageKind,
-                label: st.label,
-                status,
-                startedAt,
-                completedAt,
-            });
         }
-        return rows;
+        return db.fileWorkflowStages.where('fileId').equals(fid).sortBy('stageOrder');
     },
 
     async getFileWorkflowStages(fileId) {
