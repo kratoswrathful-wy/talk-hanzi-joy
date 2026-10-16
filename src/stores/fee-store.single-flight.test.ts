@@ -43,7 +43,9 @@ describe("feeStore.loadFees single-flight", () => {
     fromMock.mockImplementation(() => ({
       select: () => ({
         eq: () => ({
-          order: async () => ({ data: [], error: null }),
+          order: () => ({
+            range: async () => ({ data: [], error: null }),
+          }),
         }),
       }),
     }));

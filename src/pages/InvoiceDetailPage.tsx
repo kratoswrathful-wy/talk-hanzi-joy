@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { wrapLatestSetter } from "@/lib/commit-latest-state";
 import { appendInvoiceEditLog, collectBufferedInvoiceFlushes, invoiceUpdatesWithOptionalLogs } from "@/lib/invoice-detail-commits";
+import { uniqueFeeIds } from "@/lib/invoice-fee-ids";
 import { filterEditLogsTranslatorInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -372,9 +373,11 @@ export default function InvoiceDetailPage() {
     );
   }
 
-  const linkedFees = invoice.feeIds
+  const uniqueLinkedFeeIds = uniqueFeeIds(invoice.feeIds);
+  const linkedFees = uniqueLinkedFeeIds
     .map((fid) => fees.find((f) => f.id === fid))
     .filter(Boolean) as typeof fees;
+  const missingLinkedFeeCount = uniqueLinkedFeeIds.length - linkedFees.length;
 
   const total = linkedFees.reduce(
     (sum, f) => sum + f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0),
@@ -698,19 +701,26 @@ export default function InvoiceDetailPage() {
                   </TableRow>
                 );
               })}
-              {linkedFees.length === 0 && (
+              {linkedFees.length === 0 && missingLinkedFeeCount === 0 && (
                 <TableRow>
                   <TableCell colSpan={editable ? 3 : 2} className="text-center py-8 text-muted-foreground">
                     尚未收錄任何費用
                   </TableCell>
                 </TableRow>
               )}
+              {missingLinkedFeeCount > 0 && (
+                <TableRow>
+                  <TableCell colSpan={editable ? 3 : 2} className="text-center py-3 text-sm text-muted-foreground">
+                    另有 {missingLinkedFeeCount} 筆稿費資料尚未載入，不是空單。
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
-            {linkedFees.length > 0 && (
+            {uniqueLinkedFeeIds.length > 0 && (
               <TableFooter>
                 <TableRow>
                   <TableCell className="text-left">
-                    <span className="text-muted-foreground text-sm">共 {linkedFees.length} 筆稿費</span>
+                    <span className="text-muted-foreground text-sm">共 {uniqueLinkedFeeIds.length} 筆稿費</span>
                   </TableCell>
                   <TableCell className="text-center">
                     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="font-semibold tabular-nums cursor-default">{formatCurrency(total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>

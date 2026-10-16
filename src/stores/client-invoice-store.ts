@@ -22,6 +22,8 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { createKeyedQueue } from "@/lib/case-write-queue";
 import { keepLocalInvoiceAfterAck, revertUnchangedJobFields } from "@/lib/invoice-write-merge";
+import { fetchAllRestPages } from "@/lib/rest-page-fetch";
+import { groupUniqueFeeIdsByInvoice, uniqueFeeIds } from "@/lib/invoice-fee-ids";
 
 type Listener = () => void;
 
@@ -30,6 +32,7 @@ const unconfirmedInvoiceByFees = new Map<string, string>();
 let loaded = false;
 let loadPromise: Promise<{ error: unknown }> | null = null;
 let reloadRequested = false;
+let loadSeq = 0;
 let _clientInvoiceAuthUserId: string | null = null;
 const listeners = new Set<Listener>();
 
@@ -72,7 +75,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     createdBy: row.created_by || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    feeIds,
+    feeIds: uniqueFeeIds(feeIds),
     payments: paymentsFromJson(row.payments),
     isRecordOnly: row.is_record_only || false,
     recordAmount: row.record_amount || 0,
@@ -220,6 +223,7 @@ export const clientInvoiceStore = {
             continue;
           }
 
+          const seq = ++loadSeq;
           const env = getEnvironment();
 
           const { data: invData, error } = await supabase
@@ -228,24 +232,45 @@ export const clientInvoiceStore = {
             .eq("env", env)
             .order("created_at", { ascending: false });
 
+          if (seq !== loadSeq) {
+            lastResult = { error: null };
+            continue;
+          }
           if (error || !invData) {
             lastResult = { error };
+            if (!loaded) {
+              toast.error("請款單讀取失敗，尚未載入清單。");
+            }
             continue;
           }
 
-          const { data: linkData } = await supabase
-            .from("client_invoice_fees")
-            .select("client_invoice_id, fee_id")
-            .eq("env", env);
-
-          const feeMap = new Map<string, string[]>();
-          if (linkData) {
-            for (const link of linkData as Pick<DbClientInvoiceFeeLink, "client_invoice_id" | "fee_id">[]) {
-              const arr = feeMap.get(link.client_invoice_id) || [];
-              arr.push(link.fee_id);
-              feeMap.set(link.client_invoice_id, arr);
-            }
+          const linkPages = await fetchAllRestPages(async (from, to) => {
+            const res = await supabase
+              .from("client_invoice_fees")
+              .select("id, client_invoice_id, fee_id")
+              .eq("env", env)
+              .order("id", { ascending: true })
+              .range(from, to);
+            return { data: res.data, error: res.error };
+          });
+          if (seq !== loadSeq) {
+            lastResult = { error: null };
+            continue;
           }
+          if (linkPages.ok === false) {
+            lastResult = { error: linkPages.error };
+            if (!loaded) {
+              toast.error("請款費用關聯讀取失敗，未以空白清單覆蓋。");
+            }
+            continue;
+          }
+
+          const feeMap = groupUniqueFeeIdsByInvoice(
+            (linkPages.rows as Pick<DbClientInvoiceFeeLink, "client_invoice_id" | "fee_id">[]).map((link) => ({
+              invoiceId: link.client_invoice_id,
+              feeId: link.fee_id,
+            })),
+          );
 
           invoices = invData.map((row) =>
             dbToApp(row, feeMap.get(row.id) || [])
@@ -512,24 +537,44 @@ export const clientInvoiceStore = {
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { error: new Error("找不到該筆客戶請款") };
 
-    const newFeeIds = feeIds.filter((fid) => !inv.feeIds.includes(fid));
-    if (newFeeIds.length === 0) return { error: null };
-
+    const wanted = uniqueFeeIds(feeIds);
+    if (wanted.length === 0) return { error: null };
+    const env = getEnvironment();
+    const existing = await supabase
+      .from("client_invoice_fees")
+      .select("fee_id")
+      .eq("client_invoice_id", invoiceId)
+      .eq("env", env)
+      .in("fee_id", wanted);
+    if (existing.error) {
+      toast.error("無法確認是否已收錄。請重整後核對，請勿再按一次。");
+      return { error: existing.error };
+    }
+    const onServer = new Set((existing.data ?? []).map((row) => row.fee_id));
     invoices = invoices.map((i) =>
-      i.id === invoiceId ? { ...i, feeIds: [...i.feeIds, ...newFeeIds] } : i
+      i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds([...i.feeIds, ...onServer]) } : i
     );
     notify();
 
-    const links = newFeeIds.map((feeId) => ({ client_invoice_id: invoiceId, fee_id: feeId, env: getEnvironment() }));
+    const newFeeIds = wanted.filter((fid) => !onServer.has(fid));
+    if (newFeeIds.length === 0) return { error: null };
+
+    invoices = invoices.map((i) =>
+      i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds([...i.feeIds, ...newFeeIds]) } : i
+    );
+    notify();
+
+    const links = newFeeIds.map((feeId) => ({ client_invoice_id: invoiceId, fee_id: feeId, env }));
     const { error } = await supabase.from("client_invoice_fees").insert(links);
     if (error) {
       console.error("Failed to add fees to client invoice:", errorMessage(error));
+      if (isInvoiceLinkAlreadyExists(error)) return { error: null };
       if (classifyInvoiceWriteCertainty(error) === "unknown") {
         toast.error("收錄結果不明。請重整後核對，請勿再按一次。");
         return { error };
       }
       invoices = invoices.map((i) =>
-        i.id === invoiceId ? { ...i, feeIds: i.feeIds.filter((fid) => !newFeeIds.includes(fid)) } : i
+        i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds(i.feeIds.filter((fid) => !newFeeIds.includes(fid))) } : i
       );
       notify();
     }
@@ -570,12 +615,18 @@ export const clientInvoiceStore = {
       .eq("env", env)
       .maybeSingle();
     if (error || !data) return null;
-    const { data: linkData } = await supabase
-      .from("client_invoice_fees")
-      .select("fee_id")
-      .eq("client_invoice_id", id)
-      .eq("env", env);
-    const feeIds = (linkData ?? []).map((l) => l.fee_id);
+    const linkPages = await fetchAllRestPages(async (from, to) => {
+      const res = await supabase
+        .from("client_invoice_fees")
+        .select("id, fee_id")
+        .eq("client_invoice_id", id)
+        .eq("env", env)
+        .order("id", { ascending: true })
+        .range(from, to);
+      return { data: res.data, error: res.error };
+    });
+    if (!linkPages.ok) return invoices.find((i) => i.id === id) ?? null;
+    const feeIds = uniqueFeeIds(linkPages.rows.map((l) => l.fee_id));
     const mapped = dbToApp(data as DbClientInvoice, feeIds);
     if (invoices.some((i) => i.id === id)) {
       invoices = invoices.map((i) => (i.id === id ? mapped : i));

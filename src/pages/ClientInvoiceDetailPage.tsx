@@ -33,6 +33,7 @@ import { type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce"
 import { wrapLatestSetter } from "@/lib/commit-latest-state";
 import { appendInvoiceEditLog, collectBufferedInvoiceFlushes, invoiceUpdatesWithOptionalLogs } from "@/lib/invoice-detail-commits";
 import { hydrateInvoiceEditLogsOnOpen } from "@/lib/invoice-edit-logs";
+import { uniqueFeeIds } from "@/lib/invoice-fee-ids";
 import { filterEditLogsClientInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -321,12 +322,18 @@ export default function ClientInvoiceDetailPage() {
 
   const clientInvoicesLoaded = useClientInvoicesLoaded();
 
+  const uniqueLinkedFeeIds = useMemo(
+    () => uniqueFeeIds(invoice?.feeIds ?? []),
+    [invoice],
+  );
+
   const linkedFees = useMemo(() => {
-    if (!invoice) return [];
-    return invoice.feeIds
+    return uniqueLinkedFeeIds
       .map((fid) => fees.find((f) => f.id === fid))
       .filter(Boolean) as typeof fees;
-  }, [invoice, fees]);
+  }, [uniqueLinkedFeeIds, fees]);
+
+  const missingLinkedFeeCount = uniqueLinkedFeeIds.length - linkedFees.length;
 
   // Total receivable from linked fees – sum original currency then convert to TWD
   const feeTotalsByCurrency = useMemo(() => {
@@ -950,24 +957,31 @@ export default function ClientInvoiceDetailPage() {
                         )}
                       </TableRow>
                     ))}
-                    {linkedFees.length === 0 && (invoice.adjustmentLines || []).length === 0 && (
+                    {linkedFees.length === 0 && missingLinkedFeeCount === 0 && (invoice.adjustmentLines || []).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={editable ? 3 : 2} className="text-center py-8 text-muted-foreground">
                           尚未收錄任何費用
                         </TableCell>
                       </TableRow>
                     )}
+                    {missingLinkedFeeCount > 0 && (
+                      <TableRow>
+                        <TableCell colSpan={editable ? 3 : 2} className="text-center py-3 text-sm text-muted-foreground">
+                          另有 {missingLinkedFeeCount} 筆費用資料尚未載入，不是空單。
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </>
                 )}
               </TableBody>
-              {(linkedFees.length > 0 || invoice.isRecordOnly || (invoice.adjustmentLines?.length ?? 0) > 0) && (
+              {(uniqueLinkedFeeIds.length > 0 || invoice.isRecordOnly || (invoice.adjustmentLines?.length ?? 0) > 0) && (
                 <TableFooter>
                   {/* Show original currency sum row when non-record-only and multi-currency */}
                   {!invoice.isRecordOnly && feeTotalsByCurrency.size > 0 && (
                     <TableRow>
                       <TableCell className="text-left">
                         <span className="text-muted-foreground text-sm">
-                          {invoice.isRecordOnly ? "純請款紀錄" : `共 ${linkedFees.length} 筆費用`}
+                          {invoice.isRecordOnly ? "純請款紀錄" : `共 ${uniqueLinkedFeeIds.length} 筆費用`}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">

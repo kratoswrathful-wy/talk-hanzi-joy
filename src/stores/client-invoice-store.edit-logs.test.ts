@@ -94,10 +94,15 @@ describe("客戶請款 dbToApp／store 讀回 edit_logs", () => {
       const chain: Record<string, unknown> = {};
       chain.select = () => chain;
       chain.eq = () => chain;
+      chain.order = () => chain;
+      chain.range = async () => ({
+        data: table === "client_invoice_fees" ? [{ id: "link-1", fee_id: "fee-1" }] : [],
+        error: null,
+      });
       chain.maybeSingle = async () => ({ data: table === "client_invoices" ? row : null, error: null });
       chain.then = (resolve: (value: { data: unknown; error: null }) => unknown) =>
         Promise.resolve({
-          data: table === "client_invoice_fees" ? [{ fee_id: "fee-1" }] : null,
+          data: table === "client_invoice_fees" ? [{ id: "link-1", fee_id: "fee-1" }] : null,
           error: null,
         }).then(resolve);
       return chain;

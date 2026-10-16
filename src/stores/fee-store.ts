@@ -32,6 +32,7 @@ import {
 } from "@/lib/fee-write";
 import { notesFromJson, notesToJson } from "@/lib/fee-notes";
 import { toast } from "sonner";
+import { fetchAllRestPages } from "@/lib/rest-page-fetch";
 
 const TASK_TYPES: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 const BILLING_UNITS: BillingUnit[] = ["字", "小時"];
@@ -670,24 +671,34 @@ export const feeStore = {
           }
 
           // W10：讀取一律走遮罩 view（欄位級遮罩＋列級 RLS）；寫入仍走 fees 原表。
-          const { data, error } = await supabase
-            .from("fees_visible")
-            .select("*")
-            .eq("env", getEnvironment())
-            .order("created_at", { ascending: false });
+          const env = getEnvironment();
+          const page = await fetchAllRestPages(async (from, to) => {
+            const res = await supabase
+              .from("fees_visible")
+              .select("*")
+              .eq("env", env)
+              .order("id", { ascending: true })
+              .range(from, to);
+            return { data: res.data, error: res.error };
+          });
 
           if (seq !== loadSeq) {
             lastResult = { error: null };
             continue;
           }
-          if (!error && data) {
-            hydrateFeePendingFromStorage(user.id);
-            fees = (data as DbFee[]).map((row) => applyRemoteFeeRow(dbToApp(row)));
-            loaded = true;
-            notify();
-            replayHydratedFeeWrites();
+          if (page.ok === false) {
+            lastResult = { error: page.error };
+            if (!loaded) {
+              toast.error("費用清單讀取失敗，未以空白清單覆蓋。");
+            }
+            continue;
           }
-          lastResult = { error };
+          hydrateFeePendingFromStorage(user.id);
+          fees = (page.rows as DbFee[]).map((row) => applyRemoteFeeRow(dbToApp(row)));
+          loaded = true;
+          notify();
+          replayHydratedFeeWrites();
+          lastResult = { error: null };
         } while (reloadRequested);
       } finally {
         loadPromise = null;
