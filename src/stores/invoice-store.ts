@@ -30,6 +30,12 @@ import { toast } from "sonner";
 import { createKeyedQueue } from "@/lib/case-write-queue";
 import { fetchAllRestPages } from "@/lib/rest-page-fetch";
 import { groupUniqueFeeIdsByInvoice, uniqueFeeIds } from "@/lib/invoice-fee-ids";
+import {
+  emptyInvoiceLinkAddResult,
+  invoiceLinkAddFromConfirmed,
+  persistAttemptedInvoiceLinks,
+  type InvoiceLinkAddResult,
+} from "@/lib/invoice-link-add";
 import { keepLocalInvoiceAfterAck, revertUnchangedJobFields } from "@/lib/invoice-write-merge";
 
 type Listener = () => void;
@@ -314,8 +320,11 @@ export const invoiceStore = {
           return null;
         }
         forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
+        if (retryErr && isInvoiceLinkAlreadyExists(retryErr)) {
+          return (await invoiceStore.fetchInvoiceById(localReuseId)) ?? invoices.find((item) => item.id === localReuseId) ?? null;
+        }
         invoices = invoices.map((item) =>
-          item.id === localReuseId ? { ...item, feeIds: [...new Set([...item.feeIds, ...feeIds])] } : item,
+          item.id === localReuseId ? { ...item, feeIds: uniqueFeeIds([...item.feeIds, ...feeIds]) } : item,
         );
         notify();
         return invoices.find((item) => item.id === localReuseId) ?? (await invoiceStore.fetchInvoiceById(localReuseId));
@@ -349,7 +358,7 @@ export const invoiceStore = {
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links);
       if (linkErr && isInvoiceLinkAlreadyExists(linkErr)) {
         forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
-        return newInvoice;
+        return (await invoiceStore.fetchInvoiceById(id)) ?? newInvoice;
       }
       if (linkErr) {
         console.error("Failed to link fees:", linkErr);
@@ -494,52 +503,59 @@ export const invoiceStore = {
       });
   },
 
-  addFeesToInvoice: async (invoiceId: string, feeIds: string[]): Promise<{ error: unknown }> => {
+  addFeesToInvoice: async (invoiceId: string, feeIds: string[]): Promise<InvoiceLinkAddResult> => {
     const inv = invoices.find((i) => i.id === invoiceId);
-    if (!inv) return { error: new Error("找不到該筆稿費請款") };
-
+    if (!inv) return emptyInvoiceLinkAddResult(new Error("找不到該筆稿費請款"), feeIds);
     const wanted = uniqueFeeIds(feeIds);
-    if (wanted.length === 0) return { error: null };
+    if (wanted.length === 0) return emptyInvoiceLinkAddResult(null, [], { missing: [] });
     const env = getEnvironment();
-    const existing = await supabase
-      .from("invoice_fees")
-      .select("fee_id")
-      .eq("invoice_id", invoiceId)
-      .eq("env", env)
-      .in("fee_id", wanted);
+    const fetchConfirmed = async (ids: string[]) => {
+      if (ids.length === 0) return { ids: [], error: null as unknown };
+      const res = await supabase
+        .from("invoice_fees")
+        .select("fee_id")
+        .eq("invoice_id", invoiceId)
+        .eq("env", env)
+        .in("fee_id", ids);
+      if (res.error) return { ids: [], error: res.error };
+      return { ids: uniqueFeeIds((res.data ?? []).map((row) => row.fee_id)), error: null };
+    };
+    const existing = await fetchConfirmed(wanted);
     if (existing.error) {
       toast.error("無法確認是否已收錄。請重整後核對，請勿再按一次。");
-      return { error: existing.error };
+      return emptyInvoiceLinkAddResult(existing.error, wanted, { uncertain: true, missing: wanted });
     }
-    const onServer = new Set((existing.data ?? []).map((row) => row.fee_id));
+    const already = existing.ids;
+    const attempted = wanted.filter((fid) => !already.includes(fid));
     invoices = invoices.map((i) =>
-      i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds([...i.feeIds, ...onServer]) } : i
+      i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds([...i.feeIds, ...already]) } : i
     );
     notify();
+    if (attempted.length === 0) {
+      return invoiceLinkAddFromConfirmed(wanted, already, already);
+    }
 
-    const newFeeIds = wanted.filter((fid) => !onServer.has(fid));
-    if (newFeeIds.length === 0) return { error: null };
-
-    invoices = invoices.map((i) =>
-      i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds([...i.feeIds, ...newFeeIds]) } : i
-    );
-    notify();
-
-    const links = newFeeIds.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId, env }));
-    const { error } = await supabase.from("invoice_fees").insert(links);
-    if (error) {
-      console.error("Failed to add fees to invoice:", error);
-      if (isInvoiceLinkAlreadyExists(error)) return { error: null };
-      if (classifyInvoiceWriteCertainty(error) === "unknown") {
-        toast.error("收錄結果不明。請重整後核對，請勿再按一次。");
+    const persisted = await persistAttemptedInvoiceLinks({
+      attempted,
+      insert: async (ids) => {
+        const { error } = await supabase.from("invoice_fees").insert(
+          ids.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId, env })),
+        );
+        if (error) console.error("Failed to add fees to invoice:", error);
         return { error };
-      }
-      invoices = invoices.map((i) =>
-        i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds(i.feeIds.filter((fid) => !newFeeIds.includes(fid))) } : i
-      );
-      notify();
+      },
+      fetchConfirmed,
+    });
+    const confirmed = uniqueFeeIds([...already, ...persisted.confirmed]);
+    invoices = invoices.map((i) =>
+      i.id === invoiceId ? { ...i, feeIds: uniqueFeeIds([...i.feeIds.filter((fid) => !attempted.includes(fid)), ...confirmed]) } : i
+    );
+    notify();
+    const result = invoiceLinkAddFromConfirmed(wanted, already, confirmed, persisted.error, persisted.uncertain);
+    if (result.uncertain) {
+      toast.error("收錄結果不明。請重整後核對，請勿再按一次。");
     }
-    return { error };
+    return result;
   },
 
   removeFeeFromInvoice: async (invoiceId: string, feeId: string) => {

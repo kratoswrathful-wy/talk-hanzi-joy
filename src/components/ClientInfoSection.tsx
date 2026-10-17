@@ -5,6 +5,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { toast } from "sonner";
+import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import { currencyStore } from "@/stores/currency-store";
 import { useSyncExternalStore } from "react";
@@ -306,12 +307,9 @@ export default function ClientInfoSection({
                               <DropdownMenuItem
                                 key={inv.id}
                                 onClick={async () => {
-                                  const { error } = await clientInvoiceStore.addFeesToInvoice(inv.id, [currentFeeId]);
-                                  if (error) {
-                                    toast.error("收錄失敗：費用關聯未寫入。");
-                                    return;
-                                  }
-                                  toast.success("已收錄至客戶請款單");
+                                  const result = await clientInvoiceStore.addFeesToInvoice(inv.id, [currentFeeId]);
+                                  const ui = applyInvoiceLinkAddFeedback(result);
+                                  if (!ui.closePicker) return;
                                   setShowInvoiceNavPrompt({ invoiceId: inv.id });
                                   setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
                                 }}

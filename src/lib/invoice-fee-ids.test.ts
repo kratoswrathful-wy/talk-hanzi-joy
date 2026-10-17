@@ -9,6 +9,10 @@ describe("uniqueFeeIds", () => {
   it("略過空字串", () => {
     expect(uniqueFeeIds(["", "a", ""])).toEqual(["a"]);
   });
+
+  it("注入歷史重複讀取時，顯示與加總只認每個費用一次", () => {
+    expect(uniqueFeeIds(["a", "a", "b"])).toEqual(["a", "b"]);
+  });
 });
 
 describe("groupUniqueFeeIdsByInvoice", () => {
@@ -30,5 +34,14 @@ describe("groupUniqueFeeIdsByInvoice", () => {
     ]);
     expect(grouped.get("a")).toEqual(["f1"]);
     expect(grouped.get("b")).toEqual(["f1"]);
+  });
+
+  it("同一張單重複關聯列只留下不同費用", () => {
+    const grouped = groupUniqueFeeIdsByInvoice([
+      { invoiceId: "inv", feeId: "a" },
+      { invoiceId: "inv", feeId: "a" },
+      { invoiceId: "inv", feeId: "b" },
+    ]);
+    expect(grouped.get("inv")).toEqual(["a", "b"]);
   });
 });

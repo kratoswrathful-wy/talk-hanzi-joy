@@ -26,6 +26,7 @@ import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { type TranslatorFee } from "@/data/fee-mock-data";
 import { toast } from "sonner";
+import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
 
 interface ClientInvoiceActionsProps {
   selectedFees: TranslatorFee[];
@@ -125,13 +126,9 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
       handleActionClick();
       return;
     }
-    const { error } = await clientInvoiceStore.addFeesToInvoice(invoiceId, feeIds);
-    if (error) {
-      toast.error("收錄失敗：費用關聯未寫入。");
-      return;
-    }
-    toast.success("已收錄至客戶請款單");
-    onDone();
+    const result = await clientInvoiceStore.addFeesToInvoice(invoiceId, feeIds);
+    const ui = applyInvoiceLinkAddFeedback(result);
+    if (ui.closePicker) onDone();
   };
 
   const handleBatchClick = () => {

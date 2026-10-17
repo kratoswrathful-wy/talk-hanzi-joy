@@ -27,6 +27,7 @@ import { useInvoices } from "@/hooks/use-invoice-store";
 import { type TranslatorFee } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
 
 interface InvoiceActionsProps {
   selectedFees: TranslatorFee[];
@@ -152,13 +153,9 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
       handleActionClick();
       return;
     }
-    const { error } = await invoiceStore.addFeesToInvoice(invoiceId, feeIds);
-    if (error) {
-      toast.error("收錄失敗：費用關聯未寫入。");
-      return;
-    }
-    toast.success("已收錄至請款單");
-    onDone();
+    const result = await invoiceStore.addFeesToInvoice(invoiceId, feeIds);
+    const ui = applyInvoiceLinkAddFeedback(result);
+    if (ui.closePicker) onDone();
   };
 
   const handleBatchClick = () => {

@@ -1241,7 +1241,10 @@ export function buildLmsAgentApi(): LmsAgentApi {
 
       addFees: async (invoiceId, feeIds) => {
         if (!invoiceStore.getInvoiceById(invoiceId)) return fail(`找不到譯者請款 id=${invoiceId}`);
-        await invoiceStore.addFeesToInvoice(invoiceId, feeIds);
+        const added = await invoiceStore.addFeesToInvoice(invoiceId, feeIds);
+        if (added.missing.length > 0) {
+          return failWriteFailed("譯者請款", `加入費用未完成：缺 ${added.missing.length} 筆`);
+        }
         return readbackAfterWrite("譯者請款", invoiceId, () => invoiceStore.getInvoiceById(invoiceId));
       },
 
@@ -1368,8 +1371,15 @@ export function buildLmsAgentApi(): LmsAgentApi {
         const plan = planClientInvoiceAddFees(feeIds, invoice, feesById, allLinked);
 
         if (plan.toAdd.length > 0) {
-          const { error } = await clientInvoiceStore.addFeesToInvoice(invoiceId, plan.toAdd);
-          if (error) return failWriteFailed("客戶請款", `加入費用失敗：${describeStoreError(error)}`);
+          const added = await clientInvoiceStore.addFeesToInvoice(invoiceId, plan.toAdd);
+          if (added.missing.length > 0) {
+            return failWriteFailed(
+              "客戶請款",
+              added.error
+                ? `加入費用未完成：${describeStoreError(added.error)}`
+                : `加入費用未完成：缺 ${added.missing.length} 筆`,
+            );
+          }
         }
 
         const updatedResult = await readbackAfterWrite(

@@ -33,6 +33,7 @@ import { type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce"
 import { wrapLatestSetter } from "@/lib/commit-latest-state";
 import { appendInvoiceEditLog, collectBufferedInvoiceFlushes, invoiceUpdatesWithOptionalLogs } from "@/lib/invoice-detail-commits";
 import { uniqueFeeIds } from "@/lib/invoice-fee-ids";
+import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
 import { filterEditLogsTranslatorInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -307,9 +308,9 @@ export default function InvoiceDetailPage() {
     });
   }, [profile]);
 
-  const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
+  const trackChange = useCallback(async (field: string, oldValue: string, newValue: string) => {
     const nextLogs = appendLog(field, oldValue, newValue);
-    if (nextLogs && id) invoiceStore.updateInvoice(id, { edit_logs: nextLogs });
+    if (nextLogs && id) await invoiceStore.updateInvoice(id, { edit_logs: nextLogs });
     return nextLogs;
   }, [appendLog, id]);
 
@@ -573,16 +574,16 @@ export default function InvoiceDetailPage() {
   };
 
   const handleAddFees = async () => {
-    const { error } = await invoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
-    if (error) {
-      toast.error("收錄失敗：費用關聯未寫入。");
-      return;
+    const result = await invoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
+    const ui = applyInvoiceLinkAddFeedback(result);
+    if (ui.shouldLogAdded) {
+      const addedNames = result.added.map((fid) => fees.find((f) => f.id === fid)?.title || "未命名").join(", ");
+      await trackChange("費用", "", `新增 ${result.added.length} 筆: ${addedNames}`);
     }
-    const addedNames = selectedAddFees.map((fid) => fees.find((f) => f.id === fid)?.title || "未命名").join(", ");
-    trackChange("費用", "", `新增 ${selectedAddFees.length} 筆: ${addedNames}`);
-    setSelectedAddFees([]);
-    setAddFeeOpen(false);
-    toast.success(`已加入 ${selectedAddFees.length} 筆費用`);
+    if (ui.closePicker) {
+      setSelectedAddFees([]);
+      setAddFeeOpen(false);
+    }
   };
 
   return (
