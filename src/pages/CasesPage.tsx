@@ -1475,7 +1475,7 @@ export default function CasesPage() {
                   )}
                 >
                   <td
-                    className="w-[40px] px-2 py-1.5 text-center cursor-pointer select-none"
+                    className="w-[40px] px-2 py-1.5 align-top text-center cursor-pointer select-none"
                     onClick={(e) => rowSelection.handleClick(c.id, e)}
                   >
                     <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />
