@@ -32,10 +32,12 @@ export interface CollabRow {
   unitCount: number;      // 計費單位數
   accepted: boolean;      // 確認承接
   translationDeadline: string | null; // 翻譯交期
-  /** 列內註記用；不驅動 CAT 審稿指派（真相＝review_rows） */
+  /** 同段審稿人員；寫入後同步 review_rows 才驅動 CAT */
   reviewer: string;
-  reviewDeadline: string | null;      // 審稿交期（列內註記；不驅動 CAT）
-  taskCompleted: boolean; // 任務完成
+  reviewDeadline: string | null;
+  /** 同段審稿完成；與翻譯 taskCompleted 分開 */
+  reviewTaskCompleted?: boolean;
+  taskCompleted: boolean; // 翻譯任務完成
   delivered: boolean;     // 交件完畢
   /** Phase B B-4：與 CAT cat_stage_assignments.collab_row_id 雙向 */
   linkedCatFileId?: string | null;

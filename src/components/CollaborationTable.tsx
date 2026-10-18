@@ -27,7 +27,9 @@ import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildCatDeepLink } from "@/lib/cat-deep-link";
-import { collabTranslatorFromSelection } from "@/lib/assignee-select";
+import { collabTranslatorFromSelection, reviewRowFromSelection } from "@/lib/assignee-select";
+import { partitionReviewRowsByCollab } from "@/lib/collab-review-pair";
+import type { ReviewCollabRow } from "@/data/case-types";
 import { countUnconfirmedSegmentsInCollabRange } from "@/lib/cat-collab-task-complete";
 import {
   decideCatFileOptionsCommit,
@@ -40,6 +42,8 @@ interface Props {
   onChange: (rows: CollabRow[]) => void;
   caseStatus: string;
   caseId?: string;
+  /** 舊獨立審稿列；僅在檔案＋範圍一對一時用來顯示同段審稿 */
+  reviewRows?: ReviewCollabRow[];
 }
 
 type CatBindOption = {
@@ -89,7 +93,7 @@ function CopyTextButton({ value }: { value: string }) {
   );
 }
 
-export default function CollaborationTable({ rows, onChange, caseStatus, caseId }: Props) {
+export default function CollaborationTable({ rows, onChange, caseStatus, caseId, reviewRows }: Props) {
   const { primaryRole, profile } = useAuth();
   const { toast } = useToast();
   const toastRef = useRef(toast);
@@ -183,6 +187,8 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
 
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
+  const uniqueReviewByCollabId = partitionReviewRowsByCollab(rows, reviewRows).uniqueByCollabId;
+
   const [bulkPersonField, setBulkPersonField] = useState<"translator" | null>(null);
   const [bulkPersonValue, setBulkPersonValue] = useState<string>("");
   const [bulkPersonUserId, setBulkPersonUserId] = useState<string | null>(null);
@@ -190,22 +196,37 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
 
   const updateRow = useCallback(
     (idx: number, patch: Partial<CollabRow>) => {
-      const next = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+      const next = rows.map((r, i) => {
+        if (i !== idx) return r;
+        const pair = uniqueReviewByCollabId.get(r.id);
+        const materialized = pair && !String(r.reviewer || "").trim()
+          ? {
+              ...r,
+              reviewer: pair.reviewer,
+              reviewerUserId: pair.reviewerUserId ?? null,
+              reviewDeadline: r.reviewDeadline ?? pair.reviewDeadline,
+              reviewTaskCompleted: r.reviewTaskCompleted ?? pair.taskCompleted,
+            }
+          : r;
+        return { ...materialized, ...patch };
+      });
       onChange(next);
     },
-    [rows, onChange]
+    [rows, onChange, uniqueReviewByCollabId]
   );
 
   const showAccepted = caseStatus === "draft" || caseStatus === "inquiry";
   const showTaskCompleted = !showAccepted;
 
-  // 列內 reviewer／reviewDeadline 不驅動 CAT（工項 A）；預設隱藏，改走 review_rows
   const columns = [
     { key: "segment", label: "檔案或分段", width: "260px" },
     { key: "translator", label: "譯者", width: "140px", bulkPerson: true },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
-    { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "任務完成", width: "80px" },
+    { key: "reviewer", label: "審稿人員", width: "140px" },
+    { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
+    { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "翻譯完成", width: "80px" },
+    ...(showTaskCompleted ? [{ key: "reviewTaskCompleted", label: "審稿完成", width: "80px" }] : []),
     { key: "delivered", label: "交件完畢", width: "80px" },
   ];
 
@@ -368,6 +389,14 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
 
           const catBound = isCatBound(row);
           const catLink = catBound ? resolveCatLink(row) : null;
+          const reviewPair = uniqueReviewByCollabId.get(row.id);
+          const reviewerValue = row.reviewer || reviewPair?.reviewer || "";
+          const reviewDeadlineValue = row.reviewDeadline ?? reviewPair?.reviewDeadline ?? null;
+          const reviewCompleted = row.reviewTaskCompleted ?? reviewPair?.taskCompleted ?? false;
+          const canCheckReviewCompleted =
+            showTaskCompleted &&
+            !reviewCompleted &&
+            (isPmOrAbove || row.reviewer === displayName || reviewPair?.reviewer === displayName);
 
           return (
             <div
@@ -480,7 +509,30 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                 />
               </div>
 
-              <div className="flex items-center justify-center px-1.5 py-1">
+              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewer">
+                <ColorSelect
+                  fieldKey="assignee"
+                  value={reviewerValue}
+                  onValueChange={() => {}}
+                  onAssigneeSelect={(selection) => {
+                    updateRow(idx, reviewRowFromSelection(selection));
+                  }}
+                  className="w-full"
+                  disabled={!isPmOrAbove}
+                />
+              </div>
+              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewDeadline">
+                <DateTimePicker
+                  value={reviewDeadlineValue}
+                  onChange={(v) => updateRow(idx, { reviewDeadline: v })}
+                  className="w-full"
+                />
+              </div>
+              <div
+                className="flex items-center justify-center px-1.5 py-1"
+                data-collab-id={row.id}
+                data-collab-field={showAccepted ? "accepted" : "taskCompleted"}
+              >
                 {showAccepted ? (
                   <Checkbox
                     checked={!!row.accepted}
@@ -515,6 +567,19 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId 
                   />
                 )}
               </div>
+              {showTaskCompleted && (
+                <div
+                  className="flex items-center justify-center px-1.5 py-1"
+                  data-collab-id={row.id}
+                  data-collab-field="reviewTaskCompleted"
+                >
+                  <Checkbox
+                    checked={reviewCompleted}
+                    disabled={!canCheckReviewCompleted && !reviewCompleted}
+                    onCheckedChange={(v) => updateRow(idx, { reviewTaskCompleted: !!v })}
+                  />
+                </div>
+              )}
 
               <div className="flex items-center justify-center px-1.5 py-1">
                 <Checkbox

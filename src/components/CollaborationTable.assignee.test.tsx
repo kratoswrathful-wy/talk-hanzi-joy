@@ -65,6 +65,8 @@ describe("CollaborationTable assignee", () => {
     accepted: false,
     taskCompleted: false,
     delivered: false,
+    reviewer: "",
+    reviewDeadline: null,
   };
 
   it("single row assign uses clicked UUID (same label)", () => {
@@ -76,7 +78,7 @@ describe("CollaborationTable assignee", () => {
         caseStatus="dispatched"
       />,
     );
-    fireEvent.click(screen.getByTestId("pick-row"));
+    fireEvent.click(screen.getAllByTestId("pick-row")[0]!);
     expect(onChange).toHaveBeenCalledWith([
       expect.objectContaining({ translator: "Alice", translatorUserId: uuidB }),
     ]);
@@ -104,6 +106,41 @@ describe("CollaborationTable assignee", () => {
     ]);
   });
 
+  it("second ColorSelect writes reviewer, not translator", () => {
+    const onChange = vi.fn();
+    render(
+      <CollaborationTable
+        rows={[baseRow]}
+        onChange={onChange}
+        caseStatus="dispatched"
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("pick-row")[1]!);
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ reviewer: "Alice", reviewerUserId: uuidB, translator: "" }),
+    ]);
+  });
+
+  it("dispatched complete columns are translate then review", () => {
+    const { container } = render(
+      <CollaborationTable
+        rows={[baseRow]}
+        onChange={vi.fn()}
+        caseStatus="dispatched"
+      />,
+    );
+    expect(screen.getByText("翻譯完成")).toBeTruthy();
+    expect(screen.getByText("審稿完成")).toBeTruthy();
+    const row = container.querySelector('[data-collab-id="row-1"]');
+    const fields = [...(row?.querySelectorAll("[data-collab-field]") ?? [])].map((el) =>
+      el.getAttribute("data-collab-field"),
+    );
+    const iTask = fields.indexOf("taskCompleted");
+    const iReview = fields.indexOf("reviewTaskCompleted");
+    expect(iTask).toBeGreaterThanOrEqual(0);
+    expect(iReview).toBeGreaterThan(iTask);
+  });
+
   it("clear row sets translatorUserId null", () => {
     const onChange = vi.fn();
     render(
@@ -113,7 +150,7 @@ describe("CollaborationTable assignee", () => {
         caseStatus="dispatched"
       />,
     );
-    fireEvent.click(screen.getByTestId("clear-row"));
+    fireEvent.click(screen.getAllByTestId("clear-row")[0]!);
     expect(onChange).toHaveBeenCalledWith([
       expect.objectContaining({ translator: "", translatorUserId: null }),
     ]);

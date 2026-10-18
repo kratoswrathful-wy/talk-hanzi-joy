@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
 import {
+  parseCatWfCompleteKind,
   setCollabRowTaskCompletedFromCat,
   setCollabRowsTaskCompletedBulkFromCat,
   maybeUpgradeCaseTaskCompletedFromCatFiles,
@@ -1061,6 +1062,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         const collabRowId = String(p.collabRowId || "");
         const completedAt = String(p.completedAt || new Date().toISOString());
         const taskCompleted = p.taskCompleted !== false;
+        const stageKind = parseCatWfCompleteKind(p.stageKind);
         const segmentTitle = typeof p.segmentTitle === "string" ? p.segmentTitle : undefined;
         if (!caseId || !user?.id) return;
         try {
@@ -1071,8 +1073,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
               collabRowId,
               taskCompleted,
               completedAt,
+              stageKind,
             );
-            if (result.ok && taskCompleted && user.id) {
+            if (result.ok && taskCompleted && stageKind === "translate" && user.id) {
               void maybeSendTranslatorCaseReplySlack({
                 userId: user.id,
                 slackMessageDefaults: profile?.slack_message_defaults,
@@ -1111,9 +1114,10 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           await setCollabRowsTaskCompletedBulkFromCat(
             supabase,
             caseId,
-            updates.map((u: { collabRowId?: string; taskCompleted?: boolean }) => ({
+            updates.map((u: { collabRowId?: string; taskCompleted?: boolean; stageKind?: string }) => ({
               collabRowId: String(u.collabRowId || ""),
               taskCompleted: !!u.taskCompleted,
+              stageKind: parseCatWfCompleteKind(u.stageKind),
             })).filter((u: { collabRowId: string }) => u.collabRowId),
             updatedAt,
           );

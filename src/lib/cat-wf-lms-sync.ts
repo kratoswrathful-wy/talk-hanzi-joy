@@ -1,12 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import {
+  applyCatCompleteToCaseRows,
+  parseCatWfCompleteKind,
+  type CatCompleteRowUpdate,
+  type CatWfCompleteKind,
+  type CollabRowJson,
+} from "@/lib/cat-wf-complete-map";
 import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
 import { getEnvironment } from "@/lib/environment";
 
-type CollabRowJson = {
-  id: string;
-  taskCompleted?: boolean;
-  [key: string]: unknown;
+export {
+  applyCatCompleteToCaseRows,
+  parseCatWfCompleteKind,
+  type CatCompleteRowUpdate,
+  type CatWfCompleteKind,
 };
 
 const ELIGIBLE_TASK_COMPLETED_STATUSES = ["draft", "inquiry", "dispatched"] as const;
@@ -15,14 +23,32 @@ function canUpgradeCaseToTaskCompleted(status?: string) {
   return (ELIGIBLE_TASK_COMPLETED_STATUSES as readonly string[]).includes(status ?? "");
 }
 
-function mapCollabRows(rows: CollabRowJson[], collabRowId: string, taskCompleted: boolean) {
-  return rows.map((r) =>
-    String(r.id) === String(collabRowId) ? { ...r, taskCompleted } : r,
-  );
-}
-
 function readRevision(row: { revision?: number | null } | null | undefined): number {
   return typeof row?.revision === "number" ? row.revision : 0;
+}
+
+function readCaseRows(caseRow: { collab_rows?: unknown; review_rows?: unknown }) {
+  const rows = Array.isArray(caseRow.collab_rows) ? caseRow.collab_rows as CollabRowJson[] : [];
+  const reviewRows = Array.isArray(caseRow.review_rows) ? caseRow.review_rows as CollabRowJson[] : [];
+  return { rows, reviewRows };
+}
+
+function statusPatchFromTranslate(
+  status: string | undefined,
+  applied: { allTranslateCompleted: boolean; anyTranslateTouched: boolean },
+  taskCompletedHint?: boolean,
+): Record<string, unknown> {
+  if (!applied.anyTranslateTouched) return {};
+  if (taskCompletedHint && canUpgradeCaseToTaskCompleted(status) && applied.allTranslateCompleted) {
+    return { status: "task_completed" };
+  }
+  if (!applied.allTranslateCompleted && status === "task_completed") {
+    return { status: "dispatched" };
+  }
+  if (applied.allTranslateCompleted && canUpgradeCaseToTaskCompleted(status)) {
+    return { status: "task_completed" };
+  }
+  return {};
 }
 
 /** CAT 段落「任務完成」→ LMS 協作列 taskCompleted（B-4） */
@@ -32,16 +58,17 @@ export async function markCollabRowTaskCompletedFromCat(
   collabRowId: string,
   completedAt: string,
 ): Promise<{ ok: boolean; allTaskCompleted?: boolean; error?: string }> {
-  return setCollabRowTaskCompletedFromCat(supabase, caseId, collabRowId, true, completedAt);
+  return setCollabRowTaskCompletedFromCat(supabase, caseId, collabRowId, true, completedAt, "translate");
 }
 
-/** CAT ↔ LMS 雙向：設定協作列／審稿列 taskCompleted（true 或 false） */
+/** CAT ↔ LMS 雙向：翻譯／審稿完成獨立寫入，不得互清 */
 export async function setCollabRowTaskCompletedFromCat(
   supabase: SupabaseClient,
   caseId: string,
   collabRowId: string,
   taskCompleted: boolean,
-  updatedAt: string,
+  _updatedAt: string,
+  stageKind: CatWfCompleteKind | string = "translate",
 ): Promise<{ ok: boolean; allTaskCompleted?: boolean; error?: string }> {
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
@@ -53,35 +80,24 @@ export async function setCollabRowTaskCompletedFromCat(
   if (fetchErr) return { ok: false, error: fetchErr.message };
   if (!caseRow) return { ok: false, error: "case not found" };
 
-  const rows = Array.isArray((caseRow as { collab_rows?: unknown }).collab_rows)
-    ? ((caseRow as { collab_rows: CollabRowJson[] }).collab_rows)
-    : [];
-  const reviewRows = Array.isArray((caseRow as { review_rows?: unknown }).review_rows)
-    ? ((caseRow as { review_rows: CollabRowJson[] }).review_rows)
-    : [];
+  const { rows, reviewRows } = readCaseRows(caseRow);
   const inCollab = rows.some((r) => String(r.id) === String(collabRowId));
   const inReview = reviewRows.some((r) => String(r.id) === String(collabRowId));
   if (!inCollab && !inReview) return { ok: false, error: "collab/review row not found" };
 
-  const updates: Record<string, unknown> = { updated_at: updatedAt };
-  let allTaskCompleted = false;
+  const kind = parseCatWfCompleteKind(stageKind);
+  if (kind === "translate" && !inCollab) return { ok: false, error: "collab row not found" };
 
-  if (inCollab) {
-    const updatedRows = mapCollabRows(rows, collabRowId, taskCompleted);
-    updates.collab_rows = updatedRows;
-    allTaskCompleted =
-      updatedRows.length > 0 && updatedRows.every((r) => !!r.taskCompleted);
-  }
-  if (inReview) {
-    updates.review_rows = mapCollabRows(reviewRows, collabRowId, taskCompleted);
-  }
-
-  const status = (caseRow as { status?: string }).status;
-  if (inCollab && taskCompleted && canUpgradeCaseToTaskCompleted(status) && allTaskCompleted) {
-    updates.status = "task_completed";
-  } else if (inCollab && !taskCompleted && status === "task_completed") {
-    updates.status = "dispatched";
-  }
+  const applied = applyCatCompleteToCaseRows({
+    collabRows: rows,
+    reviewRows,
+    updates: [{ collabRowId, taskCompleted, stageKind: kind }],
+  });
+  const updates: Record<string, unknown> = {
+    collab_rows: applied.collabRows,
+    review_rows: applied.reviewRows,
+    ...statusPatchFromTranslate((caseRow as { status?: string }).status, applied, taskCompleted),
+  };
 
   const { error: updErr } = await pmUpdateCaseAssignments(
     supabase,
@@ -90,15 +106,15 @@ export async function setCollabRowTaskCompletedFromCat(
     readRevision(caseRow as { revision?: number }),
   );
   if (updErr) return { ok: false, error: updErr.message };
-  return { ok: true, allTaskCompleted };
+  return { ok: true, allTaskCompleted: applied.allTranslateCompleted };
 }
 
-/** PM 整檔／拆段調整：批次回寫多列 taskCompleted */
+/** PM 整檔／拆段調整：批次回寫多列完成狀態 */
 export async function setCollabRowsTaskCompletedBulkFromCat(
   supabase: SupabaseClient,
   caseId: string,
-  updates: { collabRowId: string; taskCompleted: boolean }[],
-  updatedAt: string,
+  updates: CatCompleteRowUpdate[],
+  _updatedAt: string,
 ): Promise<{ ok: boolean; allTaskCompleted?: boolean; error?: string }> {
   const env = getEnvironment();
   const { data: caseRow, error: fetchErr } = await supabase
@@ -110,35 +126,17 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   if (fetchErr) return { ok: false, error: fetchErr.message };
   if (!caseRow) return { ok: false, error: "case not found" };
 
-  const rows = Array.isArray((caseRow as { collab_rows?: unknown }).collab_rows)
-    ? ((caseRow as { collab_rows: CollabRowJson[] }).collab_rows)
-    : [];
-  const reviewRows = Array.isArray((caseRow as { review_rows?: unknown }).review_rows)
-    ? ((caseRow as { review_rows: CollabRowJson[] }).review_rows)
-    : [];
-  const byId = new Map(updates.map((u) => [String(u.collabRowId), u.taskCompleted]));
-  const updatedRows = rows.map((r) => {
-    const hit = byId.get(String(r.id));
-    return hit === undefined ? r : { ...r, taskCompleted: hit };
+  const { rows, reviewRows } = readCaseRows(caseRow);
+  const applied = applyCatCompleteToCaseRows({
+    collabRows: rows,
+    reviewRows,
+    updates,
   });
-  const updatedReviewRows = reviewRows.map((r) => {
-    const hit = byId.get(String(r.id));
-    return hit === undefined ? r : { ...r, taskCompleted: hit };
-  });
-  const allTaskCompleted =
-    updatedRows.length > 0 && updatedRows.every((r) => !!r.taskCompleted);
-
   const patch: Record<string, unknown> = {
-    collab_rows: updatedRows,
-    review_rows: updatedReviewRows,
-    updated_at: updatedAt,
+    collab_rows: applied.collabRows,
+    review_rows: applied.reviewRows,
+    ...statusPatchFromTranslate((caseRow as { status?: string }).status, applied),
   };
-  const status = (caseRow as { status?: string }).status;
-  if (canUpgradeCaseToTaskCompleted(status) && allTaskCompleted) {
-    patch.status = "task_completed";
-  } else if (status === "task_completed" && !allTaskCompleted) {
-    patch.status = "dispatched";
-  }
 
   const { error: updErr } = await pmUpdateCaseAssignments(
     supabase,
@@ -147,7 +145,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
     readRevision(caseRow as { revision?: number }),
   );
   if (updErr) return { ok: false, error: updErr.message };
-  return { ok: true, allTaskCompleted };
+  return { ok: true, allTaskCompleted: applied.allTranslateCompleted };
 }
 
 /** 單人多檔：全連結檔整檔翻譯指派皆 completed → 升案件 task_completed（無 collab_row_id） */

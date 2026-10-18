@@ -162,7 +162,7 @@ describe("registry display helpers", () => {
       providerAvailable: true,
     });
     expect(fallbackFlags.isFallback).toBe(true);
-    expect(fallbackFlags.omitTemperature).toBe(false);
+    expect(fallbackFlags.omitTemperature).toBe(true);
 
     const proFlags = getRegistryRowFlags({
       model_id: "gpt-5.5-pro",

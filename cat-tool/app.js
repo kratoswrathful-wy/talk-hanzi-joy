@@ -6247,6 +6247,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(st && st.stageKind === 'translate');
     }
 
+    function _wfLmsCompleteKind(a) {
+        return _isReviewStageAssignment(a) ? 'review' : 'translate';
+    }
+
     /** 譯者待標記完成的翻譯段落指派（不含 workflow 已完成） */
     function _wfPendingTranslateAssignments(opts) {
         const o = opts || {};
@@ -6547,6 +6551,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     fileId: assignment.fileId != null ? String(assignment.fileId) : null,
                     viewId: assignment.viewId != null ? String(assignment.viewId) : null,
                     taskCompleted: !!taskCompleted,
+                    stageKind: _wfLmsCompleteKind(assignment),
                     completedAt: new Date().toISOString(),
                     segmentTitle: assignment.scopeLabel ? String(assignment.scopeLabel) : undefined,
                     caseTitle: fileMeta && fileMeta.relatedLmsCaseTitle ? String(fileMeta.relatedLmsCaseTitle) : undefined,
@@ -6573,7 +6578,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const caseId = meta && meta.relatedLmsCaseId ? String(meta.relatedLmsCaseId) : '';
             if (!caseId) continue;
             if (!byCase.has(caseId)) byCase.set(caseId, []);
-            byCase.get(caseId).push({ collabRowId: String(a.collabRowId), taskCompleted: !!taskCompleted });
+            byCase.get(caseId).push({
+                collabRowId: String(a.collabRowId),
+                taskCompleted: !!taskCompleted,
+                stageKind: _wfLmsCompleteKind(a),
+            });
         }
         for (const [caseId, updates] of byCase.entries()) {
             await _emitWfCollabRowsBulkToLms(caseId, updates);
@@ -7205,6 +7214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 byCase.get(caseId).push({
                     collabRowId: String(h.collabRowId),
                     taskCompleted: h.workflowStatus === 'completed',
+                    stageKind: 'translate',
                 });
             }
             for (const h of hits) {
@@ -7216,6 +7226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 byCase.get(caseId).push({
                     collabRowId: String(h.collabRowId),
                     taskCompleted: h.workflowStatus === 'completed',
+                    stageKind: 'review',
                 });
             }
             for (const [caseId, updates] of byCase.entries()) {
