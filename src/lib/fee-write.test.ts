@@ -151,7 +151,12 @@ describe("fee in-flight protection", () => {
     };
     const remote = {
       updatedAt: "v2",
-      clientInfo: { ...defaultClientInfo, clientTaskItems: [{ ...defaultClientInfo.clientTaskItems[0], unitCount: "3" as unknown as number, clientPrice: "1500" as unknown as number }] },
+      clientInfo: {
+        ...defaultClientInfo,
+        clientTaskItems: [
+          { ...defaultClientInfo.clientTaskItems[0], unitCount: "3", clientPrice: "1500" },
+        ] as typeof defaultClientInfo.clientTaskItems,
+      },
     };
     const updates = {
       clientInfo: { ...queued.clientInfo, clientPoNumber: "PO-2" },
