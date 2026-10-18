@@ -31,6 +31,7 @@ import { collabTranslatorFromSelection, reviewRowFromSelection } from "@/lib/ass
 import { partitionReviewRowsByCollab } from "@/lib/collab-review-pair";
 import type { ReviewCollabRow } from "@/data/case-types";
 import { countUnconfirmedSegmentsInCollabRange } from "@/lib/cat-collab-task-complete";
+import { collabRowPatchFromReviewCompleteCheck } from "@/lib/cat-wf-complete-map";
 import {
   decideCatFileOptionsCommit,
   subscribeCatCaseFilesChanged,
@@ -576,7 +577,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                   <Checkbox
                     checked={reviewCompleted}
                     disabled={!canCheckReviewCompleted && !reviewCompleted}
-                    onCheckedChange={(v) => updateRow(idx, { reviewTaskCompleted: !!v })}
+                    onCheckedChange={(v) => updateRow(idx, collabRowPatchFromReviewCompleteCheck(!!v))}
                   />
                 </div>
               )}

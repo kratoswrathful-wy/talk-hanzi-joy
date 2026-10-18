@@ -3411,6 +3411,9 @@ export default function CaseDetailPage() {
                 toast({ title: "所有任務已完成" });
                 return;
               }
+              if (caseData.status === "task_completed" && !allTaskCompleted && !allDelivered) {
+                updates.status = "dispatched" as CaseStatus;
+              }
               if ((caseData.status === "dispatched" || caseData.status === "task_completed") && allDelivered) {
                 updates.status = "delivered" as CaseStatus;
                 save(updates);

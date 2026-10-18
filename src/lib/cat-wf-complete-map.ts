@@ -35,9 +35,12 @@ function applyOneReviewComplete(
   completed: boolean,
 ): { collabRows: CollabRowJson[]; reviewRows: CollabRowJson[] } {
   const id = String(collabRowId);
-  let nextCollab = collabRows.map((r) =>
-    String(r.id) === id ? { ...r, reviewTaskCompleted: completed } : r,
-  );
+  let nextCollab = collabRows.map((r) => {
+    if (String(r.id) !== id) return r;
+    return completed
+      ? { ...r, reviewTaskCompleted: true, taskCompleted: true }
+      : { ...r, reviewTaskCompleted: false };
+  });
   const collab = nextCollab.find((r) => String(r.id) === id);
   let reviewTouched = false;
   let nextReview = reviewRows.map((r) => {
@@ -69,9 +72,12 @@ function applyOneReviewComplete(
         : [];
       if (matches.length === 1) {
         const pairId = String(matches[0].id);
-        nextCollab = nextCollab.map((r) =>
-          String(r.id) === pairId ? { ...r, reviewTaskCompleted: completed } : r,
-        );
+        nextCollab = nextCollab.map((r) => {
+          if (String(r.id) !== pairId) return r;
+          return completed
+            ? { ...r, reviewTaskCompleted: true, taskCompleted: true }
+            : { ...r, reviewTaskCompleted: false };
+        });
       }
     }
   }
@@ -97,8 +103,10 @@ function applyOneReviewComplete(
 }
 
 /**
- * CAT 完成／取消：翻譯只動 collab_rows.taskCompleted；
- * 審稿只動 collab_rows.reviewTaskCompleted 與對應 review_rows.taskCompleted。
+ * CAT 完成／取消（22:39）：
+ * - 翻譯完成／取消只動 collab_rows.taskCompleted（手動取消翻譯不改審稿）。
+ * - 審稿完成同時把對應範圍 collab_rows.taskCompleted 設為 true。
+ * - 手動取消審稿只清 review 旗標，保留翻譯完成。
  */
 export function applyCatCompleteToCaseRows(input: {
   collabRows: CollabRowJson[];
@@ -128,6 +136,7 @@ export function applyCatCompleteToCaseRows(input: {
     const applied = applyOneReviewComplete(collabRows, reviewRows, id, completed);
     collabRows = applied.collabRows;
     reviewRows = applied.reviewRows;
+    if (completed) anyTranslateTouched = true;
   }
 
   return {
@@ -137,4 +146,14 @@ export function applyCatCompleteToCaseRows(input: {
       collabRows.length > 0 && collabRows.every((r) => !!r.taskCompleted),
     anyTranslateTouched,
   };
+}
+
+/** LMS 勾選審稿完成時一併帶翻譯完成；取消審稿不取消翻譯。 */
+export function collabRowPatchFromReviewCompleteCheck(checked: boolean): {
+  reviewTaskCompleted: boolean;
+  taskCompleted?: true;
+} {
+  return checked
+    ? { reviewTaskCompleted: true, taskCompleted: true }
+    : { reviewTaskCompleted: false };
 }

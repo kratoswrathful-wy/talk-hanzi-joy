@@ -4,46 +4,74 @@ import {
   shouldLockTranslateDueToReviewComplete,
   assignmentIdsTouchedByUserHits,
   extraTranslateIdsForcedByReviewComplete,
+  translateAssignmentsCompletedWithReview,
+  translateIdsForExplicitWholeFileReviewComplete,
   aggregateStageStatusFromAssignmentStatuses,
   assignmentRangesOverlap,
+  assignmentsHaveExactSameRange,
+  shouldReopenCompleteOnTranslatorTargetEdit,
+  assignmentIdsToReopenOnTranslatorEdit,
 } from "./wf-complete-independence.js";
 
 const assigns = [
-  { id: "t-1-1", kind: "translate", lineStart: 1, lineEnd: 1, workflowStatus: "in_progress" },
-  { id: "t-2-2", kind: "translate", lineStart: 2, lineEnd: 2, workflowStatus: "in_progress" },
-  { id: "r-1-1", kind: "review", lineStart: 1, lineEnd: 1, workflowStatus: "completed" },
-  { id: "r-2-2", kind: "review", lineStart: 2, lineEnd: 2, workflowStatus: "in_progress" },
-  { id: "t-overlap", kind: "translate", lineStart: 2, lineEnd: 4, workflowStatus: "in_progress" },
-  { id: "r-overlap", kind: "review", lineStart: 1, lineEnd: 3, workflowStatus: "completed" },
+  { id: "t-1-1", kind: "translate", fileId: "f1", lineStart: 1, lineEnd: 1, workflowStatus: "in_progress" },
+  { id: "t-2-2", kind: "translate", fileId: "f1", lineStart: 2, lineEnd: 2, workflowStatus: "in_progress" },
+  { id: "r-1-1", kind: "review", fileId: "f1", lineStart: 1, lineEnd: 1, workflowStatus: "completed" },
+  { id: "r-2-2", kind: "review", fileId: "f1", lineStart: 2, lineEnd: 2, workflowStatus: "in_progress" },
+  { id: "t-overlap", kind: "translate", fileId: "f1", lineStart: 2, lineEnd: 4, workflowStatus: "in_progress" },
+  { id: "r-overlap", kind: "review", fileId: "f1", lineStart: 1, lineEnd: 3, workflowStatus: "completed" },
 ];
 
-describe("完成獨立：審稿不得強制／阻擋翻譯", () => {
-  it("永不因審稿完成強制寫翻譯", () => {
+describe("不得恢復舊整檔強制／編輯鎖", () => {
+  it("永不因單段審稿完成強制寫全檔翻譯", () => {
     expect(shouldForceTranslateCompletedDueToReview()).toBe(false);
   });
 
   it("永不因審稿完成鎖翻譯狀態或編輯", () => {
     expect(shouldLockTranslateDueToReviewComplete()).toBe(false);
   });
+
+  it("舊整檔強制清單仍為空", () => {
+    const hits = [{ id: "r-1-1", kind: "review", workflowStatus: "completed" }];
+    expect(extraTranslateIdsForcedByReviewComplete({ hits, allAssignments: assigns })).toEqual([]);
+  });
 });
 
-describe("使用者改哪筆就只動哪筆", () => {
-  it("同段：審稿 1-1 完成不改翻譯 1-1", () => {
+describe("手動審稿完成只帶精確同範圍翻譯", () => {
+  it("同段：審稿 1-1 完成帶翻譯 1-1，不帶 2-2", () => {
     const hits = [{ id: "r-1-1", kind: "review", workflowStatus: "completed" }];
     expect(assignmentIdsTouchedByUserHits({ hits, allAssignments: assigns })).toEqual(["r-1-1"]);
-    expect(extraTranslateIdsForcedByReviewComplete({ hits, allAssignments: assigns })).toEqual([]);
+    expect(translateAssignmentsCompletedWithReview({
+      review: assigns[2],
+      all: assigns,
+    })).toEqual(["t-1-1"]);
   });
 
   it("不同段：審稿 1-1 完成不改翻譯 2-2", () => {
-    const hits = [{ id: "r-1-1", kind: "review", workflowStatus: "completed" }];
-    expect(assignmentIdsTouchedByUserHits({ hits })).not.toContain("t-2-2");
-    expect(extraTranslateIdsForcedByReviewComplete({ hits, allAssignments: assigns })).toEqual([]);
+    expect(translateAssignmentsCompletedWithReview({
+      review: assigns[2],
+      all: assigns,
+    })).not.toContain("t-2-2");
   });
 
-  it("部分重疊範圍也不由另一角色自動改寫", () => {
-    const hits = [{ id: "r-overlap", kind: "review", workflowStatus: "completed" }];
+  it("部分重疊範圍不完成另一整段翻譯", () => {
     expect(assignmentRangesOverlap(assigns[4], assigns[5])).toBe(true);
-    expect(extraTranslateIdsForcedByReviewComplete({ hits, allAssignments: assigns })).toEqual([]);
+    expect(assignmentsHaveExactSameRange(assigns[4], assigns[5])).toBe(false);
+    expect(translateAssignmentsCompletedWithReview({
+      review: assigns[5],
+      all: assigns,
+    })).toEqual([]);
+  });
+
+  it("明確整檔審稿全部完成才列出全部翻譯", () => {
+    expect(translateIdsForExplicitWholeFileReviewComplete({
+      all: assigns,
+      isExplicitWholeFile: false,
+    })).toEqual([]);
+    expect(translateIdsForExplicitWholeFileReviewComplete({
+      all: assigns,
+      isExplicitWholeFile: true,
+    })).toEqual(["t-1-1", "t-2-2", "t-overlap"]);
   });
 });
 
@@ -54,5 +82,48 @@ describe("整檔彙整不得反寫未完成分段", () => {
 
   it("全部完成才是整檔完成", () => {
     expect(aggregateStageStatusFromAssignmentStatuses(["completed", "completed"])).toBe("completed");
+  });
+});
+
+describe("譯者改譯文取消該範圍完成", () => {
+  it("未改內容、審稿工作、審稿身分都不取消", () => {
+    expect(shouldReopenCompleteOnTranslatorTargetEdit({
+      textChanged: false,
+      sessionKind: "translate",
+    })).toBe(false);
+    expect(shouldReopenCompleteOnTranslatorTargetEdit({
+      textChanged: true,
+      sessionKind: "review",
+    })).toBe(false);
+    expect(shouldReopenCompleteOnTranslatorTargetEdit({
+      textChanged: true,
+      actingAsReviewer: true,
+      sessionKind: "translate",
+    })).toBe(false);
+  });
+
+  it("翻譯工作且譯文變更才取消", () => {
+    expect(shouldReopenCompleteOnTranslatorTargetEdit({
+      textChanged: true,
+      sessionKind: "translate",
+      actingAsReviewer: false,
+    })).toBe(true);
+  });
+
+  it("覆蓋該句的已完成翻譯與審稿都列入，其他段不列入", () => {
+    const covering = [
+      { id: "t-1-1", kind: "translate", workflowStatus: "completed" },
+      { id: "r-1-1", kind: "review", workflowStatus: "completed" },
+      { id: "t-2-2", kind: "translate", workflowStatus: "completed" },
+    ];
+    expect(assignmentIdsToReopenOnTranslatorEdit({
+      covering: covering.filter((a) => a.id !== "t-2-2"),
+    })).toEqual(["t-1-1", "r-1-1"]);
+  });
+
+  it("未完成指派不列入", () => {
+    expect(assignmentIdsToReopenOnTranslatorEdit({
+      covering: [{ id: "t-1-1", kind: "translate", workflowStatus: "in_progress" }],
+    })).toEqual([]);
   });
 });

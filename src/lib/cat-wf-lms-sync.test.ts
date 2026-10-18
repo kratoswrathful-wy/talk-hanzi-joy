@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyCatCompleteToCaseRows,
+  collabRowPatchFromReviewCompleteCheck,
   parseCatWfCompleteKind,
 } from "./cat-wf-complete-map";
 
@@ -48,16 +49,17 @@ describe("applyCatCompleteToCaseRows", () => {
     expect(out.anyTranslateTouched).toBe(true);
   });
 
-  it("completing review does not flip translate on the same id", () => {
+  it("completing review also completes corresponding translate on the same id", () => {
     const out = applyCatCompleteToCaseRows({
-      collabRows: [{ ...collab, taskCompleted: true }],
+      collabRows: [collab],
       reviewRows: [review],
       updates: [{ collabRowId: "row-1", taskCompleted: true, stageKind: "review" }],
     });
     expect(out.collabRows[0].taskCompleted).toBe(true);
     expect(out.collabRows[0].reviewTaskCompleted).toBe(true);
     expect(out.reviewRows[0].taskCompleted).toBe(true);
-    expect(out.anyTranslateTouched).toBe(false);
+    expect(out.anyTranslateTouched).toBe(true);
+    expect(out.allTranslateCompleted).toBe(true);
   });
 
   it("cancelling review keeps translate complete", () => {
@@ -92,7 +94,8 @@ describe("applyCatCompleteToCaseRows", () => {
     expect(out.collabRows[0].reviewTaskCompleted).toBe(true);
     expect(out.reviewRows[0].id).toBe("rev-row-9");
     expect(out.reviewRows[0].taskCompleted).toBe(true);
-    expect(out.collabRows[0].taskCompleted).toBe(false);
+    expect(out.collabRows[0].taskCompleted).toBe(true);
+    expect(out.anyTranslateTouched).toBe(true);
   });
 
   it("CAT review assignment id writes collab.reviewTaskCompleted via unique scope", () => {
@@ -102,7 +105,7 @@ describe("applyCatCompleteToCaseRows", () => {
       updates: [{ collabRowId: "rev-row-9", taskCompleted: true, stageKind: "review" }],
     });
     expect(out.collabRows[0].reviewTaskCompleted).toBe(true);
-    expect(out.collabRows[0].taskCompleted).toBe(false);
+    expect(out.collabRows[0].taskCompleted).toBe(true);
     expect(out.reviewRows[0].taskCompleted).toBe(true);
   });
 
@@ -122,5 +125,47 @@ describe("applyCatCompleteToCaseRows", () => {
     expect(out.collabRows[1].reviewTaskCompleted).toBe(false);
     expect(out.reviewRows[0].taskCompleted).toBe(true);
     expect(out.reviewRows[1].taskCompleted).toBe(false);
+  });
+
+  it("translator edit bulk uncomplete clears both flags on that row only", () => {
+    const row2 = {
+      ...collab,
+      id: "row-2",
+      lineRange: "11-20",
+      taskCompleted: true,
+      reviewTaskCompleted: true,
+    };
+    const out = applyCatCompleteToCaseRows({
+      collabRows: [
+        { ...collab, taskCompleted: true, reviewTaskCompleted: true },
+        row2,
+      ],
+      reviewRows: [
+        { ...review, taskCompleted: true },
+        { ...review, id: "row-2", lineRange: "11-20", taskCompleted: true },
+      ],
+      updates: [
+        { collabRowId: "row-1", taskCompleted: false, stageKind: "translate" },
+        { collabRowId: "row-1", taskCompleted: false, stageKind: "review" },
+      ],
+    });
+    expect(out.collabRows[0].taskCompleted).toBe(false);
+    expect(out.collabRows[0].reviewTaskCompleted).toBe(false);
+    expect(out.reviewRows[0].taskCompleted).toBe(false);
+    expect(out.collabRows[1].taskCompleted).toBe(true);
+    expect(out.collabRows[1].reviewTaskCompleted).toBe(true);
+    expect(out.reviewRows[1].taskCompleted).toBe(true);
+    expect(out.anyTranslateTouched).toBe(true);
+    expect(out.allTranslateCompleted).toBe(false);
+  });
+
+  it("LMS review checkbox patch completes translate when checking, keeps translate when unchecking", () => {
+    expect(collabRowPatchFromReviewCompleteCheck(true)).toEqual({
+      reviewTaskCompleted: true,
+      taskCompleted: true,
+    });
+    expect(collabRowPatchFromReviewCompleteCheck(false)).toEqual({
+      reviewTaskCompleted: false,
+    });
   });
 });

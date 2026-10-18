@@ -1,10 +1,11 @@
 /**
- * TASK-002：翻譯／審稿完成狀態各自獨立。
- * 審稿完成不得強制改寫翻譯指派或阻擋翻譯狀態；一段完成不能推論全部完成。
+ * TASK-002：完成連動（22:39）
+ * 單段審稿完成只帶「同檔同範圍」翻譯完成，不得整檔連坐。
+ * 譯者實際改譯文才取消該範圍翻譯／審稿完成；手動取消審稿不取消翻譯。
  */
 
 /**
- * 審稿完成是否要把同檔翻譯指派／翻譯步驟寫成完成。規格為永不。
+ * 審稿完成是否要把同檔「全部」翻譯指派寫成完成。規格為永不（舊整檔強制）。
  * @returns {false}
  */
 export function shouldForceTranslateCompletedDueToReview() {
@@ -30,11 +31,50 @@ export function assignmentRoleKind(a) {
   return "other";
 }
 
+function fileIdOf(a) {
+  if (a?.fileId != null && String(a.fileId).trim()) return String(a.fileId);
+  if (a?.file_id != null && String(a.file_id).trim()) return String(a.file_id);
+  return "";
+}
+
 /**
- * 使用者改哪一筆，就只更新那一筆；另一角色與其他範圍不得被自動寫入。
+ * @param {{ lineStart?: number|null, lineEnd?: number|null, line_start?: number|null, line_end?: number|null }} a
+ * @returns {string}
+ */
+export function assignmentRangeKey(a) {
+  const startRaw = a?.lineStart != null ? a.lineStart : a?.line_start;
+  const endRaw = a?.lineEnd != null ? a.lineEnd : a?.line_end;
+  if (startRaw == null && endRaw == null) return "whole";
+  const start = Number(startRaw != null ? startRaw : endRaw);
+  const end = Number(endRaw != null ? endRaw : startRaw);
+  return `${start}:${end}`;
+}
+
+/**
+ * @param {object} a
+ * @param {object} b
+ * @returns {boolean}
+ */
+export function assignmentsHaveExactSameRange(a, b) {
+  return assignmentRangeKey(a) === assignmentRangeKey(b);
+}
+
+/**
+ * @param {object} a
+ * @param {object} b
+ * @returns {boolean}
+ */
+export function assignmentsSameFile(a, b) {
+  const fa = fileIdOf(a);
+  const fb = fileIdOf(b);
+  if (!fa || !fb) return true;
+  return fa === fb;
+}
+
+/**
  * @param {{
  *   hits?: Array<{ id?: string, assignmentId?: string }>,
- *   allAssignments?: Array<{ id?: string, kind?: string, stageKind?: string, workflowStatus?: string }>,
+ *   allAssignments?: Array<{ id?: string }>,
  * }} [input]
  * @returns {string[]}
  */
@@ -54,8 +94,8 @@ export function assignmentIdsTouchedByUserHits(input) {
 /**
  * 舊「任一審稿完成 → 全檔翻譯完成」會多寫哪些翻譯指派。新規格應為空。
  * @param {{
- *   hits?: Array<{ id?: string, assignmentId?: string, kind?: string, stageKind?: string, workflowStatus?: string }>,
- *   allAssignments?: Array<{ id?: string, kind?: string, stageKind?: string, workflowStatus?: string }>,
+ *   hits?: Array<object>,
+ *   allAssignments?: Array<object>,
  * }} [input]
  * @returns {string[]}
  */
@@ -76,6 +116,44 @@ export function extraTranslateIdsForcedByReviewComplete(input) {
 }
 
 /**
+ * 手動審稿完成應一併完成的「同檔、精確同範圍」翻譯指派。
+ * 不含部分重疊的更大／其他範圍。
+ * @param {{ review?: object, all?: Array<object> }} [input]
+ * @returns {string[]}
+ */
+export function translateAssignmentsCompletedWithReview(input) {
+  const review = input?.review;
+  if (!review || assignmentRoleKind(review) !== "review") return [];
+  const all = Array.isArray(input?.all) ? input.all : [];
+  const seen = new Set();
+  const ids = [];
+  for (const a of all) {
+    if (assignmentRoleKind(a) !== "translate") continue;
+    if (!assignmentsSameFile(a, review)) continue;
+    if (!assignmentsHaveExactSameRange(a, review)) continue;
+    const id = String(a.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * 明確操作「整檔審稿全部完成」時，才列出該檔全部翻譯指派。
+ * @param {{ all?: Array<object>, isExplicitWholeFile?: boolean }} [input]
+ * @returns {string[]}
+ */
+export function translateIdsForExplicitWholeFileReviewComplete(input) {
+  if (!input?.isExplicitWholeFile) return [];
+  const all = Array.isArray(input?.all) ? input.all : [];
+  return all
+    .filter((a) => assignmentRoleKind(a) === "translate")
+    .map((a) => String(a.id || ""))
+    .filter(Boolean);
+}
+
+/**
  * 整檔步驟狀態只依該角色有效指派彙整；一段完成不能當成全部完成。
  * @param {string[]} statuses
  * @returns {'completed'|'active'|'pending'|null}
@@ -90,8 +168,9 @@ export function aggregateStageStatusFromAssignmentStatuses(statuses) {
 
 /**
  * 兩段列範圍是否重疊（含單點、開區間）。缺範圍視為整檔，與任何範圍重疊。
- * @param {{ lineStart?: number|null, lineEnd?: number|null, line_start?: number|null, line_end?: number|null }} a
- * @param {{ lineStart?: number|null, lineEnd?: number|null, line_start?: number|null, line_end?: number|null }} b
+ * 僅供診斷；完成連動不得用重疊去完成另一整段。
+ * @param {object} a
+ * @param {object} b
  * @returns {boolean}
  */
 export function assignmentRangesOverlap(a, b) {
@@ -109,14 +188,60 @@ export function assignmentRangesOverlap(a, b) {
   return ra.start <= rb.end && rb.start <= ra.end;
 }
 
+/**
+ * 譯者實際改譯文才取消完成。審稿工作階段、未改內容不觸發。
+ * @param {{
+ *   actingAsReviewer?: boolean,
+ *   sessionKind?: string|null,
+ *   textChanged?: boolean,
+ * }} [input]
+ * @returns {boolean}
+ */
+export function shouldReopenCompleteOnTranslatorTargetEdit(input) {
+  const o = input || {};
+  if (!o.textChanged) return false;
+  if (o.actingAsReviewer) return false;
+  if (String(o.sessionKind || "") === "review") return false;
+  return true;
+}
+
+/**
+ * 譯者改譯文時應取消完成的指派：覆蓋該句的已完成翻譯與審稿。
+ * @param {{ covering?: Array<object> }} [input]
+ * @returns {string[]}
+ */
+export function assignmentIdsToReopenOnTranslatorEdit(input) {
+  const covering = Array.isArray(input?.covering) ? input.covering : [];
+  const ids = [];
+  const seen = new Set();
+  for (const a of covering) {
+    const kind = assignmentRoleKind(a);
+    if (kind !== "translate" && kind !== "review") continue;
+    const st = String(a?.workflowStatus || a?.workflow_status || "");
+    if (st !== "completed") continue;
+    const id = String(a?.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 const WfCompleteIndependence = {
   shouldForceTranslateCompletedDueToReview,
   shouldLockTranslateDueToReviewComplete,
   assignmentRoleKind,
+  assignmentRangeKey,
+  assignmentsHaveExactSameRange,
+  assignmentsSameFile,
   assignmentIdsTouchedByUserHits,
   extraTranslateIdsForcedByReviewComplete,
+  translateAssignmentsCompletedWithReview,
+  translateIdsForExplicitWholeFileReviewComplete,
   aggregateStageStatusFromAssignmentStatuses,
   assignmentRangesOverlap,
+  shouldReopenCompleteOnTranslatorTargetEdit,
+  assignmentIdsToReopenOnTranslatorEdit,
 };
 
 if (typeof globalThis !== "undefined") {

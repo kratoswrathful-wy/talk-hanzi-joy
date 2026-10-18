@@ -61,7 +61,7 @@ export async function markCollabRowTaskCompletedFromCat(
   return setCollabRowTaskCompletedFromCat(supabase, caseId, collabRowId, true, completedAt, "translate");
 }
 
-/** CAT ↔ LMS 雙向：翻譯／審稿完成獨立寫入，不得互清 */
+/** CAT ↔ LMS 雙向：審稿完成帶同範圍翻譯完成；手動取消審稿不取消翻譯 */
 export async function setCollabRowTaskCompletedFromCat(
   supabase: SupabaseClient,
   caseId: string,

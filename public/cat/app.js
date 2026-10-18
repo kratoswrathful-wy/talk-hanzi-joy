@@ -1278,6 +1278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const extra = { targetTags: seg.targetTags };
         if (op === 'clear') extra.matchValue = '';
         await applyUpdateSegmentTarget(seg, newText, extra);
+        if (newText !== prevText) void _reopenRangeCompleteOnTranslatorEdit(seg);
     }
 
     async function runTextOpOnSelection(op) {
@@ -6611,6 +6612,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function _completeCorrespondingTranslateForReviewHits(hits) {
+        const api = window.WfCompleteIndependence;
+        const arr = window._currentFileStageAssignments || [];
+        const extra = [];
+        const seen = new Set();
+        for (const reviewHit of hits || []) {
+            if (!_isReviewStageAssignment(reviewHit) || reviewHit.workflowStatus !== 'completed') continue;
+            const ids = api && typeof api.translateAssignmentsCompletedWithReview === 'function'
+                ? (api.translateAssignmentsCompletedWithReview({ review: reviewHit, all: arr }) || [])
+                : arr
+                    .filter((a) => _isTranslateStageAssignment(a)
+                        && String(a.fileId || '') === String(reviewHit.fileId || '')
+                        && ((a.lineStart == null && a.lineEnd == null && reviewHit.lineStart == null && reviewHit.lineEnd == null)
+                            || (Number(a.lineStart) === Number(reviewHit.lineStart)
+                                && Number(a.lineEnd) === Number(reviewHit.lineEnd))))
+                    .map((a) => String(a.id));
+            for (const id of ids) {
+                const sid = String(id || '');
+                if (!sid || seen.has(sid)) continue;
+                seen.add(sid);
+                const t = arr.find((a) => String(a.id) === sid);
+                if (!t || t.workflowStatus === 'completed') continue;
+                await _updateAssignmentWorkflowStatusLocal(sid, 'completed');
+                const next = (window._currentFileStageAssignments || []).find((a) => String(a.id) === sid);
+                extra.push({ ...(next || t), workflowStatus: 'completed' });
+            }
+        }
+        return extra;
+    }
+
     async function _updateAssignmentWorkflowStatusLocal(assignmentId, workflowStatus, opts) {
         const allowDowngrade = !!(opts && opts.allowDowngrade);
         const arr = window._currentFileStageAssignments || [];
@@ -6741,11 +6772,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updatedReview };
             window._currentFileWorkflowStages = stages;
             const wfStatus = isComplete ? 'completed' : 'in_progress';
-            await _applyWorkflowStatusToStageAssignmentsFromDb(
+            const reviewAssigns = await _applyWorkflowStatusToStageAssignmentsFromDb(
                 fileId, reviewStage.id, wfStatus, { allowDowngrade: !isComplete },
             );
             if (isComplete) {
                 await enqueueStageSnapshot(fileId, reviewStage.id, 'post_review');
+                const translateStage = (window._currentFileWorkflowStages || []).find((s) => s.stageKind === 'translate');
+                if (translateStage) {
+                    const updatedTranslate = await DBService.updateFileWorkflowStageStatus(
+                        translateStage.id,
+                        'completed',
+                    );
+                    const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
+                    if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updatedTranslate };
+                    window._currentFileWorkflowStages = stages;
+                    await _applyWorkflowStatusToStageAssignmentsFromDb(
+                        fileId, translateStage.id, 'completed', { allowDowngrade: false },
+                    );
+                }
+                const allAssigns = (window._currentFileStageAssignments || []).filter((a) =>
+                    String(a.fileId) === String(fileId)
+                    && (_isTranslateStageAssignment(a) || _isReviewStageAssignment(a)),
+                );
+                await _syncLmsForAssignments(allAssigns, true);
+            } else {
+                await _syncLmsForAssignments(reviewAssigns, false);
             }
             showCatToast(isComplete ? '已標記審稿完成' : '已改回審稿執行中', 'info');
             refreshWfTaskCompleteToolbar();
@@ -7143,6 +7194,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _closeWfAdjustStatusModal();
                 return;
             }
+            const extraTranslateHits = await _completeCorrespondingTranslateForReviewHits(hits);
+            if (extraTranslateHits.length) hits.push(...extraTranslateHits);
             for (const h of hits) {
                 if (h && h.stageOnly) continue;
                 const allowStageDowngrade = _isTranslateStageAssignment(h)
@@ -7250,6 +7303,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (_isReviewStageAssignment(hit)) {
                 await _maybeCompleteReviewStageForFile(hit.fileId);
+                const extra = await _completeCorrespondingTranslateForReviewHits([
+                    { ...hit, ...updated, workflowStatus: 'completed' },
+                ]);
+                for (const t of extra) {
+                    await _reconcileStageStatusFromAssignments(t.fileId, t.fileWorkflowStageId);
+                    await _emitWfTaskCompleteToLms(t, fileMeta, true);
+                }
+            }
+            if (hit.fileWorkflowStageId) {
+                await _reconcileStageStatusFromAssignments(hit.fileId, hit.fileWorkflowStageId);
             }
             showCatToast('已標記任務完成', 'info');
             refreshWfTaskCompleteToolbar();
@@ -7727,6 +7790,65 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (seg.wfReviewRestoreSnapshot) seg.wfReviewRevokedPending = true;
         }
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+    }
+
+    const _wfReopenCompleteInFlight = new Set();
+
+    /** 譯者實際改已完成範圍譯文：取消該範圍翻譯完成；若審稿已完成一併取消。 */
+    async function _reopenRangeCompleteOnTranslatorEdit(seg) {
+        if (!seg) return;
+        const api = window.WfCompleteIndependence;
+        const should = api && typeof api.shouldReopenCompleteOnTranslatorTargetEdit === 'function'
+            ? api.shouldReopenCompleteOnTranslatorTargetEdit({
+                actingAsReviewer: typeof _isActingAsReviewer === 'function' && _isActingAsReviewer(),
+                sessionKind: currentWfSessionKind,
+                textChanged: true,
+            })
+            : (!(typeof _isActingAsReviewer === 'function' && _isActingAsReviewer()) && currentWfSessionKind !== 'review');
+        if (!should) return;
+        const arr = window._currentFileStageAssignments || [];
+        const covering = arr.filter((a) => _segInAssignmentLineRange(seg, a, currentFileId));
+        const ids = api && typeof api.assignmentIdsToReopenOnTranslatorEdit === 'function'
+            ? (api.assignmentIdsToReopenOnTranslatorEdit({ covering }) || [])
+            : covering
+                .filter((a) => a.workflowStatus === 'completed'
+                    && (_isTranslateStageAssignment(a) || _isReviewStageAssignment(a)))
+                .map((a) => String(a.id));
+        const unique = [];
+        const seen = new Set();
+        for (const id of ids) {
+            const sid = String(id || '');
+            if (!sid || seen.has(sid) || _wfReopenCompleteInFlight.has(sid)) continue;
+            seen.add(sid);
+            unique.push(sid);
+        }
+        if (!unique.length) return;
+        unique.forEach((id) => _wfReopenCompleteInFlight.add(id));
+        try {
+            const reopened = [];
+            for (const id of unique) {
+                await _updateAssignmentWorkflowStatusLocal(id, 'in_progress', { allowDowngrade: true });
+                const next = (window._currentFileStageAssignments || []).find((a) => String(a.id) === id);
+                if (next) reopened.push(next);
+            }
+            const seenStages = new Set();
+            for (const a of reopened) {
+                const key = `${a.fileId}:${a.fileWorkflowStageId}`;
+                if (!a.fileWorkflowStageId || seenStages.has(key)) continue;
+                seenStages.add(key);
+                await _reconcileStageStatusFromAssignments(a.fileId, a.fileWorkflowStageId, { allowDowngrade: true });
+            }
+            await _syncLmsForAssignments(reopened, false);
+            if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
+            if (currentProjectId && typeof _fillFilesWorkflowCellsAsync === 'function' && window._lastFilesListForProject) {
+                void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
+            }
+        } catch (e) {
+            console.error('[workflow] reopen complete on translator edit', e);
+            showCatToast('譯文已保存，但無法取消完成狀態，請稍後再試', 'error');
+        } finally {
+            unique.forEach((id) => _wfReopenCompleteInFlight.delete(id));
+        }
     }
 
     let _wfSkipTranslatorReviewCancelWarn = false;
@@ -25708,6 +25830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         seg.targetText = latest;
                         try {
                             await applyUpdateSegmentTarget(seg, latest);
+                            if (oldVal !== latest) void _reopenRangeCompleteOnTranslatorEdit(seg);
                         } catch (err) {
                             if (err && err.code === 'SEGMENT_REVISION_CONFLICT') return;
                             console.error('[譯文 debounce 寫庫失敗]', err, seg.id);
@@ -25811,7 +25934,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     
                     // Unconfirm immediately if edited and was confirmed
-                    const prevConfirmedText = editorUndoEditStart[seg.id] ?? seg.targetText ?? '';
+                    const prevConfirmedText = editorUndoEditStart[seg.id] ?? prevValForWf;
+                    if (newVal !== prevValForWf) {
+                        void _reopenRangeCompleteOnTranslatorEdit(seg);
+                    }
                     if (newVal !== prevConfirmedText && (seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg))) {
                         applyWorkflowRevokeOnTargetEdit(seg);
                         refreshStatusIconForRow(row, seg);
@@ -25888,6 +26014,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     seg.targetText = newVal;
                     try {
                         await applyUpdateSegmentTarget(seg, newVal);
+                        if (oldVal !== newVal) void _reopenRangeCompleteOnTranslatorEdit(seg);
                     } catch (err) {
                         if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
                             emitCollabEdit('end', seg, null);
@@ -38251,11 +38378,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!seg || undoBeforeBySegId.has(seg.id)) return;
             undoBeforeBySegId.set(seg.id, snapshotSegForUndo(seg));
         };
+        const origTargetBySegId = new Map();
         const saveAiBatchTarget = async (seg, extra) => {
             rememberUndoBefore(seg);
             try {
                 await applyUpdateSegmentTarget(seg, seg.targetText, extra || {});
                 saveStats.ok += 1;
+                if (origTargetBySegId.has(seg.id)
+                    && String(origTargetBySegId.get(seg.id) || '') !== String(seg.targetText || '')) {
+                    void _reopenRangeCompleteOnTranslatorEdit(seg);
+                }
             } catch (e) {
                 console.error(e);
                 saveStats.failed += 1;
@@ -38318,6 +38450,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             toProcess.push(seg);
+        }
+        for (const seg of toProcess) {
+            origTargetBySegId.set(seg.id, seg.targetText || '');
         }
 
         // TM filtering
