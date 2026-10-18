@@ -157,8 +157,14 @@ function openCatConfirmModal(message, options = {}) {
             titleEl.setAttribute('aria-hidden', 'true');
         }
         msgEl.textContent = message;
+        const prevOkLabel = btnOk.textContent;
+        const prevCancelLabel = btnCancel.textContent;
+        if (options.okLabel) btnOk.textContent = String(options.okLabel);
+        if (options.cancelLabel) btnCancel.textContent = String(options.cancelLabel);
         function cleanup() {
             modal.classList.add('hidden');
+            btnOk.textContent = prevOkLabel;
+            btnCancel.textContent = prevCancelLabel;
             btnOk.removeEventListener('click', onOk);
             btnCancel.removeEventListener('click', onCancel);
             modal.removeEventListener('click', onOverlay);
@@ -3217,8 +3223,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const _pmPrepFirstEditWarnedFiles = new Set();
+    let _aiBatchRunning = false;
+    let _suppressPrepFirstEditForAiBatch = false;
+    let _aiBatchPrepPromptedToken = null;
+    let _aiBatchJobToken = 0;
 
     async function _maybePmPrepFirstEditWarn() {
+        const skipApi = window.AiBatchPrepPrompt;
+        if (skipApi && typeof skipApi.shouldSkipFirstEditPromptForAiBatch === 'function'
+            && skipApi.shouldSkipFirstEditPromptForAiBatch({
+                batchRunning: !!_aiBatchRunning,
+                suppressFirstEdit: !!_suppressPrepFirstEditForAiBatch,
+            })) {
+            return true;
+        }
         if (!_isCatPmOrExecutive() || !currentFileId) return true;
         if (_pmPrepFirstEditWarnedFiles.has(String(currentFileId))) return true;
         if (!_currentFilePrepActive()) return true;
@@ -3519,6 +3537,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             : ok === true;
     }
 
+    async function _applyPrepCompleteNow(fileId, prepStageId) {
+        const fid = String(fileId);
+        const updated = await DBService.updateFileWorkflowStageStatus(prepStageId, 'completed');
+        const stages = (_workflowStagesForCurrentFile() || []).map((s) => ({ ...s }));
+        const idx = stages.findIndex((s) => String(s.id) === String(prepStageId));
+        if (idx >= 0) stages[idx] = { ...stages[idx], ...updated };
+        const translateStage = stages.find((s) => (s.stageKind || s.stage_kind) === 'translate');
+        if (translateStage && translateStage.status !== 'active' && translateStage.status !== 'completed') {
+            const updatedTr = await DBService.updateFileWorkflowStageStatus(translateStage.id, 'pending');
+            const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
+            if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updatedTr };
+        }
+        if (String(currentFileId) === fid) {
+            window._currentFileWorkflowStages = stages;
+            const map = { ...(window._currentFileWorkflowStagesByFileId || {}) };
+            map[fid] = stages;
+            window._currentFileWorkflowStagesByFileId = map;
+        }
+        await enqueueStageSnapshot(fileId, prepStageId, 'baseline_before_translate');
+        showCatToast('已標記準備完成', 'info');
+        refreshWfTaskCompleteToolbar();
+        if (window._lastFilesListForProject) {
+            void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
+        }
+        return true;
+    }
+
     async function _pmMarkPrepReady(fileId, prepStageId) {
         if (!_isCatPmOrExecutive()) {
             showCatToast('僅 PM 以上可標記準備完成', 'info');
@@ -3530,30 +3575,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             : '將作為翻譯前基準，確定譯文／MT 已就緒？';
         if (!(await openCatConfirmModal(msg, { title: '準備完成' }))) return false;
         try {
-            const updated = await DBService.updateFileWorkflowStageStatus(prepStageId, 'completed');
-            const fid = String(fileId);
-            const stages = (_workflowStagesForCurrentFile() || []).map((s) => ({ ...s }));
-            const idx = stages.findIndex((s) => String(s.id) === String(prepStageId));
-            if (idx >= 0) stages[idx] = { ...stages[idx], ...updated };
-            const translateStage = stages.find((s) => (s.stageKind || s.stage_kind) === 'translate');
-            if (translateStage) {
-                const updatedTr = await DBService.updateFileWorkflowStageStatus(translateStage.id, 'pending');
-                const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
-                if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updatedTr };
-            }
-            if (String(currentFileId) === fid) {
-                window._currentFileWorkflowStages = stages;
-                const map = { ...(window._currentFileWorkflowStagesByFileId || {}) };
-                map[fid] = stages;
-                window._currentFileWorkflowStagesByFileId = map;
-            }
-            await enqueueStageSnapshot(fileId, prepStageId, 'baseline_before_translate');
-            showCatToast('已標記準備完成', 'info');
-            refreshWfTaskCompleteToolbar();
-            if (window._lastFilesListForProject) {
-                void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
-            }
-            return true;
+            return await _applyPrepCompleteNow(fileId, prepStageId);
         } catch (e) {
             console.error('[workflow] mark prep ready', e);
             showCatToast('無法標記準備完成，請稍後再試', 'error');
@@ -6711,13 +6733,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isComplete = mode === 'completed';
         try {
             await _pmEnsurePrepCompletedForLadder(stages);
-            const translateStage = stages.find((s) => s.stageKind === 'translate');
-            if (translateStage && translateStage.status !== 'completed') {
-                const updatedTranslate = await DBService.updateFileWorkflowStageStatus(translateStage.id, 'completed');
-                const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
-                if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updatedTranslate };
-                await _applyWorkflowStatusToStageAssignmentsFromDb(fileId, translateStage.id, 'completed');
-            }
             const updatedReview = await DBService.updateFileWorkflowStageStatus(
                 reviewStage.id,
                 isComplete ? 'completed' : 'active',
@@ -6829,12 +6844,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const esc = (s) => String(s ?? '').replace(/</g, '&lt;');
         const rowHtml = (a, kind) => {
             const label = esc(_formatWfTaskAssignmentLabel(a));
-            const lockedHint = kind === 'translate' && _isTranslateLockedByAnyReviewComplete(a.fileId)
-                ? ' <span style="color:#b45309;">（仍有審稿完成；請先改審稿再降翻譯，或同次一併改）</span>'
-                : '';
-            // 不 disabled：允許同次套用「審稿離開完成＋翻譯降級」
             return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border:1px solid #e2e8f0;border-radius:6px;">`
-                + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}${lockedHint}</span>`
+                + `<span style="font-size:0.84rem;flex:1;min-width:0;">${label}</span>`
                 + _wfAdjustStatusSelectHtml(kind, a.id, a.workflowStatus, false)
                 + `</div>`;
         };
@@ -6907,44 +6918,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _closeWfAdjustStatusModal() {
         const modal = document.getElementById('wfAdjustStatusModal');
         if (modal) modal.classList.add('hidden');
-    }
-
-    /** 任一審稿分段 completed → 該檔翻譯鎖定（工項 D） */
-    function _isTranslateLockedByAnyReviewComplete(fileId) {
-        if (fileId == null) return false;
-        const fid = String(fileId);
-        const stages = window._currentFileWorkflowStages || [];
-        const reviewStage = stages.find((s) => s.stageKind === 'review');
-        if (!reviewStage) {
-            const byFile = window._currentFileWorkflowStagesByFileId || {};
-            const fileStages = byFile[fid] || [];
-            const rs = fileStages.find((s) => s.stageKind === 'review');
-            if (!rs) return false;
-            return (window._currentFileStageAssignments || []).some(
-                (a) => String(a.fileId) === fid
-                    && String(a.fileWorkflowStageId) === String(rs.id)
-                    && a.workflowStatus === 'completed',
-            );
-        }
-        return (window._currentFileStageAssignments || []).some(
-            (a) => String(a.fileId) === fid
-                && String(a.fileWorkflowStageId) === String(reviewStage.id)
-                && a.workflowStatus === 'completed',
-        );
-    }
-
-    async function _forceTranslateCompletedForFileDueToReview(fileId) {
-        const fid = String(fileId);
-        const stages = window._currentFileWorkflowStages || [];
-        const translateStage = stages.find((s) => s.stageKind === 'translate');
-        if (!translateStage) return;
-        if (translateStage.status !== 'completed') {
-            const updated = await DBService.updateFileWorkflowStageStatus(translateStage.id, 'completed');
-            const tIdx = stages.findIndex((s) => String(s.id) === String(translateStage.id));
-            if (tIdx >= 0) stages[tIdx] = { ...stages[tIdx], ...updated };
-            window._currentFileWorkflowStages = stages;
-        }
-        await _applyWorkflowStatusToStageAssignmentsFromDb(fid, translateStage.id, 'completed');
     }
 
     async function _reconcileStageStatusFromAssignments(fileId, stageId, opts) {
@@ -7170,23 +7143,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _closeWfAdjustStatusModal();
                 return;
             }
-            // 以套用後記憶體為準：仍有任一審稿 completed → 強制翻譯完成（鎖定）。
-            // 全審稿已離開完成 → 僅解 UI 鎖；禁止因此自動改寫翻譯 workflow_status／stage（工項 4）。
-            const touchedFileIds = new Set(hits.map((h) => String(h.fileId)));
-            const blockedTranslateDowngrade = [];
-            for (const fid of touchedFileIds) {
-                if (!_isTranslateLockedByAnyReviewComplete(fid)) continue;
-                const wantedDowngrade = hits.some(
-                    (h) => String(h.fileId) === fid
-                        && _isTranslateStageAssignment(h)
-                        && h.workflowStatus !== 'completed',
-                );
-                await _forceTranslateCompletedForFileDueToReview(fid);
-                if (wantedDowngrade) blockedTranslateDowngrade.push(fid);
-            }
-            if (blockedTranslateDowngrade.length) {
-                showCatToast('仍有審稿分段為「完成」，翻譯已維持鎖定；請先將全部審稿改為非完成後再降翻譯', 'info');
-            }
             for (const h of hits) {
                 if (h && h.stageOnly) continue;
                 const allowStageDowngrade = _isTranslateStageAssignment(h)
@@ -7293,7 +7249,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await _emitWfTaskCompleteToLms({ ...hit, ...updated }, fileMeta);
             }
             if (_isReviewStageAssignment(hit)) {
-                await _forceTranslateCompletedForFileDueToReview(hit.fileId);
                 await _maybeCompleteReviewStageForFile(hit.fileId);
             }
             showCatToast('已標記任務完成', 'info');
@@ -17080,17 +17035,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return r; // 'R1' | 'R2'
     }
 
-    /** 工項 D：審稿已有完成分段時，非審稿工作階段禁止改譯 */
-    function _isTranslateEditLockedByReviewComplete(seg) {
-        if (!_isTranslateLockedByAnyReviewComplete(seg?.fileId || currentFileId)) return false;
-        return currentWfSessionKind !== 'review';
-    }
-
     // 禁止編輯工具提示：區分「身分權限不足」與「匯入時即已鎖定」
     function getForbiddenTooltip(seg) {
-        if (_isTranslateEditLockedByReviewComplete(seg)) {
-            return '禁止編輯：審稿已有完成分段，翻譯已鎖定';
-        }
         if (!_isCatPmOrExecutive()) {
             const stages = _workflowStagesForSegment(seg);
             const prepBlocksEdit = typeof window.WfPrepUnlock?.prepIncompleteForbidsAssignedEdit === 'function'
@@ -17107,7 +17053,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 判斷句段是否「禁止編輯」（依當前 session 身分動態判斷）
     function isDynamicForbidden(seg) {
         if (_viewEditorReadOnly) return true;
-        if (_isTranslateEditLockedByReviewComplete(seg)) return true;
         if (computeSegmentEditForbidden(seg)) return true;
         if (_fileUnassignedReadOnly) return true;
         if (currentFileFormat !== 'mqxliff') return !!seg.isLockedSystem;
@@ -32166,14 +32111,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // =====================================================================
 
     // ---- AI Mode Toggle ----
-    (function initAiModeToggle() {
+    function _setAiModeActive(on) {
+        aiModeActive = !!on;
         const btn = document.getElementById('btnAiMode');
         const bar = document.getElementById('aiModeBar');
+        if (btn) btn.classList.toggle('active', aiModeActive);
+        if (bar) bar.style.display = aiModeActive ? 'flex' : 'none';
+    }
+
+    (function initAiModeToggle() {
+        const btn = document.getElementById('btnAiMode');
         if (!btn) return;
         btn.addEventListener('click', () => {
-            aiModeActive = !aiModeActive;
-            btn.classList.toggle('active', aiModeActive);
-            if (bar) bar.style.display = aiModeActive ? 'flex' : 'none';
+            _setAiModeActive(!aiModeActive);
         });
         const batchBtn = document.getElementById('btnAiBatchTranslate');
         if (batchBtn) batchBtn.addEventListener('click', () => openAiBatchModal());
@@ -38208,6 +38158,77 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function _canConfirmPrepAfterAiBatch() {
+        if (_isCatPmOrExecutive()) return true;
+        if (_fileUnassignedReadOnly) return false;
+        if (typeof isTeamMode === 'function' && !isTeamMode()) return true;
+        const uid = String(window._tmsCurrentUserId || '');
+        if (!uid) return false;
+        return (window._currentFileStageAssignments || []).some(
+            (a) => String(a.assigneeUserId || '') === uid,
+        );
+    }
+
+    async function _promptPrepAfterAiBatchIfNeeded() {
+        const api = window.AiBatchPrepPrompt;
+        if (!api) return;
+        const stages = _workflowStagesForCurrentFile() || [];
+        const prep = window.WfDisplayStatus && typeof window.WfDisplayStatus.wfStageByKind === 'function'
+            ? window.WfDisplayStatus.wfStageByKind(stages, 'prep')
+            : stages.find((s) => (s.stageKind || s.stage_kind) === 'prep');
+        const prepStatus = prep ? String(prep.status || '') : '';
+        const confirmed = await openCatConfirmModal(
+            api.PREP_AFTER_AI_MESSAGE,
+            {
+                title: api.PREP_AFTER_AI_TITLE || '準備完成',
+                okLabel: api.PREP_AFTER_AI_OK_LABEL || '確認',
+                cancelLabel: api.PREP_AFTER_AI_CANCEL_LABEL || '暫不',
+            },
+        );
+        const action = typeof api.resolvePrepConfirmApplyAction === 'function'
+            ? api.resolvePrepConfirmApplyAction({ confirmed: confirmed === true, prepStatus })
+            : (confirmed === true && prepStatus === 'active' ? 'apply' : 'skip-declined');
+        if (action !== 'apply' || !prep) return;
+        if (String(currentFileId || '') !== String(window._aiBatchFollowupFileId || currentFileId || '')) return;
+        try {
+            await _applyPrepCompleteNow(currentFileId, prep.id);
+        } catch (e) {
+            console.error('[workflow] prep after AI batch', e);
+            showCatToast('無法標記準備完成，請稍後再試', 'error');
+        }
+    }
+
+    async function _afterSuccessfulAiBatchTranslate(input) {
+        const api = window.AiBatchPrepPrompt;
+        const decision = api && typeof api.decideAfterSuccessfulBatch === 'function'
+            ? api.decideAfterSuccessfulBatch({
+                jobStatus: 'success',
+                leftoverMissing: input.leftoverMissing || 0,
+                saveFailed: input.saveFailed || 0,
+                saveUnknown: !!input.saveUnknown,
+                cancelled: !!input.cancelled,
+                currentFileId,
+                jobFileId: input.jobFileId,
+                jobToken: input.jobToken,
+                lastPromptedJobToken: _aiBatchPrepPromptedToken,
+                prepActive: _currentFilePrepActive(),
+                alreadyPrepCompleted: !_currentFilePrepActive(),
+                canConfirmPrep: _canConfirmPrepAfterAiBatch(),
+            })
+            : { exitAiMode: false, promptPrep: false };
+        try {
+            if (decision.exitAiMode) _setAiModeActive(false);
+            if (decision.promptPrep) {
+                _aiBatchPrepPromptedToken = input.jobToken;
+                window._aiBatchFollowupFileId = String(input.jobFileId || '');
+                await _promptPrepAfterAiBatchIfNeeded();
+            }
+        } finally {
+            _suppressPrepFirstEditForAiBatch = false;
+            window._aiBatchFollowupFileId = '';
+        }
+    }
+
     // ---- runAiBatchTranslate Orchestrator ----
     async function runAiBatchTranslate(config) {
         if (!currentSegmentsList || currentSegmentsList.length === 0) return;
@@ -38218,10 +38239,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.activeElement?.classList.contains('grid-textarea')) {
             document.activeElement.blur();
         }
+        _aiBatchRunning = true;
+        _suppressPrepFirstEditForAiBatch = true;
+        const jobFileId = currentFileId != null ? String(currentFileId) : '';
+        const jobToken = ++_aiBatchJobToken;
+        const saveStats = { ok: 0, failed: 0 };
+        let leftoverMissing = 0;
+        let followupOk = false;
         const undoBeforeBySegId = new Map();
         const rememberUndoBefore = (seg) => {
             if (!seg || undoBeforeBySegId.has(seg.id)) return;
             undoBeforeBySegId.set(seg.id, snapshotSegForUndo(seg));
+        };
+        const saveAiBatchTarget = async (seg, extra) => {
+            rememberUndoBefore(seg);
+            try {
+                await applyUpdateSegmentTarget(seg, seg.targetText, extra || {});
+                saveStats.ok += 1;
+            } catch (e) {
+                console.error(e);
+                saveStats.failed += 1;
+            }
         };
         const rangeLabel = config.filteredIds
             ? `篩選句段 (${config.filteredIds.size} 句)`
@@ -38305,9 +38343,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         segsToBatchAsk.push({ seg, tmText: bestMatch.targetText, score: bestScore });
                     } else {
                         // Direct apply TM
-                        rememberUndoBefore(seg);
                         seg.targetText = bestMatch.targetText;
-                        await applyUpdateSegmentTarget(seg, seg.targetText, {}).catch(console.error);
+                        await saveAiBatchTarget(seg, {});
                         tmSegs.push(seg);
                     }
                 } else {
@@ -38326,9 +38363,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const item of segsToBatchAsk) {
                 const choice = chosen?.find(c => c.segId === item.seg.id);
                 if (choice?.useAi) {
-                    rememberUndoBefore(item.seg);
                     item.seg.targetText = item.tmText;
-                    await applyUpdateSegmentTarget(item.seg, item.seg.targetText, {}).catch(console.error);
+                    await saveAiBatchTarget(item.seg, {});
                 } else {
                     segsForAi.push(item.seg);
                 }
@@ -38382,11 +38418,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const item of askItems) {
                 const choice = chosen?.find(c => c.segId === item.seg.id);
                 if (choice?.useAi && item.aiText) {
-                    rememberUndoBefore(item.seg);
                     item.seg.targetText = item.aiText;
                     item.seg.aiSuggestion = item.aiText;
                     item.seg.aiSuggestionAt = new Date().toISOString();
-                    await applyUpdateSegmentTarget(item.seg, item.seg.targetText, { aiSuggestion: item.aiText, aiSuggestionAt: item.seg.aiSuggestionAt }).catch(console.error);
+                    await saveAiBatchTarget(item.seg, { aiSuggestion: item.aiText, aiSuggestionAt: item.seg.aiSuggestionAt });
                 }
             }
         }
@@ -38403,6 +38438,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 total: 0
             });
             taskLogId = null;
+            followupOk = true;
             return;
         }
 
@@ -38532,11 +38568,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for (const r of result.results) {
                     const seg = batch.find(s => s.id === r.segId);
                     if (seg && r.translation) {
-                        rememberUndoBefore(seg);
                         seg.targetText = r.translation;
                         seg.aiSuggestion = r.translation;
                         seg.aiSuggestionAt = new Date().toISOString();
-                        await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+                        await saveAiBatchTarget(seg, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt });
                     }
                 }
                 rerenderCurrentSegments();
@@ -38589,13 +38624,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const r of retryResult.results) {
                 const seg = finalAiSegs.find(s => s.id === r.segId);
                 if (seg && r.translation) {
-                    rememberUndoBefore(seg);
                     seg.targetText = r.translation;
                     seg.aiSuggestion = r.translation;
                     seg.aiSuggestionAt = new Date().toISOString();
-                    await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+                    await saveAiBatchTarget(seg, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt });
                 }
             }
+            const recovered = new Set(
+                (retryResult.results || []).filter((r) => r && r.translation).map((r) => r.segId),
+            );
+            leftoverMissing = allMissing.filter((id) => !recovered.has(id)).length;
+        } else {
+            leftoverMissing = allMissing.length;
         }
 
             const undoItems = [];
@@ -38622,6 +38662,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             progressLabel: `完成（${processed}/${finalAiSegs.length} 句）`
         });
         taskLogId = null;
+        followupOk = true;
         } catch (err) {
             _showAiToast('批次翻譯失敗：' + (err?.message || String(err)), true);
             _finishAiTaskLog(taskLogId, {
@@ -38634,7 +38675,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (taskLogId) {
                 _finishAiTaskLog(taskLogId, { status: 'cancelled', progressLabel: '已停止' });
             }
+            _aiBatchRunning = false;
             _releaseAiFlowLock();
+            if (followupOk) {
+                void _afterSuccessfulAiBatchTranslate({
+                    jobFileId,
+                    jobToken,
+                    leftoverMissing,
+                    saveFailed: saveStats.failed,
+                });
+            } else {
+                _suppressPrepFirstEditForAiBatch = false;
+            }
         }
     }
 
