@@ -56,9 +56,9 @@ function seedTranslatorInvoice() {
 }
 
 async function seedClientInvoice() {
-  const invoice = await clientInvoiceStore.createInvoice("CCJK", [], { editLogFromCreation: true });
-  if (!invoice) throw new Error("client invoice seed failed");
-  return invoice;
+  const outcome = await clientInvoiceStore.createInvoice("CCJK", [], { editLogFromCreation: true });
+  if (!outcome.invoice) throw new Error("client invoice seed failed");
+  return outcome.invoice;
 }
 
 function pageTrackInvoiceChange(

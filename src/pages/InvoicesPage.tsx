@@ -48,6 +48,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { toast } from "sonner";
+import { applyInvoiceCreateOutcome } from "@/lib/invoice-create-outcome";
 import { supabase } from "@/integrations/supabase/client";
 import { TableHorizontalScrollButtons } from "@/components/TableHorizontalScrollButtons";
 
@@ -401,21 +402,25 @@ export default function InvoicesPage() {
       setShowTranslatorPicker(true);
     } else {
       const name = profile?.display_name || profile?.email || "";
-      const inv = await invoiceStore.createInvoice(name, []);
-      if (inv) {
-        toast.success("已建立請款單");
-        navigate(`/invoices/${inv.id}`, { state: { autoFocusTitle: true } });
+      const applied = applyInvoiceCreateOutcome(
+        await invoiceStore.createInvoice(name, []),
+        "已建立請款單",
+      );
+      if (applied.navigate && applied.invoiceId) {
+        navigate(`/invoices/${applied.invoiceId}`, { state: { autoFocusTitle: true } });
       }
     }
   }, [isAdmin, profile, navigate]);
 
   const handleConfirmTranslator = useCallback(async () => {
     if (!selectedTranslator) return;
-    const inv = await invoiceStore.createInvoice(selectedTranslator, []);
+    const applied = applyInvoiceCreateOutcome(
+      await invoiceStore.createInvoice(selectedTranslator, []),
+      "已建立請款單",
+    );
     setShowTranslatorPicker(false);
-    if (inv) {
-      toast.success("已建立請款單");
-      navigate(`/invoices/${inv.id}`, { state: { autoFocusTitle: true } });
+    if (applied.navigate && applied.invoiceId) {
+      navigate(`/invoices/${applied.invoiceId}`, { state: { autoFocusTitle: true } });
     }
   }, [selectedTranslator, navigate]);
 

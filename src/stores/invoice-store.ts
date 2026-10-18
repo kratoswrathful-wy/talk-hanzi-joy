@@ -36,6 +36,11 @@ import {
   persistAttemptedInvoiceLinks,
   type InvoiceLinkAddResult,
 } from "@/lib/invoice-link-add";
+import {
+  emptyInvoiceCreateOutcome,
+  resolveInvoiceAfterDuplicateLink,
+  type InvoiceCreateOutcome,
+} from "@/lib/invoice-create-outcome";
 import { keepLocalInvoiceAfterAck, revertUnchangedJobFields } from "@/lib/invoice-write-merge";
 
 type Listener = () => void;
@@ -264,7 +269,7 @@ export const invoiceStore = {
     translator: string,
     feeIds: string[],
     opts?: { editLogFromCreation?: boolean }
-  ): Promise<Invoice | null> => {
+  ): Promise<InvoiceCreateOutcome<Invoice>> => {
     const uid = await getUserId();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -291,6 +296,33 @@ export const invoiceStore = {
     invoices = [newInvoice, ...invoices];
     notify();
 
+    const confirmAfterDuplicate = (invoiceId: string) =>
+      resolveInvoiceAfterDuplicateLink<Invoice>({
+        wanted: uniqueFeeIds(feeIds),
+        fetchConfirmedInvoice: () => invoiceStore.fetchInvoiceById(invoiceId, { confirmLinks: true }),
+        persistRemaining: (missing) =>
+          persistAttemptedInvoiceLinks({
+            attempted: missing,
+            insert: async (ids) => {
+              const { error } = await supabase.from("invoice_fees").insert(
+                ids.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId, env })),
+              );
+              return { error };
+            },
+            fetchConfirmed: async (ids) => {
+              if (ids.length === 0) return { ids: [], error: null };
+              const res = await supabase
+                .from("invoice_fees")
+                .select("fee_id")
+                .eq("invoice_id", invoiceId)
+                .eq("env", env)
+                .in("fee_id", ids);
+              if (res.error) return { ids: [], error: res.error };
+              return { ids: uniqueFeeIds((res.data ?? []).map((row) => row.fee_id)), error: null };
+            },
+          }),
+      });
+
     if (feeIds.length > 0) {
       const existing = await supabase
         .from("invoice_fees")
@@ -305,7 +337,9 @@ export const invoiceStore = {
         if (reuseId) {
           invoices = invoices.filter((item) => item.id !== id);
           notify();
-          return invoices.find((item) => item.id === reuseId) ?? (await invoiceStore.fetchInvoiceById(reuseId));
+          const reused = await confirmAfterDuplicate(reuseId);
+          if (!reused.complete) rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, reuseId);
+          return reused;
         }
       }
       const localReuseId = findLocalReusableInvoiceId(invoices, feeIds, id)
@@ -317,17 +351,21 @@ export const invoiceStore = {
         const { error: retryErr } = await supabase.from("invoice_fees").insert(retryLinks);
         if (retryErr && !isInvoiceLinkAlreadyExists(retryErr)) {
           toast.error(invoiceLinkFailureMessage(decideInvoiceLinkCleanup(retryErr)));
-          return null;
+          rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, localReuseId);
+          return emptyInvoiceCreateOutcome({
+            invoice: invoices.find((item) => item.id === localReuseId) ?? null,
+            missing: uniqueFeeIds(feeIds),
+            notified: true,
+          });
         }
         forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
-        if (retryErr && isInvoiceLinkAlreadyExists(retryErr)) {
-          return (await invoiceStore.fetchInvoiceById(localReuseId)) ?? invoices.find((item) => item.id === localReuseId) ?? null;
-        }
         invoices = invoices.map((item) =>
           item.id === localReuseId ? { ...item, feeIds: uniqueFeeIds([...item.feeIds, ...feeIds]) } : item,
         );
         notify();
-        return invoices.find((item) => item.id === localReuseId) ?? (await invoiceStore.fetchInvoiceById(localReuseId));
+        const retried = await confirmAfterDuplicate(localReuseId);
+        if (!retried.complete) rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, localReuseId);
+        return retried;
       }
     }
 
@@ -346,11 +384,17 @@ export const invoiceStore = {
       console.error("Failed to create invoice:", error);
       if (classifyInvoiceWriteCertainty(error) === "unknown") {
         toast.error("新建請款單結果不明。請重整後核對，請勿再按一次新建。");
-        return null;
+        rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, id);
+        return emptyInvoiceCreateOutcome({
+          invoice: invoices.find((item) => item.id === id) ?? newInvoice,
+          uncertain: true,
+          missing: uniqueFeeIds(feeIds),
+          notified: true,
+        });
       }
       invoices = invoices.filter((i) => i.id !== id);
       notify();
-      return null;
+      return emptyInvoiceCreateOutcome({ missing: uniqueFeeIds(feeIds) });
     }
 
     if (feeIds.length > 0) {
@@ -358,7 +402,9 @@ export const invoiceStore = {
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links);
       if (linkErr && isInvoiceLinkAlreadyExists(linkErr)) {
         forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
-        return (await invoiceStore.fetchInvoiceById(id)) ?? newInvoice;
+        const confirmed = await confirmAfterDuplicate(id);
+        if (!confirmed.complete) rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, id);
+        return confirmed;
       }
       if (linkErr) {
         console.error("Failed to link fees:", linkErr);
@@ -368,7 +414,11 @@ export const invoiceStore = {
           invoices = invoices.map((item) => (item.id === id ? invoiceWithoutClaimedFees(item) : item));
           rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, id);
           notify();
-          return null;
+          return emptyInvoiceCreateOutcome({
+            invoice: invoices.find((item) => item.id === id) ?? null,
+            missing: uniqueFeeIds(feeIds),
+            notified: true,
+          });
         }
         const { data: deleted, error: delErr } = await supabase.from("invoices").delete().eq("id", id).select("id");
         const deleteCheck = interpretInvoiceDeleteResult(delErr, deleted);
@@ -376,8 +426,15 @@ export const invoiceStore = {
         if (deleteCheck.kind === "deleted") {
           invoices = invoices.filter((i) => i.id !== id);
           notify();
+          return emptyInvoiceCreateOutcome({ missing: uniqueFeeIds(feeIds), notified: true });
         }
-        return null;
+        rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, id);
+        return emptyInvoiceCreateOutcome({
+          invoice: invoices.find((item) => item.id === id) ?? newInvoice,
+          uncertain: true,
+          missing: uniqueFeeIds(feeIds),
+          notified: true,
+        });
       }
     }
 
@@ -387,7 +444,13 @@ export const invoiceStore = {
       notify();
     }
 
-    return newInvoice;
+    if (feeIds.length > 0) {
+      const confirmed = await confirmAfterDuplicate(id);
+      if (!confirmed.complete) rememberUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds, id);
+      else forgetUnconfirmedInvoiceId(unconfirmedInvoiceByFees, feeIds);
+      return confirmed;
+    }
+    return { invoice: invoices.find((item) => item.id === id) ?? newInvoice, complete: true, uncertain: false, missing: [] };
   },
 
   updateInvoice: async (
@@ -582,7 +645,7 @@ export const invoiceStore = {
   },
 
   /** 單筆補抓：list load 競態時供 agent.get／create 回讀使用。 */
-  fetchInvoiceById: async (id: string): Promise<Invoice | null> => {
+  fetchInvoiceById: async (id: string, opts?: { confirmLinks?: boolean }): Promise<Invoice | null> => {
     const env = getEnvironment();
     const { data, error } = await supabase
       .from("invoices")
@@ -601,7 +664,10 @@ export const invoiceStore = {
         .range(from, to);
       return { data: res.data, error: res.error };
     });
-    if (!linkPages.ok) return invoices.find((i) => i.id === id) ?? null;
+    if (!linkPages.ok) {
+      if (opts?.confirmLinks) return null;
+      return invoices.find((i) => i.id === id) ?? null;
+    }
     const feeIds = uniqueFeeIds(linkPages.rows.map((l) => l.fee_id));
     const mapped = dbToApp(data as DbInvoice, feeIds);
     const previousById = new Map(invoices.map((inv) => [inv.id, inv]));

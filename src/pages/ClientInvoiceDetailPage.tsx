@@ -34,7 +34,7 @@ import { wrapLatestSetter } from "@/lib/commit-latest-state";
 import { appendInvoiceEditLog, collectBufferedInvoiceFlushes, invoiceUpdatesWithOptionalLogs } from "@/lib/invoice-detail-commits";
 import { hydrateInvoiceEditLogsOnOpen } from "@/lib/invoice-edit-logs";
 import { uniqueFeeIds } from "@/lib/invoice-fee-ids";
-import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
+import { handleInvoiceDetailAddFees } from "@/lib/invoice-fee-add-log";
 import { filterEditLogsClientInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
@@ -729,13 +729,23 @@ export default function ClientInvoiceDetailPage() {
   };
 
   const handleAddFees = async () => {
-    const result = await clientInvoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
-    const ui = applyInvoiceLinkAddFeedback(result);
-    if (ui.shouldLogAdded) {
-      const addedNames = result.added.map((fid) => fees.find((f) => f.id === fid)?.title || "未命名").join(", ");
-      await trackChange("費用", "", `新增 ${result.added.length} 筆: ${addedNames}`);
-    }
-    if (ui.closePicker) {
+    const previousLogs = [...editLogLatest.current];
+    const { closePicker } = await handleInvoiceDetailAddFees({
+      add: () => clientInvoiceStore.addFeesToInvoice(invoice.id, selectedAddFees),
+      started: !!invoice.editLogStartedAt,
+      previousLogs,
+      addedDescription: (addedIds) => {
+        const addedNames = addedIds.map((fid) => fees.find((f) => f.id === fid)?.title || "未命名").join(", ");
+        return { field: "費用", oldValue: "", newValue: `新增 ${addedIds.length} 筆: ${addedNames}` };
+      },
+      append: appendLog,
+      persist: (logs) => clientInvoiceStore.updateInvoice(invoice.id, { edit_logs: logs }),
+      revert: (previous) => {
+        editLogLatest.current = previous;
+        setEditLogState(previous);
+      },
+    });
+    if (closePicker) {
       setSelectedAddFees([]);
       setAddFeeOpen(false);
     }

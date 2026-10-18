@@ -1206,8 +1206,20 @@ export function buildLmsAgentApi(): LmsAgentApi {
       },
 
       create: async ({ translator, feeIds = [], title }) => {
-        const created = await invoiceStore.createInvoice(translator, feeIds);
-        if (!created) return failWriteFailed("譯者請款", "建立譯者請款失敗");
+        const createdOutcome = await invoiceStore.createInvoice(translator, feeIds);
+        if (!createdOutcome.complete || !createdOutcome.invoice) {
+          if (createdOutcome.invoice) {
+            invoiceStore.ensureLocalPresent(createdOutcome.invoice);
+            return ok(createdOutcome.invoice);
+          }
+          return failWriteFailed(
+            "譯者請款",
+            createdOutcome.uncertain
+              ? "建立結果待確認，請重整後核對，請勿再建立"
+              : "建立譯者請款失敗",
+          );
+        }
+        const created = createdOutcome.invoice;
         // 並行 load 可能覆寫；補回本機列後再改 title
         invoiceStore.ensureLocalPresent(created);
         if (title) invoiceStore.updateInvoice(created.id, { title });
@@ -1292,11 +1304,13 @@ export function buildLmsAgentApi(): LmsAgentApi {
           trimmedTitle = String(title).trim();
         }
 
-        const created = await clientInvoiceStore.createInvoice(clientVal, feeIds);
-        if (!created) {
+        const createdOutcome = await clientInvoiceStore.createInvoice(clientVal, feeIds);
+        if (!createdOutcome.invoice) {
           return failWriteFailed(
             "客戶請款",
-            "可能無 PM 以上權限或 RLS 拒絕，資料庫確認未寫入",
+            createdOutcome.uncertain
+              ? "建立結果待確認，請重整後核對，請勿再建立"
+              : "可能無 PM 以上權限或 RLS 拒絕，資料庫確認未寫入",
           );
         }
 
@@ -1304,7 +1318,10 @@ export function buildLmsAgentApi(): LmsAgentApi {
         // 補寫 title）是否順利，一律回 ok:true + created:true，只在
         // verified 欄位反映是否完全符合預期，禁止回 ok:false 讓呼叫端
         // 誤判「未建立」而重試造成重複請款單。
-        let finalInvoice: ClientInvoice = created;
+        let finalInvoice: ClientInvoice = createdOutcome.invoice;
+        if (!createdOutcome.complete) {
+          return ok({ invoice: finalInvoice, created: true, verified: false });
+        }
         let verified = finalInvoice.client === clientVal;
 
         if (trimmedTitle) {
@@ -1313,11 +1330,11 @@ export function buildLmsAgentApi(): LmsAgentApi {
           const titleDeadline = Date.now() + STORE_READBACK_TIMEOUT_MS;
           let titleOk = false;
           while (Date.now() < titleDeadline) {
-            const { error: titleErr } = await clientInvoiceStore.updateInvoice(created.id, {
+            const { error: titleErr } = await clientInvoiceStore.updateInvoice(finalInvoice.id, {
               title: trimmedTitle,
             });
             const latest = await awaitStoreReadback(
-              () => clientInvoiceStore.getInvoiceById(created.id),
+              () => clientInvoiceStore.getInvoiceById(finalInvoice.id),
               { timeoutMs: 400, intervalMs: STORE_READBACK_INTERVAL_MS },
             );
             if (latest) finalInvoice = latest;

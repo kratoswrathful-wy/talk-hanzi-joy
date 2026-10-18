@@ -6,6 +6,7 @@ import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { toast } from "sonner";
 import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
+import { applyInvoiceCreateOutcome } from "@/lib/invoice-create-outcome";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import { currencyStore } from "@/stores/currency-store";
 import { useSyncExternalStore } from "react";
@@ -283,16 +284,16 @@ export default function ClientInfoSection({
                         <DropdownMenuItem
                           onClick={async () => {
                             try {
-                              const inv = await clientInvoiceStore.createInvoice(clientInfo.client, [currentFeeId]);
-                              if (inv) {
-                                toast.success("已收錄至客戶請款單");
-                                setShowInvoiceNavPrompt({ invoiceId: inv.id });
+                              const applied = applyInvoiceCreateOutcome(
+                                await clientInvoiceStore.createInvoice(clientInfo.client, [currentFeeId]),
+                                "已收錄至客戶請款單",
+                              );
+                              if (applied.navigate && applied.invoiceId) {
+                                setShowInvoiceNavPrompt({ invoiceId: applied.invoiceId });
                                 setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
-                              } else {
-                                toast.error("收錄失敗：請款單或費用關聯未寫入。");
                               }
                             } catch {
-                              toast.error("收錄失敗：請款單或費用關聯未寫入。");
+                              toast.error("新建請款單發生例外。請重整後核對，請勿再按一次新建。");
                             }
                           }}
                         >

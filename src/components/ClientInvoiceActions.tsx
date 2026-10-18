@@ -27,6 +27,7 @@ import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { type TranslatorFee } from "@/data/fee-mock-data";
 import { toast } from "sonner";
 import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
+import { applyInvoiceCreateOutcome } from "@/lib/invoice-create-outcome";
 
 interface ClientInvoiceActionsProps {
   selectedFees: TranslatorFee[];
@@ -110,12 +111,12 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
       handleActionClick();
       return;
     }
-    const inv = await clientInvoiceStore.createInvoice(clients[0], feeIds);
-    if (inv) {
-      toast.success("已建立客戶請款單");
-      navigate(`/client-invoices/${inv.id}`);
-    } else {
-      toast.error("收錄失敗：請款單或費用關聯未寫入。");
+    const applied = applyInvoiceCreateOutcome(
+      await clientInvoiceStore.createInvoice(clients[0], feeIds),
+      "已建立客戶請款單",
+    );
+    if (applied.navigate && applied.invoiceId) {
+      navigate(`/client-invoices/${applied.invoiceId}`);
     }
     onDone();
   };
@@ -165,11 +166,12 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
 
     let count = 0;
     for (const [client, feeIds] of byClient) {
-      const inv = await clientInvoiceStore.createInvoice(client, feeIds, { editLogFromCreation: true });
-      if (inv) count++;
+      const outcome = await clientInvoiceStore.createInvoice(client, feeIds, { editLogFromCreation: true });
+      if (outcome.complete) count++;
+      else applyInvoiceCreateOutcome(outcome, "已建立客戶請款單");
     }
 
-    toast.success(`已為 ${count} 個客戶建立請款單`);
+    if (count > 0) toast.success(`已為 ${count} 個客戶建立請款單`);
     setShowMultiConfirm(false);
     onDone();
   };

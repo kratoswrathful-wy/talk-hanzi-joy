@@ -45,6 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { toast } from "sonner";
+import { applyInvoiceCreateOutcome } from "@/lib/invoice-create-outcome";
 import { supabase } from "@/integrations/supabase/client";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
 import { TableHorizontalScrollButtons } from "@/components/TableHorizontalScrollButtons";
@@ -525,11 +526,13 @@ export default function ClientInvoicesPage() {
 
   const handleConfirmCreate = useCallback(async () => {
     if (!newClientName.trim()) return;
-    const inv = await clientInvoiceStore.createInvoice(newClientName.trim(), []);
+    const applied = applyInvoiceCreateOutcome(
+      await clientInvoiceStore.createInvoice(newClientName.trim(), []),
+      "已建立客戶請款單",
+    );
     setShowClientInput(false);
-    if (inv) {
-      toast.success("已建立客戶請款單");
-      navigate(`/client-invoices/${inv.id}`, { state: { autoFocusTitle: true } });
+    if (applied.navigate && applied.invoiceId) {
+      navigate(`/client-invoices/${applied.invoiceId}`, { state: { autoFocusTitle: true } });
     }
   }, [newClientName, navigate]);
 

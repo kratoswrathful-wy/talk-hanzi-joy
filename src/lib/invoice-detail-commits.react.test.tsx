@@ -202,7 +202,8 @@ describe("兩種請款修改紀錄真元件接線", () => {
   });
 
   it("客戶請款：打完直接卸載（模擬點側欄）仍送出 note 與紀錄", async () => {
-    const invoice = await clientInvoiceStore.createInvoice("CCJK", [], { editLogFromCreation: true });
+    const created = await clientInvoiceStore.createInvoice("CCJK", [], { editLogFromCreation: true });
+    const invoice = created.invoice;
     if (!invoice) throw new Error("seed failed");
     const persistCalls: Array<Record<string, unknown>> = [];
     const container = document.createElement("div");

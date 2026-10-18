@@ -7,6 +7,7 @@ import { CommentInput } from "@/components/comments/CommentInput";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { invoiceStore } from "@/stores/invoice-store";
 import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
+import { applyInvoiceCreateOutcome } from "@/lib/invoice-create-outcome";
 import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 
 import { Textarea } from "@/components/ui/textarea";
@@ -2312,13 +2313,13 @@ export default function TranslatorFeeDetail() {
                         <DropdownMenuItem
                           onClick={async () => {
                             if (!id) return;
-                            const inv = await invoiceStore.createInvoice(assignee, [id], { editLogFromCreation: true });
-                            if (inv) {
-                              toast.success("已收錄至稿費請款單");
-                              setShowInvoiceNavPrompt({ type: 'translator', invoiceId: inv.id });
+                            const applied = applyInvoiceCreateOutcome(
+                              await invoiceStore.createInvoice(assignee, [id], { editLogFromCreation: true }),
+                              "已收錄至稿費請款單",
+                            );
+                            if (applied.navigate && applied.invoiceId) {
+                              setShowInvoiceNavPrompt({ type: 'translator', invoiceId: applied.invoiceId });
                               setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
-                            } else {
-                              toast.error("收錄失敗：請款單或費用關聯未寫入。");
                             }
                           }}
                         >
