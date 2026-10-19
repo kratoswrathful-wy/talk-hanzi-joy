@@ -7700,11 +7700,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         return st === 'review_revoked_editing' || st === 'unconfirmed' || st === 'trans_confirmed' || st === 'post_review_trans';
     }
 
+    function _wfMemberWorkKindInput(seg) {
+        const stages = seg
+            ? _workflowStagesForSegment(seg)
+            : (window._currentFileWorkflowStages || []);
+        const sessionSt = _workflowSessionStage(stages);
+        return {
+            assignments: window._currentFileStageAssignments || [],
+            userId: String(window._tmsCurrentUserId || ''),
+            sessionStageId: sessionSt && sessionSt.id,
+            sessionKind: currentWfSessionKind,
+            viewId: _currentViewId,
+            reviewStageStatus: (stages.find((s) => (s.stageKind || s.stage_kind) === 'review') || {}).status,
+        };
+    }
+
+    function _resolveMemberWorkKind(seg) {
+        const api = window.WfCompleteIndependence;
+        if (api && typeof api.resolveMemberWorkKind === 'function') {
+            return api.resolveMemberWorkKind(_wfMemberWorkKindInput(seg));
+        }
+        return currentWfSessionKind || null;
+    }
+
     /** PM+ 或 session 身分：目前視為審稿 */
     function _isActingAsReviewer() {
         if (currentWfSessionKind === 'review') return true;
         if (currentWfSessionKind === 'translate') return false;
         if (_isCatPmOrExecutive()) return true;
+        const kind = _resolveMemberWorkKind();
+        if (kind === 'translate') return false;
+        if (kind === 'review') return true;
         const stages = window._currentFileWorkflowStages || [];
         const active = _workflowSessionStage(stages);
         return !!(active && active.stageKind === 'review');
@@ -7756,6 +7782,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (currentWfSessionKind) {
             return currentWfSessionKind === 'review' ? ['review'] : ['translate'];
         }
+        const memberKind = _resolveMemberWorkKind(seg);
+        if (memberKind === 'review') return ['review'];
+        if (memberKind === 'translate') return ['translate'];
         const stages = _workflowStagesForSegment(seg);
         const active = _workflowSessionStage(stages);
         if (active) {

@@ -15,6 +15,7 @@ import {
   memberSegmentEditForbidden,
   reviewStageForbidsMemberEdit,
   reviewAssignmentRangeCompleted,
+  resolveMemberWorkKind,
 } from "./wf-complete-independence.js";
 
 const assigns = [
@@ -334,6 +335,41 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       segmentReviewConfirmed: true,
     })).toBe(false);
     expect(reviewAssignmentRangeCompleted(withSegConfirm, 1)).toBe(false);
+  });
+
+  it("單人整檔：翻譯完成後跳到未指派審稿、未明示身分 → 仍視為翻譯工作", () => {
+    expect(resolveMemberWorkKind({
+      assignments: cWhole,
+      userId: t1,
+      sessionStageId: "d-review",
+      sessionKind: null,
+      reviewStageStatus: "pending",
+    })).toBe("translate");
+    expect(shouldReopenCompleteOnTranslatorTargetEdit({
+      textChanged: true,
+      sessionKind: null,
+      actingAsReviewer: false,
+    })).toBe(true);
+  });
+
+  it("審稿進行中、譯者只有翻譯指派、未明示身分 → 視為翻譯", () => {
+    expect(resolveMemberWorkKind({
+      assignments: aSplit,
+      userId: t2,
+      sessionStageId: "d-review",
+      sessionKind: null,
+      reviewStageStatus: "active",
+    })).toBe("translate");
+  });
+
+  it("明示審稿身分時仍為審稿，不因翻譯指派改判", () => {
+    expect(resolveMemberWorkKind({
+      assignments: cWhole,
+      userId: t1,
+      sessionStageId: "d-review",
+      sessionKind: "review",
+      reviewStageStatus: "pending",
+    })).toBe("review");
   });
 
   it("該分段審稿指派已完成、整檔審稿仍進行中：該段譯者仍可改（用來取消完成）", () => {

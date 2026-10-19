@@ -371,6 +371,39 @@ export function assignmentCoversLine(a, lineNo) {
 }
 
 /**
+ * 未明示工作身分時，依本人實際指派決定目前是翻譯還是審稿。
+ * 翻譯完成後工作步驟可能跳到尚未指派的審稿；此時仍視為翻譯，才能取消完成、確認譯文。
+ * 明示翻譯／審稿身分時，仍以明示為準。
+ * @param {{
+ *   assignments?: Array<object>,
+ *   userId?: string,
+ *   sessionStageId?: string,
+ *   sessionKind?: string|null,
+ *   viewId?: string|null,
+ *   reviewStageStatus?: string|null,
+ * }} [input]
+ * @returns {'translate'|'review'|null}
+ */
+export function resolveMemberWorkKind(input) {
+  const explicit = String(input?.sessionKind || "").trim().toLowerCase();
+  if (explicit === "translate" || explicit === "review") return explicit;
+  const mine = resolveMemberEditAssignments(input);
+  const seen = new Set();
+  const kinds = [];
+  for (const a of mine) {
+    const k = assignmentRoleKind(a);
+    if (k !== "translate" && k !== "review") continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    kinds.push(k);
+  }
+  if (kinds.length === 1) return kinds[0];
+  if (kinds.includes("translate")) return "translate";
+  if (kinds.includes("review")) return "review";
+  return null;
+}
+
+/**
  * 成員句段是否因檔案／分段狀態禁止編輯。
  * - 整份檔案審稿步驟完成 → 譯者不能改
  * - 該分段審稿指派完成、且此人沒有覆蓋該列的翻譯或審稿指派 → 不能改
@@ -413,6 +446,7 @@ const WfCompleteIndependence = {
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
   resolveMemberEditAssignments,
+  resolveMemberWorkKind,
   assignmentCoversLine,
   memberSegmentEditForbidden,
   reviewStageForbidsMemberEdit,
