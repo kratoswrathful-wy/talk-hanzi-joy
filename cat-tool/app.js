@@ -7560,6 +7560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sessionStageId: activeStage.id,
                 sessionKind: currentWfSessionKind,
                 viewId: _currentViewId,
+                reviewStageStatus: (stages.find((s) => (s.stageKind || s.stage_kind) === 'review') || {}).status,
             })
             : stageAssigns.filter((a) => String(a.fileWorkflowStageId) === String(activeStage.id)
                 && (!_currentViewId || !a.viewId || String(a.viewId) === String(_currentViewId))

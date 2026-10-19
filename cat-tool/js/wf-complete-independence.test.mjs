@@ -248,12 +248,13 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     },
   ];
 
-  it("單人整檔：翻譯已完成、審稿尚未指派、未明示身分 → 兩句都可編", () => {
+  it("單人整檔：翻譯已完成、審稿尚未開始也尚未指派、未明示身分 → 兩句都可編", () => {
     const base = {
       assignments: cWhole,
       userId: t1,
       sessionStageId: "d-review",
       sessionKind: null,
+      reviewStageStatus: "pending",
     };
     expect(memberSegmentEditForbidden({ ...base, lineNo: 1 })).toBe(false);
     expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(false);
@@ -265,19 +266,43 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       userId: t1,
       sessionStageId: "d-review",
       sessionKind: "review",
+      reviewStageStatus: "pending",
       lineNo: 1,
     })).toBe(true);
   });
 
-  it("多人：譯者二沒有審稿指派、工作步驟已是審稿、未明示身分 → 仍可改自己的 2-2，不能改 1-1", () => {
+  it("審稿已開始：譯者沒有審稿指派時維持不能改，不靠翻譯指派解鎖", () => {
     const base = {
       assignments: aSplit,
       userId: t2,
       sessionStageId: "d-review",
       sessionKind: null,
+      reviewStageStatus: "active",
     };
-    expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(false);
+    expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(true);
     expect(memberSegmentEditForbidden({ ...base, lineNo: 1 })).toBe(true);
+  });
+
+  it("審稿完成：譯者沒有審稿指派時維持不能改", () => {
+    expect(memberSegmentEditForbidden({
+      assignments: cWhole,
+      userId: t1,
+      sessionStageId: "d-review",
+      sessionKind: null,
+      reviewStageStatus: "completed",
+      lineNo: 1,
+    })).toBe(true);
+  });
+
+  it("審稿進行中：本人有審稿指派的列仍可編", () => {
+    expect(memberSegmentEditForbidden({
+      assignments: aSplit,
+      userId: t1,
+      sessionStageId: "d-review",
+      sessionKind: null,
+      reviewStageStatus: "active",
+      lineNo: 1,
+    })).toBe(false);
   });
 
   it("未受派者仍禁止", () => {
@@ -286,6 +311,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       userId: "nobody",
       sessionStageId: "d-review",
       sessionKind: null,
+      reviewStageStatus: "pending",
       lineNo: 1,
     })).toBe(true);
   });

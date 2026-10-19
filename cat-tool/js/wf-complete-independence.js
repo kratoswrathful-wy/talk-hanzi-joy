@@ -289,16 +289,22 @@ function assignmentSameView(a, viewId) {
   return String(vid) === String(viewId);
 }
 
+function reviewStageHasStarted(reviewStageStatus) {
+  const st = String(reviewStageStatus || "").trim().toLowerCase();
+  return st === "active" || st === "completed";
+}
+
 /**
- * 已完成翻譯整步後，檔案工作步驟可能跳到尚未指派的審稿。
- * 未明示身分時，改用「本人所有指派」判斷可否編輯，避免完成後整檔鎖死。
- * 明示翻譯／審稿身分時，仍只看該步本人指派，不擴大未受派範圍。
+ * 已完成翻譯整步、審稿尚未開始且尚未指派時，未明示身分可用本人翻譯指派繼續編輯。
+ * 審稿已開始或已完成：維持原邏輯，沒有該步本人指派就不能改，不得用翻譯指派跨步解鎖。
+ * 明示翻譯／審稿身分時，仍只看該步本人指派。
  * @param {{
  *   assignments?: Array<object>,
  *   userId?: string,
  *   sessionStageId?: string,
  *   sessionKind?: string|null,
  *   viewId?: string|null,
+ *   reviewStageStatus?: string|null,
  * }} [input]
  * @returns {object[]}
  */
@@ -316,6 +322,7 @@ export function resolveMemberEditAssignments(input) {
   if (mineOnSession.length) return mineOnSession;
   const kind = input?.sessionKind;
   if (kind === "translate" || kind === "review") return [];
+  if (reviewStageHasStarted(input?.reviewStageStatus)) return [];
   return list.filter((a) =>
     String(assignmentAssigneeId(a) || "") === uid && assignmentSameView(a, viewId)
   );
@@ -338,13 +345,15 @@ export function assignmentCoversLine(a, lineNo) {
 }
 
 /**
- * 成員句段是否因指派範圍禁止編輯。完成狀態本身不得當成鎖。
+ * 成員句段是否因指派範圍禁止編輯。
+ * 翻譯完成本身不另加鎖；審稿已開始或已完成時維持「該步沒有本人指派就不能改」。
  * @param {{
  *   assignments?: Array<object>,
  *   userId?: string,
  *   sessionStageId?: string,
  *   sessionKind?: string|null,
  *   viewId?: string|null,
+ *   reviewStageStatus?: string|null,
  *   lineNo?: number|null,
  * }} [input]
  * @returns {boolean}
