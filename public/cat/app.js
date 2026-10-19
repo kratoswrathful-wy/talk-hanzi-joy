@@ -7544,6 +7544,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? window.WfPrepUnlock.prepIncompleteForbidsAssignedEdit()
             : true;
         if (prepBlocksEdit && _isFilePrepIncomplete(stages)) return true;
+        const reviewStageStatus = (stages.find((s) => (s.stageKind || s.stage_kind) === 'review') || {}).status;
+        const api = window.WfCompleteIndependence;
+        if (api && typeof api.reviewStageForbidsMemberEdit === 'function'
+            && api.reviewStageForbidsMemberEdit(reviewStageStatus)) {
+            return true;
+        }
         if (_workflowAllStagesCompleted(stages)) return false;
         if (!isTeamMode()) return false;
 
@@ -7552,7 +7558,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const stageAssigns = window._currentFileStageAssignments || [];
         const userId = String(window._tmsCurrentUserId || '');
-        const api = window.WfCompleteIndependence;
         const mine = (api && typeof api.resolveMemberEditAssignments === 'function')
             ? api.resolveMemberEditAssignments({
                 assignments: stageAssigns,
@@ -7560,7 +7565,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sessionStageId: activeStage.id,
                 sessionKind: currentWfSessionKind,
                 viewId: _currentViewId,
-                reviewStageStatus: (stages.find((s) => (s.stageKind || s.stage_kind) === 'review') || {}).status,
+                reviewStageStatus,
             })
             : stageAssigns.filter((a) => String(a.fileWorkflowStageId) === String(activeStage.id)
                 && (!_currentViewId || !a.viewId || String(a.viewId) === String(_currentViewId))

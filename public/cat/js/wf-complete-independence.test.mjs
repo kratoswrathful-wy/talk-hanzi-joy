@@ -13,6 +13,8 @@ import {
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
   memberSegmentEditForbidden,
+  reviewStageForbidsMemberEdit,
+  reviewAssignmentRangeCompleted,
 } from "./wf-complete-independence.js";
 
 const assigns = [
@@ -271,7 +273,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     })).toBe(true);
   });
 
-  it("審稿已開始：譯者沒有審稿指派時維持不能改，不靠翻譯指派解鎖", () => {
+  it("審稿進行中：沒有審稿指派的譯者仍可改自己的翻譯範圍", () => {
     const base = {
       assignments: aSplit,
       userId: t2,
@@ -279,11 +281,13 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       sessionKind: null,
       reviewStageStatus: "active",
     };
-    expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(true);
+    expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(false);
     expect(memberSegmentEditForbidden({ ...base, lineNo: 1 })).toBe(true);
   });
 
-  it("審稿完成：譯者沒有審稿指派時維持不能改", () => {
+  it("整份檔案審稿完成：譯者不能改", () => {
+    expect(reviewStageForbidsMemberEdit("completed")).toBe(true);
+    expect(reviewStageForbidsMemberEdit("active")).toBe(false);
     expect(memberSegmentEditForbidden({
       assignments: cWhole,
       userId: t1,
@@ -314,5 +318,36 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       reviewStageStatus: "pending",
       lineNo: 1,
     })).toBe(true);
+  });
+
+  it("句段已審稿完成、檔案與分段仍審稿進行中：譯者仍可改自己的範圍", () => {
+    const withSegConfirm = aSplit.map((a) => (
+      a.id === "e002" ? { ...a, workflowStatus: "in_progress" } : a
+    ));
+    expect(memberSegmentEditForbidden({
+      assignments: withSegConfirm,
+      userId: t1,
+      sessionStageId: "d-review",
+      sessionKind: null,
+      reviewStageStatus: "active",
+      lineNo: 1,
+      segmentReviewConfirmed: true,
+    })).toBe(false);
+    expect(reviewAssignmentRangeCompleted(withSegConfirm, 1)).toBe(false);
+  });
+
+  it("該分段審稿指派已完成、整檔審稿仍進行中：該段譯者仍可改（用來取消完成）", () => {
+    const rangeReviewDone = aSplit.map((a) => (
+      a.id === "e002" ? { ...a, workflowStatus: "completed" } : a
+    ));
+    expect(reviewAssignmentRangeCompleted(rangeReviewDone, 1)).toBe(true);
+    expect(memberSegmentEditForbidden({
+      assignments: rangeReviewDone,
+      userId: t1,
+      sessionStageId: "d-translate",
+      sessionKind: "translate",
+      reviewStageStatus: "active",
+      lineNo: 1,
+    })).toBe(false);
   });
 });

@@ -289,14 +289,40 @@ function assignmentSameView(a, viewId) {
   return String(vid) === String(viewId);
 }
 
-function reviewStageHasStarted(reviewStageStatus) {
-  const st = String(reviewStageStatus || "").trim().toLowerCase();
-  return st === "active" || st === "completed";
+/**
+ * 整份檔案的審稿步驟設為完成後，譯者不得再改。
+ * 句段狀態設成審稿完成不構成此鎖。
+ * @param {string|null|undefined} reviewStageStatus
+ * @returns {boolean}
+ */
+export function reviewStageForbidsMemberEdit(reviewStageStatus) {
+  return String(reviewStageStatus || "").trim().toLowerCase() === "completed";
+}
+
+function assignmentWorkflowStatus(a) {
+  return String(a?.workflowStatus || a?.workflow_status || "").trim().toLowerCase();
 }
 
 /**
- * 已完成翻譯整步、審稿尚未開始且尚未指派時，未明示身分可用本人翻譯指派繼續編輯。
- * 審稿已開始或已完成：維持原邏輯，沒有該步本人指派就不能改，不得用翻譯指派跨步解鎖。
+ * 該列所屬審稿分段（指派列）是否已設為完成。句段確認狀態不在此判斷。
+ * @param {object[]} assignments
+ * @param {number|null|undefined} lineNo
+ * @returns {boolean}
+ */
+export function reviewAssignmentRangeCompleted(assignments, lineNo) {
+  const list = Array.isArray(assignments) ? assignments : [];
+  return list.some((a) =>
+    assignmentRoleKind(a) === "review"
+    && assignmentWorkflowStatus(a) === "completed"
+    && assignmentCoversLine(a, lineNo)
+  );
+}
+
+/**
+ * 翻譯完成後，工作步驟可能跳到尚未指派或進行中的審稿。
+ * 未明示身分時，可用本人翻譯／審稿指派繼續編輯。
+ * 整份檔案審稿步驟一旦設為完成，不再解鎖。
+ * 句段狀態是否審稿完成不參與判斷。
  * 明示翻譯／審稿身分時，仍只看該步本人指派。
  * @param {{
  *   assignments?: Array<object>,
@@ -312,6 +338,7 @@ export function resolveMemberEditAssignments(input) {
   const list = Array.isArray(input?.assignments) ? input.assignments : [];
   const uid = String(input?.userId || "");
   if (!uid) return [];
+  if (reviewStageForbidsMemberEdit(input?.reviewStageStatus)) return [];
   const viewId = input?.viewId;
   const sessionStageId = input?.sessionStageId;
   const mineOnSession = list.filter((a) =>
@@ -322,7 +349,6 @@ export function resolveMemberEditAssignments(input) {
   if (mineOnSession.length) return mineOnSession;
   const kind = input?.sessionKind;
   if (kind === "translate" || kind === "review") return [];
-  if (reviewStageHasStarted(input?.reviewStageStatus)) return [];
   return list.filter((a) =>
     String(assignmentAssigneeId(a) || "") === uid && assignmentSameView(a, viewId)
   );
@@ -345,8 +371,10 @@ export function assignmentCoversLine(a, lineNo) {
 }
 
 /**
- * 成員句段是否因指派範圍禁止編輯。
- * 翻譯完成本身不另加鎖；審稿已開始或已完成時維持「該步沒有本人指派就不能改」。
+ * 成員句段是否因檔案／分段狀態禁止編輯。
+ * - 整份檔案審稿步驟完成 → 譯者不能改
+ * - 該分段審稿指派完成、且此人沒有覆蓋該列的翻譯或審稿指派 → 不能改
+ * - 句段狀態審稿完成、檔案或分段仍審稿進行中 → 仍可改自己的範圍
  * @param {{
  *   assignments?: Array<object>,
  *   userId?: string,
@@ -355,13 +383,16 @@ export function assignmentCoversLine(a, lineNo) {
  *   viewId?: string|null,
  *   reviewStageStatus?: string|null,
  *   lineNo?: number|null,
+ *   segmentReviewConfirmed?: boolean,
  * }} [input]
  * @returns {boolean}
  */
 export function memberSegmentEditForbidden(input) {
+  if (reviewStageForbidsMemberEdit(input?.reviewStageStatus)) return true;
   const mine = resolveMemberEditAssignments(input);
   if (!mine.length) return true;
   if (input?.lineNo == null) return false;
+  void input?.segmentReviewConfirmed;
   return !mine.some((a) => assignmentCoversLine(a, input.lineNo));
 }
 
@@ -384,6 +415,8 @@ const WfCompleteIndependence = {
   resolveMemberEditAssignments,
   assignmentCoversLine,
   memberSegmentEditForbidden,
+  reviewStageForbidsMemberEdit,
+  reviewAssignmentRangeCompleted,
 };
 
 if (typeof globalThis !== "undefined") {
