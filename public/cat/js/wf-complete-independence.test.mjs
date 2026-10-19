@@ -12,6 +12,7 @@ import {
   assignmentsHaveExactSameRange,
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
+  memberSegmentEditForbidden,
 } from "./wf-complete-independence.js";
 
 const assigns = [
@@ -191,5 +192,101 @@ describe("譯者改譯文取消該範圍完成", () => {
     expect(assignmentIdsToReopenOnTranslatorEdit({
       covering: [{ id: "t-1-1", kind: "translate", workflowStatus: "in_progress" }],
     })).toEqual([]);
+  });
+});
+
+describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", () => {
+  const t1 = "u-t1";
+  const t2 = "u-t2";
+  const cWhole = [
+    {
+      id: "e411",
+      kind: "translate",
+      fileWorkflowStageId: "d-translate",
+      assigneeUserId: t1,
+      lineStart: null,
+      lineEnd: null,
+      workflowStatus: "completed",
+    },
+  ];
+  const aSplit = [
+    {
+      id: "e001",
+      kind: "translate",
+      fileWorkflowStageId: "d-translate",
+      assigneeUserId: t1,
+      lineStart: 1,
+      lineEnd: 1,
+      workflowStatus: "completed",
+    },
+    {
+      id: "e003",
+      kind: "translate",
+      fileWorkflowStageId: "d-translate",
+      assigneeUserId: t2,
+      lineStart: 2,
+      lineEnd: 2,
+      workflowStatus: "completed",
+    },
+    {
+      id: "e002",
+      kind: "review",
+      fileWorkflowStageId: "d-review",
+      assigneeUserId: t1,
+      lineStart: 1,
+      lineEnd: 1,
+      workflowStatus: "in_progress",
+    },
+    {
+      id: "e004",
+      kind: "review",
+      fileWorkflowStageId: "d-review",
+      assigneeUserId: t1,
+      lineStart: 2,
+      lineEnd: 2,
+      workflowStatus: "in_progress",
+    },
+  ];
+
+  it("單人整檔：翻譯已完成、審稿尚未指派、未明示身分 → 兩句都可編", () => {
+    const base = {
+      assignments: cWhole,
+      userId: t1,
+      sessionStageId: "d-review",
+      sessionKind: null,
+    };
+    expect(memberSegmentEditForbidden({ ...base, lineNo: 1 })).toBe(false);
+    expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(false);
+  });
+
+  it("單人整檔：明示審稿身分但沒有審稿指派 → 禁止", () => {
+    expect(memberSegmentEditForbidden({
+      assignments: cWhole,
+      userId: t1,
+      sessionStageId: "d-review",
+      sessionKind: "review",
+      lineNo: 1,
+    })).toBe(true);
+  });
+
+  it("多人：譯者二沒有審稿指派、工作步驟已是審稿、未明示身分 → 仍可改自己的 2-2，不能改 1-1", () => {
+    const base = {
+      assignments: aSplit,
+      userId: t2,
+      sessionStageId: "d-review",
+      sessionKind: null,
+    };
+    expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(false);
+    expect(memberSegmentEditForbidden({ ...base, lineNo: 1 })).toBe(true);
+  });
+
+  it("未受派者仍禁止", () => {
+    expect(memberSegmentEditForbidden({
+      assignments: cWhole,
+      userId: "nobody",
+      sessionStageId: "d-review",
+      sessionKind: null,
+      lineNo: 1,
+    })).toBe(true);
   });
 });

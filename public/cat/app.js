@@ -7551,19 +7551,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!activeStage) return false;
 
         const stageAssigns = window._currentFileStageAssignments || [];
-        const relevant = stageAssigns.filter(
-            (a) => String(a.fileWorkflowStageId) === String(activeStage.id)
-                && (!_currentViewId || !a.viewId || String(a.viewId) === String(_currentViewId))
-        );
         const userId = String(window._tmsCurrentUserId || '');
-
-        if (!relevant.length) return true;
-
-        const mine = relevant.filter((a) => String(a.assigneeUserId) === userId);
+        const api = window.WfCompleteIndependence;
+        const mine = (api && typeof api.resolveMemberEditAssignments === 'function')
+            ? api.resolveMemberEditAssignments({
+                assignments: stageAssigns,
+                userId,
+                sessionStageId: activeStage.id,
+                sessionKind: currentWfSessionKind,
+                viewId: _currentViewId,
+            })
+            : stageAssigns.filter((a) => String(a.fileWorkflowStageId) === String(activeStage.id)
+                && (!_currentViewId || !a.viewId || String(a.viewId) === String(_currentViewId))
+                && String(a.assigneeUserId) === userId);
         if (!mine.length) return true;
 
         const lineNo = _segFullListLineNo(seg);
         if (lineNo == null) return false;
+        if (api && typeof api.assignmentCoversLine === 'function') {
+            return !mine.some((a) => api.assignmentCoversLine(a, lineNo));
+        }
 
         return !mine.some((a) => {
             const ls = a.lineStart;

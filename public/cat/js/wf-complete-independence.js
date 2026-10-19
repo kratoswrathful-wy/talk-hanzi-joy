@@ -270,6 +270,92 @@ export function assignmentIdsToReopenOnTranslatorEdit(input) {
   return ids;
 }
 
+function assignmentStageId(a) {
+  return a?.fileWorkflowStageId != null ? a.fileWorkflowStageId : a?.file_workflow_stage_id;
+}
+
+function assignmentAssigneeId(a) {
+  return a?.assigneeUserId != null ? a.assigneeUserId : a?.assignee_user_id;
+}
+
+function assignmentViewId(a) {
+  return a?.viewId != null ? a.viewId : a?.view_id;
+}
+
+function assignmentSameView(a, viewId) {
+  if (viewId == null || String(viewId) === "") return true;
+  const vid = assignmentViewId(a);
+  if (vid == null || String(vid) === "") return true;
+  return String(vid) === String(viewId);
+}
+
+/**
+ * 已完成翻譯整步後，檔案工作步驟可能跳到尚未指派的審稿。
+ * 未明示身分時，改用「本人所有指派」判斷可否編輯，避免完成後整檔鎖死。
+ * 明示翻譯／審稿身分時，仍只看該步本人指派，不擴大未受派範圍。
+ * @param {{
+ *   assignments?: Array<object>,
+ *   userId?: string,
+ *   sessionStageId?: string,
+ *   sessionKind?: string|null,
+ *   viewId?: string|null,
+ * }} [input]
+ * @returns {object[]}
+ */
+export function resolveMemberEditAssignments(input) {
+  const list = Array.isArray(input?.assignments) ? input.assignments : [];
+  const uid = String(input?.userId || "");
+  if (!uid) return [];
+  const viewId = input?.viewId;
+  const sessionStageId = input?.sessionStageId;
+  const mineOnSession = list.filter((a) =>
+    String(assignmentAssigneeId(a) || "") === uid
+    && (sessionStageId == null || String(sessionStageId) === "" || String(assignmentStageId(a) || "") === String(sessionStageId))
+    && assignmentSameView(a, viewId)
+  );
+  if (mineOnSession.length) return mineOnSession;
+  const kind = input?.sessionKind;
+  if (kind === "translate" || kind === "review") return [];
+  return list.filter((a) =>
+    String(assignmentAssigneeId(a) || "") === uid && assignmentSameView(a, viewId)
+  );
+}
+
+/**
+ * @param {object} a
+ * @param {number|null|undefined} lineNo
+ * @returns {boolean}
+ */
+export function assignmentCoversLine(a, lineNo) {
+  const ls = a?.lineStart != null ? a.lineStart : a?.line_start;
+  const le = a?.lineEnd != null ? a.lineEnd : a?.line_end;
+  if (ls == null && le == null) return true;
+  if (lineNo == null || !Number.isFinite(Number(lineNo))) return true;
+  const start = ls != null ? Number(ls) : 1;
+  const end = le != null ? Number(le) : Number.MAX_SAFE_INTEGER;
+  const n = Number(lineNo);
+  return n >= start && n <= end;
+}
+
+/**
+ * 成員句段是否因指派範圍禁止編輯。完成狀態本身不得當成鎖。
+ * @param {{
+ *   assignments?: Array<object>,
+ *   userId?: string,
+ *   sessionStageId?: string,
+ *   sessionKind?: string|null,
+ *   viewId?: string|null,
+ *   lineNo?: number|null,
+ * }} [input]
+ * @returns {boolean}
+ */
+export function memberSegmentEditForbidden(input) {
+  const mine = resolveMemberEditAssignments(input);
+  if (!mine.length) return true;
+  if (input?.lineNo == null) return false;
+  return !mine.some((a) => assignmentCoversLine(a, input.lineNo));
+}
+
 const WfCompleteIndependence = {
   shouldForceTranslateCompletedDueToReview,
   shouldLockTranslateDueToReviewComplete,
@@ -286,6 +372,9 @@ const WfCompleteIndependence = {
   assignmentRangesOverlap,
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
+  resolveMemberEditAssignments,
+  assignmentCoversLine,
+  memberSegmentEditForbidden,
 };
 
 if (typeof globalThis !== "undefined") {
