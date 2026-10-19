@@ -1199,6 +1199,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const prev = segmentTargetWriteTails.get(key) || Promise.resolve();
 
         const run = async () => {
+            if (typeof isTargetWriteProtected === 'function' && isTargetWriteProtected(seg)) {
+                return;
+            }
             const doRpc = async () => {
                 const r = await DBService.updateSegmentTarget(
                     seg.id,
@@ -7248,8 +7251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (extraTranslateHits.length) hits.push(...extraTranslateHits);
             for (const h of hits) {
                 if (h && h.stageOnly) continue;
-                const allowStageDowngrade = _isTranslateStageAssignment(h)
-                    && h.workflowStatus !== 'completed';
+                const allowStageDowngrade = h.workflowStatus !== 'completed';
                 await _reconcileStageStatusFromAssignments(
                     h.fileId,
                     h.fileWorkflowStageId,
@@ -7563,7 +7565,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (prepBlocksEdit && _isFilePrepIncomplete(stages)) return true;
         const reviewStageStatus = (stages.find((s) => (s.stageKind || s.stage_kind) === 'review') || {}).status;
         const api = window.WfCompleteIndependence;
-        if (api && typeof api.reviewStageForbidsMemberEdit === 'function'
+        const stageAssigns = window._currentFileStageAssignments || [];
+        const lineNo = _segFullListLineNo(seg);
+        if (api && typeof api.reviewWorkForbidsMemberEdit === 'function') {
+            if (api.reviewWorkForbidsMemberEdit({
+                assignments: stageAssigns,
+                reviewStageStatus,
+                lineNo,
+            })) return true;
+        } else if (api && typeof api.reviewStageForbidsMemberEdit === 'function'
             && api.reviewStageForbidsMemberEdit(reviewStageStatus)) {
             return true;
         }
@@ -7573,7 +7583,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const activeStage = _workflowSessionStage(stages);
         if (!activeStage) return false;
 
-        const stageAssigns = window._currentFileStageAssignments || [];
         const userId = String(window._tmsCurrentUserId || '');
         const mine = (api && typeof api.resolveMemberEditAssignments === 'function')
             ? api.resolveMemberEditAssignments({
@@ -7589,7 +7598,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 && String(a.assigneeUserId) === userId);
         if (!mine.length) return true;
 
-        const lineNo = _segFullListLineNo(seg);
         if (lineNo == null) return false;
         if (api && typeof api.assignmentCoversLine === 'function') {
             return !mine.some((a) => api.assignmentCoversLine(a, lineNo));
@@ -7880,10 +7888,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const _wfReopenCompleteInFlight = new Set();
 
-    /** 譯者實際改已完成範圍譯文：取消該範圍翻譯完成；若審稿已完成一併取消。 */
+    /** 譯者實際改已完成範圍譯文：取消該範圍翻譯完成。已審稿完成範圍不得由此取消。 */
     async function _reopenRangeCompleteOnTranslatorEdit(seg) {
         if (!seg) return;
         const api = window.WfCompleteIndependence;
+        const reviewStage = (_workflowStagesForSegment(seg) || []).find((s) =>
+            (s.stageKind || s.stage_kind) === 'review'
+        );
+        if (api && typeof api.reviewWorkForbidsMemberEdit === 'function'
+            && api.reviewWorkForbidsMemberEdit({
+                assignments: window._currentFileStageAssignments || [],
+                reviewStageStatus: reviewStage && reviewStage.status,
+                lineNo: _segFullListLineNo(seg),
+            })) {
+            return;
+        }
         const should = api && typeof api.shouldReopenCompleteOnTranslatorTargetEdit === 'function'
             ? api.shouldReopenCompleteOnTranslatorTargetEdit({
                 actingAsReviewer: typeof _isActingAsReviewer === 'function' && _isActingAsReviewer(),
@@ -7904,8 +7923,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             : [];
         if (!ids.length) {
             ids = covering
-                .filter((a) => a.workflowStatus === 'completed'
-                    && (_isTranslateStageAssignment(a) || _isReviewStageAssignment(a)))
+                .filter((a) => a.workflowStatus === 'completed' && _isTranslateStageAssignment(a))
                 .map((a) => String(a.id));
         }
         const unique = [];
@@ -17253,14 +17271,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 禁止編輯工具提示：區分「身分權限不足」與「匯入時即已鎖定」
     function getForbiddenTooltip(seg) {
+        const stages = _workflowStagesForSegment(seg);
         if (!_isCatPmOrExecutive()) {
-            const stages = _workflowStagesForSegment(seg);
             const prepBlocksEdit = typeof window.WfPrepUnlock?.prepIncompleteForbidsAssignedEdit === 'function'
                 ? window.WfPrepUnlock.prepIncompleteForbidsAssignedEdit()
                 : true;
             if (prepBlocksEdit && _isFilePrepIncomplete(stages)) return '禁止編輯，檔案準備中';
         }
-        if (computeSegmentEditForbidden(seg)) return '禁止編輯：不在您受派的列範圍內';
+        if (computeSegmentEditForbidden(seg)) {
+            const reviewStage = (stages || []).find((s) => (s.stageKind || s.stage_kind) === 'review');
+            const api = window.WfCompleteIndependence;
+            if (api && typeof api.reviewWorkForbidsMemberEdit === 'function'
+                && api.reviewWorkForbidsMemberEdit({
+                    assignments: window._currentFileStageAssignments || [],
+                    reviewStageStatus: reviewStage && reviewStage.status,
+                    lineNo: _segFullListLineNo(seg),
+                })) {
+                return '禁止編輯：此範圍已審稿完成';
+            }
+            return '禁止編輯：不在您受派的列範圍內';
+        }
         if (_fileUnassignedReadOnly) return '禁止編輯：未受指派，無法編輯檔案';
         if (!seg.originalRole && seg.isLockedSystem) return '禁止編輯：匯入時即已鎖定';
         return '禁止編輯：目前身分權限不允許編輯';

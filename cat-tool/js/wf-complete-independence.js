@@ -249,7 +249,8 @@ export function shouldReopenCompleteOnTranslatorTargetEdit(input) {
 }
 
 /**
- * 譯者改譯文時應取消完成的指派：覆蓋該句的已完成翻譯與審稿。
+ * 譯者改譯文時應取消完成的指派：只取消覆蓋該句的已完成翻譯。
+ * 已審稿完成的範圍不得由譯者改譯文取消；須先由主管取消審稿完成。
  * @param {{ covering?: Array<object> }} [input]
  * @returns {string[]}
  */
@@ -258,8 +259,7 @@ export function assignmentIdsToReopenOnTranslatorEdit(input) {
   const ids = [];
   const seen = new Set();
   for (const a of covering) {
-    const kind = assignmentRoleKind(a);
-    if (kind !== "translate" && kind !== "review") continue;
+    if (assignmentRoleKind(a) !== "translate") continue;
     const st = String(a?.workflowStatus || a?.workflow_status || "");
     if (st !== "completed") continue;
     const id = String(a?.id || "").trim();
@@ -340,6 +340,7 @@ function assignmentWorkflowStatus(a) {
  */
 export function reviewAssignmentRangeCompleted(assignments, lineNo) {
   const list = Array.isArray(assignments) ? assignments : [];
+  if (lineNo == null || !Number.isFinite(Number(lineNo))) return false;
   return list.some((a) =>
     assignmentRoleKind(a) === "review"
     && assignmentWorkflowStatus(a) === "completed"
@@ -348,11 +349,40 @@ export function reviewAssignmentRangeCompleted(assignments, lineNo) {
 }
 
 /**
+ * 譯者翻譯操作是否因審稿完成而禁止。
+ * - 覆蓋該列的審稿指派已完成 → 鎖
+ * - 整份檔案審稿步驟完成，且該列沒有未完成的審稿指派 → 鎖
+ * - 主管重開其中一段後，即使整檔步驟殘留 completed，該段仍可編
+ * - 句段審稿確認不構成此鎖
+ * @param {{
+ *   assignments?: Array<object>,
+ *   reviewStageStatus?: string|null,
+ *   lineNo?: number|null,
+ * }} [input]
+ * @returns {boolean}
+ */
+export function reviewWorkForbidsMemberEdit(input) {
+  const o = input || {};
+  const assignments = Array.isArray(o.assignments) ? o.assignments : [];
+  const lineNo = o.lineNo;
+  const hasLine = lineNo != null && Number.isFinite(Number(lineNo));
+  if (hasLine && reviewAssignmentRangeCompleted(assignments, lineNo)) return true;
+  if (!reviewStageForbidsMemberEdit(o.reviewStageStatus)) return false;
+  if (!hasLine) return true;
+  const coveringReview = assignments.filter((a) =>
+    assignmentRoleKind(a) === "review" && assignmentCoversLine(a, lineNo)
+  );
+  if (!coveringReview.length) return true;
+  return coveringReview.every((a) => assignmentWorkflowStatus(a) === "completed");
+}
+
+/**
  * 翻譯完成後，工作步驟可能跳到尚未指派或進行中的審稿。
  * 未明示身分時，可用本人翻譯／審稿指派繼續編輯。
- * 整份檔案審稿步驟一旦設為完成，不再解鎖。
  * 句段狀態是否審稿完成不參與判斷。
  * 明示翻譯／審稿身分時，仍只看該步本人指派。
+ * 整檔或分段審稿完成的鎖定由 reviewWorkForbidsMemberEdit 另判，
+ * 避免主管重開其中一段時被殘留整檔完成狀態誤鎖。
  * @param {{
  *   assignments?: Array<object>,
  *   userId?: string,
@@ -367,7 +397,6 @@ export function resolveMemberEditAssignments(input) {
   const list = Array.isArray(input?.assignments) ? input.assignments : [];
   const uid = String(input?.userId || "");
   if (!uid) return [];
-  if (reviewStageForbidsMemberEdit(input?.reviewStageStatus)) return [];
   const viewId = input?.viewId;
   const sessionStageId = input?.sessionStageId;
   const mineOnSession = list.filter((a) =>
@@ -435,7 +464,7 @@ export function resolveMemberWorkKind(input) {
 /**
  * 成員句段是否因檔案／分段狀態禁止編輯。
  * - 整份檔案審稿步驟完成 → 譯者不能改
- * - 該分段審稿指派完成、且此人沒有覆蓋該列的翻譯或審稿指派 → 不能改
+ * - 該分段審稿指派完成 → 該段譯者不能改；其他未完成段仍可改
  * - 句段狀態審稿完成、檔案或分段仍審稿進行中 → 仍可改自己的範圍
  * @param {{
  *   assignments?: Array<object>,
@@ -450,7 +479,7 @@ export function resolveMemberWorkKind(input) {
  * @returns {boolean}
  */
 export function memberSegmentEditForbidden(input) {
-  if (reviewStageForbidsMemberEdit(input?.reviewStageStatus)) return true;
+  if (reviewWorkForbidsMemberEdit(input)) return true;
   const mine = resolveMemberEditAssignments(input);
   if (!mine.length) return true;
   if (input?.lineNo == null) return false;
@@ -482,6 +511,7 @@ const WfCompleteIndependence = {
   memberSegmentEditForbidden,
   reviewStageForbidsMemberEdit,
   reviewAssignmentRangeCompleted,
+  reviewWorkForbidsMemberEdit,
 };
 
 if (typeof globalThis !== "undefined") {

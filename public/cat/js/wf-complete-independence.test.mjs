@@ -15,6 +15,7 @@ import {
   memberSegmentEditForbidden,
   reviewStageForbidsMemberEdit,
   reviewAssignmentRangeCompleted,
+  reviewWorkForbidsMemberEdit,
   resolveMemberWorkKind,
   assignmentLmsCollabRowId,
   assignmentsNeedingCaseLevelLmsSync,
@@ -182,7 +183,7 @@ describe("譯者改譯文取消該範圍完成", () => {
     })).toEqual([]);
   });
 
-  it("覆蓋該句的已完成翻譯與審稿都列入，其他段不列入", () => {
+  it("覆蓋該句的已完成翻譯列入，已完成審稿不由譯者改譯文取消", () => {
     const covering = [
       { id: "t-1-1", kind: "translate", workflowStatus: "completed" },
       { id: "r-1-1", kind: "review", workflowStatus: "completed" },
@@ -190,7 +191,7 @@ describe("譯者改譯文取消該範圍完成", () => {
     ];
     expect(assignmentIdsToReopenOnTranslatorEdit({
       covering: covering.filter((a) => a.id !== "t-2-2"),
-    })).toEqual(["t-1-1", "r-1-1"]);
+    })).toEqual(["t-1-1"]);
   });
 
   it("沒有協作列 id 的單人整檔指派要走案件層 LMS", () => {
@@ -384,11 +385,16 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     })).toBe("review");
   });
 
-  it("該分段審稿指派已完成、整檔審稿仍進行中：該段譯者仍可改（用來取消完成）", () => {
+  it("該分段審稿指派已完成、整檔審稿仍進行中：該段譯者不能改", () => {
     const rangeReviewDone = aSplit.map((a) => (
       a.id === "e002" ? { ...a, workflowStatus: "completed" } : a
     ));
     expect(reviewAssignmentRangeCompleted(rangeReviewDone, 1)).toBe(true);
+    expect(reviewWorkForbidsMemberEdit({
+      assignments: rangeReviewDone,
+      reviewStageStatus: "active",
+      lineNo: 1,
+    })).toBe(true);
     expect(memberSegmentEditForbidden({
       assignments: rangeReviewDone,
       userId: t1,
@@ -396,6 +402,50 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       sessionKind: "translate",
       reviewStageStatus: "active",
       lineNo: 1,
+    })).toBe(true);
+  });
+
+  it("相鄰分段審稿未完成：該段受派譯者仍可改", () => {
+    const rangeReviewDone = aSplit.map((a) => (
+      a.id === "e002" ? { ...a, workflowStatus: "completed" } : a
+    ));
+    expect(reviewAssignmentRangeCompleted(rangeReviewDone, 2)).toBe(false);
+    expect(memberSegmentEditForbidden({
+      assignments: rangeReviewDone,
+      userId: t2,
+      sessionStageId: "d-translate",
+      sessionKind: "translate",
+      reviewStageStatus: "active",
+      lineNo: 2,
     })).toBe(false);
+  });
+
+  it("整檔審稿殘留完成、其中一段已重開：該段可改、另一段仍鎖", () => {
+    const oneReopened = aSplit.map((a) => {
+      if (a.id === "e002") return { ...a, workflowStatus: "in_progress" };
+      if (a.id === "e004") return { ...a, workflowStatus: "completed" };
+      return a;
+    });
+    expect(reviewWorkForbidsMemberEdit({
+      assignments: oneReopened,
+      reviewStageStatus: "completed",
+      lineNo: 1,
+    })).toBe(false);
+    expect(memberSegmentEditForbidden({
+      assignments: oneReopened,
+      userId: t1,
+      sessionStageId: "d-translate",
+      sessionKind: "translate",
+      reviewStageStatus: "completed",
+      lineNo: 1,
+    })).toBe(false);
+    expect(memberSegmentEditForbidden({
+      assignments: oneReopened,
+      userId: t2,
+      sessionStageId: "d-translate",
+      sessionKind: "translate",
+      reviewStageStatus: "completed",
+      lineNo: 2,
+    })).toBe(true);
   });
 });
