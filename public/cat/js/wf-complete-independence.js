@@ -200,8 +200,10 @@ export function assignmentRangesOverlap(a, b) {
 export function shouldReopenCompleteOnTranslatorTargetEdit(input) {
   const o = input || {};
   if (!o.textChanged) return false;
-  if (o.actingAsReviewer) return false;
   if (String(o.sessionKind || "") === "review") return false;
+  // 翻譯工作階段優先：同一人兼審稿時，進翻譯工作仍要取消該段完成。
+  if (String(o.sessionKind || "") === "translate") return true;
+  if (o.actingAsReviewer) return false;
   return true;
 }
 

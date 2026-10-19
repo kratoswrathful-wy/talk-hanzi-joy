@@ -6130,7 +6130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowLoadState = loadState;
         window._currentFileWorkflowLoadError = null;
         window._currentFileWorkflowStages = stages || [];
-        window._currentFileStageAssignments = assignments || [];
+        window._currentFileStageAssignments = _stampAssignmentRoles(assignments || [], stages || []);
         window._currentFileWorkflowStagesByFileId = fid ? { [fid]: window._currentFileWorkflowStages } : {};
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
         if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
@@ -6151,7 +6151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 stagesByFile[fid] = stages || [];
                 const assigns = await DBService.listStageAssignmentsForFile(fid);
-                allAssigns.push(...(assigns || []));
+                allAssigns.push(..._stampAssignmentRoles(assigns || [], stages || []));
             } catch (e) {
                 console.warn('[workflow] loadViewWorkflowContext', fid, e);
                 if (stagesByFile[fid] == null) stagesByFile[fid] = [];
@@ -6167,6 +6167,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._currentFileWorkflowStages = [];
         if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
         if (typeof _refreshPmActingRoleBtn === 'function') _refreshPmActingRoleBtn();
+    }
+
+    function _stampAssignmentRoles(assigns, stages) {
+        const list = Array.isArray(assigns) ? assigns : [];
+        const stList = Array.isArray(stages) ? stages : [];
+        return list.map((a) => {
+            if (!a) return a;
+            const st = _workflowStageById(stList, a.fileWorkflowStageId);
+            const k = st && (st.stageKind === 'review' || st.stageKind === 'translate')
+                ? st.stageKind
+                : null;
+            if (!k) return a;
+            return { ...a, kind: k, stageKind: k };
+        });
     }
 
     function _getStagesForAssignment(a) {
@@ -6617,17 +6631,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         const arr = window._currentFileStageAssignments || [];
         const extra = [];
         const seen = new Set();
+        const taggedAll = arr.map((a) => {
+            if (_isReviewStageAssignment(a)) return { ...a, kind: 'review', stageKind: 'review' };
+            if (_isTranslateStageAssignment(a)) return { ...a, kind: 'translate', stageKind: 'translate' };
+            return a;
+        });
         for (const reviewHit of hits || []) {
             if (!_isReviewStageAssignment(reviewHit) || reviewHit.workflowStatus !== 'completed') continue;
-            const ids = api && typeof api.translateAssignmentsCompletedWithReview === 'function'
-                ? (api.translateAssignmentsCompletedWithReview({ review: reviewHit, all: arr }) || [])
-                : arr
+            const taggedReview = { ...reviewHit, kind: 'review', stageKind: 'review' };
+            let ids = api && typeof api.translateAssignmentsCompletedWithReview === 'function'
+                ? (api.translateAssignmentsCompletedWithReview({ review: taggedReview, all: taggedAll }) || [])
+                : [];
+            if (!ids.length) {
+                ids = arr
                     .filter((a) => _isTranslateStageAssignment(a)
                         && String(a.fileId || '') === String(reviewHit.fileId || '')
                         && ((a.lineStart == null && a.lineEnd == null && reviewHit.lineStart == null && reviewHit.lineEnd == null)
                             || (Number(a.lineStart) === Number(reviewHit.lineStart)
                                 && Number(a.lineEnd) === Number(reviewHit.lineEnd))))
                     .map((a) => String(a.id));
+            }
             for (const id of ids) {
                 const sid = String(id || '');
                 if (!sid || seen.has(sid)) continue;
@@ -6671,7 +6694,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const updated = await DBService.updateStageAssignmentWorkflowStatus(assignmentId, next);
         const idx = arr.findIndex((a) => String(a.id) === String(assignmentId));
-        if (idx >= 0) arr[idx] = { ...arr[idx], ...updated };
+        if (idx >= 0) {
+            const prev = arr[idx];
+            arr[idx] = {
+                ...prev,
+                ...updated,
+                kind: prev.kind || updated.kind,
+                stageKind: prev.stageKind || updated.stageKind || prev.kind,
+            };
+        }
         return updated;
     }
 
@@ -6694,7 +6725,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         try {
             const refreshed = (await DBService.listStageAssignmentsForFile(fileId)) || [];
-            window._currentFileStageAssignments = refreshed;
+            window._currentFileStageAssignments = _stampAssignmentRoles(
+                refreshed,
+                window._currentFileWorkflowStages || [],
+            );
         } catch (_) { /* keep in-memory */ }
         return matched;
     }
@@ -6972,6 +7006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _reconcileStageStatusFromAssignments(fileId, stageId, opts) {
+        if (!_isCatPmOrExecutive()) return;
         const allowDowngrade = !!(opts && opts.allowDowngrade);
         const fid = String(fileId);
         const assigns = (window._currentFileStageAssignments || []).filter(
@@ -7086,7 +7121,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 工項 G：modal 經 upsert 的寫入軌跡（cat_module_logs）
         await _pmLogWfAdjustWrite(kind, fileId, assigneeUserId, payload.workflowStatus, 'upsert');
         const refreshed = (await DBService.listStageAssignmentsForFile(fileId)) || [];
-        window._currentFileStageAssignments = refreshed;
+        window._currentFileStageAssignments = _stampAssignmentRoles(
+            refreshed,
+            window._currentFileWorkflowStages || [],
+        );
         const stages = window._currentFileWorkflowStages || [];
         const stage = stages.find((s) => s.stageKind === kind);
         if (!stage) return null;
@@ -7258,6 +7296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _maybeCompleteReviewStageForFile(fileId) {
         const stages = window._currentFileWorkflowStages || [];
+        if (!_isCatPmOrExecutive()) return;
         const reviewStage = stages.find((s) => s.stageKind === 'review');
         if (!reviewStage) return;
         const assigns = (window._currentFileStageAssignments || []).filter(
@@ -7808,12 +7847,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!should) return;
         const arr = window._currentFileStageAssignments || [];
         const covering = arr.filter((a) => _segInAssignmentLineRange(seg, a, currentFileId));
-        const ids = api && typeof api.assignmentIdsToReopenOnTranslatorEdit === 'function'
-            ? (api.assignmentIdsToReopenOnTranslatorEdit({ covering }) || [])
-            : covering
+        const taggedCovering = covering.map((a) => {
+            if (_isReviewStageAssignment(a)) return { ...a, kind: 'review', stageKind: 'review' };
+            if (_isTranslateStageAssignment(a)) return { ...a, kind: 'translate', stageKind: 'translate' };
+            return a;
+        });
+        let ids = api && typeof api.assignmentIdsToReopenOnTranslatorEdit === 'function'
+            ? (api.assignmentIdsToReopenOnTranslatorEdit({ covering: taggedCovering }) || [])
+            : [];
+        if (!ids.length) {
+            ids = covering
                 .filter((a) => a.workflowStatus === 'completed'
                     && (_isTranslateStageAssignment(a) || _isReviewStageAssignment(a)))
                 .map((a) => String(a.id));
+        }
         const unique = [];
         const seen = new Set();
         for (const id of ids) {

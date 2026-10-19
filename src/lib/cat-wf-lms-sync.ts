@@ -1,8 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
 import {
+  completeCaseCollabRow,
+  completeCaseTranslation,
+  reopenOwnCaseTranslation,
+  reopenOwnCatCompleteOnEdit,
+} from "@/lib/case-action-rpc";
+import {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
+  resolveCatLmsMemberWrite,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
   type CollabRowJson,
@@ -13,6 +20,7 @@ import { getEnvironment } from "@/lib/environment";
 export {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
+  resolveCatLmsMemberWrite,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
 };
@@ -49,6 +57,33 @@ function statusPatchFromTranslate(
     return { status: "task_completed" };
   }
   return {};
+}
+
+function errorMessage(error: { message?: string } | null | undefined): string {
+  return error?.message || "write failed";
+}
+
+async function currentActorId(supabase: SupabaseClient): Promise<string> {
+  const { data } = await supabase.auth.getUser();
+  return data?.user?.id ? String(data.user.id) : "";
+}
+
+function translatorUserIdOf(
+  rows: CollabRowJson[],
+  reviewRows: CollabRowJson[],
+  collabRowId: string,
+): string {
+  const id = String(collabRowId);
+  const collab = rows.find((r) => String(r.id) === id);
+  if (collab && typeof collab.translatorUserId === "string") return collab.translatorUserId;
+  const review = reviewRows.find((r) => String(r.id) === id);
+  if (!review) return "";
+  const fileId = String(review.linkedCatFileId || "");
+  const lineRange = String(review.lineRange || "");
+  const pair = rows.find((r) =>
+    String(r.linkedCatFileId || "") === fileId && String(r.lineRange || "") === lineRange,
+  );
+  return pair && typeof pair.translatorUserId === "string" ? pair.translatorUserId : "";
 }
 
 /** CAT 段落「任務完成」→ LMS 協作列 taskCompleted（B-4） */
@@ -88,6 +123,28 @@ export async function setCollabRowTaskCompletedFromCat(
   const kind = parseCatWfCompleteKind(stageKind);
   if (kind === "translate" && !inCollab) return { ok: false, error: "collab row not found" };
 
+  const actorUserId = await currentActorId(supabase);
+  const plan = resolveCatLmsMemberWrite({
+    taskCompleted,
+    stageKind: kind,
+    collabRowId,
+    actorUserId,
+    translatorUserId: translatorUserIdOf(rows, reviewRows, collabRowId),
+  });
+  const revision = readRevision(caseRow as { revision?: number });
+
+  if (plan.action === "complete_case_collab_row") {
+    const result = await completeCaseCollabRow(supabase, caseId, plan.collabRowId, revision);
+    if (result.error) return { ok: false, error: errorMessage(result.error) };
+    const status = result.data && typeof result.data.status === "string" ? result.data.status : "";
+    return { ok: true, allTaskCompleted: status === "task_completed" };
+  }
+  if (plan.action === "reopen_own_cat_complete_on_edit") {
+    const result = await reopenOwnCatCompleteOnEdit(supabase, caseId, plan.collabRowId, revision);
+    if (result.error) return { ok: false, error: errorMessage(result.error) };
+    return { ok: true, allTaskCompleted: false };
+  }
+
   const applied = applyCatCompleteToCaseRows({
     collabRows: rows,
     reviewRows,
@@ -103,7 +160,7 @@ export async function setCollabRowTaskCompletedFromCat(
     supabase,
     caseId,
     updates,
-    readRevision(caseRow as { revision?: number }),
+    revision,
   );
   if (updErr) return { ok: false, error: updErr.message };
   return { ok: true, allTaskCompleted: applied.allTranslateCompleted };
@@ -127,6 +184,30 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   if (!caseRow) return { ok: false, error: "case not found" };
 
   const { rows, reviewRows } = readCaseRows(caseRow);
+  const actorUserId = await currentActorId(supabase);
+  const revision = readRevision(caseRow as { revision?: number });
+  const uniqueIds = [...new Set(updates.map((u) => String(u.collabRowId || "")).filter(Boolean))];
+  const allOwn = uniqueIds.length > 0 && uniqueIds.every((id) => {
+    const translator = translatorUserIdOf(rows, reviewRows, id);
+    return !!actorUserId && translator === actorUserId;
+  });
+  const anyComplete = updates.some((u) => u.taskCompleted);
+  const anyUncomplete = updates.some((u) => !u.taskCompleted);
+
+  if (allOwn && anyUncomplete && !anyComplete) {
+    let nextRevision = revision;
+    for (const id of uniqueIds) {
+      const result = await reopenOwnCatCompleteOnEdit(supabase, caseId, id, nextRevision);
+      if (result.error) return { ok: false, error: errorMessage(result.error) };
+      if (result.data && typeof result.data.revision === "number") {
+        nextRevision = result.data.revision;
+      } else {
+        nextRevision += 1;
+      }
+    }
+    return { ok: true, allTaskCompleted: false };
+  }
+
   const applied = applyCatCompleteToCaseRows({
     collabRows: rows,
     reviewRows,
@@ -142,10 +223,36 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
     supabase,
     caseId,
     patch,
-    readRevision(caseRow as { revision?: number }),
+    revision,
   );
   if (updErr) return { ok: false, error: updErr.message };
   return { ok: true, allTaskCompleted: applied.allTranslateCompleted };
+}
+
+/** 單人案：譯者取消整檔完成時退回已派出 */
+export async function reopenOwnCaseTranslationFromCat(
+  supabase: SupabaseClient,
+  caseId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const env = getEnvironment();
+  const { data: caseRow, error: fetchErr } = await supabase
+    .from("cases_visible")
+    .select("revision, status")
+    .eq("id", caseId)
+    .eq("env", env)
+    .maybeSingle();
+  if (fetchErr) return { ok: false, error: fetchErr.message };
+  if (!caseRow) return { ok: false, error: "case not found" };
+  if ((caseRow as { status?: string }).status !== "task_completed") {
+    return { ok: true };
+  }
+  const result = await reopenOwnCaseTranslation(
+    supabase,
+    caseId,
+    readRevision(caseRow as { revision?: number }),
+  );
+  if (result.error) return { ok: false, error: errorMessage(result.error) };
+  return { ok: true };
 }
 
 /** 單人多檔：全連結檔整檔翻譯指派皆 completed → 升案件 task_completed（無 collab_row_id） */
@@ -206,6 +313,10 @@ export async function maybeUpgradeCaseTaskCompletedFromCatFiles(
   const coversAllFiles = fileIds.every((fid) => filesWithAssign.has(String(fid)));
   if (!allDone || !coversAllFiles) return { ok: true, upgraded: false };
 
+  const revision = readRevision(caseRow as { revision?: number });
+  const member = await completeCaseTranslation(supabase, caseId, revision);
+  if (!member.error) return { ok: true, upgraded: true };
+
   const { error: updErr } = await applyCaseUpdate(
     supabase,
     caseId,
@@ -213,8 +324,8 @@ export async function maybeUpgradeCaseTaskCompletedFromCatFiles(
       status: "task_completed",
       updated_at: updatedAt,
     },
-    readRevision(caseRow as { revision?: number }),
+    revision,
   );
-  if (updErr) return { ok: false, upgraded: false, error: updErr.message };
-  return { ok: true, upgraded: true };
+  if (!updErr) return { ok: true, upgraded: true };
+  return { ok: false, upgraded: false, error: member.error.message || updErr.message };
 }

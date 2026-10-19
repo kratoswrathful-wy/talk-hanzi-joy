@@ -86,7 +86,7 @@ describe("整檔彙整不得反寫未完成分段", () => {
 });
 
 describe("譯者改譯文取消該範圍完成", () => {
-  it("未改內容、審稿工作、審稿身分都不取消", () => {
+  it("未改內容、審稿工作都不取消", () => {
     expect(shouldReopenCompleteOnTranslatorTargetEdit({
       textChanged: false,
       sessionKind: "translate",
@@ -95,19 +95,40 @@ describe("譯者改譯文取消該範圍完成", () => {
       textChanged: true,
       sessionKind: "review",
     })).toBe(false);
-    expect(shouldReopenCompleteOnTranslatorTargetEdit({
-      textChanged: true,
-      actingAsReviewer: true,
-      sessionKind: "translate",
-    })).toBe(false);
   });
 
-  it("翻譯工作且譯文變更才取消", () => {
+  it("翻譯工作且譯文變更才取消；兼審稿時仍以翻譯工作為準", () => {
     expect(shouldReopenCompleteOnTranslatorTargetEdit({
       textChanged: true,
       sessionKind: "translate",
       actingAsReviewer: false,
     })).toBe(true);
+    expect(shouldReopenCompleteOnTranslatorTargetEdit({
+      textChanged: true,
+      actingAsReviewer: true,
+      sessionKind: "translate",
+    })).toBe(true);
+  });
+
+  it("沒有工作階段且標成審稿身分時不取消", () => {
+    expect(shouldReopenCompleteOnTranslatorTargetEdit({
+      textChanged: true,
+      actingAsReviewer: true,
+    })).toBe(false);
+  });
+
+  it("stageKind 與 kind 同等，可找到同範圍翻譯", () => {
+    expect(translateAssignmentsCompletedWithReview({
+      review: { id: "r", stageKind: "review", fileId: "f1", lineStart: 1, lineEnd: 1 },
+      all: [{ id: "t", stageKind: "translate", fileId: "f1", lineStart: 1, lineEnd: 1 }],
+    })).toEqual(["t"]);
+  });
+
+  it("沒有 kind／stageKind 的 CAT 列找不到對應翻譯（呼叫端必須先蓋角色）", () => {
+    expect(translateAssignmentsCompletedWithReview({
+      review: { id: "r", fileId: "f1", lineStart: 1, lineEnd: 1 },
+      all: [{ id: "t", fileId: "f1", lineStart: 1, lineEnd: 1 }],
+    })).toEqual([]);
   });
 
   it("覆蓋該句的已完成翻譯與審稿都列入，其他段不列入", () => {

@@ -198,6 +198,35 @@ export async function listActiveTranslatorParticipantIds(
   return { data: ids, error: null };
 }
 
+export async function reopenOwnCatCompleteOnEdit(
+  client: SupabaseClient,
+  caseId: string,
+  collabRowId: string,
+  expectedRevision: number,
+): Promise<RpcResponse<CaseActionResult>> {
+  const invalid = requireCaseAndRevision(caseId, expectedRevision);
+  if (invalid) return invalid;
+  if (!collabRowId) return localValidationError("missing collabRowId");
+  return rpc(client, "reopen_own_cat_complete_on_edit", {
+    p_case_id: caseId,
+    p_collab_row_id: collabRowId,
+    p_expected_revision: expectedRevision,
+  });
+}
+
+export async function reopenOwnCaseTranslation(
+  client: SupabaseClient,
+  caseId: string,
+  expectedRevision: number,
+): Promise<RpcResponse<CaseActionResult>> {
+  const invalid = requireCaseAndRevision(caseId, expectedRevision);
+  if (invalid) return invalid;
+  return rpc(client, "reopen_own_case_translation", {
+    p_case_id: caseId,
+    p_expected_revision: expectedRevision,
+  });
+}
+
 export async function completeCaseReviewRow(
   client: SupabaseClient,
   caseId: string,

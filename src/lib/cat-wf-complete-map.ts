@@ -24,6 +24,40 @@ export function parseCatWfCompleteKind(raw: unknown): CatWfCompleteKind {
   return String(raw ?? "").trim().toLowerCase() === "review" ? "review" : "translate";
 }
 
+export type CatLmsMemberWrite =
+  | { action: "complete_case_collab_row"; collabRowId: string }
+  | { action: "complete_case_translation" }
+  | { action: "reopen_own_cat_complete_on_edit"; collabRowId: string }
+  | { action: "reopen_own_case_translation" }
+  | { action: "pm_update_case_assignments" };
+
+/** 譯者本人完成／取消自己那一列用成員 RPC；其餘（含主管代寫、審稿完成）走主管指派寫入。 */
+export function resolveCatLmsMemberWrite(input: {
+  taskCompleted: boolean;
+  stageKind: CatWfCompleteKind;
+  collabRowId?: string | null;
+  actorUserId: string;
+  translatorUserId?: string | null;
+}): CatLmsMemberWrite {
+  const collabRowId = String(input.collabRowId || "").trim();
+  const actor = String(input.actorUserId || "");
+  const translator = String(input.translatorUserId || "");
+  if (!collabRowId) {
+    return input.taskCompleted
+      ? { action: "complete_case_translation" }
+      : { action: "reopen_own_case_translation" };
+  }
+  if (actor && translator && actor === translator) {
+    if (input.taskCompleted && input.stageKind === "translate") {
+      return { action: "complete_case_collab_row", collabRowId };
+    }
+    if (!input.taskCompleted) {
+      return { action: "reopen_own_cat_complete_on_edit", collabRowId };
+    }
+  }
+  return { action: "pm_update_case_assignments" };
+}
+
 function hasReviewer(row: CollabRowJson): boolean {
   return Boolean(String(row.reviewer || "").trim() || String(row.reviewerUserId || "").trim());
 }

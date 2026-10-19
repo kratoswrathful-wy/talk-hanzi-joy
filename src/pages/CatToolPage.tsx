@@ -8,6 +8,7 @@ import {
   setCollabRowTaskCompletedFromCat,
   setCollabRowsTaskCompletedBulkFromCat,
   maybeUpgradeCaseTaskCompletedFromCatFiles,
+  reopenOwnCaseTranslationFromCat,
 } from "@/lib/cat-wf-lms-sync";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { getEnvironment } from "@/lib/environment";
@@ -1075,6 +1076,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
               completedAt,
               stageKind,
             );
+            if (!result.ok) {
+              console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", result.error);
+            }
             if (result.ok && taskCompleted && stageKind === "translate" && user.id) {
               void maybeSendTranslatorCaseReplySlack({
                 userId: user.id,
@@ -1091,6 +1095,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
               caseId,
               completedAt,
             );
+            if (!result.ok) {
+              console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", result.error);
+            }
             if (result.ok && result.upgraded && user.id) {
               void maybeSendTranslatorCaseReplySlack({
                 userId: user.id,
@@ -1099,6 +1106,11 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
                 caseTitle: typeof p.caseTitle === "string" ? p.caseTitle : "",
                 kind: "task_complete",
               });
+            }
+          } else {
+            const result = await reopenOwnCaseTranslationFromCat(supabase, caseId);
+            if (!result.ok) {
+              console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", result.error);
             }
           }
         } catch (e) {
@@ -1111,7 +1123,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         const updatedAt = String(p.updatedAt || new Date().toISOString());
         if (!caseId || !updates.length || !user?.id) return;
         try {
-          await setCollabRowsTaskCompletedBulkFromCat(
+          const bulk = await setCollabRowsTaskCompletedBulkFromCat(
             supabase,
             caseId,
             updates.map((u: { collabRowId?: string; taskCompleted?: boolean; stageKind?: string }) => ({
@@ -1121,6 +1133,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             })).filter((u: { collabRowId: string }) => u.collabRowId),
             updatedAt,
           );
+          if (!bulk.ok) {
+            console.warn("[CAT] CAT_WF_COLLAB_ROWS_BULK", bulk.error);
+          }
         } catch (e) {
           console.warn("[CAT] CAT_WF_COLLAB_ROWS_BULK", e);
         }

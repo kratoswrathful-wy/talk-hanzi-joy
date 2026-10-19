@@ -3,6 +3,7 @@ import {
   applyCatCompleteToCaseRows,
   collabRowPatchFromReviewCompleteCheck,
   parseCatWfCompleteKind,
+  resolveCatLmsMemberWrite,
 } from "./cat-wf-complete-map";
 
 const collab = {
@@ -157,6 +158,35 @@ describe("applyCatCompleteToCaseRows", () => {
     expect(out.reviewRows[1].taskCompleted).toBe(true);
     expect(out.anyTranslateTouched).toBe(true);
     expect(out.allTranslateCompleted).toBe(false);
+  });
+
+  it("譯者本人完成／取消走成員 RPC，主管代寫仍走指派寫入", () => {
+    expect(resolveCatLmsMemberWrite({
+      taskCompleted: true,
+      stageKind: "translate",
+      collabRowId: "row-1",
+      actorUserId: "t1",
+      translatorUserId: "t1",
+    })).toEqual({ action: "complete_case_collab_row", collabRowId: "row-1" });
+    expect(resolveCatLmsMemberWrite({
+      taskCompleted: false,
+      stageKind: "translate",
+      collabRowId: "row-1",
+      actorUserId: "t1",
+      translatorUserId: "t1",
+    })).toEqual({ action: "reopen_own_cat_complete_on_edit", collabRowId: "row-1" });
+    expect(resolveCatLmsMemberWrite({
+      taskCompleted: true,
+      stageKind: "translate",
+      actorUserId: "t1",
+    })).toEqual({ action: "complete_case_translation" });
+    expect(resolveCatLmsMemberWrite({
+      taskCompleted: true,
+      stageKind: "review",
+      collabRowId: "row-1",
+      actorUserId: "pm",
+      translatorUserId: "t1",
+    })).toEqual({ action: "pm_update_case_assignments" });
   });
 
   it("LMS review checkbox patch completes translate when checking, keeps translate when unchecking", () => {

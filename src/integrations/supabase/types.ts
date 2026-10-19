@@ -3928,6 +3928,18 @@ export type Database = {
         }
         Returns: Json
       }
+      reopen_own_cat_complete_on_edit: {
+        Args: {
+          p_case_id: string
+          p_collab_row_id: string
+          p_expected_revision: number
+        }
+        Returns: Json
+      }
+      reopen_own_case_translation: {
+        Args: { p_case_id: string; p_expected_revision: number }
+        Returns: Json
+      }
       complete_case_review_row: {
         Args: {
           p_case_id: string
