@@ -3753,6 +3753,27 @@ export type Database = {
         }
         Returns: undefined
       }
+      cat_reconcile_file_workflow_stage_from_assignments: {
+        Args: { p_allow_downgrade?: boolean; p_stage_id: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          file_id: string
+          id: string
+          label: string
+          stage_kind: string
+          stage_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cat_file_workflow_stages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cat_resolve_effective_upsert_workflow_status: {
         Args: {
           p_allow_downgrade?: boolean

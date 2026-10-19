@@ -167,6 +167,47 @@ export function aggregateStageStatusFromAssignmentStatuses(statuses) {
 }
 
 /**
+ * 依「該步全部有效分段」決定整步下一狀態。回傳 null 表示不要改現況。
+ * 呼叫端必須給該步全部 workflowStatus，不得只用某人畫面上看得到的列。
+ * @param {{
+ *   stageKind?: string,
+ *   stage_kind?: string,
+ *   currentStatus?: string,
+ *   status?: string,
+ *   assignmentStatuses?: string[],
+ *   allowDowngrade?: boolean,
+ * }} [input]
+ * @returns {'active'|'completed'|null}
+ */
+export function nextFileWorkflowStageStatusFromAssignments(input) {
+  const o = input || {};
+  const stageKind = String(o.stageKind || o.stage_kind || "");
+  if (stageKind === "prep") return null;
+  const current = String(o.currentStatus || o.status || "");
+  const allowDowngrade = !!o.allowDowngrade;
+  const statuses = Array.isArray(o.assignmentStatuses) ? o.assignmentStatuses : [];
+  if (!statuses.length) return null;
+  let next = null;
+  if (statuses.every((s) => String(s || "") === "completed")) {
+    next = "completed";
+  } else if (statuses.some((s) => {
+    const v = String(s || "");
+    return v === "in_progress" || v === "completed";
+  })) {
+    next = "active";
+  } else if (current === "completed") {
+    next = "active";
+  } else if (current === "pending" && statuses.some((s) => String(s || "") !== "assigned")) {
+    next = "active";
+  }
+  if (!next || next === current) return null;
+  if (stageKind === "translate" && current === "completed" && next !== "completed" && !allowDowngrade) {
+    return null;
+  }
+  return next;
+}
+
+/**
  * 兩段列範圍是否重疊（含單點、開區間）。缺範圍視為整檔，與任何範圍重疊。
  * 僅供診斷；完成連動不得用重疊去完成另一整段。
  * @param {object} a
@@ -241,6 +282,7 @@ const WfCompleteIndependence = {
   translateAssignmentsCompletedWithReview,
   translateIdsForExplicitWholeFileReviewComplete,
   aggregateStageStatusFromAssignmentStatuses,
+  nextFileWorkflowStageStatusFromAssignments,
   assignmentRangesOverlap,
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,

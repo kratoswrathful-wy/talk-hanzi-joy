@@ -7006,38 +7006,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _reconcileStageStatusFromAssignments(fileId, stageId, opts) {
-        if (!_isCatPmOrExecutive()) return;
         const allowDowngrade = !!(opts && opts.allowDowngrade);
-        const fid = String(fileId);
-        const assigns = (window._currentFileStageAssignments || []).filter(
-            (a) => String(a.fileId) === fid && String(a.fileWorkflowStageId) === String(stageId),
-        );
-        if (!assigns.length) return;
+        if (stageId == null || stageId === '') return;
+        let updated = null;
+        if (typeof DBService.reconcileFileWorkflowStageFromAssignments === 'function') {
+            updated = await DBService.reconcileFileWorkflowStageFromAssignments(stageId, { allowDowngrade });
+        } else {
+            const fid = String(fileId);
+            const assigns = (window._currentFileStageAssignments || []).filter(
+                (a) => String(a.fileId) === fid && String(a.fileWorkflowStageId) === String(stageId),
+            );
+            const stagesLocal = window._currentFileWorkflowStages || [];
+            const st = stagesLocal.find((s) => String(s.id) === String(stageId));
+            if (!st || st.stageKind === 'prep' || !assigns.length) return;
+            const api = window.WfCompleteIndependence;
+            const next = api && typeof api.nextFileWorkflowStageStatusFromAssignments === 'function'
+                ? api.nextFileWorkflowStageStatusFromAssignments({
+                    stageKind: st.stageKind,
+                    currentStatus: st.status,
+                    assignmentStatuses: assigns.map((a) => a.workflowStatus),
+                    allowDowngrade,
+                })
+                : null;
+            if (!next) return;
+            updated = await DBService.updateFileWorkflowStageStatus(stageId, next);
+        }
+        if (!updated) return;
         const stages = window._currentFileWorkflowStages || [];
-        const st = stages.find((s) => String(s.id) === String(stageId));
-        if (!st || st.stageKind === 'prep') return;
-        let next = null;
-        if (assigns.every((a) => a.workflowStatus === 'completed')) {
-            next = 'completed';
-        } else if (assigns.some((a) => a.workflowStatus === 'in_progress' || a.workflowStatus === 'completed')) {
-            next = 'active';
-        } else if (st.status === 'completed') {
-            // 全部分段回到待開始 → 重開 stage
-            next = 'active';
-        } else if (st.status === 'pending' && assigns.some((a) => a.workflowStatus !== 'assigned')) {
-            next = 'active';
-        }
-        if (!next || next === st.status) return;
-        // 工項 4：翻譯 stage 已 completed 時，解鎖不得自動降為 active（PM 明確降級才 allowDowngrade）
-        if (
-            st.stageKind === 'translate'
-            && st.status === 'completed'
-            && next !== 'completed'
-            && !allowDowngrade
-        ) {
-            return;
-        }
-        const updated = await DBService.updateFileWorkflowStageStatus(stageId, next);
         const idx = stages.findIndex((s) => String(s.id) === String(stageId));
         if (idx >= 0) stages[idx] = { ...stages[idx], ...updated };
         window._currentFileWorkflowStages = stages;
@@ -7296,19 +7291,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _maybeCompleteReviewStageForFile(fileId) {
         const stages = window._currentFileWorkflowStages || [];
-        if (!_isCatPmOrExecutive()) return;
         const reviewStage = stages.find((s) => s.stageKind === 'review');
         if (!reviewStage) return;
-        const assigns = (window._currentFileStageAssignments || []).filter(
-            (a) => String(a.fileId) === String(fileId)
-                && String(a.fileWorkflowStageId) === String(reviewStage.id),
-        );
-        if (!assigns.length || !assigns.every((a) => a.workflowStatus === 'completed')) return;
-        if (reviewStage.status === 'completed') return;
-        const updated = await DBService.updateFileWorkflowStageStatus(reviewStage.id, 'completed');
-        const rIdx = stages.findIndex((s) => String(s.id) === String(reviewStage.id));
-        if (rIdx >= 0) stages[rIdx] = { ...stages[rIdx], ...updated };
-        window._currentFileWorkflowStages = stages;
+        const wasCompleted = reviewStage.status === 'completed';
+        await _reconcileStageStatusFromAssignments(fileId, reviewStage.id);
+        const st = (window._currentFileWorkflowStages || []).find((s) => s.stageKind === 'review');
+        if (!st || st.status !== 'completed' || wasCompleted) return;
         await enqueueStageSnapshot(fileId, reviewStage.id, 'post_review');
     }
 

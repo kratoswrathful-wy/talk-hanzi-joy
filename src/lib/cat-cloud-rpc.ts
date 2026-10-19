@@ -2622,6 +2622,17 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (error) throw error;
       return mapFileWorkflowStageRow(data);
     }
+    case "db.reconcileFileWorkflowStageFromAssignments": {
+      const { data, error } = await supabase.rpc(
+        "cat_reconcile_file_workflow_stage_from_assignments",
+        {
+          p_stage_id: payload.stageId,
+          p_allow_downgrade: !!payload.allowDowngrade,
+        },
+      );
+      if (error) throw error;
+      return mapFileWorkflowStageRow(data);
+    }
 
     case "db.loadFileSnapshots": {
       const PAGE = 1000;

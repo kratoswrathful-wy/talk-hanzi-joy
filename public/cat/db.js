@@ -1157,6 +1157,29 @@ const DBService = {
         return { ...row, status, updatedAt: now };
     },
 
+    async reconcileFileWorkflowStageFromAssignments(stageId, opts) {
+        const allowDowngrade = !!(opts && opts.allowDowngrade);
+        const row = await db.fileWorkflowStages.get(stageId);
+        if (!row) return null;
+        const assigns = await db.stageAssignments
+            .where('fileWorkflowStageId')
+            .equals(stageId)
+            .toArray();
+        const api = (typeof window !== 'undefined' && window.WfCompleteIndependence)
+            ? window.WfCompleteIndependence
+            : null;
+        const next = api && typeof api.nextFileWorkflowStageStatusFromAssignments === 'function'
+            ? api.nextFileWorkflowStageStatusFromAssignments({
+                stageKind: row.stageKind,
+                currentStatus: row.status,
+                assignmentStatuses: (assigns || []).map((a) => a.workflowStatus),
+                allowDowngrade,
+            })
+            : null;
+        if (!next) return row;
+        return DBService.updateFileWorkflowStageStatus(stageId, next);
+    },
+
     // ---- Phase C: snapshots & annotations (offline) ----
     async loadFileSnapshots(fileId) {
         const fid = toDexieLocalId(fileId);
@@ -2649,6 +2672,11 @@ const DBService = {
         rpc('db.markStageAssignmentFirstEdited', { assignmentId, assigneeUserId });
     DBService.updateFileWorkflowStageStatus = async (stageId, status) =>
         rpc('db.updateFileWorkflowStageStatus', { stageId, status });
+    DBService.reconcileFileWorkflowStageFromAssignments = async (stageId, opts) =>
+        rpc('db.reconcileFileWorkflowStageFromAssignments', {
+            stageId,
+            allowDowngrade: !!(opts && opts.allowDowngrade),
+        });
 
     // Phase C
     DBService.loadFileSnapshots = async (fileId) => rpc('db.loadFileSnapshots', { fileId });

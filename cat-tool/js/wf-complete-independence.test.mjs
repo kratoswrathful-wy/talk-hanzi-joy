@@ -7,6 +7,7 @@ import {
   translateAssignmentsCompletedWithReview,
   translateIdsForExplicitWholeFileReviewComplete,
   aggregateStageStatusFromAssignmentStatuses,
+  nextFileWorkflowStageStatusFromAssignments,
   assignmentRangesOverlap,
   assignmentsHaveExactSameRange,
   shouldReopenCompleteOnTranslatorTargetEdit,
@@ -82,6 +83,50 @@ describe("整檔彙整不得反寫未完成分段", () => {
 
   it("全部完成才是整檔完成", () => {
     expect(aggregateStageStatusFromAssignmentStatuses(["completed", "completed"])).toBe("completed");
+  });
+
+  it("最後一段完成才把整步標完成；只完成一段維持進行中", () => {
+    expect(nextFileWorkflowStageStatusFromAssignments({
+      stageKind: "translate",
+      currentStatus: "active",
+      assignmentStatuses: ["completed", "in_progress"],
+    })).toBe(null);
+    expect(nextFileWorkflowStageStatusFromAssignments({
+      stageKind: "translate",
+      currentStatus: "active",
+      assignmentStatuses: ["completed", "completed"],
+    })).toBe("completed");
+  });
+
+  it("沒有分段列時不捏造整檔完成", () => {
+    expect(nextFileWorkflowStageStatusFromAssignments({
+      stageKind: "translate",
+      currentStatus: "active",
+      assignmentStatuses: [],
+    })).toBe(null);
+  });
+
+  it("翻譯已完成且未允許降級時，不因未完成分段自動退回", () => {
+    expect(nextFileWorkflowStageStatusFromAssignments({
+      stageKind: "translate",
+      currentStatus: "completed",
+      assignmentStatuses: ["completed", "in_progress"],
+      allowDowngrade: false,
+    })).toBe(null);
+  });
+
+  it("允許降級時，重開後整步回到進行中；審稿完成不全也退回", () => {
+    expect(nextFileWorkflowStageStatusFromAssignments({
+      stageKind: "translate",
+      currentStatus: "completed",
+      assignmentStatuses: ["completed", "in_progress"],
+      allowDowngrade: true,
+    })).toBe("active");
+    expect(nextFileWorkflowStageStatusFromAssignments({
+      stageKind: "review",
+      currentStatus: "completed",
+      assignmentStatuses: ["completed", "in_progress"],
+    })).toBe("active");
   });
 });
 
