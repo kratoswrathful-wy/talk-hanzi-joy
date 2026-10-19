@@ -181,6 +181,11 @@ describe("applyCatCompleteToCaseRows", () => {
       actorUserId: "t1",
     })).toEqual({ action: "complete_case_translation" });
     expect(resolveCatLmsMemberWrite({
+      taskCompleted: false,
+      stageKind: "translate",
+      actorUserId: "t1",
+    })).toEqual({ action: "reopen_own_case_translation" });
+    expect(resolveCatLmsMemberWrite({
       taskCompleted: true,
       stageKind: "review",
       collabRowId: "row-1",

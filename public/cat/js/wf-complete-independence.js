@@ -270,6 +270,35 @@ export function assignmentIdsToReopenOnTranslatorEdit(input) {
   return ids;
 }
 
+/**
+ * 單人整檔常沒有 LMS 協作列 id。沒有 id 時不能略過案件回寫。
+ * @param {object|null|undefined} a
+ * @returns {string}
+ */
+export function assignmentLmsCollabRowId(a) {
+  const raw = a?.collabRowId != null ? a.collabRowId : a?.collab_row_id;
+  return String(raw || "").trim();
+}
+
+/**
+ * 需要改走案件層完成／退回的指派（沒有協作列 id）。
+ * @param {object[]} [assignments]
+ * @returns {object[]}
+ */
+export function assignmentsNeedingCaseLevelLmsSync(assignments) {
+  const list = Array.isArray(assignments) ? assignments : [];
+  const out = [];
+  const seen = new Set();
+  for (const a of list) {
+    if (!a || assignmentLmsCollabRowId(a)) continue;
+    const key = String(a.id || a.fileId || a.file_id || `idx-${out.length}`);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+  }
+  return out;
+}
+
 function assignmentStageId(a) {
   return a?.fileWorkflowStageId != null ? a.fileWorkflowStageId : a?.file_workflow_stage_id;
 }
@@ -445,6 +474,8 @@ const WfCompleteIndependence = {
   assignmentRangesOverlap,
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
+  assignmentLmsCollabRowId,
+  assignmentsNeedingCaseLevelLmsSync,
   resolveMemberEditAssignments,
   resolveMemberWorkKind,
   assignmentCoversLine,

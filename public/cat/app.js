@@ -6609,20 +6609,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _syncLmsForAssignments(assignments, taskCompleted) {
         const byCase = new Map();
+        const api = window.WfCompleteIndependence;
+        const rowIdOf = (a) => (api && typeof api.assignmentLmsCollabRowId === 'function'
+            ? api.assignmentLmsCollabRowId(a)
+            : String((a && a.collabRowId) || '').trim());
+        const missing = api && typeof api.assignmentsNeedingCaseLevelLmsSync === 'function'
+            ? api.assignmentsNeedingCaseLevelLmsSync(assignments)
+            : (assignments || []).filter((a) => a && !rowIdOf(a));
         for (const a of assignments || []) {
-            if (!a || !a.collabRowId) continue;
+            if (!a) continue;
+            const rowId = rowIdOf(a);
+            if (!rowId) continue;
             const meta = await _getFileMetaForAssignment(a);
             const caseId = meta && meta.relatedLmsCaseId ? String(meta.relatedLmsCaseId) : '';
             if (!caseId) continue;
             if (!byCase.has(caseId)) byCase.set(caseId, []);
             byCase.get(caseId).push({
-                collabRowId: String(a.collabRowId),
+                collabRowId: rowId,
                 taskCompleted: !!taskCompleted,
                 stageKind: _wfLmsCompleteKind(a),
             });
         }
         for (const [caseId, updates] of byCase.entries()) {
             await _emitWfCollabRowsBulkToLms(caseId, updates);
+        }
+        const seenCase = new Set();
+        for (const a of missing) {
+            const meta = await _getFileMetaForAssignment(a);
+            const caseId = meta && meta.relatedLmsCaseId ? String(meta.relatedLmsCaseId) : '';
+            if (!caseId || seenCase.has(caseId)) continue;
+            seenCase.add(caseId);
+            await _emitWfTaskCompleteToLms(a, meta, taskCompleted);
         }
     }
 

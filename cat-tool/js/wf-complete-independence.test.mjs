@@ -16,6 +16,8 @@ import {
   reviewStageForbidsMemberEdit,
   reviewAssignmentRangeCompleted,
   resolveMemberWorkKind,
+  assignmentLmsCollabRowId,
+  assignmentsNeedingCaseLevelLmsSync,
 } from "./wf-complete-independence.js";
 
 const assigns = [
@@ -189,6 +191,16 @@ describe("譯者改譯文取消該範圍完成", () => {
     expect(assignmentIdsToReopenOnTranslatorEdit({
       covering: covering.filter((a) => a.id !== "t-2-2"),
     })).toEqual(["t-1-1", "r-1-1"]);
+  });
+
+  it("沒有協作列 id 的單人整檔指派要走案件層 LMS", () => {
+    expect(assignmentLmsCollabRowId({ collabRowId: "row-1" })).toBe("row-1");
+    expect(assignmentLmsCollabRowId({ collab_row_id: null })).toBe("");
+    expect(assignmentsNeedingCaseLevelLmsSync([
+      { id: "e411", collabRowId: null },
+      { id: "e001", collabRowId: "row-1" },
+      { id: "e411", collab_row_id: "" },
+    ]).map((a) => a.id)).toEqual(["e411"]);
   });
 
   it("未完成指派不列入", () => {
