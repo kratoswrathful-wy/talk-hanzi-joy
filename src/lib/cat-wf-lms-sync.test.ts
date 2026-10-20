@@ -110,6 +110,30 @@ describe("applyCatCompleteToCaseRows", () => {
     expect(out.reviewRows[0].taskCompleted).toBe(true);
   });
 
+  it("一段翻譯完成、另一段未完成時，整案翻譯不算全部完成", () => {
+    const row2 = { ...collab, id: "row-2", lineRange: "11-20", taskCompleted: false };
+    const out = applyCatCompleteToCaseRows({
+      collabRows: [collab, row2],
+      reviewRows: [review, { ...review, id: "row-2", lineRange: "11-20" }],
+      updates: [{ collabRowId: "row-1", taskCompleted: true, stageKind: "translate" }],
+    });
+    expect(out.collabRows[0].taskCompleted).toBe(true);
+    expect(out.collabRows[1].taskCompleted).toBe(false);
+    expect(out.allTranslateCompleted).toBe(false);
+  });
+
+  it("兩段翻譯都完成後，整案翻譯才算全部完成", () => {
+    const row2 = { ...collab, id: "row-2", lineRange: "11-20", taskCompleted: false };
+    const out = applyCatCompleteToCaseRows({
+      collabRows: [{ ...collab, taskCompleted: true }, row2],
+      reviewRows: [review, { ...review, id: "row-2", lineRange: "11-20" }],
+      updates: [{ collabRowId: "row-2", taskCompleted: true, stageKind: "translate" }],
+    });
+    expect(out.collabRows[0].taskCompleted).toBe(true);
+    expect(out.collabRows[1].taskCompleted).toBe(true);
+    expect(out.allTranslateCompleted).toBe(true);
+  });
+
   it("bulk mixed complete writes each kind independently", () => {
     const row2 = { ...collab, id: "row-2", lineRange: "11-20", taskCompleted: false };
     const out = applyCatCompleteToCaseRows({
