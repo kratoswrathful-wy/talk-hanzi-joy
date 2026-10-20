@@ -34,9 +34,10 @@ function review(partial: Partial<ReviewCollabRow> & { id: string; reviewer: stri
 }
 
 describe("collabReviewScopeKey", () => {
-  it("沒有檔案或檢視時不配對", () => {
-    expect(collabReviewScopeKey({ lineRange: "1-10" })).toBe("");
-    expect(collabReviewScopeKey({ linkedCatFileId: "  ", lineRange: "1-10" })).toBe("");
+  it("沒有檔案時可用唯一檔名或範圍配對，空白檔名不猜", () => {
+    expect(collabReviewScopeKey({ lineRange: "1-10" })).toBe("plain:|1:10");
+    expect(collabReviewScopeKey({ segment: "說明.xlsx", lineRange: "1-10" })).toBe("plain:說明.xlsx|1:10");
+    expect(collabReviewScopeKey({ linkedCatFileId: "  ", segment: "" })).toBe("");
   });
 
   it("同一檔同一範圍視為同一把鑰匙，空白範圍＝整檔", () => {
@@ -142,7 +143,7 @@ describe("projectCollabReviewIntoReviewRows", () => {
 describe("applyPairedReviewRowsToCollab / mergeCatCollabSavePayload", () => {
   const file = "5e85226f-576e-42f3-8520-5175918974a5";
 
-  it("CAT 改一對一審稿後，案件主列也換成同一人", () => {
+  it("讀取配對時可把一對一舊審稿顯示到主列，但儲存合併不以舊列覆寫共用列", () => {
     const collabs = [
       collab({
         id: "cr-2",
@@ -171,6 +172,13 @@ describe("applyPairedReviewRowsToCollab / mergeCatCollabSavePayload", () => {
         translator: "譯者一（測試）",
       }),
     );
+    const merged = mergeCatCollabSavePayload(collabs, reviews);
+    expect(merged.collabRows[0]).toEqual(
+      expect.objectContaining({ reviewer: "譯者二（測試）", reviewerUserId: "uid-t2" }),
+    );
+    expect(merged.reviewRows[0]).toEqual(
+      expect.objectContaining({ reviewer: "譯者二（測試）", reviewerUserId: "uid-t2" }),
+    );
   });
 
   it("一對多不猜，主列審稿維持原值", () => {
@@ -184,7 +192,7 @@ describe("applyPairedReviewRowsToCollab / mergeCatCollabSavePayload", () => {
     expect(next.map((r) => r.reviewer)).toEqual(["甲", "乙"]);
   });
 
-  it("儲存合併後主列與 review_rows 同一人，無法配對舊列仍在", () => {
+  it("儲存合併以共用列為準，無法配對舊列仍保留不丟", () => {
     const leftover = review({
       id: "old",
       reviewer: "舊",
@@ -213,8 +221,8 @@ describe("applyPairedReviewRowsToCollab / mergeCatCollabSavePayload", () => {
       ],
     );
     expect(merged.collabRows[0]).toEqual(
-      expect.objectContaining({ reviewer: "譯者一（測試）", reviewerUserId: "uid-t1" }),
+      expect.objectContaining({ reviewer: "譯者二（測試）", reviewerUserId: "uid-t2" }),
     );
-    expect(merged.reviewRows.map((r) => r.reviewer)).toEqual(["舊", "譯者一（測試）"]);
+    expect(merged.reviewRows.map((r) => r.reviewer)).toEqual(["舊", "譯者二（測試）"]);
   });
 });

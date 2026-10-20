@@ -14,10 +14,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import {
-  syncCatWorkflowAssignmentsForCase,
-  broadcastCatWorkflowAssignmentsSynced,
-} from "@/lib/cat-workflow-dispatch";
+import { inheritCaseAssignmentsForLinkedFile } from "@/lib/inherit-case-assignments";
+import { describeInheritFailure } from "@/lib/shared-assign-inherit";
+import { broadcastCatWorkflowAssignmentsSynced } from "@/lib/cat-workflow-dispatch";
 import { broadcastCatCaseFilesChanged } from "@/lib/cat-case-file-options";
 import { buildCatDeepLink, buildCatProjectLink } from "@/lib/cat-deep-link";
 import {
@@ -108,6 +107,13 @@ export function CaseCatToolsPanel({
     otherCaseTitle: string;
     unlinkOldId?: string | null;
   } | null>(null);
+  const [rowChoice, setRowChoice] = useState<{
+    fileId: string;
+    fileName: string;
+    unlinkOldId?: string | null;
+    candidates: Array<{ id: string; segment: string; lineRange: string | null }>;
+    chosenRowId: string;
+  } | null>(null);
 
   const loadLinkedFiles = useCallback(async () => {
     setLoading(true);
@@ -164,7 +170,12 @@ export function CaseCatToolsPanel({
     };
   }, [caseId, loadLinkedFiles]);
 
-  const applyLink = async (fileId: string, unlinkOldId?: string | null) => {
+  const applyLink = async (
+    fileId: string,
+    unlinkOldId?: string | null,
+    fileName?: string,
+    chosenRowId?: string,
+  ) => {
     const now = new Date().toISOString();
     const { error } = await supabase
       .from("cat_files")
@@ -185,8 +196,33 @@ export function CaseCatToolsPanel({
         })
         .eq("id", unlinkOldId);
     }
-    await syncCatWorkflowAssignmentsForCase(supabase, caseId);
-    broadcastCatWorkflowAssignmentsSynced(caseId);
+    const inherit = await inheritCaseAssignmentsForLinkedFile(supabase, {
+      caseId,
+      fileId,
+      fileName: fileName || "",
+      chosenRowId,
+    });
+    if (inherit.needsRowChoice) {
+      setRowChoice({
+        fileId,
+        fileName: fileName || "",
+        unlinkOldId,
+        candidates: inherit.candidates,
+        chosenRowId: inherit.candidates[0]?.id || "",
+      });
+      return inherit;
+    }
+    if (!inherit.ok) {
+      const copy = describeInheritFailure({
+        importOk: true,
+        inheritOk: false,
+        reason: inherit.reason,
+      });
+      toast({ title: copy.title, description: copy.description, variant: "destructive" });
+    } else {
+      broadcastCatWorkflowAssignmentsSynced(caseId);
+    }
+    return inherit;
   };
 
   const handleRemoveLink = async (fileId: string) => {
@@ -247,8 +283,12 @@ export function CaseCatToolsPanel({
     }
     setBusy(true);
     try {
-      await applyLink(file.id, unlinkOldId);
-      toast({ title: unlinkOldId ? "已變更連結" : "已新增連結" });
+      const inherit = await applyLink(file.id, unlinkOldId, file.name);
+      if (inherit?.needsRowChoice) {
+        toast({ title: unlinkOldId ? "已變更連結" : "已新增連結", description: "請選擇要承接的共用列。" });
+      } else {
+        toast({ title: unlinkOldId ? "已變更連結" : "已新增連結" });
+      }
       await loadLinkedFiles();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -264,8 +304,12 @@ export function CaseCatToolsPanel({
     setRelinkConfirm(null);
     setBusy(true);
     try {
-      await applyLink(fileId, unlinkOldId ?? undefined);
-      toast({ title: unlinkOldId ? "已變更連結" : "已新增連結" });
+      const inherit = await applyLink(fileId, unlinkOldId ?? undefined, relinkConfirm.fileName);
+      if (inherit?.needsRowChoice) {
+        toast({ title: unlinkOldId ? "已變更連結" : "已新增連結", description: "請選擇要承接的共用列。" });
+      } else {
+        toast({ title: unlinkOldId ? "已變更連結" : "已新增連結" });
+      }
       await loadLinkedFiles();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -437,6 +481,65 @@ export function CaseCatToolsPanel({
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleRemoveCatTool()}>移除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!rowChoice} onOpenChange={(o) => !o && setRowChoice(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>選擇要承接的共用列</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{rowChoice?.fileName}」對到多列，請選一列承接既有人員。不必重選譯者或審稿人。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <select
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            style={{ boxSizing: "border-box" }}
+            value={rowChoice?.chosenRowId || ""}
+            onChange={(e) => {
+              const value = e.target.value;
+              setRowChoice((prev) => (prev ? { ...prev, chosenRowId: value } : prev));
+            }}
+          >
+            {(rowChoice?.candidates || []).map((row) => (
+              <option key={row.id} value={row.id}>
+                {(row.segment || "（無檔名）") + (row.lineRange ? ` ${row.lineRange}` : " 整檔")}
+              </option>
+            ))}
+          </select>
+          <AlertDialogFooter>
+            <AlertDialogCancel>稍後再選</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!rowChoice?.chosenRowId) return;
+                const pending = rowChoice;
+                setRowChoice(null);
+                setBusy(true);
+                void inheritCaseAssignmentsForLinkedFile(supabase, {
+                  caseId,
+                  fileId: pending.fileId,
+                  fileName: pending.fileName,
+                  chosenRowId: pending.chosenRowId,
+                })
+                  .then((result) => {
+                    if (!result.ok) {
+                      const copy = describeInheritFailure({
+                        importOk: true,
+                        inheritOk: false,
+                        reason: result.reason,
+                      });
+                      toast({ title: copy.title, description: copy.description, variant: "destructive" });
+                      return;
+                    }
+                    broadcastCatWorkflowAssignmentsSynced(caseId);
+                    toast({ title: "已帶入該列人員" });
+                  })
+                  .finally(() => setBusy(false));
+              }}
+            >
+              承接此列
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

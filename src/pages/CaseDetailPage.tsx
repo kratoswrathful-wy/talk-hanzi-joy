@@ -89,18 +89,22 @@ import { applyEditLogFieldChange, type BurstMap } from "@/lib/edit-log-coalesce"
 import { filterEditLogsCase } from "@/lib/edit-log-permission-filter";
 
 import CollaborationTable from "@/components/CollaborationTable";
-import ReviewCollaborationTable from "@/components/ReviewCollaborationTable";
 import {
   deriveReviewerSummary,
-  shouldShowReviewSegmentBlock,
   writeThroughWholeFileReviewDeadline,
   writeThroughWholeFileReviewer,
 } from "@/lib/review-rows";
 import {
-  leftoverUnpairedReviewRows,
   partitionReviewRowsByCollab,
   projectCollabReviewIntoReviewRows,
 } from "@/lib/collab-review-pair";
+import {
+  applySafeLegacyReviewConversion,
+  attachLinkedFilesToWholeFileReview,
+  classifyLegacyReviewRows,
+  describeLegacyReviewConflict,
+} from "@/lib/shared-assign-inherit";
+import { describeCatWorkflowSyncIssues } from "@/lib/cat-workflow-sync-result";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 import { CaseBodyOmittedPreview } from "@/components/CaseBodyOmittedPreview";
@@ -176,10 +180,11 @@ function warnUnresolvedTranslatorsIfNeeded(
   if (!caseId) return;
   void (async () => {
     const report = await syncCatWorkflowAssignmentsForCase(supabase, caseId);
-    if (!report || report.unresolvedTranslators.length === 0) return;
+    const parts = describeCatWorkflowSyncIssues(report);
+    if (!parts.length) return;
     toastFn({
-      title: "注意：部分譯者未建立 CAT 指派",
-      description: `以下譯者無法對應到系統帳號，CAT 指派未建立（譯者開檔將無法編輯）：${report.unresolvedTranslators.join("、")}。請確認其顯示名稱與系統帳號一致。`,
+      title: "注意：部分人員尚未建立 CAT 指派",
+      description: `${parts.join("；")}。檔案若已匯入可重試帶入，不必再匯入一次。`,
       variant: "destructive",
     });
   })();
@@ -1216,6 +1221,7 @@ export default function CaseDetailPage() {
   const [collabCancelSelectedRows, setCollabCancelSelectedRows] = useState<Set<string>>(new Set());
   const [collabCancelMode, setCollabCancelMode] = useState<"cancel" | "reduce">("cancel");
   const [collabReduceTarget, setCollabReduceTarget] = useState(0);
+  const [linkedCatFiles, setLinkedCatFiles] = useState<Array<{ id: string; name: string }>>([]);
   const [creatorName, setCreatorName] = useState("");
   const [dupDialogOpen, setDupDialogOpen] = useState(false);
   const [duplicateSortOpen, setDuplicateSortOpen] = useState(false);
@@ -1880,6 +1886,51 @@ export default function CaseDetailPage() {
     void bodyWriteSchedulerRef.current.flush();
   }, []);
 
+  useEffect(() => {
+    if (!id) {
+      setLinkedCatFiles([]);
+      return;
+    }
+    let cancelled = false;
+    void supabase
+      .from("cat_files")
+      .select("id, name")
+      .eq("related_lms_case_id", id)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        setLinkedCatFiles(
+          (data ?? []).map((row) => ({
+            id: String((row as { id: string }).id),
+            name: String((row as { name?: string }).name || ""),
+          })),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const stampedReviewSigRef = useRef("");
+  useEffect(() => {
+    if (!isManager || !id) return;
+    const current = caseDataRef.current;
+    if (!current || current.multiCollab) return;
+    if (caseStore.getCompleteness(id) !== "full") return;
+    if (!linkedCatFiles.length) return;
+    const next = attachLinkedFilesToWholeFileReview(current.reviewRows, linkedCatFiles);
+    const nextSig = JSON.stringify(
+      next.map((row) => `${row.id}:${row.linkedCatFileId || ""}:${row.reviewerUserId || row.reviewer}`),
+    );
+    const prevSig = JSON.stringify(
+      (current.reviewRows || []).map((row) => `${row.id}:${row.linkedCatFileId || ""}:${row.reviewerUserId || row.reviewer}`),
+    );
+    if (nextSig === prevSig) return;
+    const stampKey = `${id}:${nextSig}`;
+    if (stampedReviewSigRef.current === stampKey) return;
+    stampedReviewSigRef.current = stampKey;
+    void save({ reviewRows: next, reviewer: deriveReviewerSummary(next) || current.reviewer });
+  }, [id, isManager, linkedCatFiles, save]);
+
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
   // credentialsStatus：loading／refreshing／error 與 confirmed 分離；寫入仍以 peekConfirmed 為準
   const credentialsReady =
@@ -2251,11 +2302,10 @@ export default function CaseDetailPage() {
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
   const canEditCaseBasics = isPmOrAbove && contentWritable;
   const canSeePmPrivate = isPmOrAbove;
-  const showReviewSegmentBlock = shouldShowReviewSegmentBlock({
-    multiCollab: caseData.multiCollab,
+  const legacyReviewConflicts = classifyLegacyReviewRows({
+    collabRows: caseData.collabRows,
     reviewRows: caseData.reviewRows,
-  });
-  const leftoverReviewRows = leftoverUnpairedReviewRows(caseData.collabRows, caseData.reviewRows);
+  }).filter((item): item is Extract<typeof item, { kind: "conflict" }> => item.kind === "conflict");
 
   const handleDecline = async () => {
     const decline = {
@@ -3230,34 +3280,27 @@ export default function CaseDetailPage() {
               )}
             </Field>
             <Field label="審稿人員">
-              {showReviewSegmentBlock ? (
-                <div className="flex items-center min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border text-sm">
-                  {deriveReviewerSummary(caseData.reviewRows) || caseData.reviewer || (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </div>
-              ) : (
-                <ColorSelect
-                  fieldKey="assignee"
-                  value={deriveReviewerSummary(caseData.reviewRows) || caseData.reviewer}
-                  onValueChange={(v) => {
-                    const name = (v || "").trim();
-                    if (!name) {
-                      save({ reviewRows: [], reviewer: "" });
-                    }
-                  }}
-                  onAssigneeSelect={(selection) => {
-                    const name = (selection?.label || "").trim();
-                    const next = writeThroughWholeFileReviewer(
-                      caseData.reviewRows,
-                      name,
-                      selection?.userId ? String(selection.userId) : null,
-                      caseData.reviewDeadline,
-                    );
-                    save({ reviewRows: next, reviewer: name });
-                  }}
-                />
-              )}
+              <ColorSelect
+                fieldKey="assignee"
+                value={deriveReviewerSummary(caseData.reviewRows) || caseData.reviewer}
+                onValueChange={(v) => {
+                  const name = (v || "").trim();
+                  if (!name) {
+                    save({ reviewRows: [], reviewer: "" });
+                  }
+                }}
+                onAssigneeSelect={(selection) => {
+                  const name = (selection?.label || "").trim();
+                  const next = writeThroughWholeFileReviewer(
+                    caseData.reviewRows,
+                    name,
+                    selection?.userId ? String(selection.userId) : null,
+                    caseData.reviewDeadline,
+                    linkedCatFiles,
+                  );
+                  save({ reviewRows: next, reviewer: name });
+                }}
+              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -3268,10 +3311,6 @@ export default function CaseDetailPage() {
               <DateTimePicker
                 value={caseData.reviewDeadline}
                 onChange={(v) => {
-                  if (showReviewSegmentBlock) {
-                    save({ reviewDeadline: v });
-                    return;
-                  }
                   const next = writeThroughWholeFileReviewDeadline(
                     caseData.reviewRows,
                     v,
@@ -3287,19 +3326,6 @@ export default function CaseDetailPage() {
               />
             </Field>
           </div>
-          {showReviewSegmentBlock && (
-            <ReviewCollaborationTable
-              rows={caseData.reviewRows || []}
-              caseId={caseData.id}
-              caseStatus={caseData.status}
-              onChange={(newRows) => {
-                save({
-                  reviewRows: newRows,
-                  reviewer: deriveReviewerSummary(newRows),
-                });
-              }}
-            />
-          )}
         </>
       ) : (
         /* Multi-person collaboration table */
@@ -3357,11 +3383,11 @@ export default function CaseDetailPage() {
               const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
               const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
               const allDelivered = newRows.length > 0 && newRows.every((r) => r.delivered);
-              const reviewRows = projectCollabReviewIntoReviewRows(newRows, caseData.reviewRows);
+              const converted = applySafeLegacyReviewConversion(newRows, caseData.reviewRows);
               const updates: Partial<CaseRecord> = {
-                collabRows: newRows,
-                reviewRows,
-                reviewer: deriveReviewerSummary(reviewRows),
+                collabRows: converted.collabRows,
+                reviewRows: converted.reviewRows,
+                reviewer: deriveReviewerSummary(converted.reviewRows),
               };
               
               const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
@@ -3424,42 +3450,35 @@ export default function CaseDetailPage() {
             }}
             caseStatus={caseData.status}
           />
-          {leftoverReviewRows.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">
-                以下舊審稿安排無法對應到同一檔案與範圍，仍可在此檢視或修改，不會自動合併。
+          {legacyReviewConflicts.length > 0 && isPmOrAbove && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 space-y-2" data-testid="legacy-review-conflict">
+              <p className="text-sm text-amber-950">
+                有舊審稿安排無法無損對到上方同一列。資料仍保留，不會另外畫審稿範圍。請確認上方共用列的審稿人員與交期後，按「改以共用列為準」。
               </p>
-              <ReviewCollaborationTable
-                rows={leftoverReviewRows}
-                caseId={caseData.id}
-                caseStatus={caseData.status}
-                onChange={(newLeftovers) => {
-                  const leftoverNow = leftoverReviewRows;
-                  if (isMember) {
-                    const completedRow = newLeftovers.find((row) => {
-                      const previous = leftoverNow.find((item) => item.id === row.id);
-                      return row.taskCompleted && !previous?.taskCompleted;
-                    });
-                    if (completedRow) {
-                      void caseStore.completeCaseReviewRow(caseData.id, completedRow.id)
-                        .then((error) => {
-                          if (error) toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
-                        });
-                    }
-                    return;
-                  }
-                  const projected = projectCollabReviewIntoReviewRows(caseData.collabRows, caseData.reviewRows);
-                  const leftoverIds = new Set(leftoverNow.map((r) => r.id));
-                  const merged = [
-                    ...projected.filter((r) => !leftoverIds.has(r.id)),
-                    ...newLeftovers,
-                  ];
+              <ul className="text-sm text-amber-950 list-disc pl-5 space-y-1">
+                {legacyReviewConflicts.map((item) => (
+                  <li key={item.review.id}>
+                    {item.review.reviewer || "（未填人員）"}
+                    {item.review.segment ? `／${item.review.segment}` : ""}
+                    {item.review.lineRange ? ` ${item.review.lineRange}` : " 整檔"}
+                    ：{describeLegacyReviewConflict(item.reason)}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const reviewRows = projectCollabReviewIntoReviewRows(caseData.collabRows, []);
                   save({
-                    reviewRows: merged,
-                    reviewer: deriveReviewerSummary(merged),
+                    reviewRows,
+                    reviewer: deriveReviewerSummary(reviewRows),
                   });
                 }}
-              />
+              >
+                改以共用列為準
+              </Button>
             </div>
           )}
         </div>

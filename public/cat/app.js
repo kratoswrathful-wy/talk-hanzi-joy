@@ -3861,30 +3861,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const row = _catCollabState.rows[idx];
                 if (!row) return;
                 const personSel = tr.querySelector('.cat-collab-person');
+                const reviewSel = tr.querySelector('.cat-collab-reviewer');
                 const rangeInp = tr.querySelector('.cat-collab-range');
                 const dlInp = tr.querySelector('.cat-collab-deadline');
+                const reviewDlInp = tr.querySelector('.cat-collab-review-deadline');
                 const name = personSel ? personSel.value.trim() : '';
                 row.translator = name;
                 row.translatorUserId = _catCollabResolveUid(name);
+                const reviewer = reviewSel ? reviewSel.value.trim() : '';
+                row.reviewer = reviewer;
+                row.reviewerUserId = _catCollabResolveUid(reviewer);
                 const range = rangeInp ? rangeInp.value.trim() : '';
                 row.lineRange = range || null;
                 const dl = dlInp ? dlInp.value.trim() : '';
                 row.translationDeadline = dl || null;
-            });
-        }
-        if (catCollabAssignReviewBody) {
-            catCollabAssignReviewBody.querySelectorAll('tr[data-review-idx]').forEach((tr) => {
-                const idx = Number(tr.getAttribute('data-review-idx'));
-                const row = _catCollabState.reviewRows[idx];
-                if (!row) return;
-                const personSel = tr.querySelector('.cat-collab-review-person');
-                const rangeInp = tr.querySelector('.cat-collab-review-range');
-                const dlInp = tr.querySelector('.cat-collab-review-deadline');
-                const name = personSel ? personSel.value.trim() : '';
-                row.reviewer = name;
-                row.reviewerUserId = _catCollabResolveUid(name);
-                row.lineRange = rangeInp && rangeInp.value.trim() ? rangeInp.value.trim() : null;
-                row.reviewDeadline = dlInp && dlInp.value.trim() ? dlInp.value.trim() : null;
+                const reviewDl = reviewDlInp ? reviewDlInp.value.trim() : '';
+                row.reviewDeadline = reviewDl || null;
             });
         }
     }
@@ -3896,15 +3888,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             .map((r, idx) => ({ r, idx }))
             .filter(({ r }) => String(r.linkedCatFileId || '') === fileId);
         if (!fileRows.length) {
-            catCollabAssignBody.innerHTML = '<tr><td colspan="4" style="padding:0.6rem; color:#94a3b8; font-size:0.83rem;">尚無指派列，請按「新增一列」或「拆分均分並預填」。</td></tr>';
+            catCollabAssignBody.innerHTML = '<tr><td colspan="6" style="padding:0.6rem; color:#94a3b8; font-size:0.83rem;">尚無指派列，請按「新增一列」或「拆分均分並預填」。</td></tr>';
         } else {
             catCollabAssignBody.innerHTML = fileRows.map(({ r, idx }) => {
                 const range = r.lineRange != null ? String(r.lineRange) : '';
                 const dl = r.translationDeadline ? String(r.translationDeadline).slice(0, 10) : '';
+                const reviewDl = r.reviewDeadline ? String(r.reviewDeadline).slice(0, 10) : '';
                 return '<tr data-row-idx="' + idx + '">' +
                     '<td style="padding:0.35rem 0.5rem;"><select class="form-input cat-collab-person" style="height:32px;">' + _catCollabPersonOptions(r.translator || '') + '</select></td>' +
+                    '<td style="padding:0.35rem 0.5rem;"><select class="form-input cat-collab-reviewer" style="height:32px;">' + _catCollabPersonOptions(r.reviewer || '') + '</select></td>' +
                     '<td style="padding:0.35rem 0.5rem;"><input type="text" class="form-input cat-collab-range" value="' + _catCollabEsc(range) + '" placeholder="整檔" style="height:32px;"></td>' +
                     '<td style="padding:0.35rem 0.5rem;"><input type="date" class="form-input cat-collab-deadline" value="' + _catCollabEsc(dl) + '" style="height:32px;"></td>' +
+                    '<td style="padding:0.35rem 0.5rem;"><input type="date" class="form-input cat-collab-review-deadline" value="' + _catCollabEsc(reviewDl) + '" style="height:32px;"></td>' +
                     '<td style="padding:0.35rem 0.5rem; text-align:center;"><button type="button" class="secondary-btn btn-sm cat-collab-del" data-row-idx="' + idx + '" title="刪除此列">✕</button></td>' +
                     '</tr>';
             }).join('');
@@ -3919,40 +3914,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             });
         }
-        _catCollabRenderReviewRows();
-    }
-
-    function _catCollabRenderReviewRows() {
-        if (!catCollabAssignReviewBody || !_catCollabState) return;
-        if (!Array.isArray(_catCollabState.reviewRows)) _catCollabState.reviewRows = [];
-        const fileId = String(_catCollabState.fileId);
-        const fileRows = _catCollabState.reviewRows
-            .map((r, idx) => ({ r, idx }))
-            .filter(({ r }) => String(r.linkedCatFileId || '') === fileId);
-        if (!fileRows.length) {
-            catCollabAssignReviewBody.innerHTML = '<tr><td colspan="4" style="padding:0.6rem; color:#94a3b8; font-size:0.83rem;">尚無審稿列（可新增；與翻譯切法可不同）。</td></tr>';
-            return;
-        }
-        catCollabAssignReviewBody.innerHTML = fileRows.map(({ r, idx }) => {
-            const range = r.lineRange != null ? String(r.lineRange) : '';
-            const dl = r.reviewDeadline ? String(r.reviewDeadline).slice(0, 10) : '';
-            return '<tr data-review-idx="' + idx + '">' +
-                '<td style="padding:0.35rem 0.5rem;"><select class="form-input cat-collab-review-person" style="height:32px;">' + _catCollabPersonOptions(r.reviewer || '') + '</select></td>' +
-                '<td style="padding:0.35rem 0.5rem;"><input type="text" class="form-input cat-collab-review-range" value="' + _catCollabEsc(range) + '" placeholder="整檔" style="height:32px;"></td>' +
-                '<td style="padding:0.35rem 0.5rem;"><input type="date" class="form-input cat-collab-review-deadline" value="' + _catCollabEsc(dl) + '" style="height:32px;"></td>' +
-                '<td style="padding:0.35rem 0.5rem; text-align:center;"><button type="button" class="secondary-btn btn-sm cat-collab-review-del" data-review-idx="' + idx + '" title="刪除此列">✕</button></td>' +
-                '</tr>';
-        }).join('');
-        catCollabAssignReviewBody.querySelectorAll('.cat-collab-review-del').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                _catCollabCommitInputsToState();
-                const idx = Number(btn.getAttribute('data-review-idx'));
-                if (Number.isFinite(idx)) {
-                    _catCollabState.reviewRows.splice(idx, 1);
-                    _catCollabRenderReviewRows();
-                }
-            });
-        });
     }
 
     function _catCollabNewRowId(suffix) {
@@ -3969,7 +3930,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         _catCollabState.rows.push({
             id: _catCollabNewRowId(),
             segment: '', lineRange: null, translator: '', translatorUserId: null,
-            reviewer: '', accepted: false, taskCompleted: false,
+            reviewer: '', reviewerUserId: null, reviewDeadline: null,
+            accepted: false, taskCompleted: false,
             linkedCatFileId: String(_catCollabState.fileId),
             linkedCatFileName: _catCollabState.fileName || '',
         });
@@ -3977,16 +3939,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _catCollabAddReviewRow() {
-        if (!_catCollabState) return;
-        _catCollabCommitInputsToState();
-        if (!Array.isArray(_catCollabState.reviewRows)) _catCollabState.reviewRows = [];
-        _catCollabState.reviewRows.push({
-            id: _catCollabNewReviewRowId(),
-            segment: '', lineRange: null, reviewer: '', reviewerUserId: null,
-            reviewDeadline: null, accepted: true, taskCompleted: false,
-            linkedCatFileId: String(_catCollabState.fileId),
-        });
-        _catCollabRenderReviewRows();
+        return;
     }
 
     function _catCollabSplitPrefill() {
@@ -4009,7 +3962,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const end = Math.min((i + 1) * per, total);
             _catCollabState.rows.push({
                 id: _catCollabNewRowId(i), segment: '', lineRange: start + '-' + end,
-                translator: '', translatorUserId: null, reviewer: '', accepted: false, taskCompleted: false,
+                translator: '', translatorUserId: null, reviewer: '', reviewerUserId: null,
+                reviewDeadline: null, accepted: false, taskCompleted: false,
                 linkedCatFileId: fileId, linkedCatFileName: _catCollabState.fileName || '',
             });
         }
@@ -4018,31 +3972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _catCollabSplitReviewPrefill() {
-        if (!_catCollabState) return;
-        const totalStr = prompt('請輸入此檔總列數（句段數）：', '');
-        if (totalStr == null) return;
-        const total = parseInt(String(totalStr).trim(), 10);
-        if (!Number.isFinite(total) || total <= 0) { showCatToast('總列數須為正整數', 'error'); return; }
-        const partsStr = prompt('審稿要平均分成幾份？', '2');
-        if (partsStr == null) return;
-        const parts = parseInt(String(partsStr).trim(), 10);
-        if (!Number.isFinite(parts) || parts <= 0) { showCatToast('份數須為正整數', 'error'); return; }
-        _catCollabCommitInputsToState();
-        const fileId = String(_catCollabState.fileId);
-        _catCollabState.reviewRows = (_catCollabState.reviewRows || []).filter((r) => String(r.linkedCatFileId || '') !== fileId);
-        const per = Math.ceil(total / parts);
-        for (let i = 0; i < parts; i++) {
-            const start = i * per + 1;
-            if (start > total) break;
-            const end = Math.min((i + 1) * per, total);
-            _catCollabState.reviewRows.push({
-                id: _catCollabNewReviewRowId(i), segment: '', lineRange: start + '-' + end,
-                reviewer: '', reviewerUserId: null, reviewDeadline: null, accepted: true, taskCompleted: false,
-                linkedCatFileId: fileId,
-            });
-        }
-        _catCollabRenderReviewRows();
-        showCatToast('已預填審稿範圍，請指定各列審稿人', 'info');
+        return;
     }
 
     function closeCatCollabAssignModal() {
@@ -4073,7 +4003,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             status: info.caseStatus || '',
         };
         if (catCollabAssignTitle) catCollabAssignTitle.textContent = '指派翻譯／審稿：' + (_catCollabState.fileName || fileId);
-        if (catCollabAssignHint) catCollabAssignHint.innerHTML = '此檔已連結 LMS 案件「' + _catCollabEsc(info.caseTitle || '') + '」。翻譯與審稿列將同步回該案，並更新 CAT 段落指派。';
+        if (catCollabAssignHint) catCollabAssignHint.innerHTML = '此檔已連結 LMS 案件「' + _catCollabEsc(info.caseTitle || '') + '」。翻譯與審稿共用同一列範圍，儲存後寫回該案。';
         _catCollabRenderRows();
         catCollabAssignModal.classList.remove('hidden');
         return true;
@@ -4087,9 +4017,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!fileRows.length) { showCatToast('請至少新增一列翻譯指派', 'error'); return; }
         const blank = fileRows.find((r) => !String(r.translator || '').trim());
         if (blank) { showCatToast('每列翻譯都需選擇譯者（或刪除空白列）', 'error'); return; }
-        const reviewFileRows = (_catCollabState.reviewRows || []).filter((r) => String(r.linkedCatFileId || '') === fileId);
-        const blankRev = reviewFileRows.find((r) => !String(r.reviewer || '').trim());
-        if (blankRev) { showCatToast('每列審稿都需選擇審稿人（或刪除空白列）', 'error'); return; }
         const btn = document.getElementById('btnSaveCatCollabAssign');
         if (btn) { btn.disabled = true; btn.textContent = '同步中…'; }
         try {
@@ -8967,6 +8894,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     relatedLmsCaseId: casePickerSelectedCase.caseId,
                     relatedLmsCaseTitle: casePickerSelectedCase.caseTitle || ''
                 });
+                if (window.LmsInheritAssignments) {
+                    const linkedFile = await DBService.getFile(fid).catch(() => null);
+                    await window.LmsInheritAssignments.afterFileReady({
+                        caseId: casePickerSelectedCase.caseId,
+                        fileId: fid,
+                        fileName: linkedFile && linkedFile.name ? linkedFile.name : '',
+                    });
+                }
             }
             closeCasePickerDialog();
             await loadFilesList();
@@ -16221,6 +16156,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
                     console.warn('[CAT] GS addSegments returned 0 — segments may not have been saved to cloud.');
                 }
+                if (_gsImportCaseId && window.LmsInheritAssignments) {
+                    await window.LmsInheritAssignments.afterFileReady({
+                        caseId: _gsImportCaseId,
+                        fileId: fId,
+                        fileName: _gsImportCaseTitle,
+                    });
+                }
 
                 wizardOverlay.classList.add('hidden');
                 _gsCsvData = null; _gsSourceUrl = '';
@@ -17158,6 +17100,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const savedCount = await DBService.addSegments(mappedSegments);
             if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
                 console.warn('[CAT] addSegments returned 0 — segments may not have been saved to cloud.');
+            }
+            if (caseInfo && caseInfo.caseId && window.LmsInheritAssignments) {
+                await window.LmsInheritAssignments.afterFileReady({
+                    caseId: caseInfo.caseId,
+                    fileId: fId,
+                    fileName: file.name,
+                });
             }
             extractedSegmentsBackup = [];
         } finally {

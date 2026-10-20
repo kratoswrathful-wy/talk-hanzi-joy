@@ -133,34 +133,65 @@ export function shouldShowReviewSegmentBlock(input: {
   return !!input.multiCollab || isReviewRowsSegmented(input.reviewRows);
 }
 
+export type LinkedReviewFile = { id: string; name?: string };
+
 /** 未分段 UI：寫入／更新單一整檔審稿列的審稿人（review_rows 為唯一真相） */
 export function writeThroughWholeFileReviewer(
   existing: ReviewCollabRow[] | undefined | null,
   reviewerName: string,
   reviewerUserId: string | null,
   reviewDeadline: string | null,
+  linkedFiles?: LinkedReviewFile[] | null,
 ): ReviewCollabRow[] {
   const name = String(reviewerName || "").trim();
   if (!name) return [];
   const rows = Array.isArray(existing) ? existing : [];
+  const files = (linkedFiles ?? []).filter((f) => String(f.id || "").trim());
   if (rows.length === 0) {
-    return [
-      {
-        id: newReviewRowId(),
-        segment: "",
+    if (files.length > 1) {
+      return files.map((file) => ({
+        id: newReviewRowId(String(file.id).slice(0, 8)),
+        segment: String(file.name || "").trim(),
         reviewer: name,
         reviewerUserId,
         reviewDeadline,
         taskCompleted: false,
         accepted: true,
+        linkedCatFileId: file.id,
+      }));
+    }
+    return [
+      {
+        id: newReviewRowId(),
+        segment: files[0] ? String(files[0].name || "").trim() : "",
+        reviewer: name,
+        reviewerUserId,
+        reviewDeadline,
+        taskCompleted: false,
+        accepted: true,
+        linkedCatFileId: files[0]?.id ?? null,
       },
     ];
   }
-  return rows.map((r) => ({
+  const updated = rows.map((r) => ({
     ...r,
     reviewer: name,
     reviewerUserId,
+    linkedCatFileId: r.linkedCatFileId || files[0]?.id || null,
   }));
+  if (files.length <= 1) return updated;
+  const byFile = new Map(updated.map((r) => [String(r.linkedCatFileId || ""), r]));
+  return files.map((file) => {
+    const prev = byFile.get(file.id);
+    return {
+      ...(prev ?? updated[0]),
+      id: prev?.id ?? newReviewRowId(String(file.id).slice(0, 8)),
+      linkedCatFileId: file.id,
+      segment: String(prev?.segment || file.name || "").trim(),
+      reviewer: name,
+      reviewerUserId,
+    };
+  });
 }
 
 /** 未分段 UI：同步審稿交期到既有整檔列；尚無列且已有審稿人名時建立一列 */

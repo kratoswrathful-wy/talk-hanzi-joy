@@ -136,6 +136,13 @@
             await DBService.deleteFile(fileId).catch(() => {});
             throw err;
         }
+        if (caseInfo && caseInfo.caseId && window.LmsInheritAssignments) {
+            await window.LmsInheritAssignments.afterFileReady({
+                caseId: caseInfo.caseId,
+                fileId,
+                fileName: file.name,
+            });
+        }
 
         if (importOpts && importOpts.writeToTm && typeof writeImportConfirmedToProjectTms === 'function') {
             try {

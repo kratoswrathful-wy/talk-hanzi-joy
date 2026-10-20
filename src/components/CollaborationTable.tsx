@@ -43,7 +43,7 @@ interface Props {
   onChange: (rows: CollabRow[]) => void;
   caseStatus: string;
   caseId?: string;
-  /** 舊獨立審稿列；僅在檔案＋範圍一對一時用來顯示同段審稿 */
+  /** 後端相容審稿列；畫面以共用列的審稿欄為準 */
   reviewRows?: ReviewCollabRow[];
 }
 

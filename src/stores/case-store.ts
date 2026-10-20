@@ -4,6 +4,8 @@ import {
   syncCatWorkflowAssignmentsForCase,
   broadcastCatWorkflowAssignmentsSynced,
 } from "@/lib/cat-workflow-dispatch";
+import { describeCatWorkflowSyncIssues } from "@/lib/cat-workflow-sync-result";
+import { toast } from "@/hooks/use-toast";
 import {
   planDuplicateCaseTitle,
   DEFAULT_DUPLICATE_SORT,
@@ -1151,7 +1153,17 @@ async function persistQueuedUpdate(
   if (!error && shouldSyncCatWorkflowAssignments) {
     try {
       const report = await syncCatWorkflowAssignmentsForCase(supabase, id);
-      if (report) broadcastCatWorkflowAssignmentsSynced(id);
+      if (report) {
+        broadcastCatWorkflowAssignmentsSynced(id);
+        const parts = describeCatWorkflowSyncIssues(report);
+        if (parts.length) {
+          toast({
+            title: "注意：部分人員尚未建立 CAT 指派",
+            description: `${parts.join("；")}。檔案若已匯入可重試帶入，不必再匯入一次。`,
+            variant: "destructive",
+          });
+        }
+      }
     } catch (e) {
       console.warn("[case-store] sync CAT workflow assignments skipped:", e);
     }

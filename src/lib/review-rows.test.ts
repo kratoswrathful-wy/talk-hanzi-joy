@@ -251,6 +251,18 @@ describe("writeThroughWholeFileReviewer / Deadline", () => {
     ).toEqual([]);
   });
 
+  it("單人案已連結檔時，新列帶上檔案編號", () => {
+    const next = writeThroughWholeFileReviewer(
+      [],
+      "威儀",
+      "uid-1",
+      null,
+      [{ id: "file-9", name: "a.xlsx" }],
+    );
+    expect(next[0].linkedCatFileId).toBe("file-9");
+    expect(next[0].segment).toBe("a.xlsx");
+  });
+
   it("更新既有列審稿人", () => {
     const next = writeThroughWholeFileReviewer(
       [row({ id: "1", reviewer: "甲", linkedCatFileId: "f1" })],

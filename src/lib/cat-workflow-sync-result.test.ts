@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   acceptCatSyncShouldFail,
   collabFileAssignmentPairs,
+  describeCatWorkflowSyncIssues,
   parseCatWorkflowSyncPayload,
 } from "./cat-workflow-sync-result";
 
@@ -107,5 +108,24 @@ describe("collabFileAssignmentPairs", () => {
         rows: [{ accepted: true, translatorUserId: "u1", linkedCatFileId: "" }],
       }),
     ).toEqual([]);
+  });
+});
+
+describe("describeCatWorkflowSyncIssues", () => {
+  it("把審稿未綁檔與無法對應帳號寫成可見說明", () => {
+    expect(
+      describeCatWorkflowSyncIssues({
+        found: true,
+        unresolvedTranslators: [],
+        unresolvedReviewers: ["甲"],
+        rowsWithoutFile: 0,
+        reviewRowsWithoutFile: 2,
+        written: 1,
+        reviewWritten: 0,
+      }),
+    ).toEqual([
+      "審稿無法對應帳號：甲",
+      "有 2 筆審稿尚未對到 CAT 檔案",
+    ]);
   });
 });

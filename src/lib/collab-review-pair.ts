@@ -5,19 +5,23 @@ type ScopeRow = {
   linkedCatFileId?: string | null;
   linkedCatViewId?: string | null;
   lineRange?: string | null;
+  segment?: string | null;
 };
 
 /**
- * 僅在「檔案或檢視 + 句段範圍」可明確對應時才配對。
- * 沒有 CAT 綁定不配對，避免用列序或分段說明猜測。
+ * 檔案／檢視＋範圍可對應，或純文字檔名＋範圍唯一時才配對。
+ * 不依列序、不用空白檔名猜。
  */
 export function collabReviewScopeKey(row: ScopeRow): string {
   const fileId = String(row.linkedCatFileId || "").trim();
   const viewId = String(row.linkedCatViewId || "").trim();
-  if (!fileId && !viewId) return "";
   const parsed = parseCollabLineRange(row.lineRange);
   const range = `${parsed.lineStart ?? "open"}:${parsed.lineEnd ?? "open"}`;
-  return fileId ? `file:${fileId}|${range}` : `view:${viewId}|${range}`;
+  if (fileId) return `file:${fileId}|${range}`;
+  if (viewId) return `view:${viewId}|${range}`;
+  const segment = String(row.segment || "").trim();
+  if (segment || range !== "open:open") return `plain:${segment}|${range}`;
+  return "";
 }
 
 export function partitionReviewRowsByCollab(
@@ -96,12 +100,12 @@ export function applyPairedReviewRowsToCollab(
   });
 }
 
-/** CAT「儲存並同步」先把成對審稿寫回主列，再投影回 review_rows。 */
+/** CAT／LMS 共用列為準：主列審稿不讓舊獨立審稿覆寫，再投影回 review_rows。無法對應的舊列仍保留。 */
 export function mergeCatCollabSavePayload(
   collabRows: CollabRow[] | undefined | null,
   reviewRows: ReviewCollabRow[] | undefined | null,
 ): { collabRows: CollabRow[]; reviewRows: ReviewCollabRow[] } {
-  const mergedCollab = applyPairedReviewRowsToCollab(collabRows, reviewRows);
+  const mergedCollab = Array.isArray(collabRows) ? collabRows : [];
   return {
     collabRows: mergedCollab,
     reviewRows: projectCollabReviewIntoReviewRows(mergedCollab, reviewRows),

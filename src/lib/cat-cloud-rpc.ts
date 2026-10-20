@@ -12,6 +12,8 @@ import { CAT_PAGE_SIZE, nextKeysetCursor } from "@/lib/cat-keyset-pagination";
 import { CAT_TB_LIST_COLUMNS } from "@/lib/cat-tb-list-columns";
 import { workflowStagesInitFailedError } from "@/lib/wf-ensure-stages";
 import { mergeCatCollabSavePayload } from "@/lib/collab-review-pair";
+import { inheritCaseAssignmentsForLinkedFile } from "@/lib/inherit-case-assignments";
+import { describeInheritFailure } from "@/lib/shared-assign-inherit";
 import type { CollabRow, ReviewCollabRow } from "@/data/case-types";
 
 type RpcPayload = Record<string, any>;
@@ -2881,6 +2883,28 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         reviewRows,
         fileId: (file as { id: string }).id,
         fileName: (file as { name?: string }).name ?? "",
+      };
+    }
+    case "lms.inheritAssignmentsForLinkedFile": {
+      const caseId = String(payload.caseId || "");
+      const fileId = String(payload.fileId || "");
+      const fileName = String(payload.fileName || "");
+      const chosenRowId = String(payload.chosenRowId || "");
+      const result = await inheritCaseAssignmentsForLinkedFile(supabase, {
+        caseId,
+        fileId,
+        fileName,
+        chosenRowId: chosenRowId || undefined,
+      });
+      const copy = describeInheritFailure({
+        importOk: true,
+        inheritOk: result.ok && !result.needsRowChoice,
+        reason: result.reason,
+      });
+      return {
+        ...result,
+        title: copy.title,
+        description: copy.description,
       };
     }
     case "lms.updateCaseCollab": {
