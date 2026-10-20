@@ -2550,6 +2550,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return (data ?? []).map(mapFileWorkflowStageRow);
     }
     case "db.listStageAssignmentsForFile": {
+      // 必須讀回該檔全部階段指派（含他人審稿完成列），分段審稿鎖才罩得到隔壁譯者。
       const { data, error } = await supabase
         .from("cat_stage_assignments" as any)
         .select("*")

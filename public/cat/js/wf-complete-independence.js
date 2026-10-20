@@ -350,10 +350,11 @@ export function reviewAssignmentRangeCompleted(assignments, lineNo) {
 
 /**
  * 譯者翻譯操作是否因審稿完成而禁止。
- * - 覆蓋該列的審稿指派已完成 → 鎖
+ * - 覆蓋該列的審稿指派已完成 → 鎖（不論審稿受派者是不是目前這人）
  * - 整份檔案審稿步驟完成，且該列沒有未完成的審稿指派 → 鎖
  * - 主管重開其中一段後，即使整檔步驟殘留 completed，該段仍可編
  * - 句段審稿確認不構成此鎖
+ * 呼叫端必須給該檔全部階段指派，不得只傳本人列。
  * @param {{
  *   assignments?: Array<object>,
  *   reviewStageStatus?: string|null,

@@ -420,6 +420,33 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     })).toBe(false);
   });
 
+  it("他人完成的審稿分段仍鎖該段譯者（整檔審稿仍進行中）", () => {
+    const rangeReviewDone = aSplit.map((a) => (
+      a.id === "e004" ? { ...a, workflowStatus: "completed" } : a
+    ));
+    expect(reviewWorkForbidsMemberEdit({
+      assignments: rangeReviewDone,
+      reviewStageStatus: "active",
+      lineNo: 2,
+    })).toBe(true);
+    expect(memberSegmentEditForbidden({
+      assignments: rangeReviewDone,
+      userId: t2,
+      sessionStageId: "d-translate",
+      sessionKind: "translate",
+      reviewStageStatus: "active",
+      lineNo: 2,
+    })).toBe(true);
+    expect(memberSegmentEditForbidden({
+      assignments: rangeReviewDone,
+      userId: t1,
+      sessionStageId: "d-translate",
+      sessionKind: "translate",
+      reviewStageStatus: "active",
+      lineNo: 1,
+    })).toBe(false);
+  });
+
   it("整檔審稿殘留完成、其中一段已重開：該段可改、另一段仍鎖", () => {
     const oneReopened = aSplit.map((a) => {
       if (a.id === "e002") return { ...a, workflowStatus: "in_progress" };
