@@ -104,6 +104,7 @@ import {
   classifyLegacyReviewRows,
   describeLegacyReviewConflict,
 } from "@/lib/shared-assign-inherit";
+import { deriveCaseStatusFromRows } from "@/lib/shared-row-workflow";
 import { describeCatWorkflowSyncIssues } from "@/lib/cat-workflow-sync-result";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
@@ -1931,6 +1932,28 @@ export default function CaseDetailPage() {
     void save({ reviewRows: next, reviewer: deriveReviewerSummary(next) || current.reviewer });
   }, [id, isManager, linkedCatFiles, save]);
 
+  const convertedLegacySigRef = useRef("");
+  useEffect(() => {
+    if (!isManager || !id) return;
+    const current = caseDataRef.current;
+    if (!current) return;
+    if (caseStore.getCompleteness(id) !== "full") return;
+    const classified = classifyLegacyReviewRows({
+      collabRows: current.collabRows,
+      reviewRows: current.reviewRows,
+    });
+    if (!classified.some((item) => item.kind === "mergeable")) return;
+    const converted = applySafeLegacyReviewConversion(current.collabRows, current.reviewRows);
+    const stampKey = `${id}:${converted.collabRows.map((row) => `${row.id}:${row.reviewer}:${row.reviewerUserId || ""}`).join("|")}`;
+    if (convertedLegacySigRef.current === stampKey) return;
+    convertedLegacySigRef.current = stampKey;
+    void save({
+      collabRows: converted.collabRows,
+      reviewRows: converted.reviewRows,
+      reviewer: deriveReviewerSummary(converted.reviewRows) || current.reviewer,
+    });
+  }, [id, isManager, caseData?.id, caseData?.reviewRows, caseData?.collabRows, save]);
+
   /* ── Tool helpers（敏感工具／憑證走 updateCredentials，不經一般 save／update）── */
   // credentialsStatus：loading／refreshing／error 與 confirmed 分離；寫入仍以 peekConfirmed 為準
   const credentialsReady =
@@ -3380,15 +3403,16 @@ export default function CaseDetailPage() {
                 }
                 return;
               }
-              const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
-              const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
-              const allDelivered = newRows.length > 0 && newRows.every((r) => r.delivered);
-              const converted = applySafeLegacyReviewConversion(newRows, caseData.reviewRows);
+              const derived = deriveCaseStatusFromRows(caseData.status, newRows);
+              const nextReview = projectCollabReviewIntoReviewRows(newRows, caseData.reviewRows);
               const updates: Partial<CaseRecord> = {
-                collabRows: converted.collabRows,
-                reviewRows: converted.reviewRows,
-                reviewer: deriveReviewerSummary(converted.reviewRows),
+                collabRows: newRows,
+                reviewRows: nextReview,
+                reviewer: deriveReviewerSummary(nextReview),
               };
+              const allAccepted = derived.reason === "all-accepted";
+              const allTaskCompleted = derived.status === "task_completed" || derived.status === "delivered";
+              const allDelivered = derived.reason === "all-delivered";
               
               const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
               updates.translator = collabTranslators;

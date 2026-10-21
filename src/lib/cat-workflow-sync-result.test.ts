@@ -112,20 +112,19 @@ describe("collabFileAssignmentPairs", () => {
 });
 
 describe("describeCatWorkflowSyncIssues", () => {
-  it("把審稿未綁檔與無法對應帳號寫成可見說明", () => {
+  it("只提示無法對應帳號，不把純 LMS 未綁檔當成同步失敗", () => {
     expect(
       describeCatWorkflowSyncIssues({
         found: true,
         unresolvedTranslators: [],
         unresolvedReviewers: ["甲"],
-        rowsWithoutFile: 0,
+        rowsWithoutFile: 3,
         reviewRowsWithoutFile: 2,
-        written: 1,
+        written: 0,
         reviewWritten: 0,
       }),
     ).toEqual([
       "審稿無法對應帳號：甲",
-      "有 2 筆審稿尚未對到 CAT 檔案",
     ]);
   });
 });

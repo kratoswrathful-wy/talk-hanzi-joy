@@ -94,7 +94,7 @@ describe("matchSharedRowsForLinkedFile", () => {
     if (match.kind === "unique") expect(match.collabRows.map((r) => r.id)).toEqual(["c1"]);
   });
 
-  it("純文字檔名唯一才可對應，同名多列要確認", () => {
+  it("純文字檔名唯一才可對應；同檔名不同範圍一次承接全部", () => {
     const unique = matchSharedRowsForLinkedFile({
       fileId: "f-new",
       fileName: "說明.xlsx",
@@ -104,8 +104,9 @@ describe("matchSharedRowsForLinkedFile", () => {
       ],
     });
     expect(unique.kind).toBe("unique");
+    if (unique.kind === "unique") expect(unique.collabRows.map((r) => r.id)).toEqual(["c1"]);
 
-    const ambiguous = matchSharedRowsForLinkedFile({
+    const sameFileRanges = matchSharedRowsForLinkedFile({
       fileId: "f-new",
       fileName: "說明.xlsx",
       collabRows: [
@@ -113,20 +114,25 @@ describe("matchSharedRowsForLinkedFile", () => {
         collab({ id: "c2", segment: "說明.xlsx", lineRange: "11-20", translator: "乙" }),
       ],
     });
-    expect(ambiguous.kind).toBe("ambiguous");
+    expect(sameFileRanges.kind).toBe("unique");
+    if (sameFileRanges.kind === "unique") {
+      expect(sameFileRanges.collabRows.map((r) => r.id)).toEqual(["c1", "c2"]);
+    }
   });
 
-  it("不依列序把第一列當成目標檔", () => {
-    expect(
-      matchSharedRowsForLinkedFile({
-        fileId: "f-new",
-        fileName: "沒人寫過的檔.xlsx",
-        collabRows: [
-          collab({ id: "c1", segment: "其他.xlsx", translator: "甲" }),
-          collab({ id: "c2", segment: "另一份.xlsx", translator: "乙" }),
-        ],
-      }),
-    ).toEqual({ kind: "none" });
+  it("檔名對不上、未綁檔又有多列 → 真歧義，不默認第一列", () => {
+    const match = matchSharedRowsForLinkedFile({
+      fileId: "f-new",
+      fileName: "沒人寫過的檔.xlsx",
+      collabRows: [
+        collab({ id: "c1", segment: "其他.xlsx", translator: "甲" }),
+        collab({ id: "c2", segment: "另一份.xlsx", translator: "乙" }),
+      ],
+    });
+    expect(match.kind).toBe("ambiguous");
+    if (match.kind === "ambiguous") {
+      expect(match.candidates.map((row) => row.id)).toEqual(["c1", "c2"]);
+    }
   });
 });
 

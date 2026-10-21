@@ -35,6 +35,8 @@ export interface CollabRow {
   /** 同段審稿人員；寫入後同步 review_rows 才驅動 CAT */
   reviewer: string;
   reviewDeadline: string | null;
+  /** 審稿確認指派；與譯者 accepted、翻譯完成分開。缺欄時見 isReviewAssigned 相容規則 */
+  reviewAssigned?: boolean;
   /** 同段審稿完成；與翻譯 taskCompleted 分開 */
   reviewTaskCompleted?: boolean;
   taskCompleted: boolean; // 翻譯任務完成

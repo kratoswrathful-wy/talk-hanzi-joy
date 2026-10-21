@@ -230,6 +230,7 @@ function collabRowFromJson(x: Json): CollabRow | undefined {
     ...(nullableStringFromJson(x.translatorUserId) !== undefined ? { translatorUserId: nullableStringFromJson(x.translatorUserId) } : {}),
     ...(nullableStringFromJson(x.reviewerUserId) !== undefined ? { reviewerUserId: nullableStringFromJson(x.reviewerUserId) } : {}),
     ...(typeof x.reviewTaskCompleted === "boolean" ? { reviewTaskCompleted: x.reviewTaskCompleted } : {}),
+    ...(typeof x.reviewAssigned === "boolean" ? { reviewAssigned: x.reviewAssigned } : {}),
   };
 }
 

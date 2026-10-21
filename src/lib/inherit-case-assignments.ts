@@ -31,9 +31,18 @@ function asReviewRows(value: unknown): ReviewCollabRow[] {
 }
 
 /** 檔案已存在並連結後才呼叫。可重跑；不把未承接詢案列當成已承接。 */
+function chosenRowIdsFrom(input: { chosenRowId?: string; chosenRowIds?: string[] }): string[] {
+  const many = Array.isArray(input.chosenRowIds)
+    ? input.chosenRowIds.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
+  const one = String(input.chosenRowId || "").trim();
+  if (one && !many.includes(one)) many.push(one);
+  return many;
+}
+
 export async function inheritCaseAssignmentsForLinkedFile(
   supabase: SupabaseClient,
-  input: { caseId: string; fileId: string; fileName?: string; chosenRowId?: string },
+  input: { caseId: string; fileId: string; fileName?: string; chosenRowId?: string; chosenRowIds?: string[] },
 ): Promise<InheritAssignmentsResult> {
   const caseId = String(input.caseId || "").trim();
   const fileId = String(input.fileId || "").trim();
@@ -59,9 +68,11 @@ export async function inheritCaseAssignmentsForLinkedFile(
   });
 
   if (match.kind === "ambiguous") {
-    const chosenId = String(input.chosenRowId || "").trim();
-    const chosen = chosenId ? match.candidates.filter((row) => row.id === chosenId) : [];
-    if (chosen.length !== 1) {
+    const chosenIds = new Set(chosenRowIdsFrom(input));
+    const chosen = chosenIds.size
+      ? match.candidates.filter((row) => chosenIds.has(row.id))
+      : [];
+    if (!chosen.length) {
       return {
         ok: false,
         needsRowChoice: true,

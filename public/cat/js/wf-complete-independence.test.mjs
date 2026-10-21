@@ -299,9 +299,14 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     expect(memberSegmentEditForbidden({ ...base, lineNo: 1 })).toBe(true);
   });
 
-  it("整份檔案審稿完成：譯者不能改", () => {
+  it("整份檔案審稿完成：受派譯者仍可改", () => {
     expect(reviewStageForbidsMemberEdit("completed")).toBe(true);
     expect(reviewStageForbidsMemberEdit("active")).toBe(false);
+    expect(reviewWorkForbidsMemberEdit({
+      assignments: cWhole,
+      reviewStageStatus: "completed",
+      lineNo: 1,
+    })).toBe(false);
     expect(memberSegmentEditForbidden({
       assignments: cWhole,
       userId: t1,
@@ -309,7 +314,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       sessionKind: null,
       reviewStageStatus: "completed",
       lineNo: 1,
-    })).toBe(true);
+    })).toBe(false);
   });
 
   it("審稿進行中：本人有審稿指派的列仍可編", () => {
@@ -385,7 +390,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     })).toBe("review");
   });
 
-  it("該分段審稿指派已完成、整檔審稿仍進行中：該段譯者不能改", () => {
+  it("該分段審稿指派已完成：受派譯者仍可改，審稿完成不再鎖編輯", () => {
     const rangeReviewDone = aSplit.map((a) => (
       a.id === "e002" ? { ...a, workflowStatus: "completed" } : a
     ));
@@ -394,7 +399,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       assignments: rangeReviewDone,
       reviewStageStatus: "active",
       lineNo: 1,
-    })).toBe(true);
+    })).toBe(false);
     expect(memberSegmentEditForbidden({
       assignments: rangeReviewDone,
       userId: t1,
@@ -402,7 +407,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       sessionKind: "translate",
       reviewStageStatus: "active",
       lineNo: 1,
-    })).toBe(true);
+    })).toBe(false);
   });
 
   it("相鄰分段審稿未完成：該段受派譯者仍可改", () => {
@@ -420,7 +425,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     })).toBe(false);
   });
 
-  it("他人完成的審稿分段仍鎖該段譯者（整檔審稿仍進行中）", () => {
+  it("他人完成的審稿分段：該段受派譯者仍可改", () => {
     const rangeReviewDone = aSplit.map((a) => (
       a.id === "e004" ? { ...a, workflowStatus: "completed" } : a
     ));
@@ -428,7 +433,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       assignments: rangeReviewDone,
       reviewStageStatus: "active",
       lineNo: 2,
-    })).toBe(true);
+    })).toBe(false);
     expect(memberSegmentEditForbidden({
       assignments: rangeReviewDone,
       userId: t2,
@@ -436,7 +441,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       sessionKind: "translate",
       reviewStageStatus: "active",
       lineNo: 2,
-    })).toBe(true);
+    })).toBe(false);
     expect(memberSegmentEditForbidden({
       assignments: rangeReviewDone,
       userId: t1,
@@ -447,7 +452,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     })).toBe(false);
   });
 
-  it("整檔審稿殘留完成、其中一段已重開：該段可改、另一段仍鎖", () => {
+  it("整檔審稿殘留完成、其中一段已重開：兩段受派譯者都可改", () => {
     const oneReopened = aSplit.map((a) => {
       if (a.id === "e002") return { ...a, workflowStatus: "in_progress" };
       if (a.id === "e004") return { ...a, workflowStatus: "completed" };
@@ -473,6 +478,6 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       sessionKind: "translate",
       reviewStageStatus: "completed",
       lineNo: 2,
-    })).toBe(true);
+    })).toBe(false);
   });
 });

@@ -22,16 +22,23 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink } from "lucide-react";
-import type { CollabRow } from "@/data/case-types";
+import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink, CheckSquare, PackageCheck } from "lucide-react";
+import type { CaseStatus, CollabRow } from "@/data/case-types";
+import {
+  applyBulkCheck,
+  applyPeoplePatch,
+  applyReviewAssignPatch,
+  applyReviewCompletePatch,
+  deriveSharedRowWorkflow,
+  describeBulkCheck,
+  type WorkflowActor,
+} from "@/lib/shared-row-workflow";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { buildCatDeepLink } from "@/lib/cat-deep-link";
 import { collabTranslatorFromSelection, reviewRowFromSelection } from "@/lib/assignee-select";
-import { partitionReviewRowsByCollab } from "@/lib/collab-review-pair";
 import type { ReviewCollabRow } from "@/data/case-types";
 import { countUnconfirmedSegmentsInCollabRange } from "@/lib/cat-collab-task-complete";
-import { collabRowPatchFromReviewCompleteCheck } from "@/lib/cat-wf-complete-map";
 import {
   decideCatFileOptionsCommit,
   subscribeCatCaseFilesChanged,
@@ -188,32 +195,25 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
 
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
-  const uniqueReviewByCollabId = partitionReviewRowsByCollab(rows, reviewRows).uniqueByCollabId;
+  void reviewRows;
 
-  const [bulkPersonField, setBulkPersonField] = useState<"translator" | null>(null);
+  const [bulkPersonField, setBulkPersonField] = useState<"translator" | "reviewer" | null>(null);
   const [bulkPersonValue, setBulkPersonValue] = useState<string>("");
   const [bulkPersonUserId, setBulkPersonUserId] = useState<string | null>(null);
   const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
+  const typedStatus = caseStatus as CaseStatus;
+  const actor: WorkflowActor = {
+    isPmOrAbove,
+    userId: profile?.id ?? null,
+    displayName: displayName || null,
+  };
 
   const updateRow = useCallback(
     (idx: number, patch: Partial<CollabRow>) => {
-      const next = rows.map((r, i) => {
-        if (i !== idx) return r;
-        const pair = uniqueReviewByCollabId.get(r.id);
-        const materialized = pair && !String(r.reviewer || "").trim()
-          ? {
-              ...r,
-              reviewer: pair.reviewer,
-              reviewerUserId: pair.reviewerUserId ?? null,
-              reviewDeadline: r.reviewDeadline ?? pair.reviewDeadline,
-              reviewTaskCompleted: r.reviewTaskCompleted ?? pair.taskCompleted,
-            }
-          : r;
-        return { ...materialized, ...patch };
-      });
+      const next = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
       onChange(next);
     },
-    [rows, onChange, uniqueReviewByCollabId]
+    [rows, onChange]
   );
 
   const showAccepted = caseStatus === "draft" || caseStatus === "inquiry";
@@ -221,14 +221,14 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
 
   const columns = [
     { key: "segment", label: "檔案或分段", width: "260px" },
-    { key: "translator", label: "譯者", width: "140px", bulkPerson: true },
+    { key: "translator", label: "譯者", width: "140px", bulkPerson: "translator" as const },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
-    { key: "reviewer", label: "審稿人員", width: "140px" },
+    { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "任務完成", width: "88px" },
+    { key: "reviewer", label: "審稿人員", width: "140px", bulkPerson: "reviewer" as const },
     { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
-    { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "翻譯完成", width: "80px" },
-    ...(showTaskCompleted ? [{ key: "reviewTaskCompleted", label: "審稿完成", width: "80px" }] : []),
-    { key: "delivered", label: "交件完畢", width: "80px" },
+    { key: "reviewControl", label: showAccepted ? "確認指派" : "審稿完成", width: "88px", bulkReview: true },
+    { key: "delivered", label: "已交件", width: "80px", bulkDeliver: true },
   ];
 
   const gridTemplate = columns.map((c) => c.width).join(" ");
@@ -248,15 +248,23 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
 
   const applyBulkPerson = () => {
     if (!bulkPersonField) return;
-    const next = rows.map((r) => ({
-      ...r,
-      translator: bulkPersonValue,
-      translatorUserId: bulkPersonUserId,
-    }));
+    const next = rows.map((r) => {
+      const patch = bulkPersonField === "translator"
+        ? { translator: bulkPersonValue, translatorUserId: bulkPersonUserId }
+        : { reviewer: bulkPersonValue, reviewerUserId: bulkPersonUserId };
+      const applied = applyPeoplePatch(r, typedStatus, patch);
+      return applied.ok ? applied.next : r;
+    });
     onChange(next);
     setBulkPersonField(null);
     setBulkPersonValue("");
     setBulkPersonUserId(null);
+  };
+
+  const runBulkCheck = (kind: "taskCompleted" | "reviewAssigned" | "reviewTaskCompleted" | "delivered") => {
+    const result = applyBulkCheck(rows, typedStatus, actor, kind);
+    onChange(result.next);
+    toast({ title: "整欄勾選", description: describeBulkCheck(result) });
   };
 
   const resolveCatLink = (row: CollabRow): string | null => {
@@ -290,6 +298,10 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
 
   const handleTaskCompletedChange = async (idx: number, row: CollabRow, checked: boolean) => {
     if (!checked) {
+      if (row.reviewTaskCompleted) {
+        toast({ title: "請先取消審稿完成", variant: "destructive" });
+        return;
+      }
       updateRow(idx, { taskCompleted: false });
       return;
     }
@@ -350,14 +362,15 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {(col as { bulkPerson?: boolean }).bulkPerson && (
+              {(col as { bulkPerson?: "translator" | "reviewer" }).bulkPerson && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        title={(col as { bulkPerson?: string }).bulkPerson === "reviewer" ? "一次套用審稿人員" : "一次套用譯者"}
                         onClick={() => {
-                          setBulkPersonField("translator");
+                          setBulkPersonField((col as { bulkPerson: "translator" | "reviewer" }).bulkPerson);
                           setBulkPersonValue("");
                           setBulkPersonUserId(null);
                         }}
@@ -369,35 +382,54 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {(col as { bulkReview?: boolean }).bulkReview && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        title={showAccepted ? "整欄確認指派" : "整欄審稿完成"}
+                        onClick={() => runBulkCheck(showAccepted ? "reviewAssigned" : "reviewTaskCompleted")}
+                      >
+                        <CheckSquare className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{showAccepted ? "整欄確認指派（僅本人負責且條件符合的列）" : "整欄審稿完成（僅本人負責且條件符合的列）"}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {(col as { bulkDeliver?: boolean }).bulkDeliver && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        title="整欄已交件"
+                        onClick={() => runBulkCheck("delivered")}
+                      >
+                        <PackageCheck className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>整欄已交件（僅本人負責且已審稿完成的列）</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           ))}
         </div>
 
         {rows.map((row, idx) => {
+          const wf = deriveSharedRowWorkflow(row, typedStatus, actor);
           const acceptedDisabled = showAccepted
             ? (row.accepted
                 ? !(isPmOrAbove || row.translator === displayName)
-                : false)
+                : !wf.canConfirmAccept && !row.accepted)
             : false;
-
-          const canCheckTaskCompleted =
-            showTaskCompleted &&
-            !row.taskCompleted &&
-            (isPmOrAbove || row.translator === displayName);
-
-          const deliveredLocked = caseStatus === "delivered" || caseStatus === "feedback" || caseStatus === "feedback_completed";
-          const canCheckDelivered = isPmOrAbove && !row.delivered && !deliveredLocked;
 
           const catBound = isCatBound(row);
           const catLink = catBound ? resolveCatLink(row) : null;
-          const reviewPair = uniqueReviewByCollabId.get(row.id);
-          const reviewerValue = row.reviewer || reviewPair?.reviewer || "";
-          const reviewDeadlineValue = row.reviewDeadline ?? reviewPair?.reviewDeadline ?? null;
-          const reviewCompleted = row.reviewTaskCompleted ?? reviewPair?.taskCompleted ?? false;
-          const canCheckReviewCompleted =
-            showTaskCompleted &&
-            !reviewCompleted &&
-            (isPmOrAbove || row.reviewer === displayName || reviewPair?.reviewer === displayName);
+          const reviewerValue = row.reviewer || "";
+          const reviewDeadlineValue = row.reviewDeadline ?? null;
 
           return (
             <div
@@ -486,10 +518,16 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                   value={row.translator}
                   onValueChange={() => {}}
                   onAssigneeSelect={(selection) => {
-                    updateRow(idx, collabTranslatorFromSelection(selection));
+                    const patch = collabTranslatorFromSelection(selection);
+                    const applied = applyPeoplePatch(row, typedStatus, patch);
+                    if (!applied.ok) {
+                      toast({ title: "無法換人", description: applied.reason, variant: "destructive" });
+                      return;
+                    }
+                    updateRow(idx, patch);
                   }}
                   className="w-full"
-                  disabled={!isPmOrAbove && row.accepted}
+                  disabled={!wf.canClearPeople && !isPmOrAbove}
                 />
               </div>
 
@@ -506,26 +544,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                 <DateTimePicker
                   value={row.translationDeadline}
                   onChange={(v) => updateRow(idx, { translationDeadline: v })}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewer">
-                <ColorSelect
-                  fieldKey="assignee"
-                  value={reviewerValue}
-                  onValueChange={() => {}}
-                  onAssigneeSelect={(selection) => {
-                    updateRow(idx, reviewRowFromSelection(selection));
-                  }}
-                  className="w-full"
-                  disabled={!isPmOrAbove}
-                />
-              </div>
-              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewDeadline">
-                <DateTimePicker
-                  value={reviewDeadlineValue}
-                  onChange={(v) => updateRow(idx, { reviewDeadline: v })}
                   className="w-full"
                 />
               </div>
@@ -556,36 +574,69 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                           updateRow(idx, { accepted: true });
                         }
                       } else {
-                        updateRow(idx, { accepted: false, translator: "", translatorUserId: null });
+                        updateRow(idx, { accepted: false });
                       }
                     }}
                   />
                 ) : (
                   <Checkbox
                     checked={row.taskCompleted}
-                    disabled={!canCheckTaskCompleted && !row.taskCompleted}
+                    disabled={row.taskCompleted ? !wf.canUncheckTaskCompleted : !wf.canCheckTaskCompleted}
                     onCheckedChange={(v) => { void handleTaskCompletedChange(idx, row, !!v); }}
                   />
                 )}
               </div>
-              {showTaskCompleted && (
-                <div
-                  className="flex items-center justify-center px-1.5 py-1"
-                  data-collab-id={row.id}
-                  data-collab-field="reviewTaskCompleted"
-                >
+              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewer">
+                <ColorSelect
+                  fieldKey="assignee"
+                  value={reviewerValue}
+                  onValueChange={() => {}}
+                  onAssigneeSelect={(selection) => {
+                    const patch = reviewRowFromSelection(selection);
+                    const applied = applyPeoplePatch(row, typedStatus, patch);
+                    if (!applied.ok) {
+                      toast({ title: "無法換人", description: applied.reason, variant: "destructive" });
+                      return;
+                    }
+                    updateRow(idx, patch);
+                  }}
+                  className="w-full"
+                  disabled={!wf.canClearPeople}
+                />
+              </div>
+              <div className="px-1.5 py-1" data-collab-id={row.id} data-collab-field="reviewDeadline">
+                <DateTimePicker
+                  value={reviewDeadlineValue}
+                  onChange={(v) => updateRow(idx, { reviewDeadline: v })}
+                  className="w-full"
+                />
+              </div>
+              <div
+                className="flex items-center justify-center px-1.5 py-1"
+                data-collab-id={row.id}
+                data-collab-field={wf.reviewAssigned ? "reviewTaskCompleted" : "reviewAssigned"}
+              >
+                {!wf.reviewAssigned ? (
                   <Checkbox
-                    checked={reviewCompleted}
-                    disabled={!canCheckReviewCompleted && !reviewCompleted}
-                    onCheckedChange={(v) => updateRow(idx, collabRowPatchFromReviewCompleteCheck(!!v))}
+                    checked={false}
+                    disabled={!wf.canConfirmReviewAssign}
+                    onCheckedChange={(v) => {
+                      if (v) updateRow(idx, applyReviewAssignPatch(true));
+                    }}
                   />
-                </div>
-              )}
+                ) : (
+                  <Checkbox
+                    checked={wf.reviewCompleted}
+                    disabled={wf.reviewCompleted ? !wf.canUncheckReviewCompleted : !wf.canCheckReviewCompleted}
+                    onCheckedChange={(v) => updateRow(idx, applyReviewCompletePatch(!!v))}
+                  />
+                )}
+              </div>
 
               <div className="flex items-center justify-center px-1.5 py-1">
                 <Checkbox
                   checked={row.delivered}
-                  disabled={!canCheckDelivered && !row.delivered}
+                  disabled={row.delivered ? !wf.canUncheckDelivered : !wf.canCheckDelivered}
                   onCheckedChange={(v) => updateRow(idx, { delivered: !!v })}
                 />
               </div>
@@ -626,7 +677,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              批次設定譯者
+              {bulkPersonField === "reviewer" ? "批次設定審稿人員" : "批次設定譯者"}
             </AlertDialogTitle>
           </AlertDialogHeader>
           <ColorSelect

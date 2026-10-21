@@ -46,7 +46,7 @@
             modelId: 'gpt-5.6-luna',
             displayNameZh: 'GPT-5.6 Luna',
             shortLabelZh: '低成本備援',
-            usageHintZh: '成本較低，適合大量預翻、初稿與可接受較輕量品質的批次；亦作系統備援模型。',
+            usageHintZh: '成本較低，適合大量預翻、初稿與可接受較輕量品質的批次；亦作系統備援模型。此模型呼叫時不送自訂 temperature。',
             enabled: true,
             isDefault: false,
             sortOrder: 30,

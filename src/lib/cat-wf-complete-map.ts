@@ -72,8 +72,8 @@ function applyOneReviewComplete(
   let nextCollab = collabRows.map((r) => {
     if (String(r.id) !== id) return r;
     return completed
-      ? { ...r, reviewTaskCompleted: true, taskCompleted: true }
-      : { ...r, reviewTaskCompleted: false };
+      ? { ...r, reviewTaskCompleted: true, taskCompleted: true, reviewAssigned: true }
+      : { ...r, reviewTaskCompleted: false, delivered: false };
   });
   const collab = nextCollab.find((r) => String(r.id) === id);
   let reviewTouched = false;
@@ -109,8 +109,8 @@ function applyOneReviewComplete(
         nextCollab = nextCollab.map((r) => {
           if (String(r.id) !== pairId) return r;
           return completed
-            ? { ...r, reviewTaskCompleted: true, taskCompleted: true }
-            : { ...r, reviewTaskCompleted: false };
+            ? { ...r, reviewTaskCompleted: true, taskCompleted: true, reviewAssigned: true }
+            : { ...r, reviewTaskCompleted: false, delivered: false };
         });
       }
     }
@@ -137,10 +137,10 @@ function applyOneReviewComplete(
 }
 
 /**
- * CAT 完成／取消（22:39）：
- * - 翻譯完成／取消只動 collab_rows.taskCompleted（手動取消翻譯不改審稿）。
- * - 審稿完成同時把對應範圍 collab_rows.taskCompleted 設為 true。
- * - 手動取消審稿只清 review 旗標，保留翻譯完成。
+ * CAT 完成／取消（1256）：
+ * - 翻譯取消連帶清審稿完成與交件。
+ * - 審稿完成同時把對應範圍翻譯完成設為 true。
+ * - 手動取消審稿清交件，保留翻譯完成。
  */
 export function applyCatCompleteToCaseRows(input: {
   collabRows: CollabRowJson[];
@@ -162,9 +162,20 @@ export function applyCatCompleteToCaseRows(input: {
     const completed = !!u.taskCompleted;
     if (parseCatWfCompleteKind(u.stageKind) === "translate") {
       anyTranslateTouched = true;
-      collabRows = collabRows.map((r) =>
-        String(r.id) === id ? { ...r, taskCompleted: completed } : r,
-      );
+      collabRows = collabRows.map((r) => {
+        if (String(r.id) !== id) return r;
+        if (completed) return { ...r, taskCompleted: true };
+        return { ...r, taskCompleted: false, reviewTaskCompleted: false, delivered: false };
+      });
+      if (!completed) {
+        const hit = collabRows.find((r) => String(r.id) === id);
+        const key = hit ? collabReviewScopeKey(hit) : "";
+        reviewRows = reviewRows.map((r) => {
+          if (String(r.id) === id) return { ...r, taskCompleted: false };
+          if (key && collabReviewScopeKey(r) === key) return { ...r, taskCompleted: false };
+          return r;
+        });
+      }
       continue;
     }
     const applied = applyOneReviewComplete(collabRows, reviewRows, id, completed);

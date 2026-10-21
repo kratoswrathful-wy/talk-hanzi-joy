@@ -65,12 +65,6 @@ export function describeCatWorkflowSyncIssues(
   if ((report.unresolvedReviewers ?? []).length) {
     parts.push(`審稿無法對應帳號：${(report.unresolvedReviewers ?? []).join("、")}`);
   }
-  if ((report.reviewRowsWithoutFile ?? 0) > 0) {
-    parts.push(`有 ${report.reviewRowsWithoutFile} 筆審稿尚未對到 CAT 檔案`);
-  }
-  if ((report.rowsWithoutFile ?? 0) > 0) {
-    parts.push(`有 ${report.rowsWithoutFile} 筆翻譯列尚未對到 CAT 檔案`);
-  }
   return parts;
 }
 

@@ -3942,13 +3942,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    function _catCollabSplitPrefill() {
+    async function _catCollabSplitPrefill() {
         if (!_catCollabState) return;
-        const totalStr = prompt('請輸入此檔總列數（句段數）：', '');
+        const totalStr = await openCatPromptModal({
+            title: '拆分均分',
+            label: '請輸入此檔總列數（句段數）：',
+            defaultValue: '',
+        });
         if (totalStr == null) return;
         const total = parseInt(String(totalStr).trim(), 10);
         if (!Number.isFinite(total) || total <= 0) { showCatToast('總列數須為正整數', 'error'); return; }
-        const partsStr = prompt('要平均分成幾份？', '2');
+        const partsStr = await openCatPromptModal({
+            title: '拆分均分',
+            label: '要平均分成幾份？',
+            defaultValue: '2',
+        });
         if (partsStr == null) return;
         const parts = parseInt(String(partsStr).trim(), 10);
         if (!Number.isFinite(parts) || parts <= 0) { showCatToast('份數須為正整數', 'error'); return; }
@@ -3993,12 +4001,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn('[collab-assign] getCaseCollabForFile', e);
             return false;
         }
-        if (!info || !info.linked || !info.multiCollab) return false;
+        if (!info || !info.linked) return false;
+        const fileKey = String(info.fileId || fileId);
+        const displayName = info.fileName || fileName || '';
+        let rows = Array.isArray(info.collabRows) ? info.collabRows.map((r) => Object.assign({}, r)) : [];
+        const fileBound = rows.filter((r) => String(r.linkedCatFileId || '') === fileKey);
+        if (!fileBound.length) {
+            const unscoped = rows.filter((r) => !String(r.linkedCatFileId || '').trim());
+            if (unscoped.length) {
+                rows = rows.map((r) => !String(r.linkedCatFileId || '').trim()
+                    ? Object.assign({}, r, { linkedCatFileId: fileKey, linkedCatFileName: displayName })
+                    : r);
+            } else {
+                rows.push({
+                    id: 'cr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                    segment: displayName,
+                    lineRange: null,
+                    translator: '',
+                    translatorUserId: null,
+                    reviewer: '',
+                    reviewerUserId: null,
+                    reviewDeadline: null,
+                    accepted: false,
+                    taskCompleted: false,
+                    linkedCatFileId: fileKey,
+                    linkedCatFileName: displayName,
+                });
+            }
+        }
         _catCollabState = {
             caseId: info.caseId,
-            fileId: String(info.fileId || fileId),
-            fileName: info.fileName || fileName || '',
-            rows: Array.isArray(info.collabRows) ? info.collabRows.map((r) => Object.assign({}, r)) : [],
+            fileId: fileKey,
+            fileName: displayName,
+            rows,
             reviewRows: Array.isArray(info.reviewRows) ? info.reviewRows.map((r) => Object.assign({}, r)) : [],
             status: info.caseStatus || '',
         };

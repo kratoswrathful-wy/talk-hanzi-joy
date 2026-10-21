@@ -74,15 +74,28 @@ describe("applyCatCompleteToCaseRows", () => {
     expect(out.reviewRows[0].taskCompleted).toBe(false);
   });
 
-  it("cancelling translate keeps review complete", () => {
+  it("cancelling review also clears delivered but keeps translate complete", () => {
     const out = applyCatCompleteToCaseRows({
-      collabRows: [{ ...collab, taskCompleted: true, reviewTaskCompleted: true }],
+      collabRows: [{ ...collab, taskCompleted: true, reviewTaskCompleted: true, delivered: true }],
+      reviewRows: [{ ...review, taskCompleted: true }],
+      updates: [{ collabRowId: "row-1", taskCompleted: false, stageKind: "review" }],
+    });
+    expect(out.collabRows[0].taskCompleted).toBe(true);
+    expect(out.collabRows[0].reviewTaskCompleted).toBe(false);
+    expect(out.collabRows[0].delivered).toBe(false);
+    expect(out.reviewRows[0].taskCompleted).toBe(false);
+  });
+
+  it("cancelling translate also clears review complete and delivered", () => {
+    const out = applyCatCompleteToCaseRows({
+      collabRows: [{ ...collab, taskCompleted: true, reviewTaskCompleted: true, delivered: true }],
       reviewRows: [{ ...review, taskCompleted: true }],
       updates: [{ collabRowId: "row-1", taskCompleted: false, stageKind: "translate" }],
     });
     expect(out.collabRows[0].taskCompleted).toBe(false);
-    expect(out.collabRows[0].reviewTaskCompleted).toBe(true);
-    expect(out.reviewRows[0].taskCompleted).toBe(true);
+    expect(out.collabRows[0].reviewTaskCompleted).toBe(false);
+    expect(out.collabRows[0].delivered).toBe(false);
+    expect(out.reviewRows[0].taskCompleted).toBe(false);
     expect(out.allTranslateCompleted).toBe(false);
   });
 

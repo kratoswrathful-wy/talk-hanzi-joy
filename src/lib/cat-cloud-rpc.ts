@@ -2890,11 +2890,15 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const fileId = String(payload.fileId || "");
       const fileName = String(payload.fileName || "");
       const chosenRowId = String(payload.chosenRowId || "");
+      const chosenRowIds = Array.isArray(payload.chosenRowIds)
+        ? payload.chosenRowIds.map((id) => String(id || ""))
+        : [];
       const result = await inheritCaseAssignmentsForLinkedFile(supabase, {
         caseId,
         fileId,
         fileName,
         chosenRowId: chosenRowId || undefined,
+        chosenRowIds,
       });
       const copy = describeInheritFailure({
         importOk: true,

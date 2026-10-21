@@ -362,19 +362,10 @@ export function reviewAssignmentRangeCompleted(assignments, lineNo) {
  * }} [input]
  * @returns {boolean}
  */
-export function reviewWorkForbidsMemberEdit(input) {
-  const o = input || {};
-  const assignments = Array.isArray(o.assignments) ? o.assignments : [];
-  const lineNo = o.lineNo;
-  const hasLine = lineNo != null && Number.isFinite(Number(lineNo));
-  if (hasLine && reviewAssignmentRangeCompleted(assignments, lineNo)) return true;
-  if (!reviewStageForbidsMemberEdit(o.reviewStageStatus)) return false;
-  if (!hasLine) return true;
-  const coveringReview = assignments.filter((a) =>
-    assignmentRoleKind(a) === "review" && assignmentCoversLine(a, lineNo)
-  );
-  if (!coveringReview.length) return true;
-  return coveringReview.every((a) => assignmentWorkflowStatus(a) === "completed");
+export function reviewWorkForbidsMemberEdit(_input) {
+  // 1256：審稿完成不再禁止受派譯者／審稿改譯文或回退狀態；未受派仍由 memberSegmentEditForbidden 擋。
+  void _input;
+  return false;
 }
 
 /**

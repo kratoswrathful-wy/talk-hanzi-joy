@@ -112,7 +112,7 @@ export function CaseCatToolsPanel({
     fileName: string;
     unlinkOldId?: string | null;
     candidates: Array<{ id: string; segment: string; lineRange: string | null }>;
-    chosenRowId: string;
+    chosenRowIds: string[];
   } | null>(null);
 
   const loadLinkedFiles = useCallback(async () => {
@@ -208,7 +208,7 @@ export function CaseCatToolsPanel({
         fileName: fileName || "",
         unlinkOldId,
         candidates: inherit.candidates,
-        chosenRowId: inherit.candidates[0]?.id || "",
+        chosenRowIds: [],
       });
       return inherit;
     }
@@ -490,29 +490,38 @@ export function CaseCatToolsPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>選擇要承接的共用列</AlertDialogTitle>
             <AlertDialogDescription>
-              「{rowChoice?.fileName}」對到多列，請選一列承接既有人員。不必重選譯者或審稿人。
+              「{rowChoice?.fileName}」對到多列，且無法依檔名唯一對應。請勾選要帶入人員的列，沒有預設列。
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <select
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            style={{ boxSizing: "border-box" }}
-            value={rowChoice?.chosenRowId || ""}
-            onChange={(e) => {
-              const value = e.target.value;
-              setRowChoice((prev) => (prev ? { ...prev, chosenRowId: value } : prev));
-            }}
-          >
-            {(rowChoice?.candidates || []).map((row) => (
-              <option key={row.id} value={row.id}>
-                {(row.segment || "（無檔名）") + (row.lineRange ? ` ${row.lineRange}` : " 整檔")}
-              </option>
-            ))}
-          </select>
+          <div className="space-y-2">
+            {(rowChoice?.candidates || []).map((row) => {
+              const checked = !!rowChoice?.chosenRowIds.includes(row.id);
+              return (
+                <label key={row.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setRowChoice((prev) => {
+                        if (!prev) return prev;
+                        const next = on
+                          ? [...prev.chosenRowIds, row.id]
+                          : prev.chosenRowIds.filter((id) => id !== row.id);
+                        return { ...prev, chosenRowIds: next };
+                      });
+                    }}
+                  />
+                  {(row.segment || "（無檔名）") + (row.lineRange ? ` ${row.lineRange}` : " 整檔")}
+                </label>
+              );
+            })}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>稍後再選</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (!rowChoice?.chosenRowId) return;
+                if (!rowChoice?.chosenRowIds.length) return;
                 const pending = rowChoice;
                 setRowChoice(null);
                 setBusy(true);
@@ -520,7 +529,7 @@ export function CaseCatToolsPanel({
                   caseId,
                   fileId: pending.fileId,
                   fileName: pending.fileName,
-                  chosenRowId: pending.chosenRowId,
+                  chosenRowIds: pending.chosenRowIds,
                 })
                   .then((result) => {
                     if (!result.ok) {
@@ -533,7 +542,7 @@ export function CaseCatToolsPanel({
                       return;
                     }
                     broadcastCatWorkflowAssignmentsSynced(caseId);
-                    toast({ title: "已帶入該列人員" });
+                    toast({ title: "已帶入勾選列人員" });
                   })
                   .finally(() => setBusy(false));
               }}

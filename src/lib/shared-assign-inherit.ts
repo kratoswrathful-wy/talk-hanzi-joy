@@ -81,12 +81,7 @@ export function matchSharedRowsForLinkedFile(input: {
   if (!fileId || !rows.length) return { kind: "none" };
 
   const alreadyBound = rows.filter((row) => trim(row.linkedCatFileId) === fileId);
-  if (alreadyBound.length === 1) return { kind: "unique", collabRows: alreadyBound };
-  if (alreadyBound.length > 1) {
-    const ranges = new Set(alreadyBound.map((row) => rangeKey(row.lineRange)));
-    if (ranges.size === 1 && ranges.has("open:open")) return { kind: "unique", collabRows: alreadyBound };
-    return { kind: "ambiguous", candidates: alreadyBound };
-  }
+  if (alreadyBound.length >= 1) return { kind: "unique", collabRows: alreadyBound };
 
   const allUnscoped = rows.every(isWholeCaseCollabRow);
   if (allUnscoped) return { kind: "whole-case" };
@@ -95,8 +90,11 @@ export function matchSharedRowsForLinkedFile(input: {
     if (trim(row.linkedCatFileId) && trim(row.linkedCatFileId) !== fileId) return false;
     return fileNameKey(row.segment) === fileName && fileName.length > 0;
   });
-  if (nameMatches.length === 1) return { kind: "unique", collabRows: nameMatches };
-  if (nameMatches.length > 1) return { kind: "ambiguous", candidates: nameMatches };
+  if (nameMatches.length >= 1) return { kind: "unique", collabRows: nameMatches };
+
+  const unbound = rows.filter((row) => !trim(row.linkedCatFileId));
+  if (unbound.length > 1) return { kind: "ambiguous", candidates: unbound };
+  if (unbound.length === 1) return { kind: "unique", collabRows: unbound };
   return { kind: "none" };
 }
 
