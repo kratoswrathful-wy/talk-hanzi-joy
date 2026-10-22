@@ -13,6 +13,7 @@ import {
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
   memberSegmentEditForbidden,
+  assignmentCoversLine,
   reviewStageForbidsMemberEdit,
   reviewAssignmentRangeCompleted,
   reviewWorkForbidsMemberEdit,
@@ -276,7 +277,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
     expect(memberSegmentEditForbidden({ ...base, lineNo: 2 })).toBe(false);
   });
 
-  it("單人整檔：明示審稿身分但沒有審稿指派 → 禁止", () => {
+  it("單人整檔：明示審稿身分但沒有審稿指派 → 仍可用本人翻譯整檔範圍", () => {
     expect(memberSegmentEditForbidden({
       assignments: cWhole,
       userId: t1,
@@ -284,7 +285,7 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       sessionKind: "review",
       reviewStageStatus: "pending",
       lineNo: 1,
-    })).toBe(true);
+    })).toBe(false);
   });
 
   it("審稿進行中：沒有審稿指派的譯者仍可改自己的翻譯範圍", () => {
@@ -337,6 +338,13 @@ describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", (
       reviewStageStatus: "pending",
       lineNo: 1,
     })).toBe(true);
+  });
+
+  it("列範圍字串或無效數字不當成全檔鎖死", () => {
+    expect(assignmentCoversLine({ lineRange: "1-2" }, 1)).toBe(true);
+    expect(assignmentCoversLine({ lineRange: "1-2" }, 3)).toBe(false);
+    expect(assignmentCoversLine({ lineStart: "1-2" }, 1)).toBe(true);
+    expect(assignmentCoversLine({ lineStart: 1, lineEnd: 2 }, 1)).toBe(true);
   });
 
   it("句段已審稿完成、檔案與分段仍審稿進行中：譯者仍可改自己的範圍", () => {

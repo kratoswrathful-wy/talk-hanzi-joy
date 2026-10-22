@@ -188,6 +188,16 @@ export function deriveCaseStatusFromRows(
   return { status: current, reason: "keep" };
 }
 
+/** 案件頁保存時採用 derive 的下一狀態；keep／部分承接不改。 */
+export function statusPatchFromDerived(
+  current: CaseStatus,
+  derived: CaseStatusFromRows,
+): CaseStatus | undefined {
+  if (derived.reason === "keep" || derived.reason === "partial-accept") return undefined;
+  if (derived.status === current) return undefined;
+  return derived.status;
+}
+
 export type BulkCheckKind =
   | "taskCompleted"
   | "reviewAssigned"

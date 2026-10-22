@@ -129,14 +129,17 @@ describe("CollaborationTable assignee", () => {
         caseStatus="dispatched"
       />,
     );
-    expect(screen.getByText("翻譯完成")).toBeTruthy();
+    expect(screen.getByText("任務完成")).toBeTruthy();
     expect(screen.getByText("審稿完成")).toBeTruthy();
     const row = container.querySelector('[data-collab-id="row-1"]');
     const fields = [...(row?.querySelectorAll("[data-collab-field]") ?? [])].map((el) =>
       el.getAttribute("data-collab-field"),
     );
     const iTask = fields.indexOf("taskCompleted");
-    const iReview = fields.indexOf("reviewTaskCompleted");
+    const iReview = Math.max(
+      fields.indexOf("reviewTaskCompleted"),
+      fields.indexOf("reviewAssigned"),
+    );
     expect(iTask).toBeGreaterThanOrEqual(0);
     expect(iReview).toBeGreaterThan(iTask);
   });

@@ -95,7 +95,6 @@ import {
   writeThroughWholeFileReviewer,
 } from "@/lib/review-rows";
 import {
-  partitionReviewRowsByCollab,
   projectCollabReviewIntoReviewRows,
 } from "@/lib/collab-review-pair";
 import {
@@ -104,7 +103,7 @@ import {
   classifyLegacyReviewRows,
   describeLegacyReviewConflict,
 } from "@/lib/shared-assign-inherit";
-import { deriveCaseStatusFromRows } from "@/lib/shared-row-workflow";
+import { deriveCaseStatusFromRows, statusPatchFromDerived } from "@/lib/shared-row-workflow";
 import { describeCatWorkflowSyncIssues } from "@/lib/cat-workflow-sync-result";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
@@ -3385,21 +3384,20 @@ export default function CaseDetailPage() {
                     });
                   return;
                 }
-                const completedReview = newRows.find((row) => {
+                const completedReviews = newRows.filter((row) => {
                   const previous = previousRows.find((item) => item.id === row.id);
                   return !!row.reviewTaskCompleted && !previous?.reviewTaskCompleted;
                 });
-                if (completedReview) {
-                  const pair = partitionReviewRowsByCollab(
-                    previousRows,
-                    caseData.reviewRows,
-                  ).uniqueByCollabId.get(completedReview.id);
-                  if (pair) {
-                    void caseStore.completeCaseReviewRow(caseData.id, pair.id)
-                      .then((error) => {
-                        if (error) toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
-                      });
-                  }
+                if (completedReviews.length) {
+                  void (async () => {
+                    for (const row of completedReviews) {
+                      const error = await caseStore.completeCaseReviewRow(caseData.id, row.id);
+                      if (error) {
+                        toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
+                        return;
+                      }
+                    }
+                  })();
                 }
                 return;
               }
@@ -3410,15 +3408,13 @@ export default function CaseDetailPage() {
                 reviewRows: nextReview,
                 reviewer: deriveReviewerSummary(nextReview),
               };
-              const allAccepted = derived.reason === "all-accepted";
-              const allTaskCompleted = derived.status === "task_completed" || derived.status === "delivered";
-              const allDelivered = derived.reason === "all-delivered";
-              
+              const nextStatus = statusPatchFromDerived(caseData.status, derived);
+              if (nextStatus) updates.status = nextStatus;
+
               const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
               updates.translator = collabTranslators;
 
-              if (isInquiry && allAccepted) {
-                updates.status = "dispatched" as CaseStatus;
+              if (isInquiry && derived.reason === "all-accepted") {
                 save(updates);
                 toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
                 showPrepNotReadyWarningIfNeeded(caseData.id, isPmOrAbove, toast);
@@ -3455,17 +3451,12 @@ export default function CaseDetailPage() {
                   }
                 });
               }
-              if (isDispatched && allTaskCompleted) {
-                updates.status = "task_completed" as CaseStatus;
+              if (derived.reason === "all-translated") {
                 save(updates);
                 toast({ title: "所有任務已完成" });
                 return;
               }
-              if (caseData.status === "task_completed" && !allTaskCompleted && !allDelivered) {
-                updates.status = "dispatched" as CaseStatus;
-              }
-              if ((caseData.status === "dispatched" || caseData.status === "task_completed") && allDelivered) {
-                updates.status = "delivered" as CaseStatus;
+              if (derived.reason === "all-delivered") {
                 save(updates);
                 toast({ title: "所有交件已完畢，狀態已更新為「交件完畢」" });
                 return;

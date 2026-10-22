@@ -7558,7 +7558,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             : stageAssigns.filter((a) => String(a.fileWorkflowStageId) === String(activeStage.id)
                 && (!_currentViewId || !a.viewId || String(a.viewId) === String(_currentViewId))
                 && String(a.assigneeUserId) === userId);
-        if (!mine.length) return true;
+        if (!mine.length) {
+            // 階段指派對不上目前工作步驟時，改由檔案層未受派鎖決定；檔案層已受派者可編（1256）。
+            return false;
+        }
 
         if (lineNo == null) return false;
         if (api && typeof api.assignmentCoversLine === 'function') {

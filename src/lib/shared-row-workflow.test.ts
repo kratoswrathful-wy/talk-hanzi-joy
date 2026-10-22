@@ -8,6 +8,7 @@ import {
   deriveCaseStatusFromRows,
   deriveSharedRowWorkflow,
   isReviewAssigned,
+  statusPatchFromDerived,
   workRows,
 } from "./shared-row-workflow";
 
@@ -145,6 +146,18 @@ describe("applyReviewCompletePatch / people / case status", () => {
       reason: "undeliver",
     });
     expect(deriveCaseStatusFromRows("inquiry", [row({ id: "empty" })]).reason).toBe("keep");
+  });
+
+  it("已交件取消一列或全取消時，案件狀態要退回任務完成", () => {
+    const both = [
+      row({ id: "a", translator: "甲", accepted: true, taskCompleted: true, delivered: true }),
+      row({ id: "b", translator: "乙", accepted: true, taskCompleted: true, delivered: true }),
+    ];
+    const oneOff = [both[0], { ...both[1], delivered: false }];
+    const none = [{ ...both[0], delivered: false }, { ...both[1], delivered: false }];
+    expect(statusPatchFromDerived("delivered", deriveCaseStatusFromRows("delivered", oneOff))).toBe("task_completed");
+    expect(statusPatchFromDerived("delivered", deriveCaseStatusFromRows("delivered", none))).toBe("task_completed");
+    expect(statusPatchFromDerived("delivered", deriveCaseStatusFromRows("delivered", both))).toBeUndefined();
   });
 });
 

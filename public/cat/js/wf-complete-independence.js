@@ -372,7 +372,7 @@ export function reviewWorkForbidsMemberEdit(_input) {
  * 翻譯完成後，工作步驟可能跳到尚未指派或進行中的審稿。
  * 未明示身分時，可用本人翻譯／審稿指派繼續編輯。
  * 句段狀態是否審稿完成不參與判斷。
- * 明示翻譯／審稿身分時，仍只看該步本人指派。
+ * 明示翻譯／審稿身分但該步沒有本人指派時，回退看本人在此檔的其他受派範圍。
  * 整檔或分段審稿完成的鎖定由 reviewWorkForbidsMemberEdit 另判，
  * 避免主管重開其中一段時被殘留整檔完成狀態誤鎖。
  * @param {{
@@ -397,8 +397,7 @@ export function resolveMemberEditAssignments(input) {
     && assignmentSameView(a, viewId)
   );
   if (mineOnSession.length) return mineOnSession;
-  const kind = input?.sessionKind;
-  if (kind === "translate" || kind === "review") return [];
+  // 1256：工作步驟跳到審稿、或明示身分對不上該步指派時，仍可用本人在此檔的其他受派範圍編輯。
   return list.filter((a) =>
     String(assignmentAssigneeId(a) || "") === uid && assignmentSameView(a, viewId)
   );
@@ -410,12 +409,22 @@ export function resolveMemberEditAssignments(input) {
  * @returns {boolean}
  */
 export function assignmentCoversLine(a, lineNo) {
-  const ls = a?.lineStart != null ? a.lineStart : a?.line_start;
-  const le = a?.lineEnd != null ? a.lineEnd : a?.line_end;
+  const rawRange = a?.lineRange != null ? a.lineRange : a?.line_range;
+  let ls = a?.lineStart != null ? a.lineStart : a?.line_start;
+  let le = a?.lineEnd != null ? a.lineEnd : a?.line_end;
+  if ((ls == null && le == null) && rawRange != null && String(rawRange).trim()) {
+    const text = String(rawRange).trim();
+    const closed = text.match(/^(\d+)\s*[-–~]\s*(\d+)$/);
+    if (closed) {
+      ls = Number(closed[1]);
+      le = Number(closed[2]);
+    }
+  }
   if (ls == null && le == null) return true;
   if (lineNo == null || !Number.isFinite(Number(lineNo))) return true;
   const start = ls != null ? Number(ls) : 1;
   const end = le != null ? Number(le) : Number.MAX_SAFE_INTEGER;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return true;
   const n = Number(lineNo);
   return n >= start && n <= end;
 }
