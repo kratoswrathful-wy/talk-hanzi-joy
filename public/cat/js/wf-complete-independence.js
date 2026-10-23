@@ -282,12 +282,13 @@ export function assignmentsForLmsRollbackOnTranslatorEdit(input) {
   const out = [];
   const seen = new Set();
   for (const a of covering) {
-    if (assignmentRoleKind(a) === "review") continue;
     if (lineNo != null && Number.isFinite(Number(lineNo)) && !assignmentCoversLine(a, lineNo)) continue;
-    const key = String(a?.id || assignmentLmsCollabRowId(a) || assignmentRangeKey(a));
+    const rowId = assignmentLmsCollabRowId(a);
+    const key = rowId || String(a?.id || assignmentRangeKey(a));
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    out.push(a);
+    // 案件頁翻譯重開：即使 CAT 只留下審稿指派，仍用該列編號退翻譯／審稿／交件。
+    out.push({ ...a, kind: "translate", stageKind: "translate" });
   }
   return out;
 }

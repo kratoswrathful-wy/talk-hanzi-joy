@@ -7902,7 +7902,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lineNo = _segFullListLineNo(seg);
         const lmsTargets = api && typeof api.assignmentsForLmsRollbackOnTranslatorEdit === 'function'
             ? (api.assignmentsForLmsRollbackOnTranslatorEdit({ covering: taggedCovering, lineNo }) || [])
-            : taggedCovering.filter((a) => !_isReviewStageAssignment(a));
+            : taggedCovering;
         if (!unique.length && !lmsTargets.length) return;
         unique.forEach((id) => _wfReopenCompleteInFlight.add(id));
         try {

@@ -224,6 +224,16 @@ describe("譯者改譯文取消該範圍完成", () => {
     }).map((a) => a.id)).toEqual(["t-1-2"]);
     expect(assignmentIdsToReopenOnTranslatorEdit({ covering })).toEqual([]);
   });
+
+  it("只有審稿指派時仍用該列編號做案件頁翻譯重開", () => {
+    const covering = [
+      { id: "r-1-2", kind: "review", workflowStatus: "assigned", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+      { id: "r-3-4", kind: "review", workflowStatus: "assigned", lineStart: 3, lineEnd: 4, collabRowId: "row-b" },
+    ];
+    const hits = assignmentsForLmsRollbackOnTranslatorEdit({ covering, lineNo: 1 });
+    expect(hits.map((a) => a.collabRowId)).toEqual(["row-a"]);
+    expect(hits[0].kind).toBe("translate");
+  });
 });
 
 describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", () => {
