@@ -264,6 +264,16 @@ describe("describeCaseWriteFailure", () => {
     expect(described.description).toContain("已保留你剛輸入的內容");
   });
 
+  it("treats formal P0001 and legacy 40001 as the same unsaved conflict", () => {
+    const byCode = describeCaseWriteFailure({ code: "P0001", message: "other" });
+    const byLegacy = describeCaseWriteFailure({ code: "40001", message: "other" });
+    const byMessage = describeCaseWriteFailure(new Error("case_revision_conflict"));
+    expect(byCode.kind).toBe("conflict");
+    expect(byLegacy.kind).toBe("conflict");
+    expect(byMessage.kind).toBe("conflict");
+    expect(byCode.description).toContain("已保留你剛輸入的內容");
+  });
+
   it("maps identity lookup failure without treating it as a generic save error", () => {
     const described = describeCaseWriteFailure(new Error("無法確認身分，指派與公布尚未寫入。請稍後再試。"));
     expect(described.kind).toBe("identity");

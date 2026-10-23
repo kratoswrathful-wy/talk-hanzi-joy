@@ -65,7 +65,13 @@ export function caseRpcErrorKind(
   if (!error) return "unknown";
   const code = "code" in error && typeof error.code === "string" ? error.code : "";
   const message = error.message || "";
-  if (code === "40001" || message.includes("case_revision_conflict")) return "conflict";
+  if (
+    code === "40001" ||
+    code === "P0001" ||
+    message.includes("case_revision_conflict")
+  ) {
+    return "conflict";
+  }
   if (code === "42501" || /not_authorized|access_denied|not_assigned/.test(message)) {
     return "forbidden";
   }

@@ -91,5 +91,19 @@ describe("case-task-complete-access", () => {
         message: "case_unavailable",
       }),
     ).toContain("已派出");
+    expect(
+      describeTaskCompleteFailure({
+        kind: "translator",
+        code: "P0001",
+        message: "other",
+      }),
+    ).toContain("重新整理");
+    expect(
+      describeTaskCompleteFailure({
+        kind: "translator",
+        code: "40001",
+        message: "case_revision_conflict",
+      }),
+    ).toContain("重新整理");
   });
 });

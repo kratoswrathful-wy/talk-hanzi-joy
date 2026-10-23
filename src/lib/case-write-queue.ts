@@ -197,7 +197,15 @@ export function describeCaseWriteFailure(error: unknown): {
       : error && typeof error === "object" && "message" in error && typeof (error as { message?: unknown }).message === "string"
         ? (error as { message: string }).message
         : String(error ?? "儲存失敗");
-  if (/stale_revision|case_revision_conflict|40001/.test(message)) {
+  const code =
+    error && typeof error === "object" && "code" in error && typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code
+      : "";
+  if (
+    code === "40001" ||
+    code === "P0001" ||
+    /stale_revision|case_revision_conflict|40001|P0001/.test(message)
+  ) {
     return {
       kind: "conflict",
       title: "版本衝突",

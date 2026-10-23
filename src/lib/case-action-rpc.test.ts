@@ -4,6 +4,7 @@ import {
   acceptInquiryCollabRow,
   acceptPublicInquiryCase,
   caseRpcErrorKind,
+  completeCaseReviewRow,
   remapAcceptCatSyncError,
   declinePublicInquiryCase,
   getCaseCredentials,
@@ -127,6 +128,9 @@ describe("case action RPC client", () => {
 describe("caseRpcErrorKind", () => {
   it.each([
     [{ code: "40001", message: "case_revision_conflict" }, "conflict"],
+    [{ code: "P0001", message: "case_revision_conflict" }, "conflict"],
+    [{ code: "P0001", message: "revision mismatch" }, "conflict"],
+    [{ code: "XX000", message: "case_revision_conflict" }, "conflict"],
     [{ code: "42501", message: "not_authorized" }, "forbidden"],
     [{ code: "P0002", message: "case_unavailable" }, "unavailable"],
     [{ code: "22023", message: "invalid_payload" }, "invalid"],
@@ -135,6 +139,23 @@ describe("caseRpcErrorKind", () => {
     [{ code: "XX000", message: "boom" }, "unknown"],
   ] as const)("classifies PostgREST errors", (error, expected) => {
     expect(caseRpcErrorKind(error as never)).toBe(expected);
+  });
+
+  it("calls the public review-complete wrapper, never the private impl", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { caseId: "c", revision: 4, rowId: "r1" },
+      error: null,
+    });
+    await completeCaseReviewRow({ rpc } as never, "c", "r1", 3);
+    expect(rpc).toHaveBeenCalledWith("complete_case_review_row", {
+      p_case_id: "c",
+      p_review_row_id: "r1",
+      p_expected_revision: 3,
+    });
+    expect(rpc).not.toHaveBeenCalledWith(
+      "complete_case_review_row_impl",
+      expect.anything(),
+    );
   });
 
   it("rewrites accept CAT sync failures into a user-facing message", () => {

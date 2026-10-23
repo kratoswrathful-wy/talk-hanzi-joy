@@ -11,3 +11,11 @@
 - **施工分支仍保留原路徑：** `fix/task-002-bing-cat-sync-20261018` 與歷史提交未刪檔、未改成空操作、未標記已套。
 
 日後若要正式套用：須另案先盤點、備份並核准清理重複列，再以正式有效遷移處理。禁止用 repair 或直接 SQL 假造跳過結果。
+
+## `20261021160000_task002_shared_review_complete.sql`
+
+- **原因：** 會把正式 `public.complete_case_review_row` 的 Gate 2 維護包裝整段換成無檢查的 public 實作，且版本衝突用 `40001`。0241 已擋；0245 改走保留包裝的 `20261024103000`。
+- **隔離已套：** 遠端版號 `20261022050938`（內容等於本檔）。不 repair 成未套、不重跑本檔。
+- **正式：** 從未套用。未來發布只套 `20261024103000`（及另外三筆本包檔），**禁止**先套本檔再補包裝。
+- **原始路徑：** `supabase/migrations/20261021160000_task002_shared_review_complete.sql`
+- **後繼：** `supabase/migrations/20261024103000_task002_review_complete_keep_wrapper.sql`

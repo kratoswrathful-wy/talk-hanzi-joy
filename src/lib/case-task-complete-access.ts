@@ -40,7 +40,7 @@ export function describeTaskCompleteFailure(input: {
   if (code === "PGRST202" || /pm_complete_case_translation/.test(message)) {
     return "代完成功能尚未部署到後端，請先完成後端更新再試（本次未變更任何案件）。";
   }
-  if (code === "40001" || message.includes("case_revision_conflict")) {
+  if (code === "40001" || code === "P0001" || message.includes("case_revision_conflict")) {
     return "案件資料已被其他操作更新，請重新整理後再試（本次未變更任何案件）。";
   }
   if (code === "42501" || /not_authorized/.test(message)) {

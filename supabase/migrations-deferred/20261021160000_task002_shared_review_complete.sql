@@ -1,3 +1,5 @@
+-- 已延期：隔離曾以此檔覆寫 public.complete_case_review_row（無維護包裝、40001）。
+-- 正式發布不得執行本檔。後繼是 supabase/migrations/20261024103000_task002_review_complete_keep_wrapper.sql。
 -- TASK-002（21:00）：成員審稿完成以共用列為準。
 -- 舊函式只改 leftover review_rows，且要求案件已是任務完成／已交件，
 -- 審稿人在共用列、案件仍已派出時會被擋。僅隔離驗證；正式庫須另審後 db push。
