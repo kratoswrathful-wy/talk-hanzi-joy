@@ -202,3 +202,28 @@ export function collabRowPatchFromReviewCompleteCheck(checked: boolean): {
     ? { reviewTaskCompleted: true, taskCompleted: true }
     : { reviewTaskCompleted: false };
 }
+
+const ELIGIBLE_TASK_COMPLETED_STATUSES = ["draft", "inquiry", "dispatched"] as const;
+
+function canUpgradeCaseToTaskCompleted(status?: string) {
+  return (ELIGIBLE_TASK_COMPLETED_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+/** CAT 翻譯完成／重開時，案件狀態補丁。已交件且翻譯未齊要退回已派出。 */
+export function statusPatchFromTranslate(
+  status: string | undefined,
+  applied: { allTranslateCompleted: boolean; anyTranslateTouched: boolean },
+  taskCompletedHint?: boolean,
+): Record<string, unknown> {
+  if (!applied.anyTranslateTouched) return {};
+  if (taskCompletedHint && canUpgradeCaseToTaskCompleted(status) && applied.allTranslateCompleted) {
+    return { status: "task_completed" };
+  }
+  if (!applied.allTranslateCompleted && (status === "task_completed" || status === "delivered")) {
+    return { status: "dispatched" };
+  }
+  if (applied.allTranslateCompleted && canUpgradeCaseToTaskCompleted(status)) {
+    return { status: "task_completed" };
+  }
+  return {};
+}

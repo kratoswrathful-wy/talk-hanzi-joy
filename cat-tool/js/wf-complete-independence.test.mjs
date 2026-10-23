@@ -20,6 +20,7 @@ import {
   resolveMemberWorkKind,
   assignmentLmsCollabRowId,
   assignmentsNeedingCaseLevelLmsSync,
+  assignmentsForLmsRollbackOnTranslatorEdit,
 } from "./wf-complete-independence.js";
 
 const assigns = [
@@ -209,6 +210,19 @@ describe("譯者改譯文取消該範圍完成", () => {
     expect(assignmentIdsToReopenOnTranslatorEdit({
       covering: [{ id: "t-1-1", kind: "translate", workflowStatus: "in_progress" }],
     })).toEqual([]);
+  });
+
+  it("CAT 未完成時仍列出覆蓋該句的翻譯指派給案件頁回退", () => {
+    const covering = [
+      { id: "t-1-2", kind: "translate", workflowStatus: "assigned", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+      { id: "r-1-2", kind: "review", workflowStatus: "completed", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+      { id: "t-3-4", kind: "translate", workflowStatus: "assigned", lineStart: 3, lineEnd: 4, collabRowId: "row-b" },
+    ];
+    expect(assignmentsForLmsRollbackOnTranslatorEdit({
+      covering,
+      lineNo: 1,
+    }).map((a) => a.id)).toEqual(["t-1-2"]);
+    expect(assignmentIdsToReopenOnTranslatorEdit({ covering })).toEqual([]);
   });
 });
 

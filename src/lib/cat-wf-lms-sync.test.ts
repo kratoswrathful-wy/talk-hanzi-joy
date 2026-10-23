@@ -4,6 +4,7 @@ import {
   collabRowPatchFromReviewCompleteCheck,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
+  statusPatchFromTranslate,
 } from "./cat-wf-complete-map";
 
 const collab = {
@@ -229,6 +230,21 @@ describe("applyCatCompleteToCaseRows", () => {
       actorUserId: "pm",
       translatorUserId: "t1",
     })).toEqual({ action: "pm_update_case_assignments" });
+  });
+
+  it("已交件後翻譯重開，案件狀態補丁要退回已派出", () => {
+    expect(statusPatchFromTranslate("delivered", {
+      allTranslateCompleted: false,
+      anyTranslateTouched: true,
+    })).toEqual({ status: "dispatched" });
+    expect(statusPatchFromTranslate("task_completed", {
+      allTranslateCompleted: false,
+      anyTranslateTouched: true,
+    })).toEqual({ status: "dispatched" });
+    expect(statusPatchFromTranslate("delivered", {
+      allTranslateCompleted: true,
+      anyTranslateTouched: true,
+    })).toEqual({});
   });
 
   it("LMS review checkbox patch completes translate when checking, keeps translate when unchecking", () => {

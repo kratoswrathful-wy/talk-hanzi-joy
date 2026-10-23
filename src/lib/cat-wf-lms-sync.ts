@@ -10,6 +10,7 @@ import {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
+  statusPatchFromTranslate,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
   type CollabRowJson,
@@ -21,6 +22,7 @@ export {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
+  statusPatchFromTranslate,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
 };
@@ -39,24 +41,6 @@ function readCaseRows(caseRow: { collab_rows?: unknown; review_rows?: unknown })
   const rows = Array.isArray(caseRow.collab_rows) ? caseRow.collab_rows as CollabRowJson[] : [];
   const reviewRows = Array.isArray(caseRow.review_rows) ? caseRow.review_rows as CollabRowJson[] : [];
   return { rows, reviewRows };
-}
-
-function statusPatchFromTranslate(
-  status: string | undefined,
-  applied: { allTranslateCompleted: boolean; anyTranslateTouched: boolean },
-  taskCompletedHint?: boolean,
-): Record<string, unknown> {
-  if (!applied.anyTranslateTouched) return {};
-  if (taskCompletedHint && canUpgradeCaseToTaskCompleted(status) && applied.allTranslateCompleted) {
-    return { status: "task_completed" };
-  }
-  if (!applied.allTranslateCompleted && status === "task_completed") {
-    return { status: "dispatched" };
-  }
-  if (applied.allTranslateCompleted && canUpgradeCaseToTaskCompleted(status)) {
-    return { status: "task_completed" };
-  }
-  return {};
 }
 
 function errorMessage(error: { message?: string } | null | undefined): string {

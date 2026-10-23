@@ -159,6 +159,14 @@ describe("applyReviewCompletePatch / people / case status", () => {
     expect(statusPatchFromDerived("delivered", deriveCaseStatusFromRows("delivered", none))).toBe("task_completed");
     expect(statusPatchFromDerived("delivered", deriveCaseStatusFromRows("delivered", both))).toBeUndefined();
   });
+
+  it("已交件後翻譯重開，案件狀態退回已派出", () => {
+    const rows = [
+      row({ id: "a", translator: "甲", accepted: true, taskCompleted: false, reviewTaskCompleted: false, delivered: false }),
+      row({ id: "b", translator: "乙", accepted: true, taskCompleted: true, reviewTaskCompleted: true, delivered: true }),
+    ];
+    expect(statusPatchFromDerived("delivered", deriveCaseStatusFromRows("delivered", rows))).toBe("dispatched");
+  });
 });
 
 describe("applyBulkCheck / CAT rollback", () => {

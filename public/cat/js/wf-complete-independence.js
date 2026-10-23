@@ -249,8 +249,8 @@ export function shouldReopenCompleteOnTranslatorTargetEdit(input) {
 }
 
 /**
- * 譯者改譯文時應取消完成的指派：只取消覆蓋該句的已完成翻譯。
- * 已審稿完成的範圍不得由譯者改譯文取消；須先由主管取消審稿完成。
+ * 譯者改譯文時應取消 CAT 完成的指派：只取消覆蓋該句的已完成翻譯。
+ * 案件頁完成／交件回退另見 assignmentsForLmsRollbackOnTranslatorEdit。
  * @param {{ covering?: Array<object> }} [input]
  * @returns {string[]}
  */
@@ -268,6 +268,28 @@ export function assignmentIdsToReopenOnTranslatorEdit(input) {
     ids.push(id);
   }
   return ids;
+}
+
+/**
+ * 1256：實際改譯文後，對應共用列的 LMS 完成／交件都要退，即使 CAT 階段還沒標完成。
+ * 只回傳覆蓋該句的翻譯指派，不連坐同檔其他範圍。
+ * @param {{ covering?: Array<object>, lineNo?: number|null }} [input]
+ * @returns {object[]}
+ */
+export function assignmentsForLmsRollbackOnTranslatorEdit(input) {
+  const covering = Array.isArray(input?.covering) ? input.covering : [];
+  const lineNo = input?.lineNo;
+  const out = [];
+  const seen = new Set();
+  for (const a of covering) {
+    if (assignmentRoleKind(a) === "review") continue;
+    if (lineNo != null && Number.isFinite(Number(lineNo)) && !assignmentCoversLine(a, lineNo)) continue;
+    const key = String(a?.id || assignmentLmsCollabRowId(a) || assignmentRangeKey(a));
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+  }
+  return out;
 }
 
 /**
@@ -504,6 +526,7 @@ const WfCompleteIndependence = {
   assignmentRangesOverlap,
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
+  assignmentsForLmsRollbackOnTranslatorEdit,
   assignmentLmsCollabRowId,
   assignmentsNeedingCaseLevelLmsSync,
   resolveMemberEditAssignments,

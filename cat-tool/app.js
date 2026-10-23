@@ -7853,7 +7853,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const _wfReopenCompleteInFlight = new Set();
 
-    /** 譯者實際改已完成範圍譯文：取消該範圍翻譯完成。已審稿完成範圍不得由此取消。 */
+    /** 譯者實際改譯文：CAT 已完成指派降回執行中；案件頁完成／交件依覆蓋範圍回退。 */
     async function _reopenRangeCompleteOnTranslatorEdit(seg) {
         if (!seg) return;
         const api = window.WfCompleteIndependence;
@@ -7899,7 +7899,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             seen.add(sid);
             unique.push(sid);
         }
-        if (!unique.length) return;
+        const lineNo = _segFullListLineNo(seg);
+        const lmsTargets = api && typeof api.assignmentsForLmsRollbackOnTranslatorEdit === 'function'
+            ? (api.assignmentsForLmsRollbackOnTranslatorEdit({ covering: taggedCovering, lineNo }) || [])
+            : taggedCovering.filter((a) => !_isReviewStageAssignment(a));
+        if (!unique.length && !lmsTargets.length) return;
         unique.forEach((id) => _wfReopenCompleteInFlight.add(id));
         try {
             const reopened = [];
@@ -7915,7 +7919,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 seenStages.add(key);
                 await _reconcileStageStatusFromAssignments(a.fileId, a.fileWorkflowStageId, { allowDowngrade: true });
             }
-            await _syncLmsForAssignments(reopened, false);
+            const syncList = reopened.length ? reopened : lmsTargets;
+            await _syncLmsForAssignments(syncList, false);
             if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
             if (currentProjectId && typeof _fillFilesWorkflowCellsAsync === 'function' && window._lastFilesListForProject) {
                 void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
