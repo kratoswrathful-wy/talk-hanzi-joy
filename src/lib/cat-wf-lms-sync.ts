@@ -10,7 +10,7 @@ import {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
-  statusPatchFromTranslate,
+  statusPatchFromCatComplete,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
   type CollabRowJson,
@@ -22,7 +22,7 @@ export {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
-  statusPatchFromTranslate,
+  statusPatchFromCatComplete,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
 };
@@ -137,7 +137,7 @@ export async function setCollabRowTaskCompletedFromCat(
   const updates: Record<string, unknown> = {
     collab_rows: applied.collabRows,
     review_rows: applied.reviewRows,
-    ...statusPatchFromTranslate((caseRow as { status?: string }).status, applied, taskCompleted),
+    ...statusPatchFromCatComplete((caseRow as { status?: string }).status, applied, taskCompleted),
   };
 
   const { error: updErr } = await pmUpdateCaseAssignments(
@@ -200,7 +200,7 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
   const patch: Record<string, unknown> = {
     collab_rows: applied.collabRows,
     review_rows: applied.reviewRows,
-    ...statusPatchFromTranslate((caseRow as { status?: string }).status, applied),
+    ...statusPatchFromCatComplete((caseRow as { status?: string }).status, applied),
   };
 
   const { error: updErr } = await pmUpdateCaseAssignments(

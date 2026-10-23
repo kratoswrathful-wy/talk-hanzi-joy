@@ -1,4 +1,6 @@
+import type { CaseStatus, CollabRow } from "@/data/case-types";
 import { collabReviewScopeKey } from "@/lib/collab-review-pair";
+import { deriveCaseStatusFromRows, statusPatchFromDerived } from "@/lib/shared-row-workflow";
 
 export type CollabRowJson = {
   id: string;
@@ -226,4 +228,65 @@ export function statusPatchFromTranslate(
     return { status: "task_completed" };
   }
   return {};
+}
+
+const CASE_STATUSES: CaseStatus[] = [
+  "draft",
+  "inquiry",
+  "dispatched",
+  "task_completed",
+  "delivered",
+  "feedback",
+  "feedback_completed",
+];
+
+function asCaseStatus(raw: string | undefined): CaseStatus | undefined {
+  return CASE_STATUSES.includes(raw as CaseStatus) ? (raw as CaseStatus) : undefined;
+}
+
+function asOptionalText(value: unknown): string | null {
+  if (value == null) return null;
+  return String(value);
+}
+
+function collabRowsForStatusDerive(rows: CollabRowJson[]): CollabRow[] {
+  return rows.map((r) => ({
+    id: String(r.id ?? ""),
+    segment: String(r.segment ?? ""),
+    translator: String(r.translator ?? ""),
+    unitCount: typeof r.unitCount === "number" ? r.unitCount : 0,
+    accepted: !!r.accepted,
+    translationDeadline: typeof r.translationDeadline === "string" ? r.translationDeadline : null,
+    reviewer: String(r.reviewer ?? ""),
+    reviewDeadline: typeof r.reviewDeadline === "string" ? r.reviewDeadline : null,
+    translatorUserId: asOptionalText(r.translatorUserId),
+    reviewerUserId: asOptionalText(r.reviewerUserId),
+    taskCompleted: !!r.taskCompleted,
+    reviewTaskCompleted: !!r.reviewTaskCompleted,
+    delivered: !!r.delivered,
+  }));
+}
+
+/**
+ * CAT 調整狀態寫回案件頁：列勾選先算整案狀態。
+ * 只重開審稿時翻譯未動，舊補丁會略過，已交件標籤就停住。
+ */
+export function statusPatchFromCatComplete(
+  status: string | undefined,
+  applied: {
+    collabRows: CollabRowJson[];
+    allTranslateCompleted: boolean;
+    anyTranslateTouched: boolean;
+  },
+  taskCompletedHint?: boolean,
+): Record<string, unknown> {
+  const current = asCaseStatus(status);
+  if (current) {
+    const fromRows = statusPatchFromDerived(
+      current,
+      deriveCaseStatusFromRows(current, collabRowsForStatusDerive(applied.collabRows)),
+    );
+    if (fromRows) return { status: fromRows };
+  }
+  return statusPatchFromTranslate(status, applied, taskCompletedHint);
 }

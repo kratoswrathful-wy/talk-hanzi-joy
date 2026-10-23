@@ -4,6 +4,7 @@ import {
   collabRowPatchFromReviewCompleteCheck,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
+  statusPatchFromCatComplete,
   statusPatchFromTranslate,
 } from "./cat-wf-complete-map";
 
@@ -245,6 +246,30 @@ describe("applyCatCompleteToCaseRows", () => {
       allTranslateCompleted: true,
       anyTranslateTouched: true,
     })).toEqual({});
+  });
+
+  it("已交件後只重開審稿，案件狀態補丁要退回任務完成", () => {
+    const applied = applyCatCompleteToCaseRows({
+      collabRows: [
+        { ...collab, id: "row-1", accepted: true, taskCompleted: true, reviewTaskCompleted: true, delivered: true },
+        { ...collab, id: "row-2", accepted: true, taskCompleted: true, reviewTaskCompleted: true, delivered: true },
+      ],
+      reviewRows: [{ ...review, id: "row-1", taskCompleted: true }],
+      updates: [{ collabRowId: "row-1", taskCompleted: false, stageKind: "review" }],
+    });
+    expect(applied.collabRows[0]).toMatchObject({
+      taskCompleted: true,
+      reviewTaskCompleted: false,
+      delivered: false,
+    });
+    expect(applied.collabRows[1]).toMatchObject({
+      taskCompleted: true,
+      reviewTaskCompleted: true,
+      delivered: true,
+    });
+    expect(applied.anyTranslateTouched).toBe(false);
+    expect(statusPatchFromTranslate("delivered", applied)).toEqual({});
+    expect(statusPatchFromCatComplete("delivered", applied)).toEqual({ status: "task_completed" });
   });
 
   it("LMS review checkbox patch completes translate when checking, keeps translate when unchecking", () => {
