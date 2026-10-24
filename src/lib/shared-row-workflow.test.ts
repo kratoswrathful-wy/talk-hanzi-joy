@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CollabRow } from "@/data/case-types";
 import {
   applyBulkCheck,
+  applyBulkUncheck,
   applyCatRollbackToRow,
   applyPeoplePatch,
   applyReviewCompletePatch,
@@ -201,5 +202,47 @@ describe("applyBulkCheck / CAT rollback", () => {
     expect(edit.translator).toBe("甲");
     expect(applyCatRollbackToRow(locked, "review-reopen").taskCompleted).toBe(true);
     expect(applyCatRollbackToRow(locked, "review-complete").delivered).toBe(true);
+  });
+
+  it("整欄取消審稿只動本人未交件列，保留翻譯完成、不碰他人與已交件", () => {
+    const rows = [
+      row({
+        id: "own",
+        translator: "譯者一",
+        reviewer: "審稿一",
+        reviewerUserId: "u2",
+        reviewAssigned: true,
+        reviewTaskCompleted: true,
+        taskCompleted: true,
+      }),
+      row({
+        id: "other",
+        translator: "譯者一",
+        reviewer: "別人",
+        reviewerUserId: "u9",
+        reviewAssigned: true,
+        reviewTaskCompleted: true,
+        taskCompleted: true,
+      }),
+      row({
+        id: "locked",
+        translator: "譯者一",
+        reviewer: "審稿一",
+        reviewerUserId: "u2",
+        reviewAssigned: true,
+        reviewTaskCompleted: true,
+        taskCompleted: true,
+        delivered: true,
+      }),
+    ];
+    const result = applyBulkUncheck(rows, "dispatched", r1, "reviewTaskCompleted");
+    expect(result.success).toBe(1);
+    expect(result.skipped).toBe(2);
+    expect(result.next.find((item) => item.id === "own")).toMatchObject({
+      reviewTaskCompleted: false,
+      taskCompleted: true,
+    });
+    expect(result.next.find((item) => item.id === "other")?.reviewTaskCompleted).toBe(true);
+    expect(result.next.find((item) => item.id === "locked")?.reviewTaskCompleted).toBe(true);
   });
 });

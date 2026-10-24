@@ -208,6 +208,21 @@ describe("apply merge / whole-case", () => {
 });
 
 describe("applySafeLegacyReviewConversion", () => {
+  it("缺單位數的單列仍可合併，轉換後列還在", () => {
+    const next = applySafeLegacyReviewConversion(
+      [collab({ id: "e1", linkedCatFileId: "f1", lineRange: "1-2", translator: "譯者一" })],
+      [review({ id: "r1", reviewer: "測試 PM", linkedCatFileId: "f1", lineRange: "1-2" })],
+    );
+    expect(next.collabRows).toHaveLength(1);
+    expect(next.collabRows[0]).toMatchObject({
+      id: "e1",
+      translator: "譯者一",
+      reviewer: "測試 PM",
+      unitCount: 0,
+    });
+    expect(next.conflicts).toEqual([]);
+  });
+
   it("可合併與整案審稿寫回共用列，衝突列不覆蓋另一列", () => {
     const next = applySafeLegacyReviewConversion(
       [

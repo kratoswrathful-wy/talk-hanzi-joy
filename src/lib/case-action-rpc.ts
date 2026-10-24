@@ -249,6 +249,22 @@ export async function completeCaseReviewRow(
   });
 }
 
+export async function cancelCaseReviewRow(
+  client: SupabaseClient,
+  caseId: string,
+  reviewRowId: string,
+  expectedRevision: number,
+): Promise<RpcResponse<CaseActionResult>> {
+  const invalid = requireCaseAndRevision(caseId, expectedRevision);
+  if (invalid) return invalid;
+  if (!reviewRowId) return localValidationError("missing reviewRowId");
+  return rpc(client, "cancel_case_review_row", {
+    p_case_id: caseId,
+    p_review_row_id: reviewRowId,
+    p_expected_revision: expectedRevision,
+  });
+}
+
 export async function updateCasePermittedFields(
   client: SupabaseClient,
   caseId: string,

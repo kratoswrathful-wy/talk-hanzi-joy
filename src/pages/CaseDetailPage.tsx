@@ -3398,6 +3398,22 @@ export default function CaseDetailPage() {
                       }
                     }
                   })();
+                  return;
+                }
+                const cancelledReviews = newRows.filter((row) => {
+                  const previous = previousRows.find((item) => item.id === row.id);
+                  return !row.reviewTaskCompleted && !!previous?.reviewTaskCompleted;
+                });
+                if (cancelledReviews.length) {
+                  void (async () => {
+                    for (const row of cancelledReviews) {
+                      const error = await caseStore.cancelCaseReviewRow(caseData.id, row.id);
+                      if (error) {
+                        toast({ title: "無法取消審稿完成", description: error.message, variant: "destructive" });
+                        return;
+                      }
+                    }
+                  })();
                 }
                 return;
               }
@@ -3487,6 +3503,7 @@ export default function CaseDetailPage() {
                 onClick={() => {
                   const reviewRows = projectCollabReviewIntoReviewRows(caseData.collabRows, []);
                   save({
+                    collabRows: caseData.collabRows,
                     reviewRows,
                     reviewer: deriveReviewerSummary(reviewRows),
                   });

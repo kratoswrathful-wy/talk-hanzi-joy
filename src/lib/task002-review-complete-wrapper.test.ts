@@ -8,6 +8,10 @@ const nextFile = resolve(
   repoRoot,
   "supabase/migrations/20261024103000_task002_review_complete_keep_wrapper.sql",
 );
+const cancelFile = resolve(
+  repoRoot,
+  "supabase/migrations/20261024160000_task002_cancel_case_review_row.sql",
+);
 const deferredOld = resolve(
   repoRoot,
   "supabase/migrations-deferred/20261021160000_task002_shared_review_complete.sql",
@@ -41,5 +45,21 @@ describe("TASK-002 review-complete wrapper contract", () => {
       /revoke all on function private\.complete_case_review_row_impl\(uuid, text, bigint\)/,
     );
     expect(sql).toMatch(/authenticated, service_role/);
+  });
+
+  it("cancel review keeps the public maintenance wrapper and rejects delivered rows", () => {
+    const sql = readFileSync(cancelFile, "utf8");
+    expect(sql).toMatch(/create or replace function private\.cancel_case_review_row_impl/);
+    expect(sql).toMatch(/perform private\.assert_maintenance_write_allowed\(\)/);
+    expect(sql).toMatch(
+      /return private\.cancel_case_review_row_impl\(p_case_id, p_review_row_id, p_expected_revision\)/,
+    );
+    expect(sql).toMatch(/errcode = 'P0001'/);
+    expect(sql).toMatch(/review_row_delivered_locked/);
+    expect(sql).toMatch(/'reviewTaskCompleted', false/);
+    expect(sql).not.toMatch(/'reviewTaskCompleted', false,\s*'taskCompleted', false/);
+    expect(sql).toMatch(
+      /revoke all on function private\.cancel_case_review_row_impl\(uuid, text, bigint\)/,
+    );
   });
 });

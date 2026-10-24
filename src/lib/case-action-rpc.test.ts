@@ -5,6 +5,7 @@ import {
   acceptPublicInquiryCase,
   caseRpcErrorKind,
   completeCaseReviewRow,
+  cancelCaseReviewRow,
   remapAcceptCatSyncError,
   declinePublicInquiryCase,
   getCaseCredentials,
@@ -139,6 +140,23 @@ describe("caseRpcErrorKind", () => {
     [{ code: "XX000", message: "boom" }, "unknown"],
   ] as const)("classifies PostgREST errors", (error, expected) => {
     expect(caseRpcErrorKind(error as never)).toBe(expected);
+  });
+
+  it("calls the public review-cancel wrapper, never the private impl", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { caseId: "c", revision: 5, rowId: "r1" },
+      error: null,
+    });
+    await cancelCaseReviewRow({ rpc } as never, "c", "r1", 4);
+    expect(rpc).toHaveBeenCalledWith("cancel_case_review_row", {
+      p_case_id: "c",
+      p_review_row_id: "r1",
+      p_expected_revision: 4,
+    });
+    expect(rpc).not.toHaveBeenCalledWith(
+      "cancel_case_review_row_impl",
+      expect.anything(),
+    );
   });
 
   it("calls the public review-complete wrapper, never the private impl", async () => {

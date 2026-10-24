@@ -26,6 +26,7 @@ import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink, 
 import type { CaseStatus, CollabRow } from "@/data/case-types";
 import {
   applyBulkCheck,
+  applyBulkUncheck,
   applyPeoplePatch,
   applyReviewAssignPatch,
   applyReviewCompletePatch,
@@ -262,9 +263,20 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
   };
 
   const runBulkCheck = (kind: "taskCompleted" | "reviewAssigned" | "reviewTaskCompleted" | "delivered") => {
-    const result = applyBulkCheck(rows, typedStatus, actor, kind);
-    onChange(result.next);
-    toast({ title: "整欄勾選", description: describeBulkCheck(result) });
+    const check = applyBulkCheck(rows, typedStatus, actor, kind);
+    if (check.success > 0 || kind === "taskCompleted" || kind === "reviewAssigned") {
+      onChange(check.next);
+      toast({ title: "整欄勾選", description: describeBulkCheck(check) });
+      return;
+    }
+    if (kind === "reviewTaskCompleted" || kind === "delivered") {
+      const uncheck = applyBulkUncheck(rows, typedStatus, actor, kind);
+      onChange(uncheck.next);
+      toast({ title: "整欄取消", description: describeBulkCheck(uncheck) });
+      return;
+    }
+    onChange(check.next);
+    toast({ title: "整欄勾選", description: describeBulkCheck(check) });
   };
 
   const resolveCatLink = (row: CollabRow): string | null => {

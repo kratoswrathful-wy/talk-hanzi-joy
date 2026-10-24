@@ -247,6 +247,30 @@ export function applyBulkCheck(
   return { next, success, skipped, failed: 0 };
 }
 
+export function applyBulkUncheck(
+  rows: CollabRow[],
+  caseStatus: CaseStatus,
+  actor: WorkflowActor,
+  kind: Extract<BulkCheckKind, "reviewTaskCompleted" | "delivered">,
+): BulkCheckResult {
+  let success = 0;
+  let skipped = 0;
+  const next = rows.map((row) => {
+    const wf = deriveSharedRowWorkflow(row, caseStatus, actor);
+    if (kind === "reviewTaskCompleted") {
+      if (!row.reviewTaskCompleted) { skipped += 1; return row; }
+      if (!wf.canUncheckReviewCompleted) { skipped += 1; return row; }
+      success += 1;
+      return { ...row, ...applyReviewCompletePatch(false) };
+    }
+    if (!row.delivered) { skipped += 1; return row; }
+    if (!wf.canUncheckDelivered) { skipped += 1; return row; }
+    success += 1;
+    return { ...row, delivered: false };
+  });
+  return { next, success, skipped, failed: 0 };
+}
+
 export type CatRollbackKind =
   | "translate-reopen"
   | "review-reopen"

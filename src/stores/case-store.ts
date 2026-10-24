@@ -31,6 +31,7 @@ import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
+import { collabRowFromJson } from "@/lib/collab-row-from-json";
 import {
   buildAdminCreateAssignmentMeta,
   casePartialHasAssignmentFields,
@@ -48,6 +49,7 @@ import {
   acceptInquiryCollabRow as acceptInquiryCollabRowRpc,
   completeCaseCollabRow as completeCaseCollabRowRpc,
   completeCaseReviewRow as completeCaseReviewRowRpc,
+  cancelCaseReviewRow as cancelCaseReviewRowRpc,
   completeCaseTranslation as completeCaseTranslationRpc,
   pmCompleteCaseTranslation as pmCompleteCaseTranslationRpc,
   declinePublicInquiryCase as declinePublicInquiryCaseRpc,
@@ -200,39 +202,6 @@ function blockFromJson(x: Json): Block | undefined {
   return x as Block;
 }
 
-function collabRowFromJson(x: Json): CollabRow | undefined {
-  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
-  if (
-    typeof x.id !== "string" || typeof x.segment !== "string" || typeof x.translator !== "string" ||
-    typeof x.unitCount !== "number" || typeof x.accepted !== "boolean" ||
-    typeof x.reviewer !== "string" ||
-    typeof x.taskCompleted !== "boolean" || typeof x.delivered !== "boolean"
-  ) return undefined;
-  const rawTranslationDeadline = x.translationDeadline;
-  const translationDeadline: string | null = typeof rawTranslationDeadline === "string" ? rawTranslationDeadline : null;
-  const rawReviewDeadline = x.reviewDeadline;
-  const reviewDeadline: string | null = typeof rawReviewDeadline === "string" ? rawReviewDeadline : null;
-  return {
-    id: x.id,
-    segment: x.segment,
-    translator: x.translator,
-    unitCount: x.unitCount,
-    accepted: x.accepted,
-    translationDeadline,
-    reviewer: x.reviewer,
-    reviewDeadline,
-    taskCompleted: x.taskCompleted,
-    delivered: x.delivered,
-    ...(nullableStringFromJson(x.linkedCatFileId) !== undefined ? { linkedCatFileId: nullableStringFromJson(x.linkedCatFileId) } : {}),
-    ...(nullableStringFromJson(x.linkedCatViewId) !== undefined ? { linkedCatViewId: nullableStringFromJson(x.linkedCatViewId) } : {}),
-    ...(nullableStringFromJson(x.lineRange) !== undefined ? { lineRange: nullableStringFromJson(x.lineRange) } : {}),
-    ...(nullableStringFromJson(x.scopeLabel) !== undefined ? { scopeLabel: nullableStringFromJson(x.scopeLabel) } : {}),
-    ...(nullableStringFromJson(x.translatorUserId) !== undefined ? { translatorUserId: nullableStringFromJson(x.translatorUserId) } : {}),
-    ...(nullableStringFromJson(x.reviewerUserId) !== undefined ? { reviewerUserId: nullableStringFromJson(x.reviewerUserId) } : {}),
-    ...(typeof x.reviewTaskCompleted === "boolean" ? { reviewTaskCompleted: x.reviewTaskCompleted } : {}),
-    ...(typeof x.reviewAssigned === "boolean" ? { reviewAssigned: x.reviewAssigned } : {}),
-  };
-}
 
 function reviewCollabRowFromJson(x: Json): ReviewCollabRow | undefined {
   if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
@@ -1304,6 +1273,21 @@ async function completeCaseReviewRow(id: string, rowId: string) {
   return result.error;
 }
 
+async function cancelCaseReviewRow(id: string, rowId: string) {
+  const current = getById(id);
+  const result = await cancelCaseReviewRowRpc(
+    supabase,
+    id,
+    rowId,
+    current?.revision ?? -1,
+  );
+  if (!result.error) {
+    applyActionResult(id, result.data);
+    await refreshAfterCaseAction(id);
+  }
+  return result.error;
+}
+
 async function updateCredentials(id: string, credentials: Record<string, unknown>) {
   const current = getById(id);
   const result = await updateCaseCredentialsRpc(
@@ -1990,6 +1974,7 @@ export const caseStore = {
   completeCaseTranslation,
   pmCompleteCaseTranslation,
   completeCaseReviewRow,
+  cancelCaseReviewRow,
   updateCredentials,
   subscribe: subscribePoll,
   reset,
