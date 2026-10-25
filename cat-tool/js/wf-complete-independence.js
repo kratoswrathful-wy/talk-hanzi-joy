@@ -293,6 +293,32 @@ export function assignmentsForLmsRollbackOnTranslatorEdit(input) {
   return out;
 }
 
+function lmsRollbackKey(a) {
+  return assignmentLmsCollabRowId(a) || String(a?.id || "");
+}
+
+/**
+ * 同一列案件頁回退只保留一筆在途；已成功退過的列不再重送，直到該列再次被標完成。
+ * @param {{ covering?: Array<object>, lineNo?: number|null, inFlight?: Set<string>, done?: Set<string> }} [input]
+ * @returns {{ targets: object[], keys: string[] }}
+ */
+export function pendingLmsRollbackOnTranslatorEdit(input) {
+  const targets = assignmentsForLmsRollbackOnTranslatorEdit(input);
+  const inFlight = input?.inFlight instanceof Set ? input.inFlight : new Set();
+  const done = input?.done instanceof Set ? input.done : new Set();
+  const keys = [];
+  const pending = [];
+  const seen = new Set();
+  for (const a of targets) {
+    const key = lmsRollbackKey(a);
+    if (!key || seen.has(key) || inFlight.has(key) || done.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
+    pending.push(a);
+  }
+  return { targets: pending, keys };
+}
+
 /**
  * 單人整檔常沒有 LMS 協作列 id。沒有 id 時不能略過案件回寫。
  * @param {object|null|undefined} a
@@ -528,6 +554,7 @@ const WfCompleteIndependence = {
   shouldReopenCompleteOnTranslatorTargetEdit,
   assignmentIdsToReopenOnTranslatorEdit,
   assignmentsForLmsRollbackOnTranslatorEdit,
+  pendingLmsRollbackOnTranslatorEdit,
   assignmentLmsCollabRowId,
   assignmentsNeedingCaseLevelLmsSync,
   resolveMemberEditAssignments,

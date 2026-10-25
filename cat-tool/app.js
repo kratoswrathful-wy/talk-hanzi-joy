@@ -7307,6 +7307,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 fileMeta = await catGetFile(hit.fileId, { includeOriginal: false });
             } catch (_) { /* ignore */ }
             if (_isTranslateStageAssignment(hit) || _isReviewStageAssignment(hit)) {
+                const doneKey = (window.WfCompleteIndependence
+                    && typeof window.WfCompleteIndependence.assignmentLmsCollabRowId === 'function')
+                    ? window.WfCompleteIndependence.assignmentLmsCollabRowId({ ...hit, ...updated })
+                    : String((hit && hit.collabRowId) || '');
+                if (doneKey) _wfLmsRollbackDone.delete(doneKey);
                 await _emitWfTaskCompleteToLms({ ...hit, ...updated }, fileMeta);
             }
             if (_isReviewStageAssignment(hit)) {
@@ -7852,6 +7857,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const _wfReopenCompleteInFlight = new Set();
+    const _wfLmsRollbackInFlight = new Set();
+    const _wfLmsRollbackDone = new Set();
 
     /** 譯者實際改譯文：CAT 已完成指派降回執行中；案件頁完成／交件依覆蓋範圍回退。 */
     async function _reopenRangeCompleteOnTranslatorEdit(seg) {
@@ -7900,11 +7907,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             unique.push(sid);
         }
         const lineNo = _segFullListLineNo(seg);
-        const lmsTargets = api && typeof api.assignmentsForLmsRollbackOnTranslatorEdit === 'function'
-            ? (api.assignmentsForLmsRollbackOnTranslatorEdit({ covering: taggedCovering, lineNo }) || [])
-            : taggedCovering;
-        if (!unique.length && !lmsTargets.length) return;
+        const pendingLms = api && typeof api.pendingLmsRollbackOnTranslatorEdit === 'function'
+            ? api.pendingLmsRollbackOnTranslatorEdit({
+                covering: taggedCovering,
+                lineNo,
+                inFlight: _wfLmsRollbackInFlight,
+                done: _wfLmsRollbackDone,
+            })
+            : { targets: taggedCovering, keys: [] };
+        const lmsTargets = pendingLms.targets || [];
+        const lmsKeys = pendingLms.keys || [];
+        if (!unique.length && !lmsKeys.length) return;
         unique.forEach((id) => _wfReopenCompleteInFlight.add(id));
+        lmsKeys.forEach((key) => _wfLmsRollbackInFlight.add(key));
         try {
             const reopened = [];
             for (const id of unique) {
@@ -7921,6 +7936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const syncList = reopened.length ? reopened : lmsTargets;
             await _syncLmsForAssignments(syncList, false);
+            lmsKeys.forEach((key) => _wfLmsRollbackDone.add(key));
             if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
             if (currentProjectId && typeof _fillFilesWorkflowCellsAsync === 'function' && window._lastFilesListForProject) {
                 void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
@@ -7930,6 +7946,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showCatToast('譯文已保存，但無法取消完成狀態，請稍後再試', 'error');
         } finally {
             unique.forEach((id) => _wfReopenCompleteInFlight.delete(id));
+            lmsKeys.forEach((key) => _wfLmsRollbackInFlight.delete(key));
         }
     }
 

@@ -33,6 +33,54 @@ export type CatLmsMemberWrite =
   | { action: "reopen_own_case_translation" }
   | { action: "pm_update_case_assignments" };
 
+function jsonFlagTrue(value: unknown): boolean {
+  return value === true || value === "true" || value === "t" || value === 1 || value === "1";
+}
+
+function collabRowForReopenSkip(
+  collabRows: CollabRowJson[],
+  reviewRows: CollabRowJson[],
+  collabRowId: string,
+): CollabRowJson | undefined {
+  const id = String(collabRowId || "");
+  const direct = collabRows.find((row) => String(row.id) === id);
+  if (direct) return direct;
+  const review = reviewRows.find((row) => String(row.id) === id);
+  if (!review) return undefined;
+  const fileId = String(review.linkedCatFileId || "");
+  const lineRange = String(review.lineRange || "");
+  return collabRows.find((row) =>
+    String(row.linkedCatFileId || "") === fileId && String(row.lineRange || "") === lineRange
+  );
+}
+
+/** 列已退回未完成且案件不是已交件／整案完成時，不必再打重開 RPC。 */
+export function shouldSkipOwnTranslatorReopen(input: {
+  caseStatus?: string | null;
+  collabRows: CollabRowJson[];
+  reviewRows: CollabRowJson[];
+  collabRowId: string;
+}): boolean {
+  const status = String(input.caseStatus || "");
+  if (status === "task_completed" || status === "delivered") return false;
+  const row = collabRowForReopenSkip(input.collabRows, input.reviewRows, input.collabRowId);
+  if (!row) return false;
+  if (jsonFlagTrue(row.taskCompleted) || jsonFlagTrue(row.reviewTaskCompleted) || jsonFlagTrue(row.delivered)) {
+    return false;
+  }
+  const id = String(row.id);
+  const fileId = String(row.linkedCatFileId || "");
+  const lineRange = String(row.lineRange || "");
+  const reviewStillComplete = input.reviewRows.some((review) => {
+    const sameId = String(review.id) === id || String(review.id) === String(input.collabRowId);
+    const sameScope = !!fileId
+      && String(review.linkedCatFileId || "") === fileId
+      && String(review.lineRange || "") === lineRange;
+    return (sameId || sameScope) && jsonFlagTrue(review.taskCompleted);
+  });
+  return !reviewStillComplete;
+}
+
 /** 譯者本人完成／取消自己那一列用成員 RPC；其餘（含主管代寫、審稿完成）走主管指派寫入。 */
 export function resolveCatLmsMemberWrite(input: {
   taskCompleted: boolean;

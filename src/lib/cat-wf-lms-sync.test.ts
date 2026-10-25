@@ -4,6 +4,7 @@ import {
   collabRowPatchFromReviewCompleteCheck,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
+  shouldSkipOwnTranslatorReopen,
   statusPatchFromCatComplete,
   statusPatchFromTranslate,
 } from "./cat-wf-complete-map";
@@ -197,6 +198,27 @@ describe("applyCatCompleteToCaseRows", () => {
     expect(out.reviewRows[1].taskCompleted).toBe(true);
     expect(out.anyTranslateTouched).toBe(true);
     expect(out.allTranslateCompleted).toBe(false);
+  });
+
+  it("列已退回且案件仍派出時略過重開 RPC", () => {
+    expect(shouldSkipOwnTranslatorReopen({
+      caseStatus: "dispatched",
+      collabRows: [collab],
+      reviewRows: [review],
+      collabRowId: "row-1",
+    })).toBe(true);
+    expect(shouldSkipOwnTranslatorReopen({
+      caseStatus: "dispatched",
+      collabRows: [{ ...collab, taskCompleted: true }],
+      reviewRows: [review],
+      collabRowId: "row-1",
+    })).toBe(false);
+    expect(shouldSkipOwnTranslatorReopen({
+      caseStatus: "delivered",
+      collabRows: [collab],
+      reviewRows: [review],
+      collabRowId: "row-1",
+    })).toBe(false);
   });
 
   it("譯者本人完成／取消走成員 RPC，主管代寫仍走指派寫入", () => {

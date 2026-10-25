@@ -10,6 +10,7 @@ import {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
+  shouldSkipOwnTranslatorReopen,
   statusPatchFromCatComplete,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
@@ -22,6 +23,7 @@ export {
   applyCatCompleteToCaseRows,
   parseCatWfCompleteKind,
   resolveCatLmsMemberWrite,
+  shouldSkipOwnTranslatorReopen,
   statusPatchFromCatComplete,
   type CatCompleteRowUpdate,
   type CatWfCompleteKind,
@@ -124,6 +126,14 @@ export async function setCollabRowTaskCompletedFromCat(
     return { ok: true, allTaskCompleted: status === "task_completed" };
   }
   if (plan.action === "reopen_own_cat_complete_on_edit") {
+    if (shouldSkipOwnTranslatorReopen({
+      caseStatus: (caseRow as { status?: string }).status,
+      collabRows: rows,
+      reviewRows,
+      collabRowId: plan.collabRowId,
+    })) {
+      return { ok: true, allTaskCompleted: false };
+    }
     const result = await reopenOwnCatCompleteOnEdit(supabase, caseId, plan.collabRowId, revision);
     if (result.error) return { ok: false, error: errorMessage(result.error) };
     return { ok: true, allTaskCompleted: false };
@@ -180,7 +190,16 @@ export async function setCollabRowsTaskCompletedBulkFromCat(
 
   if (allOwn && anyUncomplete && !anyComplete) {
     let nextRevision = revision;
+    const caseStatus = (caseRow as { status?: string }).status;
     for (const id of uniqueIds) {
+      if (shouldSkipOwnTranslatorReopen({
+        caseStatus,
+        collabRows: rows,
+        reviewRows,
+        collabRowId: id,
+      })) {
+        continue;
+      }
       const result = await reopenOwnCatCompleteOnEdit(supabase, caseId, id, nextRevision);
       if (result.error) return { ok: false, error: errorMessage(result.error) };
       if (result.data && typeof result.data.revision === "number") {

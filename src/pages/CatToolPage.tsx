@@ -10,6 +10,7 @@ import {
   maybeUpgradeCaseTaskCompletedFromCatFiles,
   reopenOwnCaseTranslationFromCat,
 } from "@/lib/cat-wf-lms-sync";
+import { catWfLmsInflightKey, claimCatWfLmsInflight, releaseCatWfLmsInflight } from "@/lib/cat-wf-lms-inflight";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { getEnvironment } from "@/lib/environment";
 import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
@@ -1066,6 +1067,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         const stageKind = parseCatWfCompleteKind(p.stageKind);
         const segmentTitle = typeof p.segmentTitle === "string" ? p.segmentTitle : undefined;
         if (!caseId || !user?.id) return;
+        const inflightKey = catWfLmsInflightKey(caseId, collabRowId, taskCompleted);
+        if (!claimCatWfLmsInflight(inflightKey)) return;
         try {
           if (collabRowId) {
             const result = await setCollabRowTaskCompletedFromCat(
@@ -1115,6 +1118,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           }
         } catch (e) {
           console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", e);
+        } finally {
+          releaseCatWfLmsInflight(inflightKey);
         }
       } else if (event.data?.type === "CAT_WF_COLLAB_ROWS_BULK") {
         const p = event.data.payload ?? {};
@@ -1122,6 +1127,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         const updates = Array.isArray(p.updates) ? p.updates : [];
         const updatedAt = String(p.updatedAt || new Date().toISOString());
         if (!caseId || !updates.length || !user?.id) return;
+        const anyComplete = updates.some((u: { taskCompleted?: boolean }) => !!u.taskCompleted);
+        const inflightKey = catWfLmsInflightKey(caseId, "bulk", anyComplete);
+        if (!claimCatWfLmsInflight(inflightKey)) return;
         try {
           const bulk = await setCollabRowsTaskCompletedBulkFromCat(
             supabase,
@@ -1138,6 +1146,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           }
         } catch (e) {
           console.warn("[CAT] CAT_WF_COLLAB_ROWS_BULK", e);
+        } finally {
+          releaseCatWfLmsInflight(inflightKey);
         }
       } else if (event.data?.type === "CAT_OPEN_CASE_PAGE") {
         const caseId = String(event.data?.payload?.caseId || "");

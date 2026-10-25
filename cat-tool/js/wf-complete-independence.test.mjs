@@ -21,6 +21,7 @@ import {
   assignmentLmsCollabRowId,
   assignmentsNeedingCaseLevelLmsSync,
   assignmentsForLmsRollbackOnTranslatorEdit,
+  pendingLmsRollbackOnTranslatorEdit,
 } from "./wf-complete-independence.js";
 
 const assigns = [
@@ -233,6 +234,26 @@ describe("譯者改譯文取消該範圍完成", () => {
     const hits = assignmentsForLmsRollbackOnTranslatorEdit({ covering, lineNo: 1 });
     expect(hits.map((a) => a.collabRowId)).toEqual(["row-a"]);
     expect(hits[0].kind).toBe("translate");
+  });
+
+  it("同一列已在途或已退過就不再重送案件頁回退", () => {
+    const covering = [
+      { id: "t-1-2", kind: "translate", workflowStatus: "assigned", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+    ];
+    expect(pendingLmsRollbackOnTranslatorEdit({
+      covering,
+      lineNo: 1,
+      inFlight: new Set(["row-a"]),
+    }).keys).toEqual([]);
+    expect(pendingLmsRollbackOnTranslatorEdit({
+      covering,
+      lineNo: 1,
+      done: new Set(["row-a"]),
+    }).keys).toEqual([]);
+    expect(pendingLmsRollbackOnTranslatorEdit({
+      covering,
+      lineNo: 1,
+    }).keys).toEqual(["row-a"]);
   });
 });
 
