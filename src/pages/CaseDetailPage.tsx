@@ -33,6 +33,7 @@ import { omittedKeysInPartial } from "@/lib/case-list-load";
 import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, type CaseSavePhase } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { createdCaseNavigationState, feedbackForCaseCreateOutcome, type CaseCreateNotice } from "@/lib/case-create-outcome";
+import { resolveMemberCollabWrite } from "@/lib/member-collab-write";
 import { useCreatedCaseNotice } from "@/hooks/use-created-case-notice";
 import type { CaseDuplicateOutcome, CaseDuplicateSort } from "@/stores/case-store";
 import {
@@ -3362,36 +3363,18 @@ export default function CaseDetailPage() {
             onChange={(newRows) => {
               if (isMember) {
                 const previousRows = caseData.collabRows || [];
-                const acceptedRow = newRows.find((row) => {
-                  const previous = previousRows.find((item) => item.id === row.id);
-                  return row.accepted && !previous?.accepted;
-                });
-                if (acceptedRow) {
-                  void caseStore.acceptInquiryCollabRow(caseData.id, acceptedRow.id)
+                const memberWrite = resolveMemberCollabWrite(previousRows, newRows);
+                if (memberWrite.action === "accept") {
+                  void caseStore.acceptInquiryCollabRow(caseData.id, memberWrite.rowId)
                     .then((error) => {
                       if (error) toast({ title: "無法承接", description: error.message, variant: "destructive" });
                     });
                   return;
                 }
-                const completedRow = newRows.find((row) => {
-                  const previous = previousRows.find((item) => item.id === row.id);
-                  return row.taskCompleted && !previous?.taskCompleted;
-                });
-                if (completedRow) {
-                  void caseStore.completeCaseCollabRow(caseData.id, completedRow.id)
-                    .then((error) => {
-                      if (error) toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
-                    });
-                  return;
-                }
-                const completedReviews = newRows.filter((row) => {
-                  const previous = previousRows.find((item) => item.id === row.id);
-                  return !!row.reviewTaskCompleted && !previous?.reviewTaskCompleted;
-                });
-                if (completedReviews.length) {
+                if (memberWrite.action === "complete_review") {
                   void (async () => {
-                    for (const row of completedReviews) {
-                      const error = await caseStore.completeCaseReviewRow(caseData.id, row.id);
+                    for (const rowId of memberWrite.rowIds) {
+                      const error = await caseStore.completeCaseReviewRow(caseData.id, rowId);
                       if (error) {
                         toast({ title: "無法完成審稿", description: error.message, variant: "destructive" });
                         return;
@@ -3400,14 +3383,17 @@ export default function CaseDetailPage() {
                   })();
                   return;
                 }
-                const cancelledReviews = newRows.filter((row) => {
-                  const previous = previousRows.find((item) => item.id === row.id);
-                  return !row.reviewTaskCompleted && !!previous?.reviewTaskCompleted;
-                });
-                if (cancelledReviews.length) {
+                if (memberWrite.action === "complete_translate") {
+                  void caseStore.completeCaseCollabRow(caseData.id, memberWrite.rowId)
+                    .then((error) => {
+                      if (error) toast({ title: "無法完成任務", description: error.message, variant: "destructive" });
+                    });
+                  return;
+                }
+                if (memberWrite.action === "cancel_review") {
                   void (async () => {
-                    for (const row of cancelledReviews) {
-                      const error = await caseStore.cancelCaseReviewRow(caseData.id, row.id);
+                    for (const rowId of memberWrite.rowIds) {
+                      const error = await caseStore.cancelCaseReviewRow(caseData.id, rowId);
                       if (error) {
                         toast({ title: "無法取消審稿完成", description: error.message, variant: "destructive" });
                         return;
