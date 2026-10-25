@@ -30,7 +30,7 @@ import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore, usePendingDuplicateTools } from "@/hooks/use-case-store";
 import type { CaseCompleteness } from "@/lib/case-list-load";
 import { omittedKeysInPartial } from "@/lib/case-list-load";
-import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, type CaseSavePhase } from "@/lib/case-write-queue";
+import { CASE_SAVE_NOT_READY_MESSAGE, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, isUnsavedCaseSavePhase, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, type CaseSavePhase } from "@/lib/case-write-queue";
 import { pendingDuplicateToolsMessageTestId } from "@/lib/case-duplicate-tools";
 import { createdCaseNavigationState, feedbackForCaseCreateOutcome, type CaseCreateNotice } from "@/lib/case-create-outcome";
 import { resolveMemberCollabWrite } from "@/lib/member-collab-write";
@@ -1302,7 +1302,7 @@ export default function CaseDetailPage() {
 
    // Block navigation when leaving a draft case (PM+ only) to prompt publishing
    const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
-   const bodyUnfinished = savePhase === "pending" || savePhase === "saving";
+   const bodyUnfinished = isUnsavedCaseSavePhase(savePhase);
    const leaveGuard = hardLeaveGuardKind({
      draftPublishPrompt: shouldBlockNav,
      bodyUnfinished,

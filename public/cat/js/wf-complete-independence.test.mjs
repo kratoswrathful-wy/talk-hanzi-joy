@@ -255,6 +255,19 @@ describe("譯者改譯文取消該範圍完成", () => {
       lineNo: 1,
     }).keys).toEqual(["row-a"]);
   });
+
+  it("完成後清掉 done，下一次改字可以再退一次", () => {
+    const covering = [
+      { id: "t-1-2", kind: "translate", workflowStatus: "assigned", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+    ];
+    const done = new Set();
+    const first = pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done });
+    expect(first.keys).toEqual(["row-a"]);
+    first.keys.forEach((key) => done.add(key));
+    expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done }).keys).toEqual([]);
+    first.keys.forEach((key) => done.delete(key));
+    expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done }).keys).toEqual(["row-a"]);
+  });
 });
 
 describe("完成後不得因審稿尚未指派而鎖死已完成翻譯範圍", () => {

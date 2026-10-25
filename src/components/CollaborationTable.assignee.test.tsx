@@ -144,6 +144,55 @@ describe("CollaborationTable assignee", () => {
     expect(iReview).toBeGreaterThan(iTask);
   });
 
+  it("整欄取消審稿是獨立按鈕，不把未完成列整排勾上", () => {
+    const onChange = vi.fn();
+    render(
+      <CollaborationTable
+        rows={[
+          {
+            ...baseRow,
+            id: "own",
+            reviewer: "Member A",
+            reviewerUserId: uuidA,
+            reviewAssigned: true,
+            reviewTaskCompleted: true,
+            taskCompleted: true,
+          },
+          {
+            ...baseRow,
+            id: "open",
+            reviewer: "Member A",
+            reviewerUserId: uuidA,
+            reviewAssigned: true,
+            reviewTaskCompleted: false,
+          },
+          {
+            ...baseRow,
+            id: "locked",
+            reviewer: "Member A",
+            reviewerUserId: uuidA,
+            reviewAssigned: true,
+            reviewTaskCompleted: true,
+            taskCompleted: true,
+            delivered: true,
+          },
+        ]}
+        onChange={onChange}
+        caseStatus="dispatched"
+      />,
+    );
+    expect(screen.getByTestId("collab-bulk-review-check")).toBeTruthy();
+    expect(screen.getByTestId("collab-bulk-review-uncheck")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("collab-bulk-review-uncheck"));
+    const next = onChange.mock.calls[0]?.[0] as CollabRow[];
+    expect(next.find((row) => row.id === "own")).toMatchObject({
+      reviewTaskCompleted: false,
+      taskCompleted: true,
+    });
+    expect(next.find((row) => row.id === "open")?.reviewTaskCompleted).toBe(false);
+    expect(next.find((row) => row.id === "locked")?.reviewTaskCompleted).toBe(true);
+  });
+
   it("clear row sets translatorUserId null", () => {
     const onChange = vi.fn();
     render(

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
+import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, isUnsavedCaseSavePhase, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
 
 describe("createKeyedQueue", () => {
   it("runs tasks for the same key in order and uses the previous result", async () => {
@@ -253,6 +253,30 @@ describe("leave decisions", () => {
     expect(hardLeaveGuardKind({ draftPublishPrompt: false, bodyUnfinished: true })).toBe("pending");
     expect(hardLeaveGuardKind({ draftPublishPrompt: true, bodyUnfinished: true })).toBe("draft-pending");
     expect(hardLeaveGuardKind({ draftPublishPrompt: false, bodyUnfinished: false })).toBe("none");
+  });
+
+  it("版本衝突與儲存失敗都算未儲存，重整要先警告", () => {
+    expect(isUnsavedCaseSavePhase("conflict")).toBe(true);
+    expect(isUnsavedCaseSavePhase("failed")).toBe(true);
+    expect(isUnsavedCaseSavePhase("saved")).toBe(false);
+    expect(isUnsavedCaseSavePhase("idle")).toBe(false);
+    expect(hardLeaveGuardKind({
+      draftPublishPrompt: false,
+      bodyUnfinished: isUnsavedCaseSavePhase("conflict"),
+    })).toBe("pending");
+  });
+
+  it("舊版本被拒後不假報已儲存，離開要留下確認", () => {
+    const described = describeCaseWriteFailure(new Error("stale_revision"));
+    const phase = nextSavePhaseAfterWrite({ outcome: described.kind, hasPending: false });
+    expect(described.kind).toBe("conflict");
+    expect(phase).toBe("conflict");
+    expect(described.description).toContain("已保留你剛輸入的內容");
+    expect(resolveInAppLeaveDecision({
+      bodyUnfinished: false,
+      bodySaveFailed: phase === "conflict",
+      showDraftPublishPrompt: false,
+    })).toBe("stay-failed");
   });
 });
 

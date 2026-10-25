@@ -36,6 +36,18 @@ describe("resolveMemberCollabWrite", () => {
     }])).toEqual({ action: "cancel_review", rowIds: ["cr-1"] });
   });
 
+  it("整排取消只收集審稿由完成變未完成的列", () => {
+    expect(resolveMemberCollabWrite([
+      { id: "a", accepted: true, taskCompleted: true, reviewTaskCompleted: true },
+      { id: "b", accepted: true, taskCompleted: true, reviewTaskCompleted: true },
+      { id: "c", accepted: true, taskCompleted: true, reviewTaskCompleted: true },
+    ], [
+      { id: "a", accepted: true, taskCompleted: true, reviewTaskCompleted: false },
+      { id: "b", accepted: true, taskCompleted: true, reviewTaskCompleted: false },
+      { id: "c", accepted: true, taskCompleted: true, reviewTaskCompleted: true },
+    ])).toEqual({ action: "cancel_review", rowIds: ["a", "b"] });
+  });
+
   it("承接優先於完成", () => {
     expect(resolveMemberCollabWrite([{
       ...prev,

@@ -22,7 +22,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink, CheckSquare, PackageCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users, ExternalLink, CheckSquare, SquareMinus, PackageCheck } from "lucide-react";
 import type { CaseStatus, CollabRow } from "@/data/case-types";
 import {
   applyBulkCheck,
@@ -264,19 +264,14 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
 
   const runBulkCheck = (kind: "taskCompleted" | "reviewAssigned" | "reviewTaskCompleted" | "delivered") => {
     const check = applyBulkCheck(rows, typedStatus, actor, kind);
-    if (check.success > 0 || kind === "taskCompleted" || kind === "reviewAssigned") {
-      onChange(check.next);
-      toast({ title: "整欄勾選", description: describeBulkCheck(check) });
-      return;
-    }
-    if (kind === "reviewTaskCompleted" || kind === "delivered") {
-      const uncheck = applyBulkUncheck(rows, typedStatus, actor, kind);
-      onChange(uncheck.next);
-      toast({ title: "整欄取消", description: describeBulkCheck(uncheck) });
-      return;
-    }
     onChange(check.next);
     toast({ title: "整欄勾選", description: describeBulkCheck(check) });
+  };
+
+  const runBulkUncheck = (kind: "reviewTaskCompleted" | "delivered") => {
+    const uncheck = applyBulkUncheck(rows, typedStatus, actor, kind);
+    onChange(uncheck.next);
+    toast({ title: "整欄取消", description: describeBulkCheck(uncheck) });
   };
 
   const resolveCatLink = (row: CollabRow): string | null => {
@@ -399,14 +394,36 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        type="button"
+                        data-testid={showAccepted ? "collab-bulk-review-assign" : "collab-bulk-review-check"}
+                        className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                         title={showAccepted ? "整欄確認指派" : "整欄審稿完成"}
+                        aria-label={showAccepted ? "整欄確認指派" : "整欄審稿完成"}
                         onClick={() => runBulkCheck(showAccepted ? "reviewAssigned" : "reviewTaskCompleted")}
                       >
-                        <CheckSquare className="h-3 w-3" />
+                        <CheckSquare className="h-3.5 w-3.5" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>{showAccepted ? "整欄確認指派（僅本人負責且條件符合的列）" : "整欄審稿完成（僅本人負責且條件符合的列）"}</TooltipContent>
+                    <TooltipContent>{showAccepted ? "整欄確認指派（僅本人負責且尚未確認的列）" : "整欄審稿完成（僅本人負責且尚未完成的列）"}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {(col as { bulkReview?: boolean }).bulkReview && !showAccepted && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-testid="collab-bulk-review-uncheck"
+                        className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        title="整欄取消審稿完成"
+                        aria-label="整欄取消審稿完成"
+                        onClick={() => runBulkUncheck("reviewTaskCompleted")}
+                      >
+                        <SquareMinus className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>整欄取消審稿完成（僅本人負責且可取消的列；已交件列略過）</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}
@@ -415,14 +432,36 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        type="button"
+                        data-testid="collab-bulk-deliver-check"
+                        className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                         title="整欄已交件"
+                        aria-label="整欄已交件"
                         onClick={() => runBulkCheck("delivered")}
                       >
-                        <PackageCheck className="h-3 w-3" />
+                        <PackageCheck className="h-3.5 w-3.5" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent>整欄已交件（僅本人負責且已審稿完成的列）</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {(col as { bulkDeliver?: boolean }).bulkDeliver && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-testid="collab-bulk-deliver-uncheck"
+                        className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        title="整欄取消已交件"
+                        aria-label="整欄取消已交件"
+                        onClick={() => runBulkUncheck("delivered")}
+                      >
+                        <SquareMinus className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>整欄取消已交件（僅本人負責且已交件的列）</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}

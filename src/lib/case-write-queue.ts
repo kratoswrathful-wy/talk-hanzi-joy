@@ -90,6 +90,11 @@ export function resolveIntendedCaseWrite<T extends object>(
 export type LatestWriteBusy = "idle" | "pending" | "saving";
 export type CaseSavePhase = "idle" | "pending" | "saving" | "saved" | "failed" | "conflict";
 
+/** 重整／關分頁會丟掉尚未寫入的畫面內容時，必須先警告。 */
+export function isUnsavedCaseSavePhase(phase: CaseSavePhase): boolean {
+  return phase === "pending" || phase === "saving" || phase === "conflict" || phase === "failed";
+}
+
 /**
  * 連續輸入只保留最後一次意圖再寫入，避免每個字各送一筆舊內容互相覆蓋。
  * schedule 立刻標 pending；400ms 或 flush 才真正寫入。flush 會等到當次寫入結束。
