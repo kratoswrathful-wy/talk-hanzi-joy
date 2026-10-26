@@ -3400,6 +3400,13 @@ export default function CaseDetailPage() {
                       }
                     }
                   })();
+                  return;
+                }
+                if (memberWrite.action === "cancel_translate") {
+                  void caseStore.cancelCaseCollabRow(caseData.id, memberWrite.rowId)
+                    .then((error) => {
+                      if (error) toast({ title: "無法取消任務完成", description: error.message, variant: "destructive" });
+                    });
                 }
                 return;
               }

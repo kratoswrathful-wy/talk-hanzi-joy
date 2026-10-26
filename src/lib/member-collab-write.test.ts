@@ -36,6 +36,18 @@ describe("resolveMemberCollabWrite", () => {
     }])).toEqual({ action: "cancel_review", rowIds: ["cr-1"] });
   });
 
+  it("譯者取消自己的任務完成走取消翻譯，不吞成 none", () => {
+    expect(resolveMemberCollabWrite([{
+      ...prev,
+      taskCompleted: true,
+      reviewTaskCompleted: false,
+    }], [{
+      ...prev,
+      taskCompleted: false,
+      reviewTaskCompleted: false,
+    }])).toEqual({ action: "cancel_translate", rowId: "cr-1" });
+  });
+
   it("整排取消只收集審稿由完成變未完成的列", () => {
     expect(resolveMemberCollabWrite([
       { id: "a", accepted: true, taskCompleted: true, reviewTaskCompleted: true },

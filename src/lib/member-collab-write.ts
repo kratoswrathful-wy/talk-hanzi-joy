@@ -10,6 +10,7 @@ export type MemberCollabWrite =
   | { action: "complete_review"; rowIds: string[] }
   | { action: "cancel_review"; rowIds: string[] }
   | { action: "complete_translate"; rowId: string }
+  | { action: "cancel_translate"; rowId: string }
   | { action: "none" };
 
 /**
@@ -47,6 +48,12 @@ export function resolveMemberCollabWrite(
   if (cancelledReviews.length) {
     return { action: "cancel_review", rowIds: cancelledReviews.map((row) => row.id) };
   }
+
+  const cancelledTranslate = next.find((row) => {
+    const prev = previous.find((item) => item.id === row.id);
+    return !row.taskCompleted && !!prev?.taskCompleted;
+  });
+  if (cancelledTranslate) return { action: "cancel_translate", rowId: cancelledTranslate.id };
 
   return { action: "none" };
 }
