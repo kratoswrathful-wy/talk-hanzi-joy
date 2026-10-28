@@ -68,6 +68,10 @@ export default defineConfig({
       name: "task002-conflict",
       testMatch: /case-stale-revision-page\.spec\.ts/,
     },
+    {
+      name: "task002-cycle",
+      testMatch: /case-cat-second-edit-cycle\.spec\.ts/,
+    },
   ],
   ...(isLocalBase
     ? {
