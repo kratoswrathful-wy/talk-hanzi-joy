@@ -72,6 +72,10 @@ export default defineConfig({
       name: "task002-cycle",
       testMatch: /case-cat-second-edit-cycle\.spec\.ts/,
     },
+    {
+      name: "task002-dgs",
+      testMatch: /case-google-sheet-import\.spec\.ts/,
+    },
   ],
   ...(isLocalBase
     ? {
