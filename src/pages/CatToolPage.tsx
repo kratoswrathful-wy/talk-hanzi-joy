@@ -1231,8 +1231,18 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       if (data.type !== "WORKFLOW_ASSIGNMENTS_SYNCED") return;
       const caseId = String(data.caseId || "");
       if (!caseId) return;
+      const completedCollabRowIds = Array.isArray(data.completedCollabRowIds)
+        ? data.completedCollabRowIds.map((id: unknown) => String(id || "")).filter(Boolean)
+        : [];
       iframeRef.current?.contentWindow?.postMessage(
-        { type: "CAT_WF_REFRESH_WORKFLOW", payload: { caseId } },
+        {
+          type: "CAT_WF_REFRESH_WORKFLOW",
+          payload: {
+            caseId,
+            completedCollabRowIds,
+            source: String(data.source || ""),
+          },
+        },
         window.location.origin,
       );
     };

@@ -73,6 +73,14 @@ export default defineConfig({
       testMatch: /case-cat-second-edit-cycle\.spec\.ts/,
     },
     {
+      name: "task002-lms",
+      testMatch: /case-lms-complete-cat-ctrl-enter\.spec\.ts/,
+    },
+    {
+      name: "task002-lms",
+      testMatch: /case-lms-complete-cat-ctrl-enter\.spec\.ts/,
+    },
+    {
       name: "task002-dgs",
       testMatch: /case-google-sheet-import\.spec\.ts/,
     },

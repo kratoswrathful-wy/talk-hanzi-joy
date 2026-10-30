@@ -4163,6 +4163,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (event.data.type === 'CAT_WF_REFRESH_WORKFLOW') {
             const p = event.data.payload || {};
             const caseId = String(p.caseId || '');
+            const completedIds = Array.isArray(p.completedCollabRowIds)
+                ? p.completedCollabRowIds.map((id) => String(id || '').trim()).filter(Boolean)
+                : [];
+            const api = window.WfCompleteIndependence;
+            if (api && typeof api.acknowledgeLmsRowCompleted === 'function') {
+                api.acknowledgeLmsRowCompleted(_wfLmsRollbackDone, completedIds);
+            } else {
+                completedIds.forEach((id) => _wfLmsRollbackDone.delete(id));
+            }
+            if (api && typeof api.translateAssignmentIdsToCompleteOnLmsRow === 'function') {
+                const arr = window._currentFileStageAssignments || [];
+                for (const rowId of completedIds) {
+                    const ids = api.translateAssignmentIdsToCompleteOnLmsRow(arr, rowId) || [];
+                    for (const aid of ids) {
+                        const idx = arr.findIndex((a) => String(a.id) === String(aid));
+                        if (idx >= 0) arr[idx] = { ...arr[idx], workflowStatus: 'completed' };
+                    }
+                }
+            }
             void (async () => {
                 try {
                     if (currentFileId) {

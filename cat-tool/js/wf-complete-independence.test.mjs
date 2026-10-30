@@ -22,6 +22,8 @@ import {
   assignmentsNeedingCaseLevelLmsSync,
   assignmentsForLmsRollbackOnTranslatorEdit,
   pendingLmsRollbackOnTranslatorEdit,
+  acknowledgeLmsRowCompleted,
+  translateAssignmentIdsToCompleteOnLmsRow,
 } from "./wf-complete-independence.js";
 
 const assigns = [
@@ -267,6 +269,36 @@ describe("譯者改譯文取消該範圍完成", () => {
     expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done }).keys).toEqual([]);
     first.keys.forEach((key) => done.delete(key));
     expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done }).keys).toEqual(["row-a"]);
+  });
+
+  it("LMS 再勾完成前若只留下 done，第二輪改字不會送回退（未修缺口）", () => {
+    const covering = [
+      { id: "t-1-2", kind: "translate", workflowStatus: "in_progress", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+    ];
+    const done = new Set(["row-a"]);
+    expect(assignmentIdsToReopenOnTranslatorEdit({ covering })).toEqual([]);
+    expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done }).keys).toEqual([]);
+  });
+
+  it("LMS 再勾完成後 acknowledge 可再開下一輪，且不連坐其他列", () => {
+    const covering = [
+      { id: "t-1-2", kind: "translate", workflowStatus: "in_progress", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+      { id: "t-3-4", kind: "translate", workflowStatus: "completed", lineStart: 3, lineEnd: 4, collabRowId: "row-b" },
+    ];
+    const done = new Set(["row-a", "row-b"]);
+    acknowledgeLmsRowCompleted(done, ["row-a"]);
+    expect([...done]).toEqual(["row-b"]);
+    expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done }).keys).toEqual(["row-a"]);
+    expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 3, done }).keys).toEqual([]);
+  });
+
+  it("LMS 勾完成只把該列未完成翻譯指派標完成，不改審稿", () => {
+    expect(translateAssignmentIdsToCompleteOnLmsRow([
+      { id: "t-a", kind: "translate", workflowStatus: "in_progress", collabRowId: "row-a" },
+      { id: "r-a", kind: "review", workflowStatus: "in_progress", collabRowId: "row-a" },
+      { id: "t-b", kind: "translate", workflowStatus: "assigned", collabRowId: "row-b" },
+      { id: "t-a-done", kind: "translate", workflowStatus: "completed", collabRowId: "row-a" },
+    ], "row-a")).toEqual(["t-a"]);
   });
 });
 

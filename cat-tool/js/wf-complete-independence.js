@@ -320,6 +320,48 @@ export function pendingLmsRollbackOnTranslatorEdit(input) {
 }
 
 /**
+ * LMS 再次勾任務完成：清掉該列回退去重，讓下一輪有效改字可以再退。
+ * @param {Set<string>|null|undefined} done
+ * @param {string[]|null|undefined} rowIds
+ * @returns {Set<string>}
+ */
+export function acknowledgeLmsRowCompleted(done, rowIds) {
+  const set = done instanceof Set ? done : new Set();
+  const ids = Array.isArray(rowIds) ? rowIds : [];
+  for (const raw of ids) {
+    const id = String(raw || "").trim();
+    if (id) set.delete(id);
+  }
+  return set;
+}
+
+/**
+ * LMS 勾翻譯完成時，對應 CAT 翻譯指派若仍執行中／已派出，應一併標完成。
+ * 不改審稿指派。
+ * @param {Array<object>|null|undefined} assignments
+ * @param {string|null|undefined} collabRowId
+ * @returns {string[]}
+ */
+export function translateAssignmentIdsToCompleteOnLmsRow(assignments, collabRowId) {
+  const rowId = String(collabRowId || "").trim();
+  if (!rowId) return [];
+  const list = Array.isArray(assignments) ? assignments : [];
+  const ids = [];
+  const seen = new Set();
+  for (const a of list) {
+    if (assignmentLmsCollabRowId(a) !== rowId) continue;
+    if (assignmentRoleKind(a) !== "translate") continue;
+    const st = String(a?.workflowStatus || a?.workflow_status || "");
+    if (st === "completed") continue;
+    const id = String(a?.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
  * 單人整檔常沒有 LMS 協作列 id。沒有 id 時不能略過案件回寫。
  * @param {object|null|undefined} a
  * @returns {string}
@@ -555,6 +597,8 @@ const WfCompleteIndependence = {
   assignmentIdsToReopenOnTranslatorEdit,
   assignmentsForLmsRollbackOnTranslatorEdit,
   pendingLmsRollbackOnTranslatorEdit,
+  acknowledgeLmsRowCompleted,
+  translateAssignmentIdsToCompleteOnLmsRow,
   assignmentLmsCollabRowId,
   assignmentsNeedingCaseLevelLmsSync,
   resolveMemberEditAssignments,

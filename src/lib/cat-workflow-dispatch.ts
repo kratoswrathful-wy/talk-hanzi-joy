@@ -29,12 +29,38 @@ export async function syncCatWorkflowAssignmentsForCase(
   }
 }
 
+export type CatWorkflowSyncBroadcast = {
+  completedCollabRowIds?: string[];
+  source?: string;
+};
+
+export function catWorkflowSyncBroadcastMessage(
+  caseId: string,
+  extra?: CatWorkflowSyncBroadcast,
+): {
+  type: "WORKFLOW_ASSIGNMENTS_SYNCED";
+  caseId: string;
+  completedCollabRowIds: string[];
+  source: string;
+} {
+  const ids = Array.isArray(extra?.completedCollabRowIds) ? extra.completedCollabRowIds : [];
+  return {
+    type: "WORKFLOW_ASSIGNMENTS_SYNCED",
+    caseId,
+    completedCollabRowIds: [...new Set(ids.map((id) => String(id || "").trim()).filter(Boolean))],
+    source: String(extra?.source || ""),
+  };
+}
+
 /** 通知已開啟的 CAT iframe 重新載入 Workflow 指派（LMS→CAT 雙向） */
-export function broadcastCatWorkflowAssignmentsSynced(caseId: string): void {
+export function broadcastCatWorkflowAssignmentsSynced(
+  caseId: string,
+  extra?: CatWorkflowSyncBroadcast,
+): void {
   if (!caseId || typeof BroadcastChannel === "undefined") return;
   try {
     const ch = new BroadcastChannel("tms-cat-wf-sync");
-    ch.postMessage({ type: "WORKFLOW_ASSIGNMENTS_SYNCED", caseId });
+    ch.postMessage(catWorkflowSyncBroadcastMessage(caseId, extra));
     ch.close();
   } catch {
     /* ignore */
