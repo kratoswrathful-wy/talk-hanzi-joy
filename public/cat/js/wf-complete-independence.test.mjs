@@ -23,6 +23,8 @@ import {
   assignmentsForLmsRollbackOnTranslatorEdit,
   pendingLmsRollbackOnTranslatorEdit,
   acknowledgeLmsRowCompleted,
+  parseCatWfLmsResultPayload,
+  shouldRetryLmsRollbackOnUnchangedConfirm,
   translateAssignmentIdsToCompleteOnLmsRow,
 } from "./wf-complete-independence.js";
 
@@ -290,6 +292,36 @@ describe("譯者改譯文取消該範圍完成", () => {
     expect([...done]).toEqual(["row-b"]);
     expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 1, done }).keys).toEqual(["row-a"]);
     expect(pendingLmsRollbackOnTranslatorEdit({ covering, lineNo: 3, done }).keys).toEqual([]);
+  });
+
+  it("沒改字的確認只有先前回退失敗才再送", () => {
+    const covering = [
+      { id: "t-1-2", kind: "translate", workflowStatus: "in_progress", lineStart: 1, lineEnd: 2, collabRowId: "row-a" },
+    ];
+    expect(shouldRetryLmsRollbackOnUnchangedConfirm({
+      covering,
+      lineNo: 1,
+      retryKeys: new Set(),
+    })).toBe(false);
+    expect(shouldRetryLmsRollbackOnUnchangedConfirm({
+      covering,
+      lineNo: 1,
+      retryKeys: new Set(["row-a"]),
+    })).toBe(true);
+    expect(shouldRetryLmsRollbackOnUnchangedConfirm({
+      covering,
+      lineNo: 3,
+      retryKeys: new Set(["row-a"]),
+    })).toBe(false);
+  });
+
+  it("父頁回退結果只有明確 ok 才算成功", () => {
+    expect(parseCatWfLmsResultPayload({ requestId: "r1", ok: true })).toEqual({
+      requestId: "r1",
+      ok: true,
+      error: "",
+    });
+    expect(parseCatWfLmsResultPayload({ requestId: "r1", ok: false, error: "denied" }).ok).toBe(false);
   });
 
   it("LMS 勾完成只把該列未完成翻譯指派標完成，不改審稿", () => {

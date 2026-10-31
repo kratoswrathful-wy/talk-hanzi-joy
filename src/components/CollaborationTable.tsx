@@ -684,7 +684,11 @@ export default function CollaborationTable({ rows, onChange, caseStatus, caseId,
                 )}
               </div>
 
-              <div className="flex items-center justify-center px-1.5 py-1">
+              <div
+                className="flex items-center justify-center px-1.5 py-1"
+                data-collab-id={row.id}
+                data-collab-field="delivered"
+              >
                 <Checkbox
                   checked={row.delivered}
                   disabled={row.delivered ? !wf.canUncheckDelivered : !wf.canCheckDelivered}

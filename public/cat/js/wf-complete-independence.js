@@ -335,6 +335,32 @@ export function acknowledgeLmsRowCompleted(done, rowIds) {
   return set;
 }
 
+export function newCatWfLmsRequestId() {
+  return `lms-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function parseCatWfLmsResultPayload(payload) {
+  const p = payload && typeof payload === "object" ? payload : {};
+  const requestId = String(p.requestId || "").trim();
+  const ok = p.ok === true;
+  return { requestId, ok, error: ok ? "" : String(p.error || "") };
+}
+
+/**
+ * 回退寫入失敗後，同一句不改字再確認也可以再送一次。
+ * 一般沒改字的確認不得走這條。
+ */
+export function shouldRetryLmsRollbackOnUnchangedConfirm(input) {
+  const retry = input?.retryKeys instanceof Set ? input.retryKeys : new Set();
+  if (!retry.size) return false;
+  const pending = pendingLmsRollbackOnTranslatorEdit({
+    covering: input?.covering,
+    lineNo: input?.lineNo,
+    done: new Set(),
+  });
+  return pending.keys.some((key) => retry.has(key));
+}
+
 /**
  * LMS 勾翻譯完成時，對應 CAT 翻譯指派若仍執行中／已派出，應一併標完成。
  * 不改審稿指派。
@@ -598,6 +624,9 @@ const WfCompleteIndependence = {
   assignmentsForLmsRollbackOnTranslatorEdit,
   pendingLmsRollbackOnTranslatorEdit,
   acknowledgeLmsRowCompleted,
+  newCatWfLmsRequestId,
+  parseCatWfLmsResultPayload,
+  shouldRetryLmsRollbackOnUnchangedConfirm,
   translateAssignmentIdsToCompleteOnLmsRow,
   assignmentLmsCollabRowId,
   assignmentsNeedingCaseLevelLmsSync,

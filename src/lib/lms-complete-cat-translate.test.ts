@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   LMS_COMPLETE_CAT_ASSIGN_COLUMNS,
   LMS_COMPLETE_CAT_STAGE_COLUMNS,
+  lmsCompleteCatSyncFollowUp,
   markCatTranslateCompletedForLmsRow,
   translateAssignmentIdsFromLmsCompleteLookup,
 } from "./lms-complete-cat-translate";
@@ -64,5 +65,38 @@ describe("markCatTranslateCompletedForLmsRow", () => {
       p_assignment_id: "t-a",
       p_workflow_status: "completed",
     });
+  });
+});
+
+describe("lmsCompleteCatSyncFollowUp", () => {
+  it("同步成功就廣播完成、不回復勾選", () => {
+    expect(lmsCompleteCatSyncFollowUp({
+      catSyncFailed: false,
+      revertSucceeded: false,
+    })).toEqual({
+      revertLmsComplete: false,
+      broadcastCompleted: true,
+      message: "",
+    });
+  });
+
+  it("同步失敗且回復成功：取消勾選、不廣播完成", () => {
+    const out = lmsCompleteCatSyncFollowUp({
+      catSyncFailed: true,
+      revertSucceeded: true,
+    });
+    expect(out.revertLmsComplete).toBe(true);
+    expect(out.broadcastCompleted).toBe(false);
+    expect(out.message).toContain("已取消");
+  });
+
+  it("同步與回復都失敗：保留勾選並廣播，避免永遠不能回退", () => {
+    const out = lmsCompleteCatSyncFollowUp({
+      catSyncFailed: true,
+      revertSucceeded: false,
+    });
+    expect(out.revertLmsComplete).toBe(false);
+    expect(out.broadcastCompleted).toBe(true);
+    expect(out.message).toContain("尚未同步");
   });
 });

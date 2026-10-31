@@ -77,8 +77,8 @@ export default defineConfig({
       testMatch: /case-lms-complete-cat-ctrl-enter\.spec\.ts/,
     },
     {
-      name: "task002-lms",
-      testMatch: /case-lms-complete-cat-ctrl-enter\.spec\.ts/,
+      name: "task002-recovery",
+      testMatch: /case-lms-rollback-recovery\.spec\.ts/,
     },
     {
       name: "task002-dgs",

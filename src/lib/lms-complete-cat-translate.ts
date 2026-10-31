@@ -83,3 +83,31 @@ export async function markCatTranslateCompletedForLmsRow(
   }
   return done;
 }
+
+export type LmsCompleteCatSyncFollowUp = {
+  revertLmsComplete: boolean;
+  broadcastCompleted: boolean;
+  message: string;
+};
+
+/** LMS 勾完成後，CAT 翻譯指派同步失敗時的後續：能回復就取消勾選；回復失敗才保留部分成功並通知。 */
+export function lmsCompleteCatSyncFollowUp(input: {
+  catSyncFailed: boolean;
+  revertSucceeded: boolean;
+}): LmsCompleteCatSyncFollowUp {
+  if (!input.catSyncFailed) {
+    return { revertLmsComplete: false, broadcastCompleted: true, message: "" };
+  }
+  if (input.revertSucceeded) {
+    return {
+      revertLmsComplete: true,
+      broadcastCompleted: false,
+      message: "無法同步翻譯畫面，任務完成已取消，請稍後再試",
+    };
+  }
+  return {
+    revertLmsComplete: false,
+    broadcastCompleted: true,
+    message: "案件已勾完成，但翻譯畫面尚未同步。請重整翻譯畫面後再改字。",
+  };
+}

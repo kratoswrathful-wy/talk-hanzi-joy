@@ -18,6 +18,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSidebar } from "@/components/ui/sidebar";
 import { isTrustedCatIframeMessage } from "@/lib/cat-iframe-message-guard";
+import { catWfLmsResultMessage, parseCatWfLmsRequestId } from "@/lib/cat-wf-lms-result";
 
 type InternalNoteInsert = Database["public"]["Tables"]["internal_notes"]["Insert"];
 
@@ -66,6 +67,20 @@ type CollabStartPayload = {
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function postCatWfLmsResult(
+  iframe: HTMLIFrameElement | null,
+  requestId: string,
+  ok: boolean,
+  error?: string,
+) {
+  const id = String(requestId || "").trim();
+  if (!id || !iframe?.contentWindow) return;
+  iframe.contentWindow.postMessage(
+    catWfLmsResultMessage(id, ok, error),
+    window.location.origin,
+  );
 }
 
 /**
@@ -1060,15 +1075,25 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         }
       } else if (event.data?.type === "CAT_WF_STAGE_ASSIGNMENT_COMPLETED") {
         const p = event.data.payload ?? {};
+        const requestId = parseCatWfLmsRequestId(p);
         const caseId = String(p.caseId || "");
         const collabRowId = String(p.collabRowId || "");
         const completedAt = String(p.completedAt || new Date().toISOString());
         const taskCompleted = p.taskCompleted !== false;
         const stageKind = parseCatWfCompleteKind(p.stageKind);
         const segmentTitle = typeof p.segmentTitle === "string" ? p.segmentTitle : undefined;
-        if (!caseId || !user?.id) return;
+        const ack = (ok: boolean, error?: string) => {
+          postCatWfLmsResult(iframeRef.current, requestId, ok, error);
+        };
+        if (!caseId || !user?.id) {
+          ack(false, "not_ready");
+          return;
+        }
         const inflightKey = catWfLmsInflightKey(caseId, collabRowId, taskCompleted);
-        if (!claimCatWfLmsInflight(inflightKey)) return;
+        if (!claimCatWfLmsInflight(inflightKey)) {
+          ack(false, "in_flight");
+          return;
+        }
         try {
           if (collabRowId) {
             const result = await setCollabRowTaskCompletedFromCat(
@@ -1081,8 +1106,11 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             );
             if (!result.ok) {
               console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", result.error);
+              ack(false, result.error || "lms_sync_failed");
+              return;
             }
-            if (result.ok && taskCompleted && stageKind === "translate" && user.id) {
+            ack(true);
+            if (taskCompleted && stageKind === "translate" && user.id) {
               void maybeSendTranslatorCaseReplySlack({
                 userId: user.id,
                 slackMessageDefaults: profile?.slack_message_defaults,
@@ -1100,8 +1128,11 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             );
             if (!result.ok) {
               console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", result.error);
+              ack(false, result.error || "lms_sync_failed");
+              return;
             }
-            if (result.ok && result.upgraded && user.id) {
+            ack(true);
+            if (result.upgraded && user.id) {
               void maybeSendTranslatorCaseReplySlack({
                 userId: user.id,
                 slackMessageDefaults: profile?.slack_message_defaults,
@@ -1114,22 +1145,36 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             const result = await reopenOwnCaseTranslationFromCat(supabase, caseId);
             if (!result.ok) {
               console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", result.error);
+              ack(false, result.error || "lms_sync_failed");
+              return;
             }
+            ack(true);
           }
         } catch (e) {
           console.warn("[CAT] CAT_WF_STAGE_ASSIGNMENT_COMPLETED", e);
+          ack(false, errorMessage(e));
         } finally {
           releaseCatWfLmsInflight(inflightKey);
         }
       } else if (event.data?.type === "CAT_WF_COLLAB_ROWS_BULK") {
         const p = event.data.payload ?? {};
+        const requestId = parseCatWfLmsRequestId(p);
         const caseId = String(p.caseId || "");
         const updates = Array.isArray(p.updates) ? p.updates : [];
         const updatedAt = String(p.updatedAt || new Date().toISOString());
-        if (!caseId || !updates.length || !user?.id) return;
+        const ack = (ok: boolean, error?: string) => {
+          postCatWfLmsResult(iframeRef.current, requestId, ok, error);
+        };
+        if (!caseId || !updates.length || !user?.id) {
+          ack(false, "not_ready");
+          return;
+        }
         const anyComplete = updates.some((u: { taskCompleted?: boolean }) => !!u.taskCompleted);
         const inflightKey = catWfLmsInflightKey(caseId, "bulk", anyComplete);
-        if (!claimCatWfLmsInflight(inflightKey)) return;
+        if (!claimCatWfLmsInflight(inflightKey)) {
+          ack(false, "in_flight");
+          return;
+        }
         try {
           const bulk = await setCollabRowsTaskCompletedBulkFromCat(
             supabase,
@@ -1143,9 +1188,13 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           );
           if (!bulk.ok) {
             console.warn("[CAT] CAT_WF_COLLAB_ROWS_BULK", bulk.error);
+            ack(false, bulk.error || "lms_sync_failed");
+          } else {
+            ack(true);
           }
         } catch (e) {
           console.warn("[CAT] CAT_WF_COLLAB_ROWS_BULK", e);
+          ack(false, errorMessage(e));
         } finally {
           releaseCatWfLmsInflight(inflightKey);
         }

@@ -4,7 +4,10 @@ import {
   syncCatWorkflowAssignmentsForCase,
   broadcastCatWorkflowAssignmentsSynced,
 } from "@/lib/cat-workflow-dispatch";
-import { markCatTranslateCompletedForLmsRow } from "@/lib/lms-complete-cat-translate";
+import {
+  lmsCompleteCatSyncFollowUp,
+  markCatTranslateCompletedForLmsRow,
+} from "@/lib/lms-complete-cat-translate";
 import { describeCatWorkflowSyncIssues } from "@/lib/cat-workflow-sync-result";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -1227,10 +1230,36 @@ async function completeCaseCollabRow(id: string, rowId: string) {
   );
   if (!result.error) {
     applyActionResult(id, result.data);
+    let catSyncFailed = false;
     try {
       await markCatTranslateCompletedForLmsRow(supabase, rowId);
     } catch (e) {
-      console.warn("[case-store] LMS complete CAT translate sync skipped:", e);
+      catSyncFailed = true;
+      console.warn("[case-store] LMS complete CAT translate sync failed:", e);
+    }
+    if (catSyncFailed) {
+      const currentAfter = getById(id);
+      const revert = await reopenOwnCatCompleteOnEditRpc(
+        supabase,
+        id,
+        rowId,
+        currentAfter?.revision ?? -1,
+      );
+      const follow = lmsCompleteCatSyncFollowUp({
+        catSyncFailed: true,
+        revertSucceeded: !revert.error,
+      });
+      if (follow.revertLmsComplete && !revert.error) {
+        applyActionResult(id, revert.data);
+      }
+      if (follow.broadcastCompleted) {
+        broadcastCatWorkflowAssignmentsSynced(id, {
+          completedCollabRowIds: [rowId],
+          source: "lms_row_complete",
+        });
+      }
+      await refreshAfterCaseAction(id);
+      return { message: follow.message };
     }
     broadcastCatWorkflowAssignmentsSynced(id, {
       completedCollabRowIds: [rowId],

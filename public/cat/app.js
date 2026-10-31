@@ -4150,6 +4150,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             applyCollabFocusOutlines();
             applyCollabEditHardLocks();
             enforceFocusedSegmentLease();
+        } else if (event.data.type === 'CAT_WF_LMS_RESULT') {
+            const p = event.data.payload || {};
+            const requestId = String(p.requestId || '');
+            if (!requestId) return;
+            finishPendingCatWfLms(requestId, p);
         } else if (event.data.type === 'TMS_INTERNAL_NOTE_RESULT') {
             const p = event.data.payload || {};
             const requestId = String(p.requestId || '');
@@ -6542,6 +6547,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _emitWfCollabRowsBulkToLms(caseId, updates) {
         if (!caseId || !updates || !updates.length) return;
+        const api = window.WfCompleteIndependence;
+        const requestId = api && typeof api.newCatWfLmsRequestId === 'function'
+            ? api.newCatWfLmsRequestId()
+            : `lms-${Date.now()}`;
+        const waiting = awaitCatWfLmsParentResult(requestId, 20000);
         try {
             window.parent.postMessage({
                 type: 'CAT_WF_COLLAB_ROWS_BULK',
@@ -6549,10 +6559,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     caseId: String(caseId),
                     updates,
                     updatedAt: new Date().toISOString(),
+                    requestId,
                 },
             }, window.location.origin);
         } catch (e) {
-            console.warn('[workflow] LMS bulk notify', e);
+            finishPendingCatWfLms(requestId, { requestId, ok: false, error: 'postMessage' });
+            throw e;
+        }
+        const result = await waiting;
+        if (!result.ok) {
+            const err = new Error(result.error || 'lms_sync_failed');
+            err.code = 'CAT_WF_LMS_SYNC_FAILED';
+            throw err;
         }
     }
 
@@ -6562,6 +6580,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const collabRowId = assignment && assignment.collabRowId ? String(assignment.collabRowId) : '';
         const caseId = fileMeta && fileMeta.relatedLmsCaseId ? String(fileMeta.relatedLmsCaseId) : '';
         if (!caseId) return;
+        const api = window.WfCompleteIndependence;
+        const requestId = api && typeof api.newCatWfLmsRequestId === 'function'
+            ? api.newCatWfLmsRequestId()
+            : `lms-${Date.now()}`;
+        const waiting = awaitCatWfLmsParentResult(requestId, 20000);
         try {
             window.parent.postMessage({
                 type: 'CAT_WF_STAGE_ASSIGNMENT_COMPLETED',
@@ -6576,10 +6599,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     completedAt: new Date().toISOString(),
                     segmentTitle: assignment.scopeLabel ? String(assignment.scopeLabel) : undefined,
                     caseTitle: fileMeta && fileMeta.relatedLmsCaseTitle ? String(fileMeta.relatedLmsCaseTitle) : undefined,
+                    requestId,
                 },
             }, window.location.origin);
         } catch (e) {
-            console.warn('[workflow] LMS notify', e);
+            finishPendingCatWfLms(requestId, { requestId, ok: false, error: 'postMessage' });
+            throw e;
+        }
+        const result = await waiting;
+        if (!result.ok) {
+            const err = new Error(result.error || 'lms_sync_failed');
+            err.code = 'CAT_WF_LMS_SYNC_FAILED';
+            throw err;
         }
     }
 
@@ -7878,6 +7909,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _wfReopenCompleteInFlight = new Set();
     const _wfLmsRollbackInFlight = new Set();
     const _wfLmsRollbackDone = new Set();
+    const _wfLmsRollbackNeedsRetry = new Set();
+    const pendingCatWfLmsByRequestId = new Map();
+
+    function finishPendingCatWfLms(requestId, payload) {
+        const pending = pendingCatWfLmsByRequestId.get(requestId);
+        if (!pending) return;
+        pendingCatWfLmsByRequestId.delete(requestId);
+        pending.finish(payload);
+    }
+
+    function awaitCatWfLmsParentResult(requestId, timeoutMs) {
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                pendingCatWfLmsByRequestId.delete(requestId);
+                resolve({ ok: false, error: 'timeout' });
+            }, timeoutMs);
+            pendingCatWfLmsByRequestId.set(requestId, {
+                finish(payload) {
+                    clearTimeout(timer);
+                    const api = window.WfCompleteIndependence;
+                    const parsed = api && typeof api.parseCatWfLmsResultPayload === 'function'
+                        ? api.parseCatWfLmsResultPayload(payload)
+                        : { ok: !!(payload && payload.ok), error: payload && payload.error ? String(payload.error) : '' };
+                    resolve({ ok: parsed.ok === true, error: parsed.error || '' });
+                },
+            });
+        });
+    }
+
+    function _maybeRetryLmsRollbackAfterConfirm(seg) {
+        const api = window.WfCompleteIndependence;
+        const arr = window._currentFileStageAssignments || [];
+        const covering = arr.filter((a) => _segInAssignmentLineRange(seg, a, currentFileId));
+        if (api && typeof api.shouldRetryLmsRollbackOnUnchangedConfirm === 'function') {
+            if (!api.shouldRetryLmsRollbackOnUnchangedConfirm({
+                retryKeys: _wfLmsRollbackNeedsRetry,
+                covering,
+                lineNo: _segFullListLineNo(seg),
+            })) return;
+        } else if (!_wfLmsRollbackNeedsRetry.size) {
+            return;
+        }
+        void _reopenRangeCompleteOnTranslatorEdit(seg);
+    }
 
     /** 譯者實際改譯文：CAT 已完成指派降回執行中；案件頁完成／交件依覆蓋範圍回退。 */
     async function _reopenRangeCompleteOnTranslatorEdit(seg) {
@@ -7954,8 +8029,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await _reconcileStageStatusFromAssignments(a.fileId, a.fileWorkflowStageId, { allowDowngrade: true });
             }
             const syncList = reopened.length ? reopened : lmsTargets;
+            lmsKeys.forEach((key) => _wfLmsRollbackNeedsRetry.add(key));
             await _syncLmsForAssignments(syncList, false);
-            lmsKeys.forEach((key) => _wfLmsRollbackDone.add(key));
+            lmsKeys.forEach((key) => {
+                _wfLmsRollbackDone.add(key);
+                _wfLmsRollbackNeedsRetry.delete(key);
+            });
             if (typeof refreshWfTaskCompleteToolbar === 'function') refreshWfTaskCompleteToolbar();
             if (currentProjectId && typeof _fillFilesWorkflowCellsAsync === 'function' && window._lastFilesListForProject) {
                 void _fillFilesWorkflowCellsAsync(window._lastFilesListForProject);
@@ -7963,6 +8042,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {
             console.error('[workflow] reopen complete on translator edit', e);
             showCatToast('譯文已保存，但無法取消完成狀態，請稍後再試', 'error');
+            lmsKeys.forEach((key) => _wfLmsRollbackNeedsRetry.add(key));
         } finally {
             unique.forEach((id) => _wfReopenCompleteInFlight.delete(id));
             lmsKeys.forEach((key) => _wfLmsRollbackInFlight.delete(key));
@@ -26752,6 +26832,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     try {
                                         await applyUpdateSegmentTarget(seg, latestTarget);
                                         emitCollabEdit('commit', seg, latestTarget);
+                                        _maybeRetryLmsRollbackAfterConfirm(seg);
                                     } catch (err) {
                                         if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
                                             _revertConfirmAndToast(seg, row, null, effectiveLocked, 'revision');
