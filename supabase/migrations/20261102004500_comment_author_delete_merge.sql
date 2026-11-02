@@ -213,7 +213,8 @@ begin
 end
 $trg$;
 
-create or replace function public.update_case_social_fields(
+-- 此函式已被維護包裝改名為 private.*_impl；只改 public 入口會立刻被 wrapper 蓋回舊實作。
+create or replace function private.update_case_social_fields_impl(
   p_case_id uuid, p_expected_revision bigint, p_changes jsonb
 ) returns jsonb language plpgsql security definer set search_path = pg_catalog
 as $$
@@ -286,6 +287,11 @@ begin
   return jsonb_build_object('caseId',p_case_id,'revision',v_revision);
 end;
 $$;
+
+revoke all on function private.update_case_social_fields_impl(uuid,bigint,jsonb)
+  from public,anon;
+comment on function private.update_case_social_fields_impl(uuid,bigint,jsonb) is
+  '一般留言可追加或刪自己的；提問勾選僅本案譯者或 PM 以上。由 public wrapper 呼叫。';
 
 revoke all on function public.update_case_social_fields(uuid,bigint,jsonb)
   from public,anon;

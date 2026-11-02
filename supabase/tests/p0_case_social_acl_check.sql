@@ -2,14 +2,18 @@
 --
 -- 1C：一般留言可追加、不可整包刪別人的；提問勾選僅本案譯者或 admin。
 -- 對齊 migration：20260930120300_case_social_fields.sql
+--                 20261102004500_comment_author_delete_merge.sql
+--                 20261102120000_comment_delete_social_impl.sql
 --
 -- 覆蓋（註解＋斷言）：
 --   - 未登入拒絕
---   - 一般成員可追加留言；整包刪舊則 → comment_not_deletable，原列不變
+--   - 一般成員可追加留言；整包刪別人的舊則 → comment_not_deletable，原列不變
 --   - 非譯者改提問勾選 → field_not_permitted
 --   - 本案譯者可改提問勾選
 --   - comments／clientQuestionForm 不得走 update_case_permitted_fields
 --   - 主管可整包覆寫留言
+--   - 譯者可刪自己的無回覆主則
+--   - 譯者刪有回覆的主則改佔位「留言已刪除」，回覆留下
 --
 -- 執行：隔離／本機 DB；全程 BEGIN…ROLLBACK。本檔未對任何遠端庫執行。
 
@@ -250,6 +254,83 @@ begin
     where c.id = v_case and e->>'id' = 'own'
   ) then
     raise exception 'translator could not delete own comment';
+  end if;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  perform public.update_case_social_fields(
+    v_case,
+    (select revision from public.cases where id = v_case),
+    jsonb_build_object(
+      'comments',
+      jsonb_build_array(
+        jsonb_build_object('id','only','author','PM','content','主管覆寫'),
+        jsonb_build_object('id','p1','author','T1','content','有回覆的主則','createdAt','2026-11-02T00:00:00.000Z')
+      )
+    )
+  );
+  reset role;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_pm::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  perform public.update_case_social_fields(
+    v_case,
+    (select revision from public.cases where id = v_case),
+    jsonb_build_object(
+      'comments',
+      jsonb_build_array(
+        jsonb_build_object('id','only','author','PM','content','主管覆寫'),
+        jsonb_build_object('id','p1','author','T1','content','有回覆的主則','createdAt','2026-11-02T00:00:00.000Z'),
+        jsonb_build_object('id','r1','author','PM','content','主管回覆','replyTo','p1','createdAt','2026-11-02T00:01:00.000Z')
+      )
+    )
+  );
+  reset role;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  perform public.update_case_social_fields(
+    v_case,
+    (select revision from public.cases where id = v_case),
+    jsonb_build_object(
+      'comments',
+      jsonb_build_array(
+        jsonb_build_object('id','only','author','PM','content','主管覆寫'),
+        jsonb_build_object(
+          'id','p1','author','T1','content','留言已刪除','deleted', true,
+          'createdAt','2026-11-02T00:00:00.000Z'
+        ),
+        jsonb_build_object('id','r1','author','PM','content','主管回覆','replyTo','p1','createdAt','2026-11-02T00:01:00.000Z')
+      )
+    )
+  );
+  reset role;
+  if not exists (
+    select 1 from public.cases c, jsonb_array_elements(c.comments) e
+    where c.id = v_case and e->>'id' = 'p1'
+      and e->>'content' = '留言已刪除'
+      and coalesce(e->>'deleted','') in ('true','t')
+  ) then
+    raise exception 'translator tombstone of parent with live reply did not persist: %',
+      (select comments from public.cases where id = v_case);
+  end if;
+  if not exists (
+    select 1 from public.cases c, jsonb_array_elements(c.comments) e
+    where c.id = v_case and e->>'id' = 'r1' and e->>'content' = '主管回覆'
+  ) then
+    raise exception 'live reply missing after parent tombstone';
   end if;
 end;
 $$;

@@ -121,6 +121,27 @@ describe("mergeCommentList", () => {
     }
   });
 
+  it("incoming 以 deleted 標記有回覆主則時改佔位，不把原文當還活著", () => {
+    const r = mergeCommentList({
+      current: [
+        c("1", { authorUserId: ACTOR, content: "主文" }),
+        c("2", { authorUserId: OTHER, content: "回覆", replyTo: "1" }),
+      ],
+      incoming: [
+        c("1", { authorUserId: ACTOR, deleted: true }),
+        c("2", { authorUserId: OTHER, content: "回覆", replyTo: "1" }),
+      ],
+      actorId: ACTOR,
+      isPmPlus: false,
+    });
+    expect(r.status).toBe("ok");
+    if (r.status === "ok") {
+      expect(r.next[0]?.deleted).toBe(true);
+      expect(r.next[0]?.content).toBe(COMMENT_DELETED_PLACEHOLDER);
+      expect(r.next[1]?.content).toBe("回覆");
+    }
+  });
+
   it("先改作者再刪會失敗：既有 ID 的作者以庫存為準", () => {
     const r = mergeCommentList({
       current: [c("1", { authorUserId: OTHER })],
