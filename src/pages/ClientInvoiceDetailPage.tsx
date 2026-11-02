@@ -69,6 +69,9 @@ import DateOnlyInputPicker from "@/components/DateOnlyInputPicker";
 import { todayDateString } from "@/lib/date-only";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
+import { CommentDeleteDialog, CommentToolbar } from "@/components/comments/CommentDeleteControls";
+import { persistCommentDelete } from "@/lib/comment-persist";
+import type { CommentBase } from "@/lib/comment-model";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   const { options: statusLabelOptions } = useSelectOptions("statusLabel");
@@ -133,6 +136,10 @@ interface CommentEntry {
   fileUrls?: { name: string; url: string }[];
   replyTo?: string;
   timestamp: string;
+  authorUserId?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
 }
 
 type EditLogEntry = SimplePersistedLog;
@@ -197,6 +204,8 @@ export default function ClientInvoiceDetailPage() {
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
+  const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentBase | null>(null);
+  const [commentDeleteBusy, setCommentDeleteBusy] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   // Auto-focus title on new page creation
@@ -711,6 +720,7 @@ export default function ClientInvoiceDetailPage() {
     const newComment: CommentEntry = {
       id: `comment-${Date.now()}`,
       author: authorName,
+      authorUserId: user?.id,
       content,
       imageUrls,
       fileUrls,
@@ -1269,22 +1279,29 @@ export default function ClientInvoiceDetailPage() {
                 return topLevel.map((c) => (
                   <div key={c.id} className="space-y-1">
                     <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{c.author}</span>
-                          <span className="text-muted-foreground">{c.timestamp}</span>
-                        </div>
-                        <button className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors" onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}>回覆</button>
-                      </div>
-                      <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                      <CommentToolbar
+                        author={c.author}
+                        timeLabel={c.timestamp}
+                        comment={c}
+                        actorId={user?.id}
+                        isPmPlus={isAdmin}
+                        onReply={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                        onDelete={setCommentDeleteTarget}
+                      />
+                      <CommentContent content={c.content} imageUrls={c.deleted ? undefined : c.imageUrls} fileUrls={c.deleted ? undefined : c.fileUrls} />
                     </div>
                     {getReplies(c.id).map((r) => (
                       <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{r.author}</span>
-                          <span className="text-muted-foreground">{r.timestamp}</span>
-                        </div>
-                        <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                        <CommentToolbar
+                          author={r.author}
+                          timeLabel={r.timestamp}
+                          comment={r}
+                          actorId={user?.id}
+                          isPmPlus={isAdmin}
+                          showReply={false}
+                          onDelete={setCommentDeleteTarget}
+                        />
+                        <CommentContent content={r.content} imageUrls={r.deleted ? undefined : r.imageUrls} fileUrls={r.deleted ? undefined : r.fileUrls} />
                       </div>
                     ))}
                     {replyingTo === c.id && (
@@ -1302,6 +1319,32 @@ export default function ClientInvoiceDetailPage() {
       </motion.div>
 
       {/* Full payment dialog */}
+      <CommentDeleteDialog
+        target={commentDeleteTarget}
+        busy={commentDeleteBusy}
+        onCancel={() => { if (!commentDeleteBusy) setCommentDeleteTarget(null); }}
+        onConfirm={async () => {
+          if (!commentDeleteTarget || commentDeleteBusy || !id) return;
+          setCommentDeleteBusy(true);
+          const result = await persistCommentDelete({
+            current: comments,
+            commentId: commentDeleteTarget.id,
+            actorId: user?.id,
+            isPmPlus: isAdmin,
+            persist: async (next) => {
+              const { error } = await clientInvoiceStore.updateInvoice(id, { comments: next });
+              return !error;
+            },
+          });
+          setCommentDeleteBusy(false);
+          if (result.ok) {
+            setComments(result.next as CommentEntry[]);
+            setCommentDeleteTarget(null);
+          } else {
+            toast.error("留言刪除未完成，已保留原內容。");
+          }
+        }}
+      />
       <AlertDialog open={showFullPayDialog} onOpenChange={setShowFullPayDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>

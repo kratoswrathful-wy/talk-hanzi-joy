@@ -2,7 +2,8 @@ import type { ClientInvoice, ClientInvoiceAdjustmentLine, ClientInvoiceStatus, C
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
-import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import { baseToInvoiceComment, invoiceCommentToBase, invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import { loadCommentActor, mergeCommentField } from "@/lib/comment-persist";
 import { editLogsFromJson, editLogsToJson } from "@/lib/invoice-edit-logs";
 import {
   classifyInvoiceWriteCertainty,
@@ -536,7 +537,28 @@ export const clientInvoiceStore = {
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.invoiceNumber !== undefined) dbUpdates.invoice_number = updates.invoiceNumber;
     if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
-    if (updates.comments !== undefined) dbUpdates.comments = invoiceCommentsToJson(updates.comments);
+    if (updates.comments !== undefined) {
+      const actor = await loadCommentActor(supabase);
+      const mergedComments = mergeCommentField({
+        current: (existing?.comments ?? []).map(invoiceCommentToBase),
+        incoming: updates.comments.map(invoiceCommentToBase),
+        actorId: actor.actorId,
+        isPmPlus: actor.isPmPlus,
+      });
+      if (mergedComments.ok === false) {
+        invoices = invoices.map((inv) => (inv.id === id && previous ? previous : inv));
+        notify();
+        return { error: mergedComments.error };
+      }
+      updates = {
+        ...updates,
+        comments: mergedComments.next.map((c) =>
+          baseToInvoiceComment(c, existing?.comments.find((x) => x.id === c.id)?.timestamp || new Date().toISOString()),
+        ),
+      };
+      invoices = invoices.map((inv) => (inv.id === id ? { ...inv, comments: updates.comments } : inv));
+      dbUpdates.comments = invoiceCommentsToJson(updates.comments);
+    }
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = editLogsToJson(updates.edit_logs);
     if (updates.isRecordOnly !== undefined) dbUpdates.is_record_only = updates.isRecordOnly;
     if (updates.recordAmount !== undefined) dbUpdates.record_amount = updates.recordAmount;

@@ -59,6 +59,10 @@ export interface Note {
   author: string;
   text: string;
   createdAt: string;
+  authorUserId?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
   imageUrls?: string[];
   fileUrls?: { name: string; url: string }[];
   replyTo?: string;

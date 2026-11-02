@@ -1,10 +1,15 @@
 import type { Json } from "@/integrations/supabase/types";
+import { extraCommentFields, extraCommentJson, type CommentBase } from "@/lib/comment-model";
 
 /** 客戶／稿費請款單留言（與畫面 CommentEntry 同形，timestamp 為 24 小時制字串）。 */
 export type InvoiceComment = {
   id: string;
   author: string;
   content: string;
+  authorUserId?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
   imageUrls?: string[];
   fileUrls?: { name: string; url: string }[];
   replyTo?: string;
@@ -41,6 +46,7 @@ export function invoiceCommentFromJson(x: Json): InvoiceComment | undefined {
     author: x.author,
     content: x.content,
     timestamp: x.timestamp,
+    ...extraCommentFields(x as Record<string, unknown>),
     ...(imageUrls?.length ? { imageUrls } : {}),
     ...(fileUrls?.length ? { fileUrls } : {}),
     ...(typeof x.replyTo === "string" ? { replyTo: x.replyTo } : {}),
@@ -63,9 +69,41 @@ export function invoiceCommentsToJson(comments: InvoiceComment[]): Json {
     id: c.id,
     author: c.author,
     content: c.content,
+    ...extraCommentJson(c),
     ...(c.imageUrls ? { imageUrls: c.imageUrls } : {}),
     ...(c.fileUrls ? { fileUrls: c.fileUrls.map((f) => ({ name: f.name, url: f.url })) } : {}),
     ...(c.replyTo ? { replyTo: c.replyTo } : {}),
     timestamp: c.timestamp,
   }));
+}
+
+export function invoiceCommentToBase(c: InvoiceComment): CommentBase {
+  return {
+    id: c.id,
+    author: c.author,
+    content: c.content,
+    authorUserId: c.authorUserId,
+    deleted: c.deleted,
+    deletedAt: c.deletedAt,
+    deletedByUserId: c.deletedByUserId,
+    imageUrls: c.imageUrls,
+    fileUrls: c.fileUrls,
+    replyTo: c.replyTo,
+  };
+}
+
+export function baseToInvoiceComment(c: CommentBase, timestamp: string): InvoiceComment {
+  return {
+    id: c.id,
+    author: c.author,
+    content: c.content,
+    timestamp,
+    authorUserId: c.authorUserId,
+    deleted: c.deleted,
+    deletedAt: c.deletedAt,
+    deletedByUserId: c.deletedByUserId,
+    imageUrls: c.imageUrls,
+    fileUrls: c.fileUrls,
+    replyTo: c.replyTo,
+  };
 }

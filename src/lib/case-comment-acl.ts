@@ -1,4 +1,5 @@
 import type { CaseComment } from "@/data/case-types";
+import { mergeCommentList } from "@/lib/comment-model";
 
 export function canToggleClientQuestionForm(input: {
   isAdmin: boolean;
@@ -21,38 +22,20 @@ export type CommentMergeResult =
   | { status: "forbidden"; next: CaseComment[]; reason: string };
 
 /**
- * 一般成員只能追加留言，不能整包覆寫刪掉別人的。
- * 主管可以刪。
+ * 以最新儲存為準合併：新則蓋上操作者 ID；刪除依原作者或 PM 以上。
+ * isAdmin 僅相容舊呼叫，等同 isPmPlus。
  */
 export function mergeCaseComments(input: {
   current: CaseComment[] | null | undefined;
   incoming: CaseComment[] | null | undefined;
-  isAdmin: boolean;
+  actorId?: string | null;
+  isPmPlus?: boolean;
+  isAdmin?: boolean;
 }): CommentMergeResult {
-  const current = Array.isArray(input.current) ? input.current : [];
-  const incoming = Array.isArray(input.incoming) ? input.incoming : [];
-  const currentIds = new Set(current.map((c) => commentIdentity(c)).filter(Boolean));
-  const incomingIds = new Set(incoming.map((c) => commentIdentity(c)).filter(Boolean));
-
-  if (!input.isAdmin) {
-    for (const id of currentIds) {
-      if (id && !incomingIds.has(id)) {
-        return { status: "forbidden", next: current, reason: "comment_not_deletable" };
-      }
-    }
-  }
-
-  if (input.isAdmin) {
-    return { status: "ok", next: incoming };
-  }
-
-  const next = [...current];
-  const live = new Set(currentIds);
-  for (const item of incoming) {
-    const id = commentIdentity(item);
-    if (!id || live.has(id)) continue;
-    next.push(item);
-    live.add(id);
-  }
-  return { status: "ok", next };
+  return mergeCommentList({
+    current: input.current,
+    incoming: input.incoming,
+    actorId: input.actorId,
+    isPmPlus: input.isPmPlus ?? input.isAdmin === true,
+  });
 }

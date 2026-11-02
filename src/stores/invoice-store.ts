@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
-import { invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import { baseToInvoiceComment, invoiceCommentToBase, invoiceCommentsFromJson, invoiceCommentsToJson } from "@/lib/invoice-comments";
+import { loadCommentActor, mergeCommentField } from "@/lib/comment-persist";
 import { shouldRefuseInternalCommentWrite } from "@/lib/invoice-internal-comments";
 import { persistInvoiceInternalComments } from "@/lib/invoice-internal-comments-write";
 import {
@@ -484,7 +485,28 @@ export const invoiceStore = {
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.payments !== undefined) dbUpdates.payments = paymentsToJson(updates.payments);
-    if (updates.comments !== undefined) dbUpdates.comments = invoiceCommentsToJson(updates.comments);
+    if (updates.comments !== undefined) {
+      const actor = await loadCommentActor(supabase);
+      const mergedComments = mergeCommentField({
+        current: existing.comments.map(invoiceCommentToBase),
+        incoming: updates.comments.map(invoiceCommentToBase),
+        actorId: actor.actorId,
+        isPmPlus: actor.isPmPlus,
+      });
+      if (mergedComments.ok === false) {
+        invoices = invoices.map((inv) => (inv.id === id ? previous : inv));
+        notify();
+        return { error: mergedComments.error };
+      }
+      updates = {
+        ...updates,
+        comments: mergedComments.next.map((c) =>
+          baseToInvoiceComment(c, existing.comments.find((x) => x.id === c.id)?.timestamp || new Date().toISOString()),
+        ),
+      };
+      invoices = invoices.map((inv) => (inv.id === id ? { ...inv, comments: updates.comments } : inv));
+      dbUpdates.comments = invoiceCommentsToJson(updates.comments);
+    }
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs as Json;
     if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
@@ -529,8 +551,11 @@ export const invoiceStore = {
       if (hasInternal) {
         const env = getEnvironment();
         const uid = await getUserId();
+        const actor = await loadCommentActor(supabase);
         const persisted = await persistInvoiceInternalComments({
           incoming: updates.internalComments ?? [],
+          actorId: actor.actorId,
+          isPmPlus: actor.isPmPlus,
           ...createInvoiceInternalCommentsAdapter(supabase, { invoiceId: id, env, uid }),
         });
         if (persisted.ok === false) {

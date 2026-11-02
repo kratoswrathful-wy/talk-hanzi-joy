@@ -69,6 +69,7 @@ import {
 } from "@/lib/case-action-rpc";
 import { copyFileItemsKeepUploaders, memberPersistShouldRefuse, pickMemberPermittedChanges } from "@/lib/case-attachment-acl";
 import { mergeCaseComments } from "@/lib/case-comment-acl";
+import { extraCommentFields, isPmPlusRoles } from "@/lib/comment-model";
 import { caseCredentialAccess } from "@/lib/case-credential-store";
 import { CredentialLoadStaleError } from "@/lib/case-credential-access";
 import {
@@ -177,6 +178,7 @@ function caseCommentFromJson(x: Json): CaseComment | undefined {
     author: x.author,
     content: x.content,
     createdAt: x.createdAt,
+    ...extraCommentFields(x as Record<string, unknown>),
     ...(imageUrls && imageUrls.length ? { imageUrls } : {}),
     ...(fileUrls && fileUrls.length ? { fileUrls } : {}),
     ...(typeof x.replyTo === "string" ? { replyTo: x.replyTo } : {}),
@@ -960,7 +962,8 @@ async function persistQueuedUpdate(
     shouldSyncCatWorkflowAssignments: boolean;
   },
 ) {
-  const { partial, merged, shouldSyncCatAssignments, shouldSyncCatWorkflowAssignments } = ctx;
+  const { partial, shouldSyncCatAssignments, shouldSyncCatWorkflowAssignments } = ctx;
+  let { merged } = ctx;
   const live = getById(id);
   const mapped = toDb(merged);
   mapped.updated_at = new Date().toISOString();
@@ -974,6 +977,41 @@ async function persistQueuedUpdate(
     ? await supabase.from("user_roles").select("role").eq("user_id", sessionUser.id)
     : { data: null, error: new Error("no_session") };
   const access = adminWriteAccessFromRoles(roleQuery.data, roleQuery.error);
+  const isPmPlus = access.ok && access.isAdmin;
+  if (merged.comments !== undefined) {
+    const commentMerge = mergeCaseComments({
+      current: live?.comments,
+      incoming: merged.comments,
+      actorId: sessionUser?.id,
+      isPmPlus,
+    });
+    if (commentMerge.status === "forbidden") {
+      finishInFlight(id, true);
+      notify();
+      return new Error(commentMerge.reason === "comment_not_deletable"
+        ? "沒有刪除這則留言的權限。"
+        : "留言無法儲存。");
+    }
+    merged = { ...merged, comments: commentMerge.next };
+    mapped.comments = toJson(commentMerge.next);
+  }
+  if (merged.internalComments !== undefined) {
+    const internalMerge = mergeCaseComments({
+      current: live?.internalComments,
+      incoming: merged.internalComments,
+      actorId: sessionUser?.id,
+      isPmPlus,
+    });
+    if (internalMerge.status === "forbidden") {
+      finishInFlight(id, true);
+      notify();
+      return new Error(internalMerge.reason === "comment_not_deletable"
+        ? "沒有刪除這則內部備註的權限。"
+        : "內部備註無法儲存。");
+    }
+    merged = { ...merged, internalComments: internalMerge.next };
+    mapped.internal_comments = toJson(internalMerge.next);
+  }
   const hasAssignment = casePartialHasAssignmentFields(partial as Record<string, unknown>);
   if (shouldBlockNonAdminAssignmentWrite(access, hasAssignment)) {
     finishInFlight(id, true);
@@ -1052,7 +1090,8 @@ async function persistQueuedUpdate(
       const commentMerge = mergeCaseComments({
         current: live?.comments,
         incoming: merged.comments,
-        isAdmin: false,
+        actorId: sessionUser?.id,
+        isPmPlus: false,
       });
       if (commentMerge.status === "forbidden") {
         error = new Error(commentMerge.reason);

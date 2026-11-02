@@ -1,5 +1,6 @@
 import type { InvoiceComment } from "@/lib/invoice-comments";
 import { mergeInvoiceInternalComments } from "@/lib/invoice-internal-comments";
+import { mergeCommentList } from "@/lib/comment-model";
 
 export type InternalCommentRemote =
   | { ok: true; comments: InvoiceComment[]; updatedAt: string | null; exists: boolean }
@@ -20,6 +21,8 @@ export type PersistInvoiceInternalCommentsDeps = {
   }) => Promise<InternalCommentWriteOp & { wrote?: boolean }>;
   now?: () => string;
   maxAttempts?: number;
+  actorId?: string | null;
+  isPmPlus?: boolean;
 };
 
 export type PersistInvoiceInternalCommentsResult =
@@ -42,7 +45,18 @@ export async function persistInvoiceInternalComments(
     if (remote.ok === false) {
       return { ok: false, error: remote.error };
     }
-    const merged = mergeInvoiceInternalComments(remote.comments, deps.incoming);
+    const mergedList = deps.actorId
+      ? mergeCommentList({
+        current: remote.comments,
+        incoming: deps.incoming,
+        actorId: deps.actorId,
+        isPmPlus: !!deps.isPmPlus,
+      })
+      : { status: "ok" as const, next: mergeInvoiceInternalComments(remote.comments, deps.incoming) };
+    if (mergedList.status === "forbidden") {
+      return { ok: false, error: new Error(mergedList.reason) };
+    }
+    const merged = mergedList.next;
     const updatedAt = nowFn();
     if (!remote.exists) {
       const inserted = await deps.insertRow({ comments: merged, updatedAt });

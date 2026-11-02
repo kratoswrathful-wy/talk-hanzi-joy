@@ -30,7 +30,8 @@ import {
   selectFeePendingForSession,
   type FeePendingRecord,
 } from "@/lib/fee-write";
-import { notesFromJson, notesToJson } from "@/lib/fee-notes";
+import { commentBaseToNote, feeNoteToCommentFields, notesFromJson, notesToJson } from "@/lib/fee-notes";
+import { loadCommentActor, mergeCommentField } from "@/lib/comment-persist";
 import { toast } from "sonner";
 import { fetchAllRestPages } from "@/lib/rest-page-fetch";
 
@@ -514,7 +515,27 @@ async function persistFeeUpdateOnce(id: string, updates: Partial<TranslatorFee>,
   if (!expected) {
     return { kind: "no-version" as const };
   }
-  const patch = buildFeeRpcPatch(prev, updates);
+  let nextUpdates = updates;
+  if (updates.notes !== undefined) {
+    const actor = await loadCommentActor(supabase);
+    const currentNotes = latest?.notes ?? prev?.notes ?? [];
+    const mergedNotes = mergeCommentField({
+      current: currentNotes.map(feeNoteToCommentFields),
+      incoming: updates.notes.map(feeNoteToCommentFields),
+      actorId: actor.actorId,
+      isPmPlus: actor.isPmPlus,
+    });
+    if (mergedNotes.ok === false) {
+      return { kind: "comment" as const, error: mergedNotes.error };
+    }
+    nextUpdates = {
+      ...updates,
+      notes: mergedNotes.next.map((c) =>
+        commentBaseToNote(c, currentNotes.find((n) => n.id === c.id)?.createdAt || c.createdAt || new Date().toISOString()),
+      ),
+    };
+  }
+  const patch = buildFeeRpcPatch(prev, nextUpdates);
   if (Object.keys(patch).length === 0) return { kind: "empty" as const };
   const result = await applyFeeUpdate(supabase, id, patch, expected);
   return { kind: "rpc" as const, result };
@@ -537,6 +558,11 @@ async function persistFeeUpdate(id: string, updates: Partial<TranslatorFee>, pre
     feeLastWriteError.set(id, err.message);
     toast.error(err.message);
     return err;
+  }
+  if (attempt.kind === "comment") {
+    feeLastWriteError.set(id, attempt.error.message);
+    toast.error("留言無法刪除或儲存。已保留原內容。");
+    return attempt.error;
   }
   if (attempt.kind === "empty") return null;
   const result = attempt.result;

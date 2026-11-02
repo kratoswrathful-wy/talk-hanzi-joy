@@ -4,6 +4,10 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { ArrowLeft, Plus, X, Loader2, FileText, Copy, Check } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
+import { CommentDeleteDialog, CommentToolbar } from "@/components/comments/CommentDeleteControls";
+import { persistCommentDelete } from "@/lib/comment-persist";
+import type { CommentBase } from "@/lib/comment-model";
+import { commentBaseToNote } from "@/lib/fee-notes";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { invoiceStore } from "@/stores/invoice-store";
 import { applyInvoiceLinkAddFeedback } from "@/lib/invoice-link-add";
@@ -282,6 +286,10 @@ interface CommentEntry {
   id: string;
   author: string;
   content: string; // supports markdown-like: @user, [text](url), ![img](url)
+  authorUserId?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
   imageUrls?: string[];
   fileUrls?: { name: string; url: string }[];
   replyTo?: string;
@@ -376,7 +384,7 @@ export default function TranslatorFeeDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
-  const { isAdmin: authIsAdmin, profile: authProfile, roles: authRoles } = useAuth();
+  const { isAdmin: authIsAdmin, profile: authProfile, roles: authRoles, user } = useAuth();
   const { checkPerm } = usePermissions();
   const authIsExecutive = authRoles.some((r) => r.role === "executive");
   const canFinalizeFeeEdit = checkPerm("fee_management", "fee_detail_finalize", "edit");
@@ -388,6 +396,9 @@ export default function TranslatorFeeDetail() {
   const [comments, setComments] = useState<CommentEntry[]>(() =>
     (feeData?.notes ?? []).map((n) => ({ ...feeNoteToCommentFields(n), timestamp: formatTimestamp(n.createdAt) }))
   );
+  const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentBase | null>(null);
+  const [commentDeleteScope, setCommentDeleteScope] = useState<"notes" | "internal">("notes");
+  const [commentDeleteBusy, setCommentDeleteBusy] = useState(false);
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
@@ -2645,29 +2656,30 @@ export default function TranslatorFeeDetail() {
               return topLevel.map((c) => (
                 <div key={c.id} className="space-y-1">
                   <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{c.author}</span>
-                        <span className="text-muted-foreground">{c.timestamp}</span>
-                      </div>
-                      {isManager && (
-                        <button
-                          className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
-                          onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
-                        >
-                          回覆
-                        </button>
-                      )}
-                    </div>
-                    <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                    <CommentToolbar
+                      author={c.author}
+                      timeLabel={c.timestamp}
+                      comment={c}
+                      actorId={user?.id}
+                      isPmPlus={authIsAdmin}
+                      showReply={isManager}
+                      onReply={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                      onDelete={(item) => { setCommentDeleteScope("notes"); setCommentDeleteTarget(item); }}
+                    />
+                    <CommentContent content={c.content} imageUrls={c.deleted ? undefined : c.imageUrls} fileUrls={c.deleted ? undefined : c.fileUrls} />
                   </div>
                   {getReplies(c.id).map((r) => (
                     <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium">{r.author}</span>
-                        <span className="text-muted-foreground">{r.timestamp}</span>
-                      </div>
-                      <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                      <CommentToolbar
+                        author={r.author}
+                        timeLabel={r.timestamp}
+                        comment={r}
+                        actorId={user?.id}
+                        isPmPlus={authIsAdmin}
+                        showReply={false}
+                        onDelete={(item) => { setCommentDeleteScope("notes"); setCommentDeleteTarget(item); }}
+                      />
+                      <CommentContent content={r.content} imageUrls={r.deleted ? undefined : r.imageUrls} fileUrls={r.deleted ? undefined : r.fileUrls} />
                     </div>
                   ))}
                   {isManager && replyingTo === c.id && (
@@ -2681,6 +2693,7 @@ export default function TranslatorFeeDetail() {
                           const newNote: CommentEntry = {
                             id: `comment-${Date.now()}`,
                             author: authorName,
+                            authorUserId: user?.id,
                             content,
                             imageUrls,
                             fileUrls,
@@ -2690,7 +2703,7 @@ export default function TranslatorFeeDetail() {
                           if (!id) return false;
                           const currentFee = feeStore.getFeeById(id);
                           if (!currentFee) return false;
-                          const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString(), imageUrls, fileUrls, replyTo: c.id };
+                          const storeNote = { id: newNote.id, text: content, author: newNote.author, authorUserId: user?.id, createdAt: new Date().toISOString(), imageUrls, fileUrls, replyTo: c.id };
                           const error = await feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
                           if (error) return false;
                           setComments([...comments, newNote]);
@@ -2714,6 +2727,7 @@ export default function TranslatorFeeDetail() {
               const newNote: CommentEntry = {
                 id: `comment-${Date.now()}`,
                 author: authorName,
+                authorUserId: user?.id,
                 content,
                 imageUrls,
                 fileUrls,
@@ -2722,7 +2736,7 @@ export default function TranslatorFeeDetail() {
               if (!id) return false;
               const currentFee = feeStore.getFeeById(id);
               if (!currentFee) return false;
-              const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString(), imageUrls, fileUrls };
+              const storeNote = { id: newNote.id, text: content, author: newNote.author, authorUserId: user?.id, createdAt: new Date().toISOString(), imageUrls, fileUrls };
               const error = await feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
               if (error) return false;
               setComments([...comments, newNote]);
@@ -2745,27 +2759,29 @@ export default function TranslatorFeeDetail() {
                   return topLevel.map((c) => (
                     <div key={c.id} className="space-y-1">
                       <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{c.author}</span>
-                            <span className="text-muted-foreground">{c.timestamp}</span>
-                          </div>
-                          <button
-                            className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
-                            onClick={() => setInternalReplyingTo(internalReplyingTo === c.id ? null : c.id)}
-                          >
-                            回覆
-                          </button>
-                        </div>
-                        <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                        <CommentToolbar
+                          author={c.author}
+                          timeLabel={c.timestamp}
+                          comment={c}
+                          actorId={user?.id}
+                          isPmPlus={authIsAdmin}
+                          onReply={() => setInternalReplyingTo(internalReplyingTo === c.id ? null : c.id)}
+                          onDelete={(item) => { setCommentDeleteScope("internal"); setCommentDeleteTarget(item); }}
+                        />
+                        <CommentContent content={c.content} imageUrls={c.deleted ? undefined : c.imageUrls} fileUrls={c.deleted ? undefined : c.fileUrls} />
                       </div>
                       {getReplies(c.id).map((r) => (
                         <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{r.author}</span>
-                            <span className="text-muted-foreground">{r.timestamp}</span>
-                          </div>
-                          <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                          <CommentToolbar
+                            author={r.author}
+                            timeLabel={r.timestamp}
+                            comment={r}
+                            actorId={user?.id}
+                            isPmPlus={authIsAdmin}
+                            showReply={false}
+                            onDelete={(item) => { setCommentDeleteScope("internal"); setCommentDeleteTarget(item); }}
+                          />
+                          <CommentContent content={r.content} imageUrls={r.deleted ? undefined : r.imageUrls} fileUrls={r.deleted ? undefined : r.fileUrls} />
                         </div>
                       ))}
                       {internalReplyingTo === c.id && (
@@ -2814,6 +2830,62 @@ export default function TranslatorFeeDetail() {
       </motion.div>
 
       {/* Delete Confirmation */}
+      <CommentDeleteDialog
+        target={commentDeleteTarget}
+        busy={commentDeleteBusy}
+        onCancel={() => { if (!commentDeleteBusy) setCommentDeleteTarget(null); }}
+        onConfirm={async () => {
+          if (!commentDeleteTarget || commentDeleteBusy) return;
+          setCommentDeleteBusy(true);
+          if (commentDeleteScope === "internal") {
+            const result = await persistCommentDelete({
+              current: internalComments,
+              commentId: commentDeleteTarget.id,
+              actorId: user?.id,
+              isPmPlus: authIsAdmin,
+              persist: async (next) => {
+                setInternalComments(next as CommentEntry[]);
+                return true;
+              },
+            });
+            setCommentDeleteBusy(false);
+            if (result.ok) setCommentDeleteTarget(null);
+            return;
+          }
+          if (!id) {
+            setCommentDeleteBusy(false);
+            return;
+          }
+          const currentFee = feeStore.getFeeById(id);
+          if (!currentFee) {
+            setCommentDeleteBusy(false);
+            return;
+          }
+          const result = await persistCommentDelete({
+            current: currentFee.notes.map((n) => feeNoteToCommentFields(n)),
+            commentId: commentDeleteTarget.id,
+            actorId: user?.id,
+            isPmPlus: authIsAdmin,
+            persist: async (next) => {
+              const notes = next.map((c) =>
+                commentBaseToNote(c, currentFee.notes.find((n) => n.id === c.id)?.createdAt || new Date().toISOString()),
+              );
+              const error = await feeStore.updateFee(id, { notes });
+              return !error;
+            },
+          });
+          setCommentDeleteBusy(false);
+          if (result.ok) {
+            setComments(result.next.map((c) => ({
+              ...c,
+              timestamp: comments.find((x) => x.id === c.id)?.timestamp || formatTimestamp(new Date()),
+            })));
+            setCommentDeleteTarget(null);
+          } else {
+            toast.error("留言刪除未完成，已保留原內容。");
+          }
+        }}
+      />
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

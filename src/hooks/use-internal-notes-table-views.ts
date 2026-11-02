@@ -16,6 +16,10 @@ export interface NoteComment {
   id: string;
   author: string;
   content: string;
+  authorUserId?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
   imageUrls?: string[];
   fileUrls?: { name: string; url: string }[];
   replyTo?: string;

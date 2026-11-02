@@ -7,7 +7,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (...args: unknown[]) => fromMock(...args),
     auth: {
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
-      getSession: async () => ({ data: { session: { user: { id: "pm-1" } } }, error: null }),
+      getSession: async () => ({ data: { session: { user: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } }, error: null }),
     },
     channel: () => ({
       on: function on() {
@@ -19,7 +19,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 vi.mock("@/lib/auth-ready", () => ({
-  getAuthenticatedUser: async () => ({ id: "pm-1" }),
+  getAuthenticatedUser: async () => ({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
 }));
 
 vi.mock("@/lib/environment", () => ({
@@ -39,7 +39,7 @@ function seedKnownInvoice(id: string, known: boolean | undefined) {
     translator: "譯者一（測試）",
     status: "pending" as const,
     note: "",
-    createdBy: "pm-1",
+    createdBy: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     createdAt: "2026-09-28T05:00:00.000Z",
     updatedAt: "2026-09-28T05:00:00.000Z",
     feeIds: [] as string[],

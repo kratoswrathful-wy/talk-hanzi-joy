@@ -55,6 +55,9 @@ import FileField, { type FileItem } from "@/components/FileField";
 import type { TemplateFieldValue } from "@/stores/page-template-store";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { CommentDeleteDialog, CommentToolbar } from "@/components/comments/CommentDeleteControls";
+import { persistCommentDelete } from "@/lib/comment-persist";
+import type { CommentBase } from "@/lib/comment-model";
 
 import {
   AlertDialog,
@@ -1294,6 +1297,9 @@ export default function CaseDetailPage() {
 
   // Comment drafts
   const [commentDraft, setCommentDraft] = useState("");
+  const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentBase | null>(null);
+  const [commentDeleteScope, setCommentDeleteScope] = useState<"comments" | "internal">("comments");
+  const [commentDeleteBusy, setCommentDeleteBusy] = useState(false);
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
@@ -4148,28 +4154,30 @@ export default function CaseDetailPage() {
             return topLevel.map((c) => (
               <div key={c.id} className="space-y-1">
                 <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{formatTimestamp(c.createdAt)}</span>
-                    </div>
-                    <button
-                      className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
-                      onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
-                    >
-                      回覆
-                    </button>
-                  </div>
-                  <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                  <CommentToolbar
+                    author={c.author}
+                    timeLabel={formatTimestamp(c.createdAt)}
+                    comment={c}
+                    actorId={user?.id}
+                    isPmPlus={isPmOrAbove}
+                    onReply={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                    onDelete={(item) => { setCommentDeleteScope("comments"); setCommentDeleteTarget(item); }}
+                  />
+                  <CommentContent content={c.content} imageUrls={c.deleted ? undefined : c.imageUrls} fileUrls={c.deleted ? undefined : c.fileUrls} />
                 </div>
                 {/* Replies */}
                 {replies(c.id).map((r) => (
                   <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{r.author}</span>
-                      <span className="text-muted-foreground">{formatTimestamp(r.createdAt)}</span>
-                    </div>
-                    <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                    <CommentToolbar
+                      author={r.author}
+                      timeLabel={formatTimestamp(r.createdAt)}
+                      comment={r}
+                      actorId={user?.id}
+                      isPmPlus={isPmOrAbove}
+                      showReply={false}
+                      onDelete={(item) => { setCommentDeleteScope("comments"); setCommentDeleteTarget(item); }}
+                    />
+                    <CommentContent content={r.content} imageUrls={r.deleted ? undefined : r.imageUrls} fileUrls={r.deleted ? undefined : r.fileUrls} />
                   </div>
                 ))}
                 {/* Reply input */}
@@ -4183,6 +4191,7 @@ export default function CaseDetailPage() {
                         const newComment: CaseComment = {
                           id: `comment-${Date.now()}`,
                           author: profile?.display_name || "成員",
+                          authorUserId: user?.id,
                           content,
                           imageUrls,
                           fileUrls,
@@ -4207,6 +4216,7 @@ export default function CaseDetailPage() {
             const newComment: CaseComment = {
               id: `comment-${Date.now()}`,
               author: profile?.display_name || "成員",
+              authorUserId: user?.id,
               content,
               imageUrls,
               fileUrls,
@@ -4230,27 +4240,29 @@ export default function CaseDetailPage() {
                 return topLevel.map((c) => (
                   <div key={c.id} className="space-y-1">
                     <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{c.author}</span>
-                          <span className="text-muted-foreground">{formatTimestamp(c.createdAt)}</span>
-                        </div>
-                        <button
-                          className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
-                          onClick={() => setInternalReplyingTo(internalReplyingTo === c.id ? null : c.id)}
-                        >
-                          回覆
-                        </button>
-                      </div>
-                      <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                      <CommentToolbar
+                        author={c.author}
+                        timeLabel={formatTimestamp(c.createdAt)}
+                        comment={c}
+                        actorId={user?.id}
+                        isPmPlus={isPmOrAbove}
+                        onReply={() => setInternalReplyingTo(internalReplyingTo === c.id ? null : c.id)}
+                        onDelete={(item) => { setCommentDeleteScope("internal"); setCommentDeleteTarget(item); }}
+                      />
+                      <CommentContent content={c.content} imageUrls={c.deleted ? undefined : c.imageUrls} fileUrls={c.deleted ? undefined : c.fileUrls} />
                     </div>
                     {replies(c.id).map((r) => (
                       <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{r.author}</span>
-     <span className="text-muted-foreground">{formatTimestamp(r.createdAt)}</span>
-                        </div>
-                        <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                        <CommentToolbar
+                          author={r.author}
+                          timeLabel={formatTimestamp(r.createdAt)}
+                          comment={r}
+                          actorId={user?.id}
+                          isPmPlus={isPmOrAbove}
+                          showReply={false}
+                          onDelete={(item) => { setCommentDeleteScope("internal"); setCommentDeleteTarget(item); }}
+                        />
+                        <CommentContent content={r.content} imageUrls={r.deleted ? undefined : r.imageUrls} fileUrls={r.deleted ? undefined : r.fileUrls} />
                       </div>
                     ))}
                     {internalReplyingTo === c.id && (
@@ -4263,6 +4275,7 @@ export default function CaseDetailPage() {
                             const newComment: CaseComment = {
                               id: `icomment-${Date.now()}`,
                               author: profile?.display_name || "專案經理",
+                              authorUserId: user?.id,
                               content,
                               imageUrls,
                               fileUrls,
@@ -4287,6 +4300,7 @@ export default function CaseDetailPage() {
                 const newComment: CaseComment = {
                   id: `icomment-${Date.now()}`,
                   author: profile?.display_name || "專案經理",
+                  authorUserId: user?.id,
                   content,
                   imageUrls,
                   fileUrls,
@@ -4299,6 +4313,36 @@ export default function CaseDetailPage() {
         </>
       )}
 
+      <CommentDeleteDialog
+        target={commentDeleteTarget}
+        busy={commentDeleteBusy}
+        onCancel={() => { if (!commentDeleteBusy) setCommentDeleteTarget(null); }}
+        onConfirm={async () => {
+          if (!commentDeleteTarget || commentDeleteBusy) return;
+          setCommentDeleteBusy(true);
+          const list = commentDeleteScope === "internal" ? internalComments : comments;
+          const result = await persistCommentDelete({
+            current: list,
+            commentId: commentDeleteTarget.id,
+            actorId: user?.id,
+            isPmPlus: isPmOrAbove,
+            persist: async (next) => {
+              const err = await save(commentDeleteScope === "internal" ? { internalComments: next } : { comments: next });
+              return !err;
+            },
+          });
+          setCommentDeleteBusy(false);
+          if (result.ok === true) {
+            setCommentDeleteTarget(null);
+          } else {
+            toast({
+              title: result.reason === "forbidden" ? "沒有刪除權限" : "留言刪除未完成",
+              description: "畫面已保留原內容，請稍後再試或重整後確認。",
+              variant: "destructive",
+            });
+          }
+        }}
+      />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { extraCommentFields, extraCommentJson } from "@/lib/comment-model";
+import { loadCommentActor, mergeCommentField } from "@/lib/comment-persist";
 import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Listener = () => void;
@@ -46,6 +48,7 @@ function commentsFromJson(raw: Json | null | undefined): NoteComment[] {
       id: o.id,
       author: typeof o.author === "string" ? o.author : "",
       content: typeof o.content === "string" ? o.content : "",
+      ...extraCommentFields(o),
       ...(imageUrls?.length ? { imageUrls } : {}),
       ...(fileUrls?.length ? { fileUrls } : {}),
       ...(typeof o.replyTo === "string" ? { replyTo: o.replyTo } : {}),
@@ -62,6 +65,7 @@ function commentsToJson(comments: NoteComment[]): Json {
     content: c.content,
     ...(c.imageUrls ? { imageUrls: c.imageUrls } : {}),
     ...(c.fileUrls ? { fileUrls: c.fileUrls.map((f) => ({ name: f.name, url: f.url })) } : {}),
+    ...extraCommentJson(c),
     ...(c.replyTo !== undefined ? { replyTo: c.replyTo } : {}),
     createdAt: c.createdAt,
   }));
@@ -232,15 +236,38 @@ export const internalNotesStore = {
   },
 
   update: async (id: string, updates: Partial<InternalNote>) => {
-    notes = notes.map((n) => (n.id === id ? { ...n, ...updates } : n));
+    const previous = notes.find((n) => n.id === id);
+    let nextUpdates = updates;
+    if (updates.comments !== undefined) {
+      const actor = await loadCommentActor(supabase);
+      const merged = mergeCommentField({
+        current: previous?.comments ?? [],
+        incoming: updates.comments,
+        actorId: actor.actorId,
+        isPmPlus: actor.isPmPlus,
+      });
+      if (merged.ok === false) {
+        return merged.error;
+      }
+      nextUpdates = { ...updates, comments: merged.next };
+    }
+    notes = notes.map((n) => (n.id === id ? { ...n, ...nextUpdates } : n));
     notify();
-    const dbUpdates = appToDb(updates);
-    if (Object.keys(dbUpdates).length === 0) return;
+    const dbUpdates = appToDb(nextUpdates);
+    if (Object.keys(dbUpdates).length === 0) return null;
     const { error } = await supabase
       .from("internal_notes")
       .update({ ...dbUpdates, updated_at: new Date().toISOString() })
       .eq("id", id);
-    if (error) console.error("Failed to update internal note:", error);
+    if (error) {
+      console.error("Failed to update internal note:", error);
+      if (previous) {
+        notes = notes.map((n) => (n.id === id ? previous : n));
+        notify();
+      }
+      return error;
+    }
+    return null;
   },
 
   remove: (id: string) => {

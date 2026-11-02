@@ -27,6 +27,9 @@ import MultiColorSelect from "@/components/MultiColorSelect";
 import FileField from "@/components/FileField";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { CommentDeleteDialog, CommentToolbar } from "@/components/comments/CommentDeleteControls";
+import { persistCommentDelete } from "@/lib/comment-persist";
+import type { CommentBase } from "@/lib/comment-model";
 import {
   useInternalNotesTableViews,
   internalNotesFieldMetas,
@@ -140,7 +143,7 @@ function NoteDetailView({
   const noteLeaveRef = useRef(note);
   noteLeaveRef.current = note;
 
-  const { profile } = useAuth();
+  const { profile, user, isAdmin } = useAuth();
   const { checkPerm } = usePermissions();
   const visibleNoteEditLogs = useMemo(
     () => filterEditLogsInternalNote(note.editLogs ?? [], checkPerm),
@@ -152,6 +155,8 @@ function NoteDetailView({
   const [noteReminderOpen, setNoteReminderOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentBase | null>(null);
+  const [commentDeleteBusy, setCommentDeleteBusy] = useState(false);
 
   const uiNoteReminder = useToolbarButtonUiProps("internal_notes_note_reminder");
   const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
@@ -396,22 +401,29 @@ function NoteDetailView({
             return topLevel.map((c) => (
               <div key={c.id} className="space-y-1">
                 <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
-                    </div>
-                    <button className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors" onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}>回覆</button>
-                  </div>
-                  <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                  <CommentToolbar
+                    author={c.author}
+                    timeLabel={new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
+                    comment={c}
+                    actorId={user?.id}
+                    isPmPlus={isAdmin}
+                    onReply={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                    onDelete={setCommentDeleteTarget}
+                  />
+                  <CommentContent content={c.content} imageUrls={c.deleted ? undefined : c.imageUrls} fileUrls={c.deleted ? undefined : c.fileUrls} />
                 </div>
                 {getReplies(c.id).map((r) => (
                   <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{r.author}</span>
- <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
-                    </div>
-                    <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                    <CommentToolbar
+                      author={r.author}
+                      timeLabel={new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
+                      comment={r}
+                      actorId={user?.id}
+                      isPmPlus={isAdmin}
+                      showReply={false}
+                      onDelete={setCommentDeleteTarget}
+                    />
+                    <CommentContent content={r.content} imageUrls={r.deleted ? undefined : r.imageUrls} fileUrls={r.deleted ? undefined : r.fileUrls} />
                   </div>
                 ))}
                 {replyingTo === c.id && (
@@ -424,6 +436,7 @@ function NoteDetailView({
                         const newComment: NoteComment = {
                           id: `nc-${Date.now()}`,
                           author: profile?.display_name || "未知",
+                          authorUserId: user?.id,
                           content,
                           imageUrls,
                           fileUrls,
@@ -448,6 +461,7 @@ function NoteDetailView({
             const newComment: NoteComment = {
               id: `nc-${Date.now()}`,
               author: profile?.display_name || "未知",
+              authorUserId: user?.id,
               content,
               imageUrls,
               fileUrls,
@@ -459,6 +473,28 @@ function NoteDetailView({
       </div>
 
       {/* Invalidation dialog */}
+      <CommentDeleteDialog
+        target={commentDeleteTarget}
+        busy={commentDeleteBusy}
+        onCancel={() => { if (!commentDeleteBusy) setCommentDeleteTarget(null); }}
+        onConfirm={async () => {
+          if (!commentDeleteTarget || commentDeleteBusy) return;
+          setCommentDeleteBusy(true);
+          const result = await persistCommentDelete({
+            current: comments,
+            commentId: commentDeleteTarget.id,
+            actorId: user?.id,
+            isPmPlus: isAdmin,
+            persist: async (next) => {
+              const err = await internalNotesStore.update(note.id, { comments: next });
+              return !err;
+            },
+          });
+          setCommentDeleteBusy(false);
+          if (result.ok) setCommentDeleteTarget(null);
+          else toast.error("留言刪除未完成，已保留原內容。");
+        }}
+      />
       <Dialog open={invalidateOpen} onOpenChange={setInvalidateOpen}>
         <DialogContent>
           <DialogHeader>

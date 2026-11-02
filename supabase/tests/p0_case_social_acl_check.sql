@@ -202,6 +202,55 @@ begin
   if (select comments -> 0 ->> 'id' from public.cases where id = v_case) <> 'only' then
     raise exception 'admin could not replace comments';
   end if;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  perform public.update_case_social_fields(
+    v_case,
+    (select revision from public.cases where id = v_case),
+    jsonb_build_object(
+      'comments',
+      jsonb_build_array(
+        jsonb_build_object('id','only','author','PM','content','主管覆寫'),
+        jsonb_build_object('id','own','author','T1','content','自己的')
+      )
+    )
+  );
+  reset role;
+  if not exists (
+    select 1 from public.cases c, jsonb_array_elements(c.comments) e
+    where c.id = v_case and e->>'id' = 'own' and e->>'authorUserId' = v_t1::text
+  ) then
+    raise exception 'translator own comment missing authorUserId';
+  end if;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_t1::text, 'role', 'authenticated')::text,
+    true
+  );
+  set local role authenticated;
+  perform public.update_case_social_fields(
+    v_case,
+    (select revision from public.cases where id = v_case),
+    jsonb_build_object(
+      'comments',
+      jsonb_build_array(
+        jsonb_build_object('id','only','author','PM','content','主管覆寫')
+      )
+    )
+  );
+  reset role;
+  if exists (
+    select 1 from public.cases c, jsonb_array_elements(c.comments) e
+    where c.id = v_case and e->>'id' = 'own'
+  ) then
+    raise exception 'translator could not delete own comment';
+  end if;
 end;
 $$;
 

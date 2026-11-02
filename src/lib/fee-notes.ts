@@ -1,5 +1,6 @@
 import type { Note } from "@/data/fee-mock-data";
 import type { Json } from "@/integrations/supabase/types";
+import { extraCommentFields, extraCommentJson, type CommentBase } from "@/lib/comment-model";
 
 function nameUrlFromJson(x: Json): { name: string; url: string } | undefined {
   if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
@@ -29,6 +30,7 @@ export function notesFromJson(raw: Json | null | undefined): Note[] {
       author: typeof o.author === "string" ? o.author : "",
       text: typeof o.text === "string" ? o.text : "",
       createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
+      ...extraCommentFields(o),
       ...(imageUrls?.length ? { imageUrls } : {}),
       ...(fileUrls?.length ? { fileUrls } : {}),
       ...(typeof o.replyTo === "string" ? { replyTo: o.replyTo } : {}),
@@ -43,26 +45,41 @@ export function notesToJson(notes: Note[]): Json {
     author: n.author,
     text: n.text,
     createdAt: n.createdAt,
+    ...extraCommentJson(n),
     ...(n.imageUrls?.length ? { imageUrls: n.imageUrls } : {}),
     ...(n.fileUrls?.length ? { fileUrls: n.fileUrls.map((f) => ({ name: f.name, url: f.url })) } : {}),
     ...(n.replyTo ? { replyTo: n.replyTo } : {}),
   }));
 }
 
-export function feeNoteToCommentFields(n: Note): {
-  id: string;
-  author: string;
-  content: string;
-  imageUrls?: string[];
-  fileUrls?: { name: string; url: string }[];
-  replyTo?: string;
-} {
+export function feeNoteToCommentFields(n: Note): CommentBase & { timestamp?: string } {
   return {
     id: n.id,
     author: n.author,
     content: n.text,
+    createdAt: n.createdAt,
+    authorUserId: n.authorUserId,
+    deleted: n.deleted,
+    deletedAt: n.deletedAt,
+    deletedByUserId: n.deletedByUserId,
     ...(n.imageUrls?.length ? { imageUrls: n.imageUrls } : {}),
     ...(n.fileUrls?.length ? { fileUrls: n.fileUrls } : {}),
     ...(n.replyTo ? { replyTo: n.replyTo } : {}),
+  };
+}
+
+export function commentBaseToNote(c: CommentBase, createdAt: string): Note {
+  return {
+    id: c.id,
+    author: c.author,
+    text: c.content,
+    createdAt,
+    authorUserId: c.authorUserId,
+    deleted: c.deleted,
+    deletedAt: c.deletedAt,
+    deletedByUserId: c.deletedByUserId,
+    imageUrls: c.imageUrls,
+    fileUrls: c.fileUrls,
+    replyTo: c.replyTo,
   };
 }
