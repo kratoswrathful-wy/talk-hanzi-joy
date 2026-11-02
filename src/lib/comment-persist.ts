@@ -11,10 +11,8 @@ export async function loadCommentActor(
   });
   const actorId = user?.id ?? null;
   if (!actorId) return { actorId: null, isPmPlus: false };
-  const table = supabase.from("user_roles") as { select?: (cols: string) => { eq: (col: string, id: string) => Promise<{ data: { role: string }[] | null }> } };
-  if (typeof table.select !== "function") return { actorId, isPmPlus: false };
   try {
-    const { data } = await table.select("role").eq("user_id", actorId);
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", actorId);
     return { actorId, isPmPlus: isPmPlusRoles(data) };
   } catch {
     return { actorId, isPmPlus: false };
