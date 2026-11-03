@@ -2007,6 +2007,7 @@ export const caseStore = {
   retryLoad,
   loadCaseIfMissing,
   loadCaseFull,
+  reloadCaseFull: fetchCaseFull,
   getCompleteness,
   getFullLoadError,
   getAll,

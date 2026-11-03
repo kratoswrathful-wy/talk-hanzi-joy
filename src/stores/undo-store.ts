@@ -26,7 +26,7 @@ export interface UndoAction {
   timestamp: number;
 }
 
-type ApplyFn = (change: UndoChange, direction: "undo" | "redo") => void;
+type ApplyFn = (change: UndoChange, direction: "undo" | "redo") => void | Promise<void>;
 
 const MAX_STACK = 50;
 
@@ -100,26 +100,25 @@ class UndoStore {
     });
   }
 
-  undo(): UndoAction | null {
+  async undo(): Promise<UndoAction | null> {
     const action = this.undoStack.pop();
     if (!action) return null;
     this.redoStack.push(action);
-    // Apply in reverse order
     for (let i = action.changes.length - 1; i >= 0; i--) {
       const change = action.changes[i];
       const handler = this.applyHandlers.get(change.module);
-      if (handler) handler(change, "undo");
+      if (handler) await handler(change, "undo");
     }
     return action;
   }
 
-  redo(): UndoAction | null {
+  async redo(): Promise<UndoAction | null> {
     const action = this.redoStack.pop();
     if (!action) return null;
     this.undoStack.push(action);
     for (const change of action.changes) {
       const handler = this.applyHandlers.get(change.module);
-      if (handler) handler(change, "redo");
+      if (handler) await handler(change, "redo");
     }
     return action;
   }
@@ -139,11 +138,11 @@ if (typeof document !== "undefined") {
 
     if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
       e.preventDefault();
-      undoStore.undo();
+      void undoStore.undo();
     }
     if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
       e.preventDefault();
-      undoStore.redo();
+      void undoStore.redo();
     }
   });
 }

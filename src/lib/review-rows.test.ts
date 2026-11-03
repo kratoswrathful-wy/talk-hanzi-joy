@@ -4,6 +4,7 @@ import {
   caseListReviewerPeople,
   caseListReviewerText,
   deriveReviewerSummary,
+  hasReviewRowArrangement,
   listReviewerPeople,
   isReviewRowsSegmented,
   listReviewerLabels,
@@ -105,6 +106,14 @@ describe("isReviewRowsSegmented / shouldShowReviewSegmentBlock", () => {
         ],
       }),
     ).toBe(true);
+  });
+});
+
+describe("hasReviewRowArrangement", () => {
+  it("有列就算已有審稿安排，空陣列才可走總表舊欄", () => {
+    expect(hasReviewRowArrangement([row({ id: "1", reviewer: "" })])).toBe(true);
+    expect(hasReviewRowArrangement([])).toBe(false);
+    expect(hasReviewRowArrangement(null)).toBe(false);
   });
 });
 

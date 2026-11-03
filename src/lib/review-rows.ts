@@ -59,6 +59,11 @@ export function listReviewerLabels(rows: ReviewCollabRow[] | undefined | null): 
     .join("、");
 }
 
+/** 是否存在有效審稿列（含主動清空後留下的空列）。 */
+export function hasReviewRowArrangement(rows: ReviewCollabRow[] | undefined | null): boolean {
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 export function caseListReviewerPeople(input: {
   reviewRows?: ReviewCollabRow[] | null;
   reviewer?: string | null;

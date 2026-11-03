@@ -40,7 +40,20 @@ import { cn } from "@/lib/utils";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow, DeclineRecord } from "@/data/case-types";
-import { caseListReviewerPeople, pickReviewDeadlineForList } from "@/lib/review-rows";
+import { caseListReviewerPeople, hasReviewRowArrangement, pickReviewDeadlineForList } from "@/lib/review-rows";
+import {
+  buildCaseTableCellPartial,
+  buildCaseTableUndoFieldChanges,
+  caseTableBatchDialogTitle,
+  classifyAfterReadback,
+  classifyCaseTableWriteResult,
+  describeCaseTableItemReason,
+  describeCaseWriteFailure,
+  isCaseTableCellUnchanged,
+  isUnknownCaseWriteError,
+  summarizeCaseTableBatchWrites,
+  type CaseTableWriteItemResult,
+} from "@/lib/case-table-cell-write";
 import { caseListTranslatorPeople, hasCollabTranslatorArrangement } from "@/lib/collab-translator-list";
 import CaseListPeopleCell from "@/components/cases/CaseListPeopleCell";
 import type { TemplateFieldValue } from "@/stores/page-template-store";
@@ -147,7 +160,7 @@ function ReviewDeadlineListCell({
     caseRecord.status !== "draft" &&
     caseRecord.status !== "inquiry" &&
     caseRecord.status !== "delivered";
-  const hasReviewRows = Array.isArray(caseRecord.reviewRows) && caseRecord.reviewRows.length > 0;
+  const hasReviewRows = hasReviewRowArrangement(caseRecord.reviewRows);
   const display = (
     <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
       {formatDateTime(value)}
@@ -161,6 +174,17 @@ function ReviewDeadlineListCell({
     </InlineEditCell>
   );
 }
+
+const caseTableFieldLabels: Record<string, string> = {
+  title: "案件編號", status: "狀態", category: "類型", billingUnit: "計費單位",
+  translator: "譯者", reviewer: "審稿人員", executionTool: "執行工具", deliveryMethod: "交件方式",
+  workType: "工作類型",
+};
+
+const caseTableStatusLabels: Record<string, string> = {
+  draft: "草稿", inquiry: "詢案中", dispatched: "已派出", task_completed: "任務完成",
+  delivered: "已交件", feedback: "處理回饋", feedback_completed: "回饋處理完畢",
+};
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
@@ -393,6 +417,7 @@ const allColumnDefs: ColumnDef[] = [
           type="colorSelect"
           fieldKey="assignee"
           editable={canEditFromList}
+          lockedTooltip={hasCollabTranslatorArrangement(c.collabRows) ? "此案件有分段譯者，請到案件頁修改" : undefined}
           assigneeRole="translator"
           onCommit={(v, meta) => onCommit("translator", v ? [String(v)] : [], meta)}
         >
@@ -428,11 +453,22 @@ const allColumnDefs: ColumnDef[] = [
     key: "reviewer",
     label: "審稿人員",
     minWidth: 148,
-    render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={c.reviewer} type="colorSelect" fieldKey="assignee" assigneeRole="reviewer" editable={editable} onCommit={(v, meta) => onCommit("reviewer", v, meta)}>
-        <CaseListPeopleCell people={caseListReviewerPeople({ reviewRows: c.reviewRows, reviewer: c.reviewer })} />
-      </InlineEditCell>
-    ),
+    render: (c, { editable, onCommit }) => {
+      const canEditFromList = editable && !hasReviewRowArrangement(c.reviewRows);
+      return (
+        <InlineEditCell
+          value={c.reviewer}
+          type="colorSelect"
+          fieldKey="assignee"
+          assigneeRole="reviewer"
+          editable={canEditFromList}
+          lockedTooltip={hasReviewRowArrangement(c.reviewRows) ? "此案件有分段審稿，請到案件頁修改" : undefined}
+          onCommit={(v, meta) => onCommit("reviewer", v, meta)}
+        >
+          <CaseListPeopleCell people={caseListReviewerPeople({ reviewRows: c.reviewRows, reviewer: c.reviewer })} />
+        </InlineEditCell>
+      );
+    },
   },
   {
     key: "reviewDeadline",
@@ -602,18 +638,21 @@ export default function CasesPage() {
 
   // Register cases module with global undo store
   useEffect(() => {
-    undoStore.registerModule("cases", (change, direction) => {
+    undoStore.registerModule("cases", async (change, direction) => {
       if (change.type === "update" && change.fieldChanges) {
         const updates: Record<string, unknown> = {};
         for (const [field, vals] of Object.entries(change.fieldChanges)) {
           updates[field] = direction === "undo" ? vals.oldValue : vals.newValue;
         }
-        caseStore.update(change.recordId, updates as Partial<CaseRecord>);
+        const error = await caseStore.update(change.recordId, updates as Partial<CaseRecord>);
+        if (error) {
+          const feedback = describeCaseWriteFailure(error);
+          toast({ title: "復原未寫入", description: feedback.description, variant: "destructive" });
+        }
       } else if (change.type === "delete" && direction === "undo" && change.deletedSnapshot) {
-        // Re-create the deleted record
-        caseStore.create(change.deletedSnapshot as Partial<CaseRecord>);
+        await caseStore.create(change.deletedSnapshot as Partial<CaseRecord>);
       } else if (change.type === "create" && direction === "undo") {
-        caseStore.remove(change.recordId);
+        await caseStore.remove(change.recordId);
       }
     });
   }, []);
@@ -761,35 +800,45 @@ export default function CasesPage() {
     toast({ title: "案件已公布" });
   }, [selectedSingleCase, assertPublishUniqueTitle]);
 
-  const handleFlowRevertToDraft = useCallback(() => {
-    if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "draft" as CaseStatus });
-    toast({ title: "已收回為草稿" });
-  }, [selectedSingleCase]);
+  const persistFlowUpdate = useCallback(async (
+    id: string,
+    partial: Partial<CaseRecord>,
+    successTitle: string,
+    failTitle: string,
+  ) => {
+    const error = await caseStore.update(id, partial);
+    if (error) {
+      const feedback = describeCaseWriteFailure(error);
+      toast({ title: failTitle, description: feedback.description, variant: "destructive" });
+      return false;
+    }
+    toast({ title: successTitle });
+    return true;
+  }, []);
 
-  const handleFlowCancelDispatch = useCallback(() => {
+  const handleFlowRevertToDraft = useCallback(async () => {
     if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "inquiry" as CaseStatus });
-    toast({ title: "已取消指派" });
-  }, [selectedSingleCase]);
+    await persistFlowUpdate(selectedSingleCase.id, { status: "draft" as CaseStatus }, "已收回為草稿", "無法收回為草稿");
+  }, [selectedSingleCase, persistFlowUpdate]);
 
-  const handleFlowRevertRevision = useCallback(() => {
+  const handleFlowCancelDispatch = useCallback(async () => {
+    if (!selectedSingleCase) return;
+    await persistFlowUpdate(selectedSingleCase.id, { status: "inquiry" as CaseStatus }, "已取消指派", "無法取消指派");
+  }, [selectedSingleCase, persistFlowUpdate]);
+
+  const handleFlowRevertRevision = useCallback(async () => {
     if (!selectedSingleCase) return;
     const rows = selectedSingleCase.collabRows ?? [];
-    if (selectedSingleCase.multiCollab && rows.length > 0) {
-      const updatedRows = rows.map((r) => ({ ...r, taskCompleted: false, delivered: false }));
-      caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus, collabRows: updatedRows });
-    } else {
-      caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus });
-    }
-    toast({ title: "已退回修正" });
-  }, [selectedSingleCase]);
+    const partial = selectedSingleCase.multiCollab && rows.length > 0
+      ? { status: "dispatched" as CaseStatus, collabRows: rows.map((r) => ({ ...r, taskCompleted: false, delivered: false })) }
+      : { status: "dispatched" as CaseStatus };
+    await persistFlowUpdate(selectedSingleCase.id, partial, "已退回修正", "無法退回修正");
+  }, [selectedSingleCase, persistFlowUpdate]);
 
-  const handleFlowRevertToFeedback = useCallback(() => {
+  const handleFlowRevertToFeedback = useCallback(async () => {
     if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "feedback" as CaseStatus });
-    toast({ title: "已退回處理" });
-  }, [selectedSingleCase]);
+    await persistFlowUpdate(selectedSingleCase.id, { status: "feedback" as CaseStatus }, "已退回處理", "無法退回處理");
+  }, [selectedSingleCase, persistFlowUpdate]);
 
   const handleFlowAcceptCase = useCallback(async () => {
     if (!selectedSingleCase) return;
@@ -884,29 +933,24 @@ export default function CasesPage() {
     }
   }, [selectedSingleCase, profile, user, isPmOrAbove, selectedActiveTranslatorUserIds]);
 
-  const handleFlowFeedbackComplete = useCallback(() => {
+  const handleFlowFeedbackComplete = useCallback(async () => {
     if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "feedback_completed" as CaseStatus });
-    toast({ title: "回饋處理完畢" });
-  }, [selectedSingleCase]);
+    await persistFlowUpdate(selectedSingleCase.id, { status: "feedback_completed" as CaseStatus }, "回饋處理完畢", "無法完成回饋處理");
+  }, [selectedSingleCase, persistFlowUpdate]);
 
-  const handleFlowMarkDelivered = useCallback(() => {
+  const handleFlowMarkDelivered = useCallback(async () => {
     if (!selectedSingleCase) return;
     const rows = selectedSingleCase.collabRows ?? [];
-    if (selectedSingleCase.multiCollab && rows.length > 0) {
-      const updatedRows = rows.map((r) => ({ ...r, delivered: true }));
-      caseStore.update(selectedSingleCase.id, { status: "delivered" as CaseStatus, collabRows: updatedRows });
-    } else {
-      caseStore.update(selectedSingleCase.id, { status: "delivered" as CaseStatus });
-    }
-    toast({ title: "已交件完畢" });
-  }, [selectedSingleCase]);
+    const partial = selectedSingleCase.multiCollab && rows.length > 0
+      ? { status: "delivered" as CaseStatus, collabRows: rows.map((r) => ({ ...r, delivered: true })) }
+      : { status: "delivered" as CaseStatus };
+    await persistFlowUpdate(selectedSingleCase.id, partial, "已交件完畢", "無法交件完畢");
+  }, [selectedSingleCase, persistFlowUpdate]);
 
-  const handleFlowFeedbackOpen = useCallback(() => {
+  const handleFlowFeedbackOpen = useCallback(async () => {
     if (!selectedSingleCase) return;
-    caseStore.update(selectedSingleCase.id, { status: "feedback" as CaseStatus });
-    toast({ title: "處理回饋中" });
-  }, [selectedSingleCase]);
+    await persistFlowUpdate(selectedSingleCase.id, { status: "feedback" as CaseStatus }, "處理回饋中", "無法改為處理回饋");
+  }, [selectedSingleCase, persistFlowUpdate]);
 
   const handleDeclineConfirm = useCallback(async () => {
     if (!selectedSingleCase) return;
@@ -1031,35 +1075,67 @@ export default function CasesPage() {
     );
   }, [visibleFees, rowSelection.selectedCount, rowSelection.selectedIds]);
 
+  const [tableSavePending, setTableSavePending] = useState(0);
+
   // Mark selected as delivered with undo
   const handleMarkDelivered = useCallback(async () => {
-    const entries: { recordId: string; oldValue: unknown }[] = [];
-    for (const id of rowSelection.selectedIds) {
-      const c = cases.find((x) => x.id === id);
-      if (c) entries.push({ recordId: id, oldValue: c.status });
-      await caseStore.update(id, { status: "delivered" as CaseStatus });
+    setTableSavePending((n) => n + 1);
+    try {
+      const successEntries: { recordId: string; oldValue: unknown }[] = [];
+      const failed: { title: string; reason: string }[] = [];
+      const keepSelected = new Set<string>();
+      for (const id of rowSelection.selectedIds) {
+        const c = cases.find((x) => x.id === id);
+        if (!c) continue;
+        if (c.status === "delivered") continue;
+        const error = await caseStore.update(id, { status: "delivered" as CaseStatus });
+        if (error) {
+          failed.push({
+            title: c.title || "（無標題）",
+            reason: describeCaseTableItemReason(classifyCaseTableWriteResult(error), error),
+          });
+          keepSelected.add(id);
+          continue;
+        }
+        successEntries.push({ recordId: id, oldValue: c.status });
+      }
+      if (successEntries.length > 0) {
+        undoStore.pushBatchUpdate(
+          "cases",
+          successEntries,
+          "status",
+          "delivered",
+          `將 ${successEntries.length} 個案件標記為已交件`,
+        );
+      }
+      if (failed.length > 0) {
+        toast({
+          title: "部分案件未能交件完畢",
+          description: failed.map((item) => `${item.title}：${item.reason}`).join("；"),
+          variant: "destructive",
+        });
+        rowSelection.setSelectedIds(keepSelected);
+      } else {
+        rowSelection.deselectAll();
+      }
+    } finally {
+      setTableSavePending((n) => Math.max(0, n - 1));
     }
-    if (entries.length > 0) {
-      undoStore.pushBatchUpdate("cases", entries, "status", "delivered", `將 ${entries.length} 個案件標記為已交件`);
-    }
-    rowSelection.deselectAll();
   }, [rowSelection, cases]);
 
   // Batch edit feedback dialog
-  const [batchEditResult, setBatchEditResult] = useState<{ field: string; value: string; count: number; locked: { title: string; reason: string }[] } | null>(null);
+  const [batchEditResult, setBatchEditResult] = useState<{
+    field: string;
+    value: string;
+    title: string;
+    successCount: number;
+    unchangedCount: number;
+    failed: { title: string; reason: string }[];
+    unknown: { title: string; reason: string }[];
+    locked: { title: string; reason: string }[];
+  } | null>(null);
 
-  // Field label map for batch edit feedback
-  const fieldLabelMap: Record<string, string> = {
-    title: "案件編號", status: "狀態", category: "類型", billingUnit: "計費單位",
-    translator: "譯者", reviewer: "審稿人員", executionTool: "執行工具", deliveryMethod: "交件方式",
-    workType: "工作類型",
-  };
-  const statusLabelMap: Record<string, string> = {
-    draft: "草稿", inquiry: "詢案中", dispatched: "已派出", task_completed: "任務完成",
-    delivered: "已交件", feedback: "處理回饋", feedback_completed: "回饋處理完畢",
-  };
-
-  const handleCellCommit = useCallback((
+  const handleCellCommit = useCallback(async (
     caseId: string,
     field: string,
     value: string | boolean | string[] | null,
@@ -1067,50 +1143,100 @@ export default function CasesPage() {
   ) => {
     const isBatch = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1;
     const targetIds = isBatch ? Array.from(rowSelection.selectedIds) : [caseId];
-
-    const undoEntries: { recordId: string; oldValue: unknown }[] = [];
-    let editedCount = 0;
+    const items: CaseTableWriteItemResult[] = [];
     const locked: { title: string; reason: string }[] = [];
+    const undoChanges: { recordId: string; fieldChanges: Record<string, { oldValue: unknown; newValue: unknown }> }[] = [];
 
-    for (const id of targetIds) {
-      const c = cases.find((x) => x.id === id);
-      if (!c) continue;
+    setTableSavePending((n) => n + 1);
+    try {
+      for (const id of targetIds) {
+        const c = cases.find((x) => x.id === id);
+        if (!c) continue;
+        const title = c.title || "（無標題）";
 
-      const oldValue = (c as CaseRecord & Record<string, unknown>)[field] ?? "";
-      undoEntries.push({ recordId: id, oldValue });
-      if (field === "translator" && Array.isArray(value)) {
-        caseStore.update(id, {
-          translator: value,
-          translatorUserId: meta?.translatorUserId ?? null,
+        if (field === "translator" && hasCollabTranslatorArrangement(c.collabRows)) {
+          locked.push({ title, reason: "此案件有分段譯者，請到案件頁修改" });
+          continue;
+        }
+        if (field === "reviewer" && hasReviewRowArrangement(c.reviewRows)) {
+          locked.push({ title, reason: "此案件有分段審稿，請到案件頁修改" });
+          continue;
+        }
+        if (isCaseTableCellUnchanged(c, field, value, meta)) {
+          items.push({ id, title, kind: "unchanged", reason: describeCaseTableItemReason("unchanged") });
+          continue;
+        }
+
+        const patch = buildCaseTableCellPartial(field, value, meta);
+        const error = await caseStore.update(id, patch);
+        let kind = classifyCaseTableWriteResult(error);
+        if (kind === "unknown" || (error && isUnknownCaseWriteError(error))) {
+          const readback = await caseStore.reloadCaseFull(id);
+          kind = classifyAfterReadback({
+            writeError: error,
+            intended: patch as Record<string, unknown>,
+            live: readback.ok ? readback.record : null,
+            readbackOk: readback.ok,
+          });
+        }
+        const reason = describeCaseTableItemReason(kind, error);
+        items.push({ id, title, kind, reason });
+        if (kind === "success") {
+          undoChanges.push({
+            recordId: id,
+            fieldChanges: buildCaseTableUndoFieldChanges(field, c, value, meta),
+          });
+        }
+      }
+
+      if (undoChanges.length > 0) {
+        undoStore.push({
+          label: `更新 ${undoChanges.length} 個案件的${caseTableFieldLabels[field] || field}`,
+          changes: undoChanges.map((entry) => ({
+            module: "cases",
+            recordId: entry.recordId,
+            type: "update" as const,
+            fieldChanges: entry.fieldChanges,
+          })),
         });
-      } else if (field === "reviewer" && typeof value === "string") {
-        caseStore.update(id, {
-          reviewer: value,
-          reviewerUserId: meta?.reviewerUserId ?? null,
+      }
+
+      if (isBatch) {
+        const displayValue = field === "status"
+          ? caseTableStatusLabels[String(value)] || String(value)
+          : Array.isArray(value) ? value.join(", ") : String(value ?? "");
+        const summary = summarizeCaseTableBatchWrites(items);
+        setBatchEditResult({
+          field: caseTableFieldLabels[field] || field,
+          value: displayValue,
+          title: caseTableBatchDialogTitle(summary),
+          successCount: summary.successCount,
+          unchangedCount: summary.unchangedCount,
+          failed: [
+            ...locked,
+            ...items.filter((item) => item.kind === "failed").map((item) => ({
+              title: item.title,
+              reason: item.reason || "儲存失敗",
+            })),
+          ],
+          unknown: items.filter((item) => item.kind === "unknown").map((item) => ({
+            title: item.title,
+            reason: item.reason || "結果不明",
+          })),
+          locked,
         });
       } else {
-        caseStore.update(id, { [field]: value });
+        const only = items[0];
+        if (only?.kind === "failed") {
+          toast({ title: "尚未寫入", description: only.reason, variant: "destructive" });
+        } else if (only?.kind === "unknown") {
+          toast({ title: "儲存結果不明", description: only.reason, variant: "destructive" });
+        } else if (locked[0]) {
+          toast({ title: "此欄不能從總表修改", description: locked[0].reason });
+        }
       }
-      editedCount++;
-    }
-
-    // Push undo
-    if (undoEntries.length > 0) {
-      undoStore.pushBatchUpdate("cases", undoEntries, field, value,
-        `更新 ${undoEntries.length} 個案件的${fieldLabelMap[field] || field}`);
-    }
-
-    // Show batch feedback dialog when multiple items edited
-    if (isBatch) {
-      const displayValue = field === "status"
-        ? statusLabelMap[String(value)] || String(value)
-        : Array.isArray(value) ? value.join(", ") : String(value);
-      setBatchEditResult({
-        field: fieldLabelMap[field] || field,
-        value: displayValue,
-        count: editedCount,
-        locked,
-      });
+    } finally {
+      setTableSavePending((n) => Math.max(0, n - 1));
     }
   }, [rowSelection.selectedIds, rowSelection.selectedCount, cases]);
 
@@ -1250,6 +1376,9 @@ export default function CasesPage() {
       <div className="space-y-2">
         <div className="flex w-full flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight shrink-0">案件管理</h1>
+          {tableSavePending > 0 ? (
+            <span className="text-sm text-muted-foreground" data-testid="cases-table-saving">儲存中…</span>
+          ) : null}
           {isPmOrAbove && (
             <CreateWithTemplateButton
               module="cases"
@@ -1494,7 +1623,7 @@ export default function CasesPage() {
                     >
                       {col.render(c, {
                         editable: editableFields.has(col.key),
-                        onCommit: (field, value) => handleCellCommit(c.id, field, value),
+                        onCommit: (field, value, meta) => handleCellCommit(c.id, field, value, meta),
                       })}
                     </td>
                   ))}
@@ -1748,20 +1877,33 @@ export default function CasesPage() {
       <AlertDialog open={!!batchEditResult} onOpenChange={(open) => { if (!open) setBatchEditResult(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>批次編輯完成</AlertDialogTitle>
+            <AlertDialogTitle>{batchEditResult?.title || "批次編輯結果"}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <p>
-                  已將 <span className="font-medium text-foreground">{batchEditResult?.count}</span> 個項目的
-                  <span className="font-medium text-foreground">「{batchEditResult?.field}」</span>
-                  變更為 <span className="font-medium text-foreground">「{batchEditResult?.value}」</span>
+                  「{batchEditResult?.field}」改為「{batchEditResult?.value}」：
+                  成功 {batchEditResult?.successCount ?? 0} 筆
+                  {batchEditResult && batchEditResult.unchangedCount > 0 ? `、未變更 ${batchEditResult.unchangedCount} 筆` : ""}
+                  {batchEditResult && batchEditResult.failed.length > 0 ? `、失敗 ${batchEditResult.failed.length} 筆` : ""}
+                  {batchEditResult && batchEditResult.unknown.length > 0 ? `、結果不明 ${batchEditResult.unknown.length} 筆` : ""}
+                  。
                 </p>
-                {batchEditResult?.locked && batchEditResult.locked.length > 0 && (
+                {batchEditResult?.failed && batchEditResult.failed.length > 0 && (
                   <div>
-                    <p className="font-medium text-foreground">以下項目因鎖定而未變更：</p>
+                    <p className="font-medium text-foreground">未寫入：</p>
                     <ul className="list-disc list-inside text-sm mt-1 space-y-0.5">
-                      {batchEditResult.locked.map((l, i) => (
-                        <li key={i} className="text-muted-foreground">{l.title}：{l.reason}</li>
+                      {batchEditResult.failed.map((l, i) => (
+                        <li key={`failed-${i}`} className="text-muted-foreground">{l.title}：{l.reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {batchEditResult?.unknown && batchEditResult.unknown.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">結果不明，請重整後確認，不要再送同一變更：</p>
+                    <ul className="list-disc list-inside text-sm mt-1 space-y-0.5">
+                      {batchEditResult.unknown.map((l, i) => (
+                        <li key={`unknown-${i}`} className="text-muted-foreground">{l.title}：{l.reason}</li>
                       ))}
                     </ul>
                   </div>
