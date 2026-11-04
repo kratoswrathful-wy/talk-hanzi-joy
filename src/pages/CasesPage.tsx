@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow, DeclineRecord } from "@/data/case-types";
-import { caseListReviewerPeople, hasReviewRowArrangement, pickReviewDeadlineForList } from "@/lib/review-rows";
+import { caseListReviewerPeople, hasReviewRowArrangement, pickReviewDeadlineForList, shouldLockCaseTableReviewerEdit } from "@/lib/review-rows";
 import {
   buildCaseTableCellPartial,
   buildCaseTableUndoFieldChanges,
@@ -454,18 +454,25 @@ const allColumnDefs: ColumnDef[] = [
     label: "審稿人員",
     minWidth: 148,
     render: (c, { editable, onCommit }) => {
-      const canEditFromList = editable && !hasReviewRowArrangement(c.reviewRows);
+      const reviewerLocked = shouldLockCaseTableReviewerEdit({
+        reviewRows: c.reviewRows,
+        collabRows: c.collabRows,
+      });
       return (
         <InlineEditCell
           value={c.reviewer}
           type="colorSelect"
           fieldKey="assignee"
           assigneeRole="reviewer"
-          editable={canEditFromList}
-          lockedTooltip={hasReviewRowArrangement(c.reviewRows) ? "此案件有分段審稿，請到案件頁修改" : undefined}
+          editable={editable && !reviewerLocked}
+          lockedTooltip={reviewerLocked ? "此案件有分段譯者或分段審稿，請到案件頁修改" : undefined}
           onCommit={(v, meta) => onCommit("reviewer", v, meta)}
         >
-          <CaseListPeopleCell people={caseListReviewerPeople({ reviewRows: c.reviewRows, reviewer: c.reviewer })} />
+          <CaseListPeopleCell people={caseListReviewerPeople({
+            reviewRows: c.reviewRows,
+            collabRows: c.collabRows,
+            reviewer: c.reviewer,
+          })} />
         </InlineEditCell>
       );
     },
@@ -1158,8 +1165,11 @@ export default function CasesPage() {
           locked.push({ title, reason: "此案件有分段譯者，請到案件頁修改" });
           continue;
         }
-        if (field === "reviewer" && hasReviewRowArrangement(c.reviewRows)) {
-          locked.push({ title, reason: "此案件有分段審稿，請到案件頁修改" });
+        if (field === "reviewer" && shouldLockCaseTableReviewerEdit({
+          reviewRows: c.reviewRows,
+          collabRows: c.collabRows,
+        })) {
+          locked.push({ title, reason: "此案件有分段譯者或分段審稿，請到案件頁修改" });
           continue;
         }
         if (isCaseTableCellUnchanged(c, field, value, meta)) {
@@ -1209,7 +1219,10 @@ export default function CasesPage() {
         setBatchEditResult({
           field: caseTableFieldLabels[field] || field,
           value: displayValue,
-          title: caseTableBatchDialogTitle(summary),
+          title: caseTableBatchDialogTitle({
+            ...summary,
+            lockedCount: locked.length,
+          }),
           successCount: summary.successCount,
           unchangedCount: summary.unchangedCount,
           failed: [

@@ -165,6 +165,12 @@ describe("summarizeCaseTableBatchWrites", () => {
       failedCount: 2,
       unknownCount: 0,
     })).toBe("批次編輯未完成");
+    expect(caseTableBatchDialogTitle({
+      successCount: 1,
+      failedCount: 0,
+      unknownCount: 0,
+      lockedCount: 1,
+    })).toBe("批次編輯結果");
   });
 
   it("結果不明不要寫成已儲存", () => {

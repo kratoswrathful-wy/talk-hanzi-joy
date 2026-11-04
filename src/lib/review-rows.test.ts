@@ -5,6 +5,7 @@ import {
   caseListReviewerText,
   deriveReviewerSummary,
   hasReviewRowArrangement,
+  shouldLockCaseTableReviewerEdit,
   listReviewerPeople,
   isReviewRowsSegmented,
   listReviewerLabels,
@@ -117,6 +118,31 @@ describe("hasReviewRowArrangement", () => {
   });
 });
 
+describe("shouldLockCaseTableReviewerEdit", () => {
+  it("只有舊欄時可從總表改；有分段譯者或審稿列則鎖定", () => {
+    expect(shouldLockCaseTableReviewerEdit({ reviewRows: [], collabRows: [] })).toBe(false);
+    expect(shouldLockCaseTableReviewerEdit({
+      reviewRows: [row({ id: "1", reviewer: "" })],
+      collabRows: [],
+    })).toBe(true);
+    expect(shouldLockCaseTableReviewerEdit({
+      reviewRows: [],
+      collabRows: [{
+        id: "1",
+        segment: "",
+        translator: "譯者一",
+        unitCount: 0,
+        accepted: false,
+        translationDeadline: null,
+        reviewer: "",
+        reviewDeadline: null,
+        taskCompleted: false,
+        delivered: false,
+      }],
+    })).toBe(true);
+  });
+});
+
 describe("listReviewerLabels / caseListReviewerText", () => {
   it("有帳號時按帳號去重，同名不同帳號分開", () => {
     expect(
@@ -174,6 +200,27 @@ describe("listReviewerPeople / caseListReviewerPeople", () => {
     expect(caseListReviewerPeople({ reviewRows: [], reviewer: "舊欄甲" })).toEqual([
       { userId: "", label: "舊欄甲" },
     ]);
+  });
+
+  it("有分段譯者列時不回退舊欄，即使舊欄有審稿名", () => {
+    expect(
+      caseListReviewerPeople({
+        reviewRows: [],
+        reviewer: "舊欄甲",
+        collabRows: [{
+          id: "1",
+          segment: "",
+          translator: "譯者一",
+          unitCount: 0,
+          accepted: false,
+          translationDeadline: null,
+          reviewer: "",
+          reviewDeadline: null,
+          taskCompleted: false,
+          delivered: false,
+        }],
+      }),
+    ).toEqual([]);
   });
 });
 

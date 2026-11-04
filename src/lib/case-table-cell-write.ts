@@ -165,11 +165,13 @@ export function caseTableBatchDialogTitle(summary: {
   successCount: number;
   failedCount: number;
   unknownCount: number;
+  lockedCount?: number;
 }): string {
-  if (summary.failedCount === 0 && summary.unknownCount === 0 && summary.successCount > 0) {
+  const blocked = summary.failedCount + summary.unknownCount + (summary.lockedCount ?? 0);
+  if (blocked === 0 && summary.successCount > 0) {
     return "批次編輯完成";
   }
-  if (summary.successCount === 0 && summary.failedCount + summary.unknownCount > 0) {
+  if (summary.successCount === 0 && blocked > 0) {
     return "批次編輯未完成";
   }
   return "批次編輯結果";

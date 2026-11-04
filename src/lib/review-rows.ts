@@ -1,5 +1,5 @@
-import type { ReviewCollabRow } from "@/data/case-types";
-import type { CaseListPerson } from "@/lib/collab-translator-list";
+import type { CollabRow, ReviewCollabRow } from "@/data/case-types";
+import { hasCollabTranslatorArrangement, type CaseListPerson } from "@/lib/collab-translator-list";
 
 /** 由 review_rows 去重審稿人顯示名（案件層級 reviewer 衍生） */
 export function deriveReviewerSummary(rows: ReviewCollabRow[] | undefined | null): string {
@@ -64,19 +64,44 @@ export function hasReviewRowArrangement(rows: ReviewCollabRow[] | undefined | nu
   return Array.isArray(rows) && rows.length > 0;
 }
 
+/** 總表審稿格：有獨立審稿列或分段譯者列時，不能改舊的單一欄。 */
+export function shouldLockCaseTableReviewerEdit(input: {
+  reviewRows?: ReviewCollabRow[] | null;
+  collabRows?: CollabRow[] | null;
+}): boolean {
+  return hasReviewRowArrangement(input.reviewRows) || hasCollabTranslatorArrangement(input.collabRows);
+}
+
 export function caseListReviewerPeople(input: {
   reviewRows?: ReviewCollabRow[] | null;
+  collabRows?: CollabRow[] | null;
   reviewer?: string | null;
 }): CaseListPerson[] {
-  const fromRows = listReviewerPeople(input.reviewRows);
-  if (fromRows.length) return fromRows;
+  if (hasReviewRowArrangement(input.reviewRows)) {
+    return listReviewerPeople(input.reviewRows);
+  }
+  if (hasCollabTranslatorArrangement(input.collabRows)) {
+    return listReviewerPeople(
+      input.collabRows?.map((row) => ({
+        id: row.id,
+        segment: row.segment,
+        reviewer: row.reviewer,
+        reviewerUserId: row.reviewerUserId,
+        reviewDeadline: row.reviewDeadline,
+        taskCompleted: !!row.reviewTaskCompleted,
+        linkedCatFileId: row.linkedCatFileId,
+        lineRange: row.lineRange,
+      })),
+    );
+  }
   const fallback = String(input.reviewer || "").trim();
   return fallback ? [{ userId: "", label: fallback }] : [];
 }
 
-/** 總表顯示：有審稿列用人名彙整，否則沿用案件舊欄。不寫回資料。 */
+/** 總表顯示：有審稿列或分段譯者列時不回退舊欄。不寫回資料。 */
 export function caseListReviewerText(input: {
   reviewRows?: ReviewCollabRow[] | null;
+  collabRows?: CollabRow[] | null;
   reviewer?: string | null;
 }): string {
   return caseListReviewerPeople(input)

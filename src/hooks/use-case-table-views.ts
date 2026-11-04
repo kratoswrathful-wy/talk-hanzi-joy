@@ -119,7 +119,11 @@ function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string)
       translator: c.translator,
     });
     case "translationDeadline": return getCaseDeadlineForSort(c, "translationDeadline", viewerDisplayName);
-    case "reviewer": return caseListReviewerText({ reviewRows: c.reviewRows, reviewer: c.reviewer });
+    case "reviewer": return caseListReviewerText({
+      reviewRows: c.reviewRows,
+      collabRows: c.collabRows,
+      reviewer: c.reviewer,
+    });
     case "reviewDeadline": return getCaseDeadlineForSort(c, "reviewDeadline", viewerDisplayName);
     case "createdBy": return c.createdBy;
     case "client": return c.client;
