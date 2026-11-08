@@ -37,6 +37,8 @@ export interface InternalNote {
   translatedText: string;
   questionOrNote: string;
   questionOrNoteBlocks: Block[]; // BlockNote JSON blocks for rich text
+  /** 後端 updated_at，條件更新用 */
+  updatedAt: string;
   referenceFiles: { name: string; url: string }[];
   comments: NoteComment[];
   // Invalidation

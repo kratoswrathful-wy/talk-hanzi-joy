@@ -3563,6 +3563,10 @@ export type Database = {
         Args: { p_fee_id: string; p_expected_updated_at: string }
         Returns: Json
       }
+      apply_internal_note_update: {
+        Args: { p_note_id: string; p_expected_updated_at: string; p_patch: Json }
+        Returns: Json
+      }
       pm_update_case_assignments: {
         Args: { p_case_id: string; p_expected_revision: number; p_patch: Json }
         Returns: Json

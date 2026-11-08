@@ -57,6 +57,12 @@ import { NoteReminderSlackDialog } from "@/components/NoteReminderSlackDialog";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
 import { caseStore } from "@/hooks/use-case-store";
+import {
+  createLatestWriteScheduler,
+  isUnsavedCaseSavePhase,
+  type CaseSavePhase,
+} from "@/lib/case-write-queue";
+import { RemoteContentConflictDialog } from "@/components/RemoteContentConflictDialog";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
@@ -152,6 +158,39 @@ function NoteDetailView({
   const [noteReminderOpen, setNoteReminderOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [bodySavePhase, setBodySavePhase] = useState<CaseSavePhase>("idle");
+  const [bodyConflictOpen, setBodyConflictOpen] = useState(false);
+  const [bodySuppressedRevision, setBodySuppressedRevision] = useState<string | null>(null);
+  const [bodyEditorEpoch, setBodyEditorEpoch] = useState(0);
+  const noteIdRef = useRef(note.id);
+  noteIdRef.current = note.id;
+  const bodyWriteSchedulerRef = useRef(
+    createLatestWriteScheduler<InternalNote["questionOrNoteBlocks"]>(
+      async (blocks) => {
+        setBodySavePhase("saving");
+        const error = await internalNotesStore.update(noteIdRef.current, {
+          questionOrNoteBlocks: blocks,
+        });
+        if (error) {
+          toast.error(error.message);
+          setBodySavePhase("failed");
+          return;
+        }
+        setBodySavePhase("saved");
+      },
+      400,
+      (busy) => {
+        if (busy === "pending" || busy === "saving") setBodySavePhase(busy);
+      },
+    ),
+  );
+
+  useEffect(() => {
+    const scheduler = bodyWriteSchedulerRef.current;
+    return () => {
+      void scheduler.flush();
+    };
+  }, [note.id]);
 
   const uiNoteReminder = useToolbarButtonUiProps("internal_notes_note_reminder");
   const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
@@ -208,6 +247,7 @@ function NoteDetailView({
       translatedText: note.translatedText,
       questionOrNote: note.questionOrNote,
       questionOrNoteBlocks: note.questionOrNoteBlocks ? [...note.questionOrNoteBlocks] : [],
+      updatedAt: new Date().toISOString(),
       referenceFiles: note.referenceFiles.map((f) => ({ ...f })),
       comments: [],
       invalidated: false,
@@ -364,16 +404,31 @@ function NoteDetailView({
       </Field>
       <Field label="問題或註記內容">
         <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
-          <RichTextEditor
-            initialContent={(() => {
-              // Try parsing as JSON blocks; fall back to plain text paragraph
-              if (Array.isArray(note.questionOrNoteBlocks) && note.questionOrNoteBlocks.length > 0) {
-                return note.questionOrNoteBlocks;
+          <div
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                void bodyWriteSchedulerRef.current.flush();
               }
-              return undefined;
-            })()}
-            onChange={(blocks) => onUpdate({ questionOrNoteBlocks: blocks })}
-          />
+            }}
+          >
+            <RichTextEditor
+              key={`${note.id}:${bodyEditorEpoch}`}
+              documentId={note.id}
+              initialContent={
+                Array.isArray(note.questionOrNoteBlocks) && note.questionOrNoteBlocks.length > 0
+                  ? note.questionOrNoteBlocks
+                  : undefined
+              }
+              remoteContent={note.questionOrNoteBlocks}
+              remoteRevision={note.updatedAt}
+              hasLocalDraft={isUnsavedCaseSavePhase(bodySavePhase)}
+              suppressedRevision={bodySuppressedRevision}
+              onConflict={() => setBodyConflictOpen(true)}
+              onChange={(blocks) => {
+                bodyWriteSchedulerRef.current.schedule(blocks);
+              }}
+            />
+          </div>
         </Suspense>
       </Field>
 
@@ -492,6 +547,19 @@ function NoteDetailView({
         </AlertDialogContent>
       </AlertDialog>
 
+      <RemoteContentConflictDialog
+        open={bodyConflictOpen}
+        onKeepLocal={() => {
+          setBodySuppressedRevision(note.updatedAt);
+          setBodyConflictOpen(false);
+        }}
+        onReloadRemote={() => {
+          setBodySuppressedRevision(null);
+          setBodyEditorEpoch((n) => n + 1);
+          setBodyConflictOpen(false);
+          setBodySavePhase("idle");
+        }}
+      />
       <NoteReminderSlackDialog open={noteReminderOpen} onOpenChange={setNoteReminderOpen} note={note} />
     </div>
   ); // end NoteDetailView return
@@ -530,6 +598,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       translatedText: "",
       questionOrNote: "",
       questionOrNoteBlocks: [],
+      updatedAt: new Date().toISOString(),
       referenceFiles: [],
       comments: [],
       invalidated: false,
@@ -703,7 +772,9 @@ export default function InternalNotesPage() {
         noteBurstRef.current = burst;
         merged = { ...merged, editLogs: logs };
       }
-      internalNotesStore.update(nid, merged);
+      void internalNotesStore.update(nid, merged).then((error) => {
+        if (error) toast.error(error.message);
+      });
     },
     [routeNoteId, profile]
   );
@@ -864,6 +935,7 @@ export default function InternalNotesPage() {
   if (selectedNote) {
     return (
       <NoteDetailView
+        key={selectedNote.id}
         note={selectedNote}
         onUpdate={handleNoteUpdate}
         onBack={() => navigate("/internal-notes")}

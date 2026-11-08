@@ -108,6 +108,7 @@ import { deriveCaseStatusFromRows, statusPatchFromDerived } from "@/lib/shared-r
 import { describeCatWorkflowSyncIssues } from "@/lib/cat-workflow-sync-result";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
+import { RemoteContentConflictDialog } from "@/components/RemoteContentConflictDialog";
 import { CaseBodyOmittedPreview } from "@/components/CaseBodyOmittedPreview";
 import { extractBlockText } from "@/lib/extract-block-text";
 import { CaseCatToolsPanel } from "@/components/case/CaseCatToolsPanel";
@@ -1255,6 +1256,9 @@ export default function CaseDetailPage() {
   const [savePhase, setSavePhase] = useState<CaseSavePhase>("idle");
   const savePhaseRef = useRef<CaseSavePhase>("idle");
   savePhaseRef.current = savePhase;
+  const [bodyConflictOpen, setBodyConflictOpen] = useState(false);
+  const [bodySuppressedRevision, setBodySuppressedRevision] = useState<number | null>(null);
+  const [bodyEditorEpoch, setBodyEditorEpoch] = useState(0);
   const [pendingLeaveOpen, setPendingLeaveOpen] = useState(false);
   const [flowBusy, setFlowBusy] = useState(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
@@ -1441,6 +1445,12 @@ export default function CaseDetailPage() {
         window.__caseDetailRenderedCaseId = null;
       }
     };
+  }, [caseData?.id]);
+
+  useEffect(() => {
+    setBodyConflictOpen(false);
+    setBodySuppressedRevision(null);
+    setBodyEditorEpoch(0);
   }, [caseData?.id]);
 
   useEffect(() => {
@@ -2192,6 +2202,7 @@ export default function CaseDetailPage() {
         translatedText: "",
         questionOrNote: "",
         questionOrNoteBlocks: [],
+        updatedAt: new Date().toISOString(),
         referenceFiles: [],
         comments: [],
         invalidated: false,
@@ -4087,9 +4098,15 @@ export default function CaseDetailPage() {
                 }}
               >
                 <RichTextEditor
-                  key={caseData.id}
+                  key={`${caseData.id}:${bodyEditorEpoch}`}
+                  documentId={caseData.id}
                   initialContent={safeBodyContent}
+                  remoteContent={safeBodyContent}
+                  remoteRevision={caseData.revision}
+                  hasLocalDraft={isUnsavedCaseSavePhase(savePhase)}
+                  suppressedRevision={bodySuppressedRevision}
                   editable={isPmOrAbove}
+                  onConflict={() => setBodyConflictOpen(true)}
                   onChange={(blocks) => {
                     if (!isPmOrAbove) return;
                     bodyWriteSchedulerRef.current.schedule(blocks);
@@ -4104,6 +4121,18 @@ export default function CaseDetailPage() {
             />
           )}
         </CaseBodyEditorBoundary>
+        <RemoteContentConflictDialog
+          open={bodyConflictOpen}
+          onKeepLocal={() => {
+            setBodySuppressedRevision(caseData.revision);
+            setBodyConflictOpen(false);
+          }}
+          onReloadRemote={() => {
+            setBodySuppressedRevision(null);
+            setBodyEditorEpoch((n) => n + 1);
+            setBodyConflictOpen(false);
+          }}
+        />
       </div>
 
       <Separator />

@@ -8,7 +8,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
+import { createKeyedQueue } from "@/lib/case-write-queue";
+import {
+  describeNoteWriteFailure,
+  isStaleNoteWrite,
+  stripNoteServerOwnedKeys,
+  type ApplyInternalNoteWriteResult,
+} from "@/lib/internal-note-write";
 import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
+
+const noteWriteQueue = createKeyedQueue();
 
 type Listener = () => void;
 
@@ -67,6 +76,12 @@ function commentsToJson(comments: NoteComment[]): Json {
   }));
 }
 
+function isInternalNoteRow(raw: unknown): raw is Tables<"internal_notes"> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const row = raw as Record<string, unknown>;
+  return typeof row.id === "string" && typeof row.updated_at === "string";
+}
+
 function dbToApp(row: Tables<"internal_notes">): InternalNote {
   return {
     id: row.id,
@@ -85,6 +100,7 @@ function dbToApp(row: Tables<"internal_notes">): InternalNote {
     questionOrNoteBlocks: Array.isArray(row.question_or_note_blocks)
       ? (row.question_or_note_blocks as InternalNote["questionOrNoteBlocks"])
       : [],
+    updatedAt: row.updated_at,
     referenceFiles: Array.isArray(row.reference_files)
       ? (row.reference_files as InternalNote["referenceFiles"])
       : [],
@@ -219,28 +235,74 @@ export const internalNotesStore = {
   add: async (note: InternalNote) => {
     notes = [note, ...notes];
     notify();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("internal_notes")
       .insert({
         id: note.id,
         ...appToDb(note),
         created_at: note.createdAt,
         env: getEnvironment(),
-      } as TablesInsert<"internal_notes">);
-    if (error) console.error("Failed to insert internal note:", error);
+      } as TablesInsert<"internal_notes">)
+      .select("*")
+      .single();
+    if (error) {
+      console.error("Failed to insert internal note:", error);
+      return note;
+    }
+    if (data) {
+      const saved = dbToApp(data);
+      notes = notes.map((n) => (n.id === saved.id ? saved : n));
+      notify();
+      return saved;
+    }
     return note;
   },
 
-  update: async (id: string, updates: Partial<InternalNote>) => {
-    notes = notes.map((n) => (n.id === id ? { ...n, ...updates } : n));
-    notify();
-    const dbUpdates = appToDb(updates);
-    if (Object.keys(dbUpdates).length === 0) return;
-    const { error } = await supabase
+  refreshOne: async (id: string): Promise<InternalNote | undefined> => {
+    const { data, error } = await supabase
       .from("internal_notes")
-      .update({ ...dbUpdates, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) console.error("Failed to update internal note:", error);
+      .select("*")
+      .eq("id", id)
+      .eq("env", getEnvironment())
+      .maybeSingle();
+    if (error || !data) return internalNotesStore.getById(id);
+    const mapped = dbToApp(data);
+    notes = notes.map((n) => (n.id === id ? mapped : n));
+    if (!notes.some((n) => n.id === id)) notes = [mapped, ...notes];
+    notify();
+    return mapped;
+  },
+
+  update: async (id: string, updates: Partial<InternalNote>): Promise<Error | null> => {
+    return noteWriteQueue.enqueue(id, async () => {
+      const dbUpdates = stripNoteServerOwnedKeys(appToDb(updates));
+      if (Object.keys(dbUpdates).length === 0) return null;
+      const live = internalNotesStore.getById(id);
+      const expected = live?.updatedAt;
+      if (!expected) {
+        return new Error("invalid_updated_at");
+      }
+      const { data, error } = await supabase.rpc("apply_internal_note_update", {
+        p_note_id: id,
+        p_patch: dbUpdates,
+        p_expected_updated_at: expected,
+      });
+      const parsed = (data ?? null) as ApplyInternalNoteWriteResult | null;
+      if (error || !parsed?.ok) {
+        const fail = error ?? new Error(parsed?.error || "apply_internal_note_update_failed");
+        if (isStaleNoteWrite(parsed) || isStaleNoteWrite(fail)) {
+          await internalNotesStore.refreshOne(id);
+        }
+        console.error("Failed to update internal note:", fail);
+        return new Error(describeNoteWriteFailure(parsed ?? fail));
+      }
+      if (isInternalNoteRow(parsed.note)) {
+        const mapped = dbToApp(parsed.note);
+        notes = notes.map((n) => (n.id === id ? mapped : n));
+        notify();
+      }
+      return null;
+    });
   },
 
   remove: (id: string) => {

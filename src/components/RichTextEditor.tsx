@@ -4,7 +4,8 @@ import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { Block, BlockNoteEditor, PartialBlock } from "@blocknote/core";
 import { zhTW } from "@blocknote/core/locales";
-import { useRef, useCallback, useState, useMemo } from "react";
+import { useRef, useCallback, useState, useMemo, useEffect } from "react";
+import { decideRemoteEditorUpdate, serializeBlocksForCompare } from "@/lib/rich-text-remote-sync";
 import { supabase } from "@/integrations/supabase/client";
 import { buildCaseFilePathWithPrefix } from "@/lib/storage-case-files";
 import {
@@ -25,10 +26,17 @@ import { Paintbrush, ClipboardPaste } from "lucide-react";
 interface RichTextEditorProps {
   /** BlockNote JSON blocks */
   initialContent?: PartialBlock[];
-  /** Called on every content change with the new blocks array */
+  /** Called on user edits only; remote apply does not fire this */
   onChange?: (blocks: Block[]) => void;
   /** Whether the editor is read-only */
   editable?: boolean;
+  /** 同一文件身分；切換不同 ID 應由外層 key 重建，不可每次內容變動就卸載 */
+  documentId?: string;
+  remoteContent?: PartialBlock[];
+  remoteRevision?: string | number | null;
+  hasLocalDraft?: boolean;
+  suppressedRevision?: string | number | null;
+  onConflict?: () => void;
 }
 
 async function uploadFile(file: File): Promise<string> {
@@ -103,13 +111,32 @@ function CopyPasteFormatButton({ editor }: { editor: BlockNoteEditor }) {
   );
 }
 
+function blocksOrEmptyParagraph(blocks: PartialBlock[] | undefined): PartialBlock[] {
+  if (blocks && blocks.length > 0) return blocks;
+  return [{ type: "paragraph" }];
+}
+
 export default function RichTextEditor({
   initialContent,
   onChange,
   editable = true,
+  documentId,
+  remoteContent,
+  remoteRevision,
+  hasLocalDraft = false,
+  suppressedRevision,
+  onConflict,
 }: RichTextEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onConflictRef = useRef(onConflict);
+  onConflictRef.current = onConflict;
+  const applyingRemoteRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const lastAppliedRevisionRef = useRef<string | number | null | undefined>(remoteRevision);
+  const lastAppliedSerializedRef = useRef(
+    serializeBlocksForCompare(initialContent && initialContent.length > 0 ? initialContent : []),
+  );
 
   const editor = useCreateBlockNote({
     initialContent:
@@ -121,8 +148,58 @@ export default function RichTextEditor({
   });
 
   const handleChange = useCallback(() => {
+    if (applyingRemoteRef.current) return;
+    dirtyRef.current = true;
     onChangeRef.current?.(editor.document);
   }, [editor]);
+
+  useEffect(() => {
+    const remoteBlocks = remoteContent ?? initialContent ?? [];
+    const decision = decideRemoteEditorUpdate({
+      documentId: documentId ?? "",
+      incomingDocumentId: documentId ?? "",
+      incomingRevision: remoteRevision,
+      lastAppliedRevision: lastAppliedRevisionRef.current,
+      suppressedRevision,
+      localDirty: dirtyRef.current || hasLocalDraft,
+      localSerialized: serializeBlocksForCompare(editor.document),
+      remoteSerialized: serializeBlocksForCompare(remoteBlocks),
+    });
+    if (decision === "ignore") return;
+    if (decision === "adopt") {
+      lastAppliedRevisionRef.current = remoteRevision;
+      lastAppliedSerializedRef.current = serializeBlocksForCompare(editor.document);
+      dirtyRef.current = false;
+      return;
+    }
+    if (decision === "conflict") {
+      onConflictRef.current?.();
+      return;
+    }
+    applyingRemoteRef.current = true;
+    try {
+      const next = blocksOrEmptyParagraph(remoteBlocks);
+      editor.replaceBlocks(
+        editor.document.map((block) => block.id),
+        next,
+      );
+      lastAppliedRevisionRef.current = remoteRevision;
+      lastAppliedSerializedRef.current = serializeBlocksForCompare(next);
+      dirtyRef.current = false;
+    } finally {
+      queueMicrotask(() => {
+        applyingRemoteRef.current = false;
+      });
+    }
+  }, [
+    documentId,
+    editor,
+    hasLocalDraft,
+    initialContent,
+    remoteContent,
+    remoteRevision,
+    suppressedRevision,
+  ]);
 
   // Build filtered & renamed slash menu items
   const getFilteredItems = useCallback(
