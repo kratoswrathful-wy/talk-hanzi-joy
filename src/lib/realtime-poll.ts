@@ -24,10 +24,20 @@ type PollHandle = {
   reset: () => void;
 };
 
+export function latestTimestamp(values: Iterable<string | null | undefined>): string | null {
+  let max: string | null = null;
+  for (const value of values) {
+    if (!value) continue;
+    if (max == null || value > max) max = value;
+  }
+  return max;
+}
+
 function createUpdatedAtPoll(
   checkLatest: () => Promise<string | null>,
   onChanged: () => void,
-  interval: number
+  interval: number,
+  getKnownLatest?: () => string | null,
 ): PollHandle {
   let lastMaxUpdatedAt: string | null = null;
   let timerId: ReturnType<typeof setTimeout> | null = null;
@@ -40,7 +50,8 @@ function createUpdatedAtPoll(
     try {
       const latest = await checkLatest();
       if (!active || checkGeneration !== generation) return;
-      if (lastMaxUpdatedAt !== null && latest !== lastMaxUpdatedAt) {
+      const previous = lastMaxUpdatedAt ?? getKnownLatest?.() ?? null;
+      if (previous !== null && latest !== previous) {
         onChanged();
       }
       lastMaxUpdatedAt = latest;
@@ -116,7 +127,8 @@ function createUpdatedAtPoll(
 export function createPollFallback(
   table: PollableTable,
   onChanged: () => void,
-  interval = 30000
+  interval = 30000,
+  getKnownLatest?: () => string | null,
 ): PollHandle {
   return createUpdatedAtPoll(async () => {
     const env = getEnvironment();
@@ -128,7 +140,7 @@ export function createPollFallback(
       .limit(1)
       .maybeSingle();
     return data?.updated_at ?? null;
-  }, onChanged, interval);
+  }, onChanged, interval, getKnownLatest);
 }
 
 /** 費用輪詢走遮罩 view（譯者對 fees 基表已無 SELECT） */
@@ -152,7 +164,8 @@ export function createFeesVisiblePollFallback(
 /** 案件輪詢走遮罩 view（譯者對 cases 基表已無 SELECT） */
 export function createCasesVisiblePollFallback(
   onChanged: () => void,
-  interval = 15000
+  interval = 15000,
+  getKnownLatest?: () => string | null,
 ): PollHandle {
   return createUpdatedAtPoll(async () => {
     const env = getEnvironment();
@@ -164,5 +177,5 @@ export function createCasesVisiblePollFallback(
       .limit(1)
       .maybeSingle();
     return data?.updated_at ?? null;
-  }, onChanged, interval);
+  }, onChanged, interval, getKnownLatest);
 }

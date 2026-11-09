@@ -1412,6 +1412,26 @@ export default function CaseDetailPage() {
     };
   }, [id, loadRetryNonce]);
 
+  useEffect(() => {
+    if (!id) return;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isUnsavedCaseSavePhase(savePhaseRef.current)) return;
+      void caseStore.loadCaseFull(id);
+    };
+    const timer = window.setInterval(refresh, 4000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [id]);
+
   // Strip duplicateExpectedTitle from history state once UI matches (avoids stale state on refresh).
   useEffect(() => {
     if (!duplicateExpectedTitle || !caseData || caseData.id !== id) return;
@@ -1594,6 +1614,7 @@ export default function CaseDetailPage() {
   const save = useCallback(
     async (partial: Partial<CaseRecord>): Promise<Error | null> => {
       if (!id) return new Error("missing id");
+      const previousTitle = caseDataRef.current?.title;
       let incoming = partial;
       if (!isManager) {
         const socialKeep: Partial<CaseRecord> = {};
@@ -1887,6 +1908,10 @@ export default function CaseDetailPage() {
         outcome: "ok",
         hasPending: bodyWriteSchedulerRef.current.hasPending(),
       }));
+      const nextTitle = incoming.title;
+      if (typeof nextTitle === "string" && previousTitle && nextTitle !== previousTitle) {
+        void internalNotesStore.retargetRelatedCase(previousTitle, nextTitle);
+      }
       return null;
     },
     [id, profile, isManager]

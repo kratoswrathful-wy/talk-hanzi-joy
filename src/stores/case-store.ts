@@ -32,7 +32,7 @@ import type { CaseRecord, CaseStatus, ToolEntry, ToolEntryField, CaseComment, De
 import { deriveReviewerSummary } from "@/lib/review-rows";
 import type { Block } from "@blocknote/core";
 import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
-import { createCasesVisiblePollFallback } from "@/lib/realtime-poll";
+import { createCasesVisiblePollFallback, latestTimestamp } from "@/lib/realtime-poll";
 import { AuthRecoverableError, getAuthenticatedUser } from "@/lib/auth-ready";
 import { applyCaseUpdate } from "@/lib/apply-case-update";
 import { collabRowFromJson } from "@/lib/collab-row-from-json";
@@ -1989,7 +1989,7 @@ const casePoll = createCasesVisiblePollFallback(() => {
     loadPromise = null;
     load();
   }
-}, 15000);
+}, 15000, () => latestTimestamp(cases.map((c) => c.updatedAt)));
 
 // Start polling when first listener subscribes
 const _origSubscribe = subscribe;

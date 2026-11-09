@@ -24,6 +24,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       },
       subscribe: () => ({}),
     }),
+    removeChannel: () => undefined,
   },
 }));
 
@@ -40,6 +41,7 @@ vi.mock("@/lib/realtime-poll", () => ({
     start: () => undefined,
     stop: () => undefined,
   }),
+  latestTimestamp: () => null,
 }));
 
 const { internalNotesStore } = await import("./internal-notes-store");

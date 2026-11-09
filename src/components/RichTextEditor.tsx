@@ -149,6 +149,8 @@ export default function RichTextEditor({
 
   const handleChange = useCallback(() => {
     if (applyingRemoteRef.current) return;
+    const serialized = serializeBlocksForCompare(editor.document);
+    if (serialized === lastAppliedSerializedRef.current) return;
     dirtyRef.current = true;
     onChangeRef.current?.(editor.document);
   }, [editor]);

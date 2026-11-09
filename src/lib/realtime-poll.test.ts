@@ -18,7 +18,7 @@ vi.mock("@/lib/environment", () => ({
   getEnvironment: () => "production",
 }));
 
-const { createFeesVisiblePollFallback } = await import("./realtime-poll");
+const { createFeesVisiblePollFallback, createPollFallback, latestTimestamp } = await import("./realtime-poll");
 
 async function flushMicrotasks() {
   await Promise.resolve();
@@ -86,5 +86,34 @@ describe("realtime poll checkOnce mutex", () => {
     expect(fromMock).toHaveBeenCalledTimes(2);
     expect(onChanged).toHaveBeenCalledTimes(1);
     poll.stop();
+  });
+
+  it("first check reloads when DB latest is newer than in-memory", async () => {
+    const onChanged = vi.fn();
+    const poll = createPollFallback(
+      "internal_notes",
+      onChanged,
+      1_000,
+      () => "2026-08-25T09:00:00.000Z",
+    );
+    poll.start();
+    vi.advanceTimersByTime(1_000);
+    await flushMicrotasks();
+    pendingChecks.shift()?.({
+      data: { updated_at: "2026-08-25T10:00:00.000Z" },
+      error: null,
+    });
+    await flushMicrotasks();
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    poll.stop();
+  });
+});
+
+describe("latestTimestamp", () => {
+  it("returns the greatest non-empty value", () => {
+    expect(latestTimestamp(["2026-01-01T00:00:00.000Z", "", "2026-01-02T00:00:00.000Z"])).toBe(
+      "2026-01-02T00:00:00.000Z",
+    );
+    expect(latestTimestamp([null, undefined])).toBeNull();
   });
 });

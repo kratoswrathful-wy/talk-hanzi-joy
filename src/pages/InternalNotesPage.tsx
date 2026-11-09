@@ -192,6 +192,8 @@ function NoteDetailView({
     };
   }, [note.id]);
 
+  useEffect(() => internalNotesStore.watchOpenNote(note.id), [note.id]);
+
   const uiNoteReminder = useToolbarButtonUiProps("internal_notes_note_reminder");
   const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
   const uiDeleteNote = useToolbarButtonUiProps("internal_notes_delete");

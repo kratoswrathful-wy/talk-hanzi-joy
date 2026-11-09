@@ -6,7 +6,7 @@ import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
-import { createPollFallback } from "@/lib/realtime-poll";
+import { createPollFallback, latestTimestamp } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import { createKeyedQueue } from "@/lib/case-write-queue";
 import {
@@ -144,42 +144,56 @@ function appToDb(note: Partial<InternalNote>): Record<string, Json> {
   return m;
 }
 
-// ── Realtime ──
-supabase
-  .channel("internal-notes-realtime")
-  .on(
-    "postgres_changes",
-    { event: "*", schema: "public", table: "internal_notes" },
-    (payload) => {
-      const env = getEnvironment();
-      if (payload.eventType === "UPDATE" && payload.new) {
-        const row = payload.new as Tables<"internal_notes">;
-        if (row.env !== env) return;
-        const updated = dbToApp(row);
-        notes = notes.map((n) => (n.id === updated.id ? updated : n));
-        notify();
-      } else if (payload.eventType === "INSERT" && payload.new) {
-        const row = payload.new as Tables<"internal_notes">;
-        if (row.env !== env) return;
-        if (!notes.some((n) => n.id === row.id)) {
-          notes = [dbToApp(row), ...notes];
-          notify();
+// ── Realtime：只當信號，完整列改由 refreshOne 讀回，避免 payload 缺欄或 env 缺失被丟掉 ──
+let notesRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function noteIdFromRealtimePayload(payload: {
+  new?: unknown;
+  old?: unknown;
+}): string | null {
+  const incoming = payload.new as { id?: unknown; env?: unknown } | undefined;
+  const previous = payload.old as { id?: unknown } | undefined;
+  if (typeof incoming?.id === "string") return incoming.id;
+  if (typeof previous?.id === "string") return previous.id;
+  return null;
+}
+
+function subscribeNotesRealtime() {
+  if (notesRealtimeChannel) {
+    void supabase.removeChannel(notesRealtimeChannel);
+    notesRealtimeChannel = null;
+  }
+  notesRealtimeChannel = supabase
+    .channel("internal-notes-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "internal_notes" },
+      (payload) => {
+        const env = getEnvironment();
+        const incomingEnv = (payload.new as { env?: unknown } | undefined)?.env;
+        if (typeof incomingEnv === "string" && incomingEnv !== env) return;
+        if (payload.eventType === "DELETE") {
+          const oldId = (payload.old as Partial<Tables<"internal_notes">> | undefined)?.id;
+          if (oldId && notes.some((n) => n.id === oldId)) {
+            notes = notes.filter((n) => n.id !== oldId);
+            notify();
+          }
+          return;
         }
-      } else if (payload.eventType === "DELETE" && payload.old) {
-        const oldId = (payload.old as Partial<Tables<"internal_notes">>).id;
-        if (notes.some((n) => n.id === oldId)) {
-          notes = notes.filter((n) => n.id !== oldId);
-          notify();
-        }
-      }
-    }
-  )
-  .subscribe();
+        const id = noteIdFromRealtimePayload(payload);
+        if (!id) return;
+        void internalNotesStore.refreshOne(id);
+      },
+    )
+    .subscribe();
+}
+
+subscribeNotesRealtime();
 
 // Polling fallback
 const notePoll = createPollFallback("internal_notes", () => {
   if (loaded) internalNotesStore.load();
-}, 15000);
+}, 15000, () => latestTimestamp(notes.map((n) => n.updatedAt)));
 
 export const internalNotesStore = {
   getAll: (): InternalNote[] => notes,
@@ -337,6 +351,34 @@ export const internalNotesStore = {
   findByCase: (caseTitle: string): InternalNote[] =>
     notes.filter((n) => n.relatedCase === caseTitle),
 
+  retargetRelatedCase: async (fromTitle: string, toTitle: string) => {
+    if (!fromTitle || !toTitle || fromTitle === toTitle) return;
+    const targets = notes.filter((n) => n.relatedCase === fromTitle);
+    for (const note of targets) {
+      await internalNotesStore.update(note.id, { relatedCase: toTitle });
+    }
+  },
+
+  watchOpenNote: (id: string, intervalMs = 3000): (() => void) => {
+    if (!id) return () => undefined;
+    const refresh = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void internalNotesStore.refreshOne(id);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, intervalMs);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  },
+
   getMaxSeqForPrefix: (prefix: string): number => {
     let max = 0;
     for (const n of notes) {
@@ -389,6 +431,7 @@ supabase.auth.onAuthStateChange((event, session) => {
     if (loadPromise) reloadRequested = true;
     authUserId = nextUserId;
     loaded = false;
+    subscribeNotesRealtime();
     notify();
   }
 });
