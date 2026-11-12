@@ -68,3 +68,14 @@ export function decideRemoteEditorUpdate(input: {
   }
   return "apply";
 }
+
+/** 閱讀中且遠端較新：外層用 key 重建編輯器，不依賴 BlockNote replaceBlocks 是否真的畫出來。 */
+export function shouldRemountIdleEditor(input: {
+  remoteRevision: string | number | null | undefined;
+  appliedRevision: string | number | null | undefined;
+  hasLocalDraft: boolean;
+  conflictOpen: boolean;
+}): boolean {
+  if (input.hasLocalDraft || input.conflictOpen) return false;
+  return isNewerRevision(input.remoteRevision, input.appliedRevision);
+}

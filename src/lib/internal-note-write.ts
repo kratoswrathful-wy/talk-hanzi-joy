@@ -48,10 +48,18 @@ export function stripNoteServerOwnedKeys(patch: Record<string, unknown>): Record
   return next;
 }
 
+export function pickNoteWriteExpectedAt(
+  editorApplied: string | null | undefined,
+  storeLive: string | null | undefined,
+): string | null {
+  if (editorApplied) return editorApplied;
+  return storeLive ?? null;
+}
+
 export function isStaleNoteWrite(error: { message?: string; error?: string } | null | undefined): boolean {
   if (!error) return false;
   const text = `${error.error ?? ""} ${error.message ?? ""}`;
-  return text.includes("stale_updated_at");
+  return text.includes("stale_updated_at") || text.includes("較新版本");
 }
 
 export function describeNoteWriteFailure(

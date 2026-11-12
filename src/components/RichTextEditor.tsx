@@ -37,6 +37,8 @@ interface RichTextEditorProps {
   hasLocalDraft?: boolean;
   suppressedRevision?: string | number | null;
   onConflict?: () => void;
+  /** 閱讀中套新版時請外層重建，避免 replaceBlocks 畫不出來卻把已套用版號往前推。 */
+  onNeedRemount?: () => void;
 }
 
 async function uploadFile(file: File): Promise<string> {
@@ -126,11 +128,14 @@ export default function RichTextEditor({
   hasLocalDraft = false,
   suppressedRevision,
   onConflict,
+  onNeedRemount,
 }: RichTextEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onConflictRef = useRef(onConflict);
   onConflictRef.current = onConflict;
+  const onNeedRemountRef = useRef(onNeedRemount);
+  onNeedRemountRef.current = onNeedRemount;
   const applyingRemoteRef = useRef(false);
   const dirtyRef = useRef(false);
   const lastAppliedRevisionRef = useRef<string | number | null | undefined>(remoteRevision);
@@ -178,6 +183,10 @@ export default function RichTextEditor({
       onConflictRef.current?.();
       return;
     }
+    if (onNeedRemountRef.current) {
+      onNeedRemountRef.current();
+      return;
+    }
     applyingRemoteRef.current = true;
     try {
       const next = blocksOrEmptyParagraph(remoteBlocks);
@@ -185,8 +194,12 @@ export default function RichTextEditor({
         editor.document.map((block) => block.id),
         next,
       );
+      const painted = serializeBlocksForCompare(editor.document);
+      if (painted !== serializeBlocksForCompare(next)) {
+        return;
+      }
       lastAppliedRevisionRef.current = remoteRevision;
-      lastAppliedSerializedRef.current = serializeBlocksForCompare(next);
+      lastAppliedSerializedRef.current = painted;
       dirtyRef.current = false;
     } finally {
       queueMicrotask(() => {

@@ -63,6 +63,8 @@ import {
   type CaseSavePhase,
 } from "@/lib/case-write-queue";
 import { RemoteContentConflictDialog } from "@/components/RemoteContentConflictDialog";
+import { isStaleNoteWrite } from "@/lib/internal-note-write";
+import { shouldRemountIdleEditor } from "@/lib/rich-text-remote-sync";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
@@ -164,18 +166,29 @@ function NoteDetailView({
   const [bodyEditorEpoch, setBodyEditorEpoch] = useState(0);
   const noteIdRef = useRef(note.id);
   noteIdRef.current = note.id;
+  const appliedRevisionRef = useRef(note.updatedAt);
+  const appliedNoteIdRef = useRef(note.id);
+  if (appliedNoteIdRef.current !== note.id) {
+    appliedNoteIdRef.current = note.id;
+    appliedRevisionRef.current = note.updatedAt;
+  }
   const bodyWriteSchedulerRef = useRef(
     createLatestWriteScheduler<InternalNote["questionOrNoteBlocks"]>(
       async (blocks) => {
         setBodySavePhase("saving");
-        const error = await internalNotesStore.update(noteIdRef.current, {
-          questionOrNoteBlocks: blocks,
-        });
+        const error = await internalNotesStore.update(
+          noteIdRef.current,
+          { questionOrNoteBlocks: blocks },
+          appliedRevisionRef.current,
+        );
         if (error) {
           toast.error(error.message);
           setBodySavePhase("failed");
+          if (isStaleNoteWrite(error)) setBodyConflictOpen(true);
           return;
         }
+        appliedRevisionRef.current =
+          internalNotesStore.getById(noteIdRef.current)?.updatedAt ?? appliedRevisionRef.current;
         setBodySavePhase("saved");
       },
       400,
@@ -193,6 +206,21 @@ function NoteDetailView({
   }, [note.id]);
 
   useEffect(() => internalNotesStore.watchOpenNote(note.id), [note.id]);
+
+  useEffect(() => {
+    if (
+      !shouldRemountIdleEditor({
+        remoteRevision: note.updatedAt,
+        appliedRevision: appliedRevisionRef.current,
+        hasLocalDraft: isUnsavedCaseSavePhase(bodySavePhase),
+        conflictOpen: bodyConflictOpen,
+      })
+    ) {
+      return;
+    }
+    appliedRevisionRef.current = note.updatedAt;
+    setBodyEditorEpoch((n) => n + 1);
+  }, [note.updatedAt, note.questionOrNoteBlocks, bodySavePhase, bodyConflictOpen, note.id]);
 
   const uiNoteReminder = useToolbarButtonUiProps("internal_notes_note_reminder");
   const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
@@ -426,6 +454,14 @@ function NoteDetailView({
               hasLocalDraft={isUnsavedCaseSavePhase(bodySavePhase)}
               suppressedRevision={bodySuppressedRevision}
               onConflict={() => setBodyConflictOpen(true)}
+              onNeedRemount={() => {
+                if (isUnsavedCaseSavePhase(bodySavePhase) || bodyConflictOpen) {
+                  setBodyConflictOpen(true);
+                  return;
+                }
+                appliedRevisionRef.current = note.updatedAt;
+                setBodyEditorEpoch((n) => n + 1);
+              }}
               onChange={(blocks) => {
                 bodyWriteSchedulerRef.current.schedule(blocks);
               }}
@@ -556,6 +592,7 @@ function NoteDetailView({
           setBodyConflictOpen(false);
         }}
         onReloadRemote={() => {
+          appliedRevisionRef.current = note.updatedAt;
           setBodySuppressedRevision(null);
           setBodyEditorEpoch((n) => n + 1);
           setBodyConflictOpen(false);

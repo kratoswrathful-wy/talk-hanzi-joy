@@ -3,6 +3,7 @@ import {
   decideRemoteEditorUpdate,
   isNewerRevision,
   serializeBlocksForCompare,
+  shouldRemountIdleEditor,
 } from "./rich-text-remote-sync";
 
 describe("serializeBlocksForCompare", () => {
@@ -70,5 +71,48 @@ describe("decideRemoteEditorUpdate", () => {
         suppressedRevision: "2",
       }),
     ).toBe("ignore");
+  });
+});
+
+describe("shouldRemountIdleEditor", () => {
+  it("閱讀中遠端較新就重建", () => {
+    expect(
+      shouldRemountIdleEditor({
+        remoteRevision: "2026-11-09T10:01:00.000Z",
+        appliedRevision: "2026-11-09T10:00:00.000Z",
+        hasLocalDraft: false,
+        conflictOpen: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("正在打字或已開衝突對話時不重建", () => {
+    expect(
+      shouldRemountIdleEditor({
+        remoteRevision: "2",
+        appliedRevision: "1",
+        hasLocalDraft: true,
+        conflictOpen: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRemountIdleEditor({
+        remoteRevision: "2",
+        appliedRevision: "1",
+        hasLocalDraft: false,
+        conflictOpen: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("已套用同一版不重建", () => {
+    expect(
+      shouldRemountIdleEditor({
+        remoteRevision: "1",
+        appliedRevision: "1",
+        hasLocalDraft: false,
+        conflictOpen: false,
+      }),
+    ).toBe(false);
   });
 });

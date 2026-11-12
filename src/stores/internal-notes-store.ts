@@ -12,6 +12,7 @@ import { createKeyedQueue } from "@/lib/case-write-queue";
 import {
   describeNoteWriteFailure,
   isStaleNoteWrite,
+  pickNoteWriteExpectedAt,
   stripNoteServerOwnedKeys,
   type ApplyInternalNoteWriteResult,
 } from "@/lib/internal-note-write";
@@ -287,12 +288,16 @@ export const internalNotesStore = {
     return mapped;
   },
 
-  update: async (id: string, updates: Partial<InternalNote>): Promise<Error | null> => {
+  update: async (
+    id: string,
+    updates: Partial<InternalNote>,
+    expectedUpdatedAt?: string | null,
+  ): Promise<Error | null> => {
     return noteWriteQueue.enqueue(id, async () => {
       const dbUpdates = stripNoteServerOwnedKeys(appToDb(updates));
       if (Object.keys(dbUpdates).length === 0) return null;
       const live = internalNotesStore.getById(id);
-      const expected = live?.updatedAt;
+      const expected = pickNoteWriteExpectedAt(expectedUpdatedAt, live?.updatedAt);
       if (!expected) {
         return new Error("invalid_updated_at");
       }
@@ -362,7 +367,6 @@ export const internalNotesStore = {
   watchOpenNote: (id: string, intervalMs = 3000): (() => void) => {
     if (!id) return () => undefined;
     const refresh = () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       void internalNotesStore.refreshOne(id);
     };
     refresh();
