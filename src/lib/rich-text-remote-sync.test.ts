@@ -30,6 +30,21 @@ describe("isNewerRevision", () => {
   it("時間字串後來者較新", () => {
     expect(isNewerRevision("2026-11-07T10:00:00.000Z", "2026-11-07T09:00:00.000Z")).toBe(true);
   });
+
+  it("微秒 ISO 字串用原樣比較，不把 Date 毫秒當版本", () => {
+    expect(
+      isNewerRevision(
+        "2026-11-13T04:05:06.123457+00:00",
+        "2026-11-13T04:05:06.123456+00:00",
+      ),
+    ).toBe(true);
+    expect(
+      isNewerRevision(
+        "2026-11-13T04:05:06.123456+00:00",
+        "2026-11-13T04:05:06.123456+00:00",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("decideRemoteEditorUpdate", () => {

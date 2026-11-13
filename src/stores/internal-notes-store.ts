@@ -11,10 +11,9 @@ import { getAuthenticatedUser } from "@/lib/auth-ready";
 import { createKeyedQueue } from "@/lib/case-write-queue";
 import {
   describeNoteWriteFailure,
-  isStaleNoteWrite,
+  parseApplyInternalNoteWriteResult,
   pickNoteWriteExpectedAt,
   stripNoteServerOwnedKeys,
-  type ApplyInternalNoteWriteResult,
 } from "@/lib/internal-note-write";
 import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
 
@@ -306,20 +305,16 @@ export const internalNotesStore = {
         p_patch: dbUpdates,
         p_expected_updated_at: expected,
       });
-      const parsed = (data ?? null) as ApplyInternalNoteWriteResult | null;
-      if (error || !parsed?.ok) {
-        const fail = error ?? new Error(parsed?.error || "apply_internal_note_update_failed");
-        if (isStaleNoteWrite(parsed) || isStaleNoteWrite(fail)) {
-          await internalNotesStore.refreshOne(id);
-        }
+      const parsed = parseApplyInternalNoteWriteResult(data);
+      if (error || !parsed.ok || !isInternalNoteRow(parsed.note)) {
+        const fail = error ?? new Error(parsed.error || "apply_internal_note_update_failed");
+        await internalNotesStore.refreshOne(id);
         console.error("Failed to update internal note:", fail);
-        return new Error(describeNoteWriteFailure(parsed ?? fail));
+        return new Error(describeNoteWriteFailure(parsed.error ? parsed : fail));
       }
-      if (isInternalNoteRow(parsed.note)) {
-        const mapped = dbToApp(parsed.note);
-        notes = notes.map((n) => (n.id === id ? mapped : n));
-        notify();
-      }
+      const mapped = dbToApp(parsed.note);
+      notes = notes.map((n) => (n.id === id ? mapped : n));
+      notify();
       return null;
     });
   },
