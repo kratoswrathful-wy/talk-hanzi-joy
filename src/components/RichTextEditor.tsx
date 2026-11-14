@@ -154,6 +154,11 @@ export default function RichTextEditor({
     dictionary: zhTW,
   });
 
+  useEffect(() => {
+    lastAppliedSerializedRef.current = serializeBlocksForCompare(editor.document);
+    dirtyRef.current = false;
+  }, [editor]);
+
   const handleChange = useCallback(() => {
     if (applyingRemoteRef.current) return;
     const serialized = serializeBlocksForCompare(editor.document);
@@ -172,6 +177,7 @@ export default function RichTextEditor({
       suppressedRevision,
       ownWriteRevision,
       localDirty: dirtyRef.current || hasLocalDraft,
+      hasLocalDraft,
       localSerialized: serializeBlocksForCompare(editor.document),
       remoteSerialized: serializeBlocksForCompare(remoteBlocks),
     });
@@ -184,6 +190,10 @@ export default function RichTextEditor({
     }
     if (decision === "ackOwn") {
       lastAppliedRevisionRef.current = remoteRevision;
+      if (!hasLocalDraft) {
+        lastAppliedSerializedRef.current = serializeBlocksForCompare(editor.document);
+        dirtyRef.current = false;
+      }
       return;
     }
     if (decision === "conflict") {

@@ -77,6 +77,7 @@ export function decideRemoteEditorUpdate(input: {
   suppressedRevision?: string | number | null;
   ownWriteRevision?: string | number | null;
   localDirty: boolean;
+  hasLocalDraft?: boolean;
   localSerialized: string;
   remoteSerialized: string;
 }): RemoteEditorAction {
@@ -87,13 +88,15 @@ export function decideRemoteEditorUpdate(input: {
   if (!ownWrite && !isNewerRevision(input.incomingRevision, input.lastAppliedRevision)) {
     return "ignore";
   }
+  const unsaved = input.hasLocalDraft === true;
   if (ownWrite) {
-    return input.remoteSerialized === input.localSerialized ? "adopt" : "ackOwn";
+    if (input.remoteSerialized === input.localSerialized || !unsaved) return "adopt";
+    return "ackOwn";
   }
   if (input.remoteSerialized === input.localSerialized) {
     return "adopt";
   }
-  if (input.localDirty) {
+  if (unsaved) {
     if (
       input.suppressedRevision != null &&
       input.suppressedRevision !== "" &&

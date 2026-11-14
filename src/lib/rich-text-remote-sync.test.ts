@@ -84,7 +84,11 @@ describe("decideRemoteEditorUpdate", () => {
   });
 
   it("正在編輯且遠端不同則衝突", () => {
-    expect(decideRemoteEditorUpdate({ ...base, localDirty: true })).toBe("conflict");
+    expect(decideRemoteEditorUpdate({ ...base, localDirty: true, hasLocalDraft: true })).toBe("conflict");
+  });
+
+  it("閱讀中即使編輯器仍標髒也不跳別人已更新", () => {
+    expect(decideRemoteEditorUpdate({ ...base, localDirty: true, hasLocalDraft: false })).toBe("apply");
   });
 
   it("使用者已選擇保留時，同一版不再跳衝突", () => {
@@ -92,6 +96,7 @@ describe("decideRemoteEditorUpdate", () => {
       decideRemoteEditorUpdate({
         ...base,
         localDirty: true,
+        hasLocalDraft: true,
         suppressedRevision: "2",
       }),
     ).toBe("ignore");
@@ -114,9 +119,21 @@ describe("decideRemoteEditorUpdate", () => {
       decideRemoteEditorUpdate({
         ...base,
         localDirty: true,
+        hasLocalDraft: true,
         ownWriteRevision: "2",
       }),
     ).toBe("ackOwn");
+  });
+
+  it("自己剛存成功、頁面已不在輸入中，往返內容差一點也只採用版號", () => {
+    expect(
+      decideRemoteEditorUpdate({
+        ...base,
+        localDirty: true,
+        hasLocalDraft: false,
+        ownWriteRevision: "2",
+      }),
+    ).toBe("adopt");
   });
 });
 
