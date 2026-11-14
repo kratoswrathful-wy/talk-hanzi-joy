@@ -3,7 +3,37 @@
  * 不依賴 BlockNote 實例，方便單元測試。
  */
 
-export type RemoteEditorAction = "ignore" | "apply" | "adopt" | "conflict";
+export type RemoteEditorAction = "ignore" | "apply" | "adopt" | "conflict" | "ackOwn";
+
+/** 只為比對把 +00:00 收成 Z，不經 Date，以免截掉微秒。 */
+export function canonicalRevisionToken(
+  value: string | number | null | undefined,
+): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") return String(value);
+  return String(value)
+    .trim()
+    .replace(" ", "T")
+    .replace(/\+00:00$/, "Z")
+    .replace(/-00:00$/, "Z");
+}
+
+export function isSameRevision(
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+): boolean {
+  const left = canonicalRevisionToken(a);
+  const right = canonicalRevisionToken(b);
+  if (left == null || right == null) return false;
+  return left === right;
+}
+
+export function isOwnWriteRevision(
+  incoming: string | number | null | undefined,
+  ownWriteRevision: string | number | null | undefined,
+): boolean {
+  return isSameRevision(incoming, ownWriteRevision);
+}
 
 export function serializeBlocksForCompare(blocks: unknown): string {
   return JSON.stringify(stripBlockIds(blocks ?? []));
@@ -26,15 +56,17 @@ export function isNewerRevision(
   incoming: string | number | null | undefined,
   lastApplied: string | number | null | undefined,
 ): boolean {
-  if (incoming == null || incoming === "") return false;
-  if (lastApplied == null || lastApplied === "") return true;
-  if (incoming === lastApplied) return false;
-  const incomingNum = typeof incoming === "number" ? incoming : Number(incoming);
-  const lastNum = typeof lastApplied === "number" ? lastApplied : Number(lastApplied);
+  const incomingCanon = canonicalRevisionToken(incoming);
+  const lastCanon = canonicalRevisionToken(lastApplied);
+  if (incomingCanon == null) return false;
+  if (lastCanon == null) return true;
+  if (incomingCanon === lastCanon) return false;
+  const incomingNum = typeof incoming === "number" ? incoming : Number(incomingCanon);
+  const lastNum = typeof lastApplied === "number" ? lastApplied : Number(lastCanon);
   if (Number.isFinite(incomingNum) && Number.isFinite(lastNum)) {
     return incomingNum > lastNum;
   }
-  return String(incoming) > String(lastApplied);
+  return incomingCanon > lastCanon;
 }
 
 export function decideRemoteEditorUpdate(input: {
@@ -43,6 +75,7 @@ export function decideRemoteEditorUpdate(input: {
   incomingRevision: string | number | null | undefined;
   lastAppliedRevision: string | number | null | undefined;
   suppressedRevision?: string | number | null;
+  ownWriteRevision?: string | number | null;
   localDirty: boolean;
   localSerialized: string;
   remoteSerialized: string;
@@ -50,8 +83,12 @@ export function decideRemoteEditorUpdate(input: {
   if (!input.documentId || input.documentId !== input.incomingDocumentId) {
     return "ignore";
   }
-  if (!isNewerRevision(input.incomingRevision, input.lastAppliedRevision)) {
+  const ownWrite = isOwnWriteRevision(input.incomingRevision, input.ownWriteRevision);
+  if (!ownWrite && !isNewerRevision(input.incomingRevision, input.lastAppliedRevision)) {
     return "ignore";
+  }
+  if (ownWrite) {
+    return input.remoteSerialized === input.localSerialized ? "adopt" : "ackOwn";
   }
   if (input.remoteSerialized === input.localSerialized) {
     return "adopt";
@@ -60,7 +97,7 @@ export function decideRemoteEditorUpdate(input: {
     if (
       input.suppressedRevision != null &&
       input.suppressedRevision !== "" &&
-      String(input.suppressedRevision) === String(input.incomingRevision)
+      isSameRevision(input.suppressedRevision, input.incomingRevision)
     ) {
       return "ignore";
     }
@@ -75,7 +112,9 @@ export function shouldRemountIdleEditor(input: {
   appliedRevision: string | number | null | undefined;
   hasLocalDraft: boolean;
   conflictOpen: boolean;
+  ownWriteRevision?: string | number | null;
 }): boolean {
   if (input.hasLocalDraft || input.conflictOpen) return false;
+  if (isOwnWriteRevision(input.remoteRevision, input.ownWriteRevision)) return false;
   return isNewerRevision(input.remoteRevision, input.appliedRevision);
 }

@@ -45,6 +45,15 @@ describe("isNewerRevision", () => {
       ),
     ).toBe(false);
   });
+
+  it("同一瞬間的 +00:00 與 Z 不算較新", () => {
+    expect(
+      isNewerRevision(
+        "2026-11-13T04:05:06.123456Z",
+        "2026-11-13T04:05:06.123456+00:00",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("decideRemoteEditorUpdate", () => {
@@ -87,6 +96,28 @@ describe("decideRemoteEditorUpdate", () => {
       }),
     ).toBe("ignore");
   });
+
+  it("自己剛存成功的版本，內容相同只採用版號", () => {
+    expect(
+      decideRemoteEditorUpdate({
+        ...base,
+        localDirty: true,
+        ownWriteRevision: "2",
+        remoteSerialized: "[]",
+        localSerialized: "[]",
+      }),
+    ).toBe("adopt");
+  });
+
+  it("自己剛存成功但編輯器還留著未送出的後續字，不跳別人已更新", () => {
+    expect(
+      decideRemoteEditorUpdate({
+        ...base,
+        localDirty: true,
+        ownWriteRevision: "2",
+      }),
+    ).toBe("ackOwn");
+  });
 });
 
 describe("shouldRemountIdleEditor", () => {
@@ -127,6 +158,18 @@ describe("shouldRemountIdleEditor", () => {
         appliedRevision: "1",
         hasLocalDraft: false,
         conflictOpen: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("自己剛寫入的版本即使較新也不重建", () => {
+    expect(
+      shouldRemountIdleEditor({
+        remoteRevision: "2",
+        appliedRevision: "1",
+        hasLocalDraft: false,
+        conflictOpen: false,
+        ownWriteRevision: "2",
       }),
     ).toBe(false);
   });

@@ -13,6 +13,7 @@ import {
   describeNoteWriteFailure,
   parseApplyInternalNoteWriteResult,
   pickNoteWriteExpectedAt,
+  rememberOwnNoteWriteRevision,
   stripNoteServerOwnedKeys,
 } from "@/lib/internal-note-write";
 import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -314,6 +315,7 @@ export const internalNotesStore = {
       }
       const mapped = dbToApp(parsed.note);
       notes = notes.map((n) => (n.id === id ? mapped : n));
+      if (mapped.updatedAt) rememberOwnNoteWriteRevision(id, mapped.updatedAt);
       notify();
       return null;
     });

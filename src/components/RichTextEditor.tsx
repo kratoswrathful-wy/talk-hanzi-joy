@@ -36,6 +36,7 @@ interface RichTextEditorProps {
   remoteRevision?: string | number | null;
   hasLocalDraft?: boolean;
   suppressedRevision?: string | number | null;
+  ownWriteRevision?: string | number | null;
   onConflict?: () => void;
   /** 閱讀中套新版時請外層重建，避免 replaceBlocks 畫不出來卻把已套用版號往前推。 */
   onNeedRemount?: () => void;
@@ -127,6 +128,7 @@ export default function RichTextEditor({
   remoteRevision,
   hasLocalDraft = false,
   suppressedRevision,
+  ownWriteRevision,
   onConflict,
   onNeedRemount,
 }: RichTextEditorProps) {
@@ -168,6 +170,7 @@ export default function RichTextEditor({
       incomingRevision: remoteRevision,
       lastAppliedRevision: lastAppliedRevisionRef.current,
       suppressedRevision,
+      ownWriteRevision,
       localDirty: dirtyRef.current || hasLocalDraft,
       localSerialized: serializeBlocksForCompare(editor.document),
       remoteSerialized: serializeBlocksForCompare(remoteBlocks),
@@ -177,6 +180,10 @@ export default function RichTextEditor({
       lastAppliedRevisionRef.current = remoteRevision;
       lastAppliedSerializedRef.current = serializeBlocksForCompare(editor.document);
       dirtyRef.current = false;
+      return;
+    }
+    if (decision === "ackOwn") {
+      lastAppliedRevisionRef.current = remoteRevision;
       return;
     }
     if (decision === "conflict") {
@@ -214,6 +221,7 @@ export default function RichTextEditor({
     remoteContent,
     remoteRevision,
     suppressedRevision,
+    ownWriteRevision,
   ]);
 
   // Build filtered & renamed slash menu items

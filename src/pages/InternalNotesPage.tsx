@@ -63,8 +63,12 @@ import {
   type CaseSavePhase,
 } from "@/lib/case-write-queue";
 import { RemoteContentConflictDialog } from "@/components/RemoteContentConflictDialog";
-import { isStaleNoteWrite } from "@/lib/internal-note-write";
-import { shouldRemountIdleEditor } from "@/lib/rich-text-remote-sync";
+import {
+  clearOwnNoteWriteRevision,
+  isStaleNoteWrite,
+  peekOwnNoteWriteRevision,
+} from "@/lib/internal-note-write";
+import { isSameRevision, shouldRemountIdleEditor } from "@/lib/rich-text-remote-sync";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
@@ -164,12 +168,24 @@ function NoteDetailView({
   const [bodyConflictOpen, setBodyConflictOpen] = useState(false);
   const [bodySuppressedRevision, setBodySuppressedRevision] = useState<string | null>(null);
   const [bodyEditorEpoch, setBodyEditorEpoch] = useState(0);
+  const [fileNameDraft, setFileNameDraft] = useState(note.fileName ?? "");
   const noteIdRef = useRef(note.id);
   noteIdRef.current = note.id;
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+  const fileNameDirtyRef = useRef(false);
   const appliedRevisionRef = useRef(note.updatedAt);
   const appliedNoteIdRef = useRef(note.id);
   if (appliedNoteIdRef.current !== note.id) {
+    const previousId = appliedNoteIdRef.current;
     appliedNoteIdRef.current = note.id;
+    appliedRevisionRef.current = note.updatedAt;
+    fileNameDirtyRef.current = false;
+    setFileNameDraft(note.fileName ?? "");
+    clearOwnNoteWriteRevision(previousId);
+  }
+  const ownWriteRevision = peekOwnNoteWriteRevision(note.id);
+  if (ownWriteRevision && isSameRevision(ownWriteRevision, note.updatedAt)) {
     appliedRevisionRef.current = note.updatedAt;
   }
   const bodyWriteSchedulerRef = useRef(
@@ -197,13 +213,32 @@ function NoteDetailView({
       },
     ),
   );
+  const fileNameWriteSchedulerRef = useRef(
+    createLatestWriteScheduler<string>(
+      (value) => {
+        onUpdateRef.current({ fileName: value });
+      },
+      400,
+    ),
+  );
 
   useEffect(() => {
     const scheduler = bodyWriteSchedulerRef.current;
+    const fileNameScheduler = fileNameWriteSchedulerRef.current;
     return () => {
       void scheduler.flush();
+      void fileNameScheduler.flush();
     };
   }, [note.id]);
+
+  useEffect(() => {
+    if (fileNameDirtyRef.current && note.fileName === fileNameDraft) {
+      fileNameDirtyRef.current = false;
+    }
+    if (!fileNameDirtyRef.current) {
+      setFileNameDraft(note.fileName ?? "");
+    }
+  }, [note.fileName, fileNameDraft, note.id]);
 
   useEffect(() => internalNotesStore.watchOpenNote(note.id), [note.id]);
 
@@ -214,13 +249,14 @@ function NoteDetailView({
         appliedRevision: appliedRevisionRef.current,
         hasLocalDraft: isUnsavedCaseSavePhase(bodySavePhase),
         conflictOpen: bodyConflictOpen,
+        ownWriteRevision,
       })
     ) {
       return;
     }
     appliedRevisionRef.current = note.updatedAt;
     setBodyEditorEpoch((n) => n + 1);
-  }, [note.updatedAt, note.questionOrNoteBlocks, bodySavePhase, bodyConflictOpen, note.id]);
+  }, [note.updatedAt, note.questionOrNoteBlocks, bodySavePhase, bodyConflictOpen, note.id, ownWriteRevision]);
 
   const uiNoteReminder = useToolbarButtonUiProps("internal_notes_note_reminder");
   const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
@@ -397,10 +433,18 @@ function NoteDetailView({
       <Separator />
 
       <Field label="檔案名稱">
-        <MultilineInput 
-          value={note.fileName} 
-          onChange={(e) => onUpdate({ fileName: e.target.value })} 
-          className="max-w-md" 
+        <MultilineInput
+          value={fileNameDraft}
+          onChange={(e) => {
+            const next = e.target.value;
+            fileNameDirtyRef.current = true;
+            setFileNameDraft(next);
+            fileNameWriteSchedulerRef.current.schedule(next);
+          }}
+          onBlur={() => {
+            void fileNameWriteSchedulerRef.current.flush();
+          }}
+          className="max-w-md"
           minRows={1}
           maxRows={3}
         />
@@ -453,6 +497,7 @@ function NoteDetailView({
               remoteRevision={note.updatedAt}
               hasLocalDraft={isUnsavedCaseSavePhase(bodySavePhase)}
               suppressedRevision={bodySuppressedRevision}
+              ownWriteRevision={ownWriteRevision}
               onConflict={() => setBodyConflictOpen(true)}
               onNeedRemount={() => {
                 if (isUnsavedCaseSavePhase(bodySavePhase) || bodyConflictOpen) {

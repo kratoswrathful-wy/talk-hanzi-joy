@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  clearOwnNoteWriteRevision,
   describeNoteWriteFailure,
   isStaleNoteWrite,
   parseApplyInternalNoteWriteResult,
+  peekOwnNoteWriteRevision,
   pickNoteWriteExpectedAt,
   preserveNoteServerRevision,
+  rememberOwnNoteWriteRevision,
   stripNoteServerOwnedKeys,
 } from "./internal-note-write";
 
@@ -102,5 +105,15 @@ describe("parseApplyInternalNoteWriteResult", () => {
       ok: false,
       error: "stale_updated_at",
     });
+  });
+});
+
+describe("rememberOwnNoteWriteRevision", () => {
+  it("notify 前就能讀到自己剛寫入的版本", () => {
+    rememberOwnNoteWriteRevision("n-own", "2026-11-14T03:00:00.123456+00:00");
+    expect(peekOwnNoteWriteRevision("n-own")).toBe("2026-11-14T03:00:00.123456+00:00");
+    expect(peekOwnNoteWriteRevision("n-other")).toBeNull();
+    clearOwnNoteWriteRevision("n-own");
+    expect(peekOwnNoteWriteRevision("n-own")).toBeNull();
   });
 });

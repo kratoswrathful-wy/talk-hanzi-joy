@@ -40,6 +40,22 @@ export type ApplyInternalNoteWriteResult = {
 };
 
 /** 伺服器版本原樣保留，禁止 Date 來回以免截掉微秒。 */
+const ownNoteWriteRevisions = new Map<string, string>();
+
+/** 成功寫入回傳的版本，須在 notify 之前記住，避免同一頁把自己的存檔當成別人的新版。 */
+export function rememberOwnNoteWriteRevision(noteId: string, revision: string): void {
+  if (!noteId || !revision) return;
+  ownNoteWriteRevisions.set(noteId, revision);
+}
+
+export function peekOwnNoteWriteRevision(noteId: string): string | null {
+  return ownNoteWriteRevisions.get(noteId) ?? null;
+}
+
+export function clearOwnNoteWriteRevision(noteId: string): void {
+  ownNoteWriteRevisions.delete(noteId);
+}
+
 export function preserveNoteServerRevision(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
