@@ -44,7 +44,7 @@ import {
   wholeFileReviewerUserId,
 } from "@/lib/case-assignment-patch";
 import { pmUpdateCaseAssignments } from "@/lib/pm-case-assignment-rpc";
-import { adminWriteAccessFromRoles, createKeyedQueue, mergeOptimisticCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "@/lib/case-write-queue";
+import { adminWriteAccessFromRoles, createKeyedQueue, mergeOptimisticCaseWrite, rememberOwnCaseWriteRevision, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "@/lib/case-write-queue";
 import { adminCreateCase, adminDeleteCase } from "@/lib/case-admin-rpc";
 import { buildAdminCreateRpcPayload } from "@/lib/case-create-payload";
 import { caseCreateErrorCode, isDefiniteCaseCreateError } from "@/lib/case-create-outcome";
@@ -336,6 +336,7 @@ function pendingForDisplay(id: string, pending: Partial<CaseRecord>): Partial<Ca
 function rememberConfirmedRevision(id: string, revision: number | undefined) {
   if (typeof revision === "number" && Number.isFinite(revision)) {
     lastConfirmedRevisionById.set(id, revision);
+    rememberOwnCaseWriteRevision(id, revision);
   }
 }
 

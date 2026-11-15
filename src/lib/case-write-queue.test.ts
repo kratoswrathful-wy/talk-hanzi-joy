@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, createKeyedQueue, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, isUnsavedCaseSavePhase, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, resolveInAppLeaveDecision, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
+import { adminWriteAccessFromRoles, CASE_SAVE_NOT_READY_MESSAGE, clearOwnCaseWriteRevision, createKeyedQueue, createLatestWriteScheduler, describeCaseWriteFailure, hardLeaveGuardKind, isUnsavedCaseSavePhase, mergeOptimisticCaseWrite, nextSavePhaseAfterWrite, peekOwnCaseWriteRevision, rememberOwnCaseWriteRevision, resolveInAppLeaveDecision, resolveIntendedCaseWrite, shouldBlockNonAdminAssignmentWrite, shouldUseAdminCaseWritePath } from "./case-write-queue";
 
 describe("createKeyedQueue", () => {
   it("runs tasks for the same key in order and uses the previous result", async () => {
@@ -253,6 +253,21 @@ describe("leave decisions", () => {
     expect(hardLeaveGuardKind({ draftPublishPrompt: false, bodyUnfinished: true })).toBe("pending");
     expect(hardLeaveGuardKind({ draftPublishPrompt: true, bodyUnfinished: true })).toBe("draft-pending");
     expect(hardLeaveGuardKind({ draftPublishPrompt: false, bodyUnfinished: false })).toBe("none");
+  });
+
+  it("草稿案件已存本文後，硬離開仍是公布提示，不是未存本文", () => {
+    expect(hardLeaveGuardKind({
+      draftPublishPrompt: true,
+      bodyUnfinished: isUnsavedCaseSavePhase("saved"),
+    })).toBe("draft");
+  });
+
+  it("rememberOwnCaseWriteRevision 在 notify 前就能讀到", () => {
+    rememberOwnCaseWriteRevision("c-own", 12);
+    expect(peekOwnCaseWriteRevision("c-own")).toBe(12);
+    expect(peekOwnCaseWriteRevision("c-other")).toBeNull();
+    clearOwnCaseWriteRevision("c-own");
+    expect(peekOwnCaseWriteRevision("c-own")).toBeNull();
   });
 
   it("版本衝突與儲存失敗都算未儲存，重整要先警告", () => {

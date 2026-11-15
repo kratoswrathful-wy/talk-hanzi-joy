@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   clearOwnNoteWriteRevision,
+  decideUnknownNoteWrite,
   describeNoteWriteFailure,
   isStaleNoteWrite,
+  liveNoteSnapshotFromDbKeys,
+  overlapNoteSnapshots,
   parseApplyInternalNoteWriteResult,
   peekOwnNoteWriteRevision,
   pickNoteWriteExpectedAt,
   preserveNoteServerRevision,
   rememberOwnNoteWriteRevision,
+  sentNoteSnapshotFromDbPatch,
   stripNoteServerOwnedKeys,
 } from "./internal-note-write";
 
@@ -40,6 +44,26 @@ describe("pickNoteWriteExpectedAt", () => {
       "2026-11-09T10:01:00.000Z",
     );
     expect(pickNoteWriteExpectedAt(undefined, undefined)).toBeNull();
+  });
+
+  it("自己剛寫入且店裡已是該版時，後續續存用新版號，不拿舊全文重送", () => {
+    expect(
+      pickNoteWriteExpectedAt(
+        "2026-11-09T10:00:00.000Z",
+        "2026-11-09T10:01:00.000Z",
+        "2026-11-09T10:01:00.000Z",
+      ),
+    ).toBe("2026-11-09T10:01:00.000Z");
+  });
+
+  it("店裡較新但不是自己剛寫入時，仍用編輯器已套用的版本去撞衝突", () => {
+    expect(
+      pickNoteWriteExpectedAt(
+        "2026-11-09T10:00:00.000Z",
+        "2026-11-09T10:01:00.000Z",
+        "2026-11-09T09:59:00.000Z",
+      ),
+    ).toBe("2026-11-09T10:00:00.000Z");
   });
 });
 
@@ -115,5 +139,90 @@ describe("rememberOwnNoteWriteRevision", () => {
     expect(peekOwnNoteWriteRevision("n-other")).toBeNull();
     clearOwnNoteWriteRevision("n-own");
     expect(peekOwnNoteWriteRevision("n-own")).toBeNull();
+  });
+});
+
+describe("decideUnknownNoteWrite", () => {
+  const sentBlocks = sentNoteSnapshotFromDbPatch({
+    question_or_note_blocks: [{ type: "paragraph", content: [{ type: "text", text: "已送出" }] }],
+  });
+  const matchingLive = liveNoteSnapshotFromDbKeys(["question_or_note_blocks"], {
+    questionOrNoteBlocks: [{ type: "paragraph", content: [{ type: "text", text: "已送出" }] }],
+  });
+  const otherLive = liveNoteSnapshotFromDbKeys(["question_or_note_blocks"], {
+    questionOrNoteBlocks: [{ type: "paragraph", content: [{ type: "text", text: "別人先存" }] }],
+  });
+  const sentOverlap = overlapNoteSnapshots(sentBlocks, matchingLive);
+  const otherOverlap = overlapNoteSnapshots(sentBlocks, otherLive);
+
+  it("寫入前失敗、伺服器仍是舊版：保留失敗，不當自己已存", () => {
+    expect(
+      decideUnknownNoteWrite({
+        sentNoteId: "n1",
+        liveNoteId: "n1",
+        sentExpectedRevision: "2026-11-15T10:00:00.000Z",
+        liveRevision: "2026-11-15T10:00:00.000Z",
+        sentSnapshotSerialized: sentOverlap.sentSerialized,
+        liveSnapshotSerialized: sentOverlap.liveSerialized,
+        comparableKeyCount: sentOverlap.keyCount,
+      }),
+    ).toBe("keep-failed");
+  });
+
+  it("成功回覆遺失、期間無新編輯：讀回與送出快照相同就認自己的版本", () => {
+    expect(
+      decideUnknownNoteWrite({
+        sentNoteId: "n1",
+        liveNoteId: "n1",
+        sentExpectedRevision: "2026-11-15T10:00:00.000Z",
+        liveRevision: "2026-11-15T10:00:01.000Z",
+        sentSnapshotSerialized: sentOverlap.sentSerialized,
+        liveSnapshotSerialized: sentOverlap.liveSerialized,
+        comparableKeyCount: sentOverlap.keyCount,
+      }),
+    ).toBe("adopt-own");
+  });
+
+  it("伺服器已是別人內容：真衝突，不因內容碰巧能對上就重送舊全文", () => {
+    expect(
+      decideUnknownNoteWrite({
+        sentNoteId: "n1",
+        liveNoteId: "n1",
+        sentExpectedRevision: "2026-11-15T10:00:00.000Z",
+        liveRevision: "2026-11-15T10:00:01.000Z",
+        sentSnapshotSerialized: otherOverlap.sentSerialized,
+        liveSnapshotSerialized: otherOverlap.liveSerialized,
+        comparableKeyCount: otherOverlap.keyCount,
+      }),
+    ).toBe("conflict");
+  });
+
+  it("後端已明確拒絕寫入時，即使讀回碰巧同文也不當自己已存", () => {
+    expect(
+      decideUnknownNoteWrite({
+        sentNoteId: "n1",
+        liveNoteId: "n1",
+        sentExpectedRevision: "2026-11-15T10:00:00.000Z",
+        liveRevision: "2026-11-15T10:00:01.000Z",
+        sentSnapshotSerialized: sentOverlap.sentSerialized,
+        liveSnapshotSerialized: sentOverlap.liveSerialized,
+        comparableKeyCount: sentOverlap.keyCount,
+        writeRejected: true,
+      }),
+    ).toBe("conflict");
+  });
+
+  it("晚到讀回對到另一則註記：忽略，不套到目前這頁", () => {
+    expect(
+      decideUnknownNoteWrite({
+        sentNoteId: "n-a",
+        liveNoteId: "n-b",
+        sentExpectedRevision: "2026-11-15T10:00:00.000Z",
+        liveRevision: "2026-11-15T10:00:01.000Z",
+        sentSnapshotSerialized: sentOverlap.sentSerialized,
+        liveSnapshotSerialized: sentOverlap.liveSerialized,
+        comparableKeyCount: sentOverlap.keyCount,
+      }),
+    ).toBe("ignore");
   });
 });

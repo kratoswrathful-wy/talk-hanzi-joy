@@ -1,4 +1,5 @@
 import type { Json } from "@/integrations/supabase/types";
+import { isSameRevision, serializeBlocksForCompare } from "@/lib/rich-text-remote-sync";
 
 export const NOTE_SERVER_OWNED_KEYS = new Set([
   "id",
@@ -102,9 +103,125 @@ export function stripNoteServerOwnedKeys(patch: Record<string, unknown>): Record
 export function pickNoteWriteExpectedAt(
   editorApplied: string | null | undefined,
   storeLive: string | null | undefined,
+  ownWriteRevision?: string | null,
 ): string | null {
+  if (ownWriteRevision && storeLive && isSameRevision(ownWriteRevision, storeLive)) {
+    return storeLive;
+  }
   if (editorApplied) return editorApplied;
   return storeLive ?? null;
+}
+
+export type UnknownNoteWriteDecision = "adopt-own" | "keep-failed" | "conflict" | "ignore";
+
+const LIVE_NOTE_DB_FIELDS = [
+  "title",
+  "file_name",
+  "question_or_note",
+  "question_or_note_blocks",
+  "source_text",
+  "translated_text",
+  "id_row_count",
+  "related_case",
+  "comments",
+] as const;
+
+export function sentNoteSnapshotFromDbPatch(patch: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(patch).sort()) {
+    const value = patch[key];
+    out[key] = key === "question_or_note_blocks" ? serializeBlocksForCompare(value) : value ?? null;
+  }
+  return out;
+}
+
+export function liveNoteSnapshotFromDbKeys(
+  dbKeys: string[],
+  live: {
+    title?: unknown;
+    fileName?: unknown;
+    questionOrNote?: unknown;
+    questionOrNoteBlocks?: unknown;
+    sourceText?: unknown;
+    translatedText?: unknown;
+    idRowCount?: unknown;
+    relatedCase?: unknown;
+    comments?: unknown;
+  } | null | undefined,
+): Record<string, unknown> {
+  const fromLive: Record<string, unknown> = {
+    title: live?.title ?? null,
+    file_name: live?.fileName ?? null,
+    question_or_note: live?.questionOrNote ?? null,
+    question_or_note_blocks: live?.questionOrNoteBlocks ?? null,
+    source_text: live?.sourceText ?? null,
+    translated_text: live?.translatedText ?? null,
+    id_row_count: live?.idRowCount ?? null,
+    related_case: live?.relatedCase ?? null,
+    comments: live?.comments ?? null,
+  };
+  const out: Record<string, unknown> = {};
+  for (const key of [...dbKeys].sort()) {
+    if (!(LIVE_NOTE_DB_FIELDS as readonly string[]).includes(key)) continue;
+    const value = fromLive[key];
+    out[key] = key === "question_or_note_blocks" ? serializeBlocksForCompare(value) : value ?? null;
+  }
+  return out;
+}
+
+export function overlapNoteSnapshots(
+  sent: Record<string, unknown>,
+  live: Record<string, unknown>,
+): { sentSerialized: string; liveSerialized: string; keyCount: number } {
+  const keys = Object.keys(sent).filter((key) => key in live).sort();
+  const pick = (src: Record<string, unknown>) => {
+    const next: Record<string, unknown> = {};
+    for (const key of keys) next[key] = src[key];
+    return JSON.stringify(next);
+  };
+  return {
+    sentSerialized: pick(sent),
+    liveSerialized: pick(live),
+    keyCount: keys.length,
+  };
+}
+
+const NOTE_WRITE_REJECTED_ERRORS = new Set([
+  "stale_updated_at",
+  "not_authorized",
+  "note_unavailable",
+  "invalid_updated_at",
+]);
+
+export function isExplicitNoteWriteRejection(errorCode: string | null | undefined): boolean {
+  return Boolean(errorCode && NOTE_WRITE_REJECTED_ERRORS.has(errorCode));
+}
+
+/** 回覆遺失／寫入失敗後，用「這次送出的檔與快照」對帳，不拿新版號重送舊全文。 */
+export function decideUnknownNoteWrite(input: {
+  sentNoteId: string;
+  liveNoteId: string | null | undefined;
+  sentExpectedRevision: string;
+  liveRevision: string | null | undefined;
+  sentSnapshotSerialized: string;
+  liveSnapshotSerialized: string;
+  comparableKeyCount: number;
+  writeRejected?: boolean;
+}): UnknownNoteWriteDecision {
+  if (!input.liveNoteId || input.liveNoteId !== input.sentNoteId) return "ignore";
+  if (isSameRevision(input.liveRevision, input.sentExpectedRevision)) {
+    return "keep-failed";
+  }
+  if (input.writeRejected) {
+    return "conflict";
+  }
+  if (input.comparableKeyCount === 0) {
+    return "conflict";
+  }
+  if (input.sentSnapshotSerialized === input.liveSnapshotSerialized) {
+    return "adopt-own";
+  }
+  return "conflict";
 }
 
 export function isStaleNoteWrite(error: { message?: string; error?: string } | null | undefined): boolean {

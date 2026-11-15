@@ -191,6 +191,22 @@ export function hardLeaveGuardKind(input: {
   return "none";
 }
 
+const ownCaseWriteRevisions = new Map<string, number>();
+
+/** 成功寫入的案件版本，須在 notify 之前記住，避免自己存檔把編輯器拆掉。 */
+export function rememberOwnCaseWriteRevision(caseId: string, revision: number): void {
+  if (!caseId || !Number.isFinite(revision)) return;
+  ownCaseWriteRevisions.set(caseId, revision);
+}
+
+export function peekOwnCaseWriteRevision(caseId: string): number | null {
+  return ownCaseWriteRevisions.get(caseId) ?? null;
+}
+
+export function clearOwnCaseWriteRevision(caseId: string): void {
+  ownCaseWriteRevisions.delete(caseId);
+}
+
 export function describeCaseWriteFailure(error: unknown): {
   kind: "conflict" | "identity" | "failed";
   title: string;

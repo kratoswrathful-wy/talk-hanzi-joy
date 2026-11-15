@@ -10,10 +10,16 @@ import { createPollFallback, latestTimestamp } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 import { createKeyedQueue } from "@/lib/case-write-queue";
 import {
+  decideUnknownNoteWrite,
   describeNoteWriteFailure,
+  isExplicitNoteWriteRejection,
+  liveNoteSnapshotFromDbKeys,
+  overlapNoteSnapshots,
   parseApplyInternalNoteWriteResult,
+  peekOwnNoteWriteRevision,
   pickNoteWriteExpectedAt,
   rememberOwnNoteWriteRevision,
+  sentNoteSnapshotFromDbPatch,
   stripNoteServerOwnedKeys,
 } from "@/lib/internal-note-write";
 import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -273,7 +279,10 @@ export const internalNotesStore = {
     return note;
   },
 
-  refreshOne: async (id: string): Promise<InternalNote | undefined> => {
+  refreshOne: async (
+    id: string,
+    opts?: { skipNotify?: boolean },
+  ): Promise<InternalNote | undefined> => {
     const { data, error } = await supabase
       .from("internal_notes")
       .select("*")
@@ -284,7 +293,7 @@ export const internalNotesStore = {
     const mapped = dbToApp(data);
     notes = notes.map((n) => (n.id === id ? mapped : n));
     if (!notes.some((n) => n.id === id)) notes = [mapped, ...notes];
-    notify();
+    if (!opts?.skipNotify) notify();
     return mapped;
   },
 
@@ -297,10 +306,15 @@ export const internalNotesStore = {
       const dbUpdates = stripNoteServerOwnedKeys(appToDb(updates));
       if (Object.keys(dbUpdates).length === 0) return null;
       const live = internalNotesStore.getById(id);
-      const expected = pickNoteWriteExpectedAt(expectedUpdatedAt, live?.updatedAt);
+      const expected = pickNoteWriteExpectedAt(
+        expectedUpdatedAt,
+        live?.updatedAt,
+        peekOwnNoteWriteRevision(id),
+      );
       if (!expected) {
         return new Error("invalid_updated_at");
       }
+      const sentSnapshot = sentNoteSnapshotFromDbPatch(dbUpdates);
       const { data, error } = await supabase.rpc("apply_internal_note_update", {
         p_note_id: id,
         p_patch: dbUpdates,
@@ -309,8 +323,29 @@ export const internalNotesStore = {
       const parsed = parseApplyInternalNoteWriteResult(data);
       if (error || !parsed.ok || !isInternalNoteRow(parsed.note)) {
         const fail = error ?? new Error(parsed.error || "apply_internal_note_update_failed");
-        await internalNotesStore.refreshOne(id);
+        const liveAfter = await internalNotesStore.refreshOne(id, { skipNotify: true });
+        const liveSnapshot = liveNoteSnapshotFromDbKeys(Object.keys(dbUpdates), liveAfter);
+        const overlap = overlapNoteSnapshots(sentSnapshot, liveSnapshot);
+        const decision = decideUnknownNoteWrite({
+          sentNoteId: id,
+          liveNoteId: liveAfter?.id,
+          sentExpectedRevision: expected,
+          liveRevision: liveAfter?.updatedAt,
+          sentSnapshotSerialized: overlap.sentSerialized,
+          liveSnapshotSerialized: overlap.liveSerialized,
+          comparableKeyCount: overlap.keyCount,
+          writeRejected: isExplicitNoteWriteRejection(parsed.error),
+        });
+        if (decision === "adopt-own" && liveAfter?.updatedAt) {
+          rememberOwnNoteWriteRevision(id, liveAfter.updatedAt);
+          notify();
+          return null;
+        }
+        notify();
         console.error("Failed to update internal note:", fail);
+        if (decision === "conflict") {
+          return new Error(describeNoteWriteFailure({ error: "stale_updated_at" }));
+        }
         return new Error(describeNoteWriteFailure(parsed.error ? parsed : fail));
       }
       const mapped = dbToApp(parsed.note);
