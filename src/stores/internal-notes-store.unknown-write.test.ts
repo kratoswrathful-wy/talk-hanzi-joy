@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { peekOwnNoteWriteRevision } from "@/lib/internal-note-write";
+import { createLatestWriteScheduler } from "@/lib/case-write-queue";
+import { clearOwnNoteWriteRevision, peekOwnNoteWriteRevision } from "@/lib/internal-note-write";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 const fromMock = vi.fn();
@@ -109,10 +110,19 @@ function mockRefreshRow(note: InternalNote) {
   }));
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe("internalNotesStore unknown write reconcile", () => {
   beforeEach(async () => {
     fromMock.mockReset();
     rpcMock.mockReset();
+    clearOwnNoteWriteRevision("n-unknown");
     mockRefreshRow(noteFixture());
     await internalNotesStore.add(noteFixture());
   });
@@ -156,5 +166,124 @@ describe("internalNotesStore unknown write reconcile", () => {
     );
     expect(error).toBeInstanceOf(Error);
     expect(error?.message).toContain("較新版本");
+  });
+});
+
+describe("internalNotesStore lost-reply then extra draft via scheduler", () => {
+  const blocksA = [{ type: "paragraph", content: [{ type: "text", text: "A" }] }];
+  const blocksAB = [{ type: "paragraph", content: [{ type: "text", text: "AB" }] }];
+  const blocksC = [{ type: "paragraph", content: [{ type: "text", text: "C" }] }];
+
+  beforeEach(async () => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+    clearOwnNoteWriteRevision("n-unknown");
+    mockRefreshRow(noteFixture());
+    await internalNotesStore.add(noteFixture());
+  });
+
+  it("回覆遺失後又打新字：排程送 AB，不重送 A、不降版本", async () => {
+    const firstReply = deferred<{ data: null; error: { message: string } }>();
+    const rpcArgs: Array<{ p_expected_updated_at?: string; p_patch?: { question_or_note_blocks?: unknown } }> = [];
+    rpcMock.mockImplementation(async (_name: string, args: { p_expected_updated_at?: string; p_patch?: { question_or_note_blocks?: unknown } }) => {
+      rpcArgs.push(args);
+      if (rpcArgs.length === 1) return firstReply.promise;
+      return {
+        data: {
+          ok: true,
+          note: dbRow(noteFixture({
+            updatedAt: "2026-11-15T10:00:02.000Z",
+            questionOrNoteBlocks: blocksAB as InternalNote["questionOrNoteBlocks"],
+          })),
+        },
+        error: null,
+      };
+    });
+
+    let appliedRevision = "2026-11-15T10:00:00.000Z";
+    const scheduler = createLatestWriteScheduler<InternalNote["questionOrNoteBlocks"]>(async (blocks) => {
+      const error = await internalNotesStore.update(
+        "n-unknown",
+        { questionOrNoteBlocks: blocks },
+        appliedRevision,
+      );
+      if (!error) {
+        appliedRevision =
+          peekOwnNoteWriteRevision("n-unknown")
+          ?? internalNotesStore.getById("n-unknown")?.updatedAt
+          ?? appliedRevision;
+      }
+    }, 0);
+
+    scheduler.schedule(blocksA as InternalNote["questionOrNoteBlocks"]);
+    const firstFlush = scheduler.flush();
+    await vi.waitFor(() => {
+      expect(rpcArgs).toHaveLength(1);
+    });
+    expect(rpcArgs[0]?.p_patch?.question_or_note_blocks).toEqual(blocksA);
+
+    scheduler.schedule(blocksAB as InternalNote["questionOrNoteBlocks"]);
+    const secondFlush = scheduler.flush();
+    mockRefreshRow(noteFixture({
+      updatedAt: "2026-11-15T10:00:01.000Z",
+      questionOrNoteBlocks: blocksA as InternalNote["questionOrNoteBlocks"],
+    }));
+    firstReply.resolve({ data: null, error: { message: "Failed to fetch" } });
+    await firstFlush;
+    expect(peekOwnNoteWriteRevision("n-unknown")).toBe("2026-11-15T10:00:01.000Z");
+    await secondFlush;
+
+    expect(rpcArgs).toHaveLength(2);
+    expect(rpcArgs[1]?.p_patch?.question_or_note_blocks).toEqual(blocksAB);
+    expect(rpcArgs[1]?.p_expected_updated_at).toBe("2026-11-15T10:00:01.000Z");
+    expect(internalNotesStore.getById("n-unknown")?.questionOrNoteBlocks).toEqual(blocksAB);
+    expect(internalNotesStore.getById("n-unknown")?.updatedAt).toBe("2026-11-15T10:00:02.000Z");
+  });
+
+  it("期間他人先寫 C：保留本地 AB，走真衝突，不以新版號硬送", async () => {
+    const firstReply = deferred<{ data: null; error: { message: string } }>();
+    const rpcArgs: Array<{ p_expected_updated_at?: string; p_patch?: { question_or_note_blocks?: unknown } }> = [];
+    rpcMock.mockImplementation(async (_name: string, args: { p_expected_updated_at?: string; p_patch?: { question_or_note_blocks?: unknown } }) => {
+      rpcArgs.push(args);
+      if (rpcArgs.length === 1) return firstReply.promise;
+      return { data: { ok: false, error: "stale_updated_at" }, error: null };
+    });
+
+    let appliedRevision = "2026-11-15T10:00:00.000Z";
+    const scheduler = createLatestWriteScheduler<InternalNote["questionOrNoteBlocks"]>(async (blocks) => {
+      const error = await internalNotesStore.update(
+        "n-unknown",
+        { questionOrNoteBlocks: blocks },
+        appliedRevision,
+      );
+      if (!error) {
+        appliedRevision =
+          peekOwnNoteWriteRevision("n-unknown")
+          ?? internalNotesStore.getById("n-unknown")?.updatedAt
+          ?? appliedRevision;
+      }
+      return error;
+    }, 0);
+
+    scheduler.schedule(blocksA as InternalNote["questionOrNoteBlocks"]);
+    const firstFlush = scheduler.flush();
+    await vi.waitFor(() => {
+      expect(rpcArgs).toHaveLength(1);
+    });
+    scheduler.schedule(blocksAB as InternalNote["questionOrNoteBlocks"]);
+    const secondFlush = scheduler.flush();
+    mockRefreshRow(noteFixture({
+      updatedAt: "2026-11-15T10:00:01.000Z",
+      questionOrNoteBlocks: blocksC as InternalNote["questionOrNoteBlocks"],
+    }));
+    firstReply.resolve({ data: null, error: { message: "Failed to fetch" } });
+    await firstFlush;
+    expect(peekOwnNoteWriteRevision("n-unknown")).toBeNull();
+    await secondFlush;
+
+    expect(rpcArgs[1]?.p_patch?.question_or_note_blocks).toEqual(blocksAB);
+    expect(rpcArgs[1]?.p_expected_updated_at).toBe("2026-11-15T10:00:00.000Z");
+    expect(rpcArgs[1]?.p_expected_updated_at).not.toBe("2026-11-15T10:00:01.000Z");
+    expect(internalNotesStore.getById("n-unknown")?.questionOrNoteBlocks).toEqual(blocksC);
   });
 });
