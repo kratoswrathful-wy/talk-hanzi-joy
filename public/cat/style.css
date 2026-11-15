@@ -4262,21 +4262,75 @@ select.cat-mutex-dd-native-hidden {
     color: #64748b;
     line-height: 1.5;
 }
+.sc-custom-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+}
+.sc-custom-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.65rem 1rem;
+    min-width: 0;
+}
 .sc-custom-label-wrap {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    min-width: 0;
+    flex: 1 1 16rem;
+    min-width: 12rem;
+    max-width: 100%;
 }
 .sc-custom-label-wrap > span:first-child {
     font-size: 0.88rem;
     color: #1e293b;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
 }
 .sc-custom-desc {
     font-size: 0.78rem;
     color: #64748b;
     line-height: 1.45;
     margin: 0;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+}
+.sc-custom-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.85rem;
+    flex: 1 1 18rem;
+    min-width: 0;
+}
+.sc-custom-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.45rem;
+    min-width: 0;
+}
+.sc-custom-sublabel {
+    margin: 0;
+    white-space: nowrap;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+.sc-custom-btns {
+    display: flex;
+    gap: 0.3rem;
+    flex: 0 0 auto;
+}
+.sc-custom-control .sc-key-input {
+    width: 8.5rem;
+    min-width: 7rem;
+    max-width: 100%;
+    flex: 0 1 auto;
 }
 
 .sc-key-input {

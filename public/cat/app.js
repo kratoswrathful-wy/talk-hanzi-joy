@@ -753,10 +753,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return row;
     }
 
-    function getGridRowAtListIndex(segIdx) {
+    function getGridRowAtListIndex(segIdx, ensureMounted) {
         const seg = currentSegmentsList[segIdx];
         if (!seg) return null;
-        return getGridRowBySegId(seg.id);
+        return getGridRowBySegId(seg.id, ensureMounted === true);
     }
 
     function setActiveGridRow(row) {
@@ -771,7 +771,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!gridBody) return;
         const nextSet = new Set();
         selectedRowIds.forEach((id) => {
-            const r = getGridRowBySegId(id);
+            const r = getGridRowBySegId(id, false);
             if (r) {
                 r.classList.add('selected-row');
                 nextSet.add(r);
@@ -940,8 +940,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const container = document.getElementById('customShortcutRows');
         if (!container) return;
         container.innerHTML = '';
-        // 使用 CSS Grid 讓標籤欄和 key input 欄寬度對齊
-        container.style.cssText = 'display:grid; grid-template-columns:1fr minmax(108px,130px) auto; gap:0.5rem 0.75rem; align-items:start;';
+        container.classList.add('sc-custom-rows');
+        container.style.cssText = '';
         const rendered = new Set();
 
         const buildLabelWrap = (def) => {
@@ -962,12 +962,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const buildShortcutControl = (def) => {
             const sc = getCustomShortcut(def.id);
             const wrap = document.createElement('div');
-            wrap.style.cssText = 'display:grid; grid-template-columns:minmax(74px,auto) minmax(108px,130px) auto; gap:0.35rem; align-items:center; min-width:0;';
+            wrap.className = 'sc-custom-control';
+            wrap.dataset.shortcutId = def.id;
             if (def.subLabel) {
                 const subLabel = document.createElement('span');
-                subLabel.className = 'sc-custom-desc';
+                subLabel.className = 'sc-custom-sublabel';
                 subLabel.textContent = def.subLabel;
-                subLabel.style.cssText = 'margin:0; white-space:nowrap;';
                 wrap.appendChild(subLabel);
             }
             const keyInput = document.createElement('input');
@@ -975,13 +975,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             keyInput.value = _scFormat(sc);
             keyInput.readOnly = true;
             keyInput.className = 'sc-key-input sc-custom-input';
-            keyInput.style.cssText = 'width:100%; cursor:default;';
-            if (!def.subLabel) keyInput.style.gridColumn = '1 / 3';
+            keyInput.style.cursor = 'default';
             const recordBtn = document.createElement('button');
             recordBtn.type = 'button';
             recordBtn.className = 'secondary-btn btn-sm';
             recordBtn.textContent = '錄製';
-            recordBtn.style.flexShrink = '0';
             recordBtn.addEventListener('click', () => {
                 if (keyInput.classList.contains('sc-recording-active')) return;
                 const prevH = keyInput._scRecordKeydownHandler;
@@ -1016,7 +1014,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             resetBtn.type = 'button';
             resetBtn.className = 'secondary-btn btn-sm';
             resetBtn.textContent = '重設';
-            resetBtn.style.flexShrink = '0';
             resetBtn.addEventListener('click', () => {
                 const h = keyInput._scRecordKeydownHandler;
                 if (h) document.removeEventListener('keydown', h, true);
@@ -1028,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 keyInput.classList.remove('sc-recording-active');
             });
             const btns = document.createElement('div');
-            btns.style.cssText = 'display:flex; gap:0.3rem; flex-shrink:0;';
+            btns.className = 'sc-custom-btns';
             btns.append(recordBtn, resetBtn);
             wrap.append(keyInput, btns);
             return wrap;
@@ -1036,23 +1033,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         CUSTOM_SC_DEFS.forEach(def => {
             if (rendered.has(def.id)) return;
-            const labelWrap = buildLabelWrap(def);
+            const row = document.createElement('div');
+            row.className = 'sc-custom-row';
+            row.appendChild(buildLabelWrap(def));
+            const controls = document.createElement('div');
+            controls.className = 'sc-custom-controls';
             if (def.pairWith) {
                 const pair = CUSTOM_SC_DEFS.find(d => d.id === def.pairWith);
                 if (pair) {
-                    const controls = document.createElement('div');
-                    controls.style.cssText = 'grid-column:2 / 4; display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; min-width:0;';
                     controls.append(buildShortcutControl(def), buildShortcutControl(pair));
-                    container.append(labelWrap, controls);
+                    row.appendChild(controls);
+                    container.appendChild(row);
                     rendered.add(def.id);
                     rendered.add(pair.id);
                     return;
                 }
             }
-            const control = buildShortcutControl(def);
-            const keyInput = control.querySelector('input');
-            const btns = control.querySelector('div:last-child');
-            if (keyInput && btns) container.append(labelWrap, keyInput, btns);
+            controls.appendChild(buildShortcutControl(def));
+            row.appendChild(controls);
+            container.appendChild(row);
+            rendered.add(def.id);
         });
     }
     
@@ -21774,8 +21774,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (sameRow) {
                 const restored = restoreSavedCaretIntoEditor();
-                if (!restored || restored !== targetEditor) {
-                    setCaretAtEditorEnd(targetEditor);
+                const isEditor = window.CatSavedCaretInsert
+                    && typeof window.CatSavedCaretInsert.isTargetEditorElement === 'function'
+                    && window.CatSavedCaretInsert.isTargetEditorElement(restored);
+                if (!isEditor || restored !== targetEditor) {
+                    if (!(restored && restored.__catCaretRestoreScheduled)) {
+                        setCaretAtEditorEnd(targetEditor);
+                    }
                 }
             } else {
                 setCaretAtEditorEnd(targetEditor);
@@ -21905,12 +21910,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         moveVisibleTargetRowByCtrlArrow(e.key === 'ArrowUp' ? -1 : 1);
     }, true);
 
-    function insertSelectedTextAtSavedCaret() {
-        const sel = window.getSelection();
-        const selectedText = sel ? sel.toString() : '';
-        if (!selectedText.trim()) return false;
-        const editor = restoreSavedCaretIntoEditor() || getActiveTargetEditor();
+    function finishInsertSelectedTextAtEditor(editor, selectedText) {
         if (!editor || editor.contentEditable === 'false') return false;
+        if (!selectedText || !String(selectedText).trim()) return false;
         const segId = getEditorSegId(editor);
         const seg = segId != null ? currentSegmentsList.find(s => s.id === segId) : null;
         if (seg && isTargetWriteProtected(seg)) return false;
@@ -21968,6 +21970,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
+        return true;
+    }
+
+    function insertSelectedTextAtSavedCaret() {
+        const api = window.CatSavedCaretInsert;
+        const selectedText = api && typeof api.snapshotSelectionText === 'function'
+            ? api.snapshotSelectionText()
+            : (window.getSelection() ? window.getSelection().toString() : '');
+        if (!selectedText.trim()) return false;
+        const saved = catFakeCaret && typeof catFakeCaret.getSaved === 'function' ? catFakeCaret.getSaved() : null;
+        if (!saved || saved.segId == null) return false;
+        const snapshot = {
+            text: selectedText,
+            segId: saved.segId,
+            plainOffset: saved.plainOffset,
+            fileId: currentFileId,
+            viewId: _currentViewId,
+            insert: (editor, snap) => finishInsertSelectedTextAtEditor(editor, snap.text)
+        };
+        if (api && typeof api.beginInsert === 'function') api.beginInsert(snapshot);
+        const restored = restoreSavedCaretIntoEditor();
+        if (api && typeof api.isTargetEditorElement === 'function' && api.isTargetEditorElement(restored)) {
+            return api.onFocusComplete({
+                segId: saved.segId,
+                editor: restored,
+                fileId: currentFileId,
+                viewId: _currentViewId
+            });
+        }
+        if (!api && restored && restored.nodeType === 1) {
+            return finishInsertSelectedTextAtEditor(restored, selectedText);
+        }
         return true;
     }
 
@@ -22845,12 +22879,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     const AFTER_CONFIRM_SCROLL_BLOCK_KEY = 'catToolAfterConfirmScrollBlock';
 
     function getAfterConfirmScrollBlock() {
+        if (window.CatAfterConfirmScroll && typeof window.CatAfterConfirmScroll.getScrollBlock === 'function') {
+            return window.CatAfterConfirmScroll.getScrollBlock();
+        }
         const v = localStorage.getItem(AFTER_CONFIRM_SCROLL_BLOCK_KEY);
         return v === 'nearest' ? 'nearest' : 'center';
     }
 
+    function getAfterConfirmScrollBottomN() {
+        if (window.CatAfterConfirmScroll && typeof window.CatAfterConfirmScroll.getBottomN === 'function') {
+            return window.CatAfterConfirmScroll.getBottomN();
+        }
+        return 3;
+    }
+
     function virtScrollBlockFromPending(block) {
-        return block === 'center' ? 'center' : 'start';
+        if (window.CatAfterConfirmScroll && typeof window.CatAfterConfirmScroll.virtScrollBlockFromPending === 'function') {
+            return window.CatAfterConfirmScroll.virtScrollBlockFromPending(block);
+        }
+        return block === 'center' ? 'center' : 'nearest';
+    }
+
+    /** 已掛載列若仍在底部保留區內（或被裁切）才需要 nearest 捲動。 */
+    function rowNeedsNearestAdjust(segId) {
+        const row = getGridRowBySegId(segId, false);
+        if (!row) return true;
+        const grid = document.getElementById('editorGrid');
+        if (!grid) return false;
+        const n = getAfterConfirmScrollBottomN();
+        const rb = row.getBoundingClientRect();
+        const gb = grid.getBoundingClientRect();
+        if (rb.bottom > gb.bottom - 4 || rb.top < gb.top + 4) return true;
+        let below = 0;
+        let el = row.nextElementSibling;
+        while (el) {
+            if (el.classList && el.classList.contains('grid-data-row')) {
+                const er = el.getBoundingClientRect();
+                if (er.top < gb.bottom - 2) below += 1;
+            }
+            el = el.nextElementSibling;
+        }
+        if (below >= n - 1) return false;
+        return !!(row.nextElementSibling);
     }
 
     function isActiveEditorGridTextarea(el) {
@@ -22874,6 +22944,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         _userScrollGen++;
         _preserveEditingAcrossVirtRender = null;
+        if (window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.cancel === 'function') {
+            window.CatSavedCaretInsert.cancel();
+        }
         if (_pendingEditorFocus && _pendingEditorFocus.explicitNav) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
@@ -23292,8 +23365,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
         } else if (virtOn && !pending.skipVirtScroll && (pending.explicitNav || pending.forceVirtScroll)) {
-            // 非 center 路徑（nearest / preserve）
-            if (!row) {
+            // 非 center 路徑（nearest）：畫面外或已進入底部保留區才捲
+            const needsNearest = scrollBlock === 'nearest' && rowNeedsNearestAdjust(pending.segId);
+            if (!row || needsNearest) {
                 window.CatVirtGrid.scrollToSegId(pending.segId, scrollBlock);
                 row = getGridRowBySegId(pending.segId, false);
                 if (!row) return;
@@ -23409,6 +23483,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         }
+        if (window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.onFocusComplete === 'function') {
+            window.CatSavedCaretInsert.onFocusComplete({
+                segId: pending.segId,
+                editor: document.activeElement,
+                fileId: currentFileId,
+                viewId: _currentViewId
+            });
+        }
         if (_pendingEditorFocus && _pendingEditorFocus.gen === gen) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
@@ -23493,14 +23575,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function scheduleEditorFocusForSavedCaret(segId, plainOffset) {
         if (segId == null) return false;
+        const row = getGridRowBySegId(segId, false);
         return scheduleEditorFocus({
             segId,
             plainOffset: plainOffset != null ? plainOffset : null,
             restoreCaret: plainOffset != null,
             scrollBehavior: 'auto',
-            scrollBlock: 'center',
+            scrollBlock: row ? getAfterConfirmScrollBlock() : 'center',
             explicitNav: true,
-            forceVirtScroll: true,
+            forceVirtScroll: !row,
+            skipVirtScroll: !!row,
         });
     }
 
@@ -23567,7 +23651,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (segIdx == null || segIdx < 0) return;
         const seg = currentSegmentsList[segIdx];
         if (seg && isTargetWriteProtected(seg)) return;
-        let row = seg ? getGridRowBySegId(seg.id) : null;
+        let row = seg ? getGridRowBySegId(seg.id, false) : null;
         if (!row && window.CatVirtGrid && window.CatVirtGrid.isEnabled() && seg) {
             row = window.CatVirtGrid.scrollToSegId(seg.id);
         }
@@ -24329,7 +24413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function refreshRepetitionSiblingRow(other, tgt) {
         if (!other) return;
-        const row = getGridRowBySegId(other.id);
+        const row = getGridRowBySegId(other.id, false);
         if (!row) return;
         const ta = row.querySelector('.grid-textarea');
         if (ta) {
@@ -27868,7 +27952,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 假游標情況：先還原儲存的游標位置（還原後 editor 自動取得焦點）
             if (fromKeyboard && !isTrueCursorInEditor) {
                 const restored = restoreSavedCaretIntoEditor();
-                if (!restored || restored !== textarea) {
+                const isEditor = window.CatSavedCaretInsert
+                    && typeof window.CatSavedCaretInsert.isTargetEditorElement === 'function'
+                    && window.CatSavedCaretInsert.isTargetEditorElement(restored);
+                if (isEditor && restored === textarea) {
+                    // 已還原到同一譯文格
+                } else if (restored && restored.__catCaretRestoreScheduled) {
+                    const pendingText = text;
+                    if (window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.beginInsert === 'function') {
+                        window.CatSavedCaretInsert.beginInsert({
+                            text: pendingText,
+                            segId: seg.id,
+                            fileId: currentFileId,
+                            viewId: _currentViewId,
+                            insert: (editor) => {
+                                insertPlainTextAtCaret(editor, pendingText);
+                                const insertedTarget = extractTextFromEditor(editor);
+                                seg.targetText = insertedTarget;
+                                editorUndoEditStart[seg.id] = insertedTarget;
+                                const applyOldStatus = seg.status;
+                                pushEditorUndo(seg.id, oldTarget, insertedTarget, {
+                                    oldMatchValue,
+                                    newMatchValue: seg.matchValue,
+                                    oldStatus: applyOldStatus,
+                                    newStatus: applyOldStatus === 'confirmed' ? 'unconfirmed' : applyOldStatus
+                                });
+                                applyUpdateSegmentTarget(seg, insertedTarget, {}).catch(console.error);
+                                if (applyOldStatus === 'confirmed') {
+                                    unconfirmSegmentVisualAfterReplace(seg, rowIdx);
+                                }
+                                editor.dispatchEvent(new Event('input', { bubbles: true }));
+                                return true;
+                            }
+                        });
+                    }
+                    return;
+                } else {
                     setCaretAtEditorEnd(textarea);
                 }
             } else {
@@ -30553,6 +30672,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('input[name="afterConfirmScroll"]').forEach((el) => {
             el.checked = el.value === scrollBlock;
         });
+        const bottomNInput = document.getElementById('afterConfirmScrollBottomN');
+        if (bottomNInput) bottomNInput.value = String(getAfterConfirmScrollBottomN());
     }
 
     if (btnColSettings) btnColSettings.addEventListener('click', () => {
@@ -30659,6 +30780,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const scrollEl = document.querySelector('input[name="afterConfirmScroll"]:checked');
         const scrollBlock = scrollEl && (scrollEl.value === 'nearest' || scrollEl.value === 'center') ? scrollEl.value : 'center';
         localStorage.setItem(AFTER_CONFIRM_SCROLL_BLOCK_KEY, scrollBlock);
+        const bottomNInput = document.getElementById('afterConfirmScrollBottomN');
+        const bottomN = window.CatAfterConfirmScroll && typeof window.CatAfterConfirmScroll.parseBottomN === 'function'
+            ? window.CatAfterConfirmScroll.parseBottomN(bottomNInput && bottomNInput.value)
+            : 3;
+        localStorage.setItem(window.CatAfterConfirmScroll ? window.CatAfterConfirmScroll.BOTTOM_N_KEY : 'catToolAfterConfirmScrollBottomN', String(bottomN));
+        if (bottomNInput) bottomNInput.value = String(bottomN);
         applyColSettings();
         viewSettingsModal.classList.add('hidden');
     });
@@ -30686,6 +30813,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem('catToolEmptySegTmMinPct', '70');
         localStorage.setItem(AFTER_CONFIRM_NAV_KEY, 'nextUnconfirmed');
         localStorage.setItem(AFTER_CONFIRM_SCROLL_BLOCK_KEY, 'center');
+        localStorage.setItem(window.CatAfterConfirmScroll ? window.CatAfterConfirmScroll.BOTTOM_N_KEY : 'catToolAfterConfirmScrollBottomN', '3');
         if (emptySegModeSelect) emptySegModeSelect.value = 'off';
         if (emptySegTmMinPctInput) emptySegTmMinPctInput.value = '70';
         document.querySelectorAll('input[name="afterConfirmNav"]').forEach((el) => {
@@ -30694,6 +30822,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('input[name="afterConfirmScroll"]').forEach((el) => {
             el.checked = el.value === 'center';
         });
+        const bottomNReset = document.getElementById('afterConfirmScrollBottomN');
+        if (bottomNReset) bottomNReset.value = '3';
         renderColSettings();
     });
 

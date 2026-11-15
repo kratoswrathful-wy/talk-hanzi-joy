@@ -503,7 +503,7 @@
             if (scheduleEditorFocusForSaved) {
                 const ok = scheduleEditorFocusForSaved(saved.segId, saved.plainOffset);
                 if (ok) hide();
-                return ok ? saved : null;
+                return ok ? { __catCaretRestoreScheduled: true, segId: saved.segId, plainOffset: saved.plainOffset } : null;
             }
             const { row, editor } = resolveSavedEditor({ scroll: true });
             if (!editor || editor.contentEditable === 'false') return null;

@@ -185,6 +185,27 @@
      * Phase R：virt explicit center 的 scrollTop 與 anchor offset。
      * targetTop = headerH + sumRange(0, ai) - (vh/2 - h/2)
      */
+    function computeNearestScrollTop(list, segId, scrollEl) {
+        const heights = {};
+        for (let i = 0; i < list.length; i++) {
+            heights[String(list[i].id)] = heightOf(list[i].id);
+        }
+        const api = global.CatAfterConfirmScroll;
+        const n = api && typeof api.getBottomN === 'function' ? api.getBottomN() : 3;
+        if (api && typeof api.computeNearestTargetTop === 'function') {
+            const computed = api.computeNearestTargetTop({
+                list,
+                segId,
+                viewportHeight: scrollEl ? scrollEl.clientHeight : 0,
+                headerH: getGridHeaderScrollOffset(),
+                n,
+                heights
+            });
+            return { targetTop: computed.targetTop, anchorOffsetPx: computed.offsetFromViewportTop || 0, n: computed.n };
+        }
+        return { targetTop: scrollTopFromAnchor(list, segId, 0), anchorOffsetPx: 0, n };
+    }
+
     function computeCenterScrollTop(list, segId, scrollEl, anchorRowEl) {
         const ai = list.findIndex((s) => String(s.id) === String(segId));
         if (ai < 0 || !scrollEl) return { targetTop: 0, anchorOffsetPx: 0 };
@@ -243,7 +264,7 @@
 
     function armNavAnchorLock(block) {
         _navAnchorLock = true;
-        _navAnchorBlock = block === 'center' ? 'center' : 'start';
+        _navAnchorBlock = block === 'center' ? 'center' : (block === 'nearest' || block === 'end' ? 'nearest' : 'start');
         if (_navAnchorLockTimer) clearTimeout(_navAnchorLockTimer);
         if (_navAnchorLockExplicitHold) {
             _navAnchorLockTimer = null;
@@ -259,7 +280,7 @@
     function holdNavAnchorLockForExplicitNav(block) {
         _navAnchorLockExplicitHold = true;
         _navAnchorLock = true;
-        _navAnchorBlock = block === 'center' ? 'center' : 'start';
+        _navAnchorBlock = block === 'center' ? 'center' : (block === 'nearest' || block === 'end' ? 'nearest' : 'start');
         if (_navAnchorLockTimer) {
             clearTimeout(_navAnchorLockTimer);
             _navAnchorLockTimer = null;
@@ -479,7 +500,7 @@
 
     function renderWindow(anchorSegId, block, trigger) {
         if (!enabled || !cfg || _rendering) return;
-        const scrollBlock = block === 'center' ? 'center' : 'start';
+        const scrollBlock = block === 'center' ? 'center' : (block === 'nearest' || block === 'end' ? 'nearest' : 'start');
         const prevTrigger = _renderTrigger;
         _renderTrigger = trigger || (anchorSegId != null
             ? `renderWindow:${scrollBlock}`
@@ -569,6 +590,10 @@
                                 anchorRowFound: !!anchorRowEl,
                             });
                         }
+                    } else if (scrollBlock === 'nearest') {
+                        const nearest = computeNearestScrollTop(list, explicitAnchor, scrollEl);
+                        targetTop = nearest.targetTop;
+                        _anchorOffsetPx = nearest.anchorOffsetPx;
                     } else {
                         targetTop = scrollTopFromAnchor(list, explicitAnchor, 0);
                         _anchorOffsetPx = 0;
@@ -718,7 +743,7 @@
         const list = getRenderableList();
         const idx = list.findIndex((s) => String(s.id) === String(segId));
         if (idx < 0) return null;
-        const scrollBlock = block === 'center' ? 'center' : 'start';
+        const scrollBlock = block === 'center' ? 'center' : (block === 'nearest' || block === 'end' ? 'nearest' : 'start');
         const navKey = `${String(segId)}:${scrollBlock}`;
         const now = Date.now();
         if (_lastNavScrollKey === navKey && (now - _lastNavScrollAt) < NAV_SCROLL_COALESCE_MS) {
