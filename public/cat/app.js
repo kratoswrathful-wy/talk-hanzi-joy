@@ -22985,7 +22985,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     function isCenterOk(segId) {
         const delta = measureRowCenterDeltaPx(segId);
         if (delta === null) return false;
-        return Math.abs(delta) <= 16;
+        return Math.abs(delta) <= 16 || isCenterUnreachableButVisible(segId);
+    }
+
+    /** 首尾或短清單已無法再往置中方向捲動，且列仍可見時，視為合法完成。 */
+    function isCenterUnreachableButVisible(segId) {
+        const row = getGridRowBySegId(segId, false);
+        const gridEl = document.getElementById('editorGrid');
+        if (!row || !gridEl) return false;
+        const rb = row.getBoundingClientRect();
+        const gb = gridEl.getBoundingClientRect();
+        const visible = rb.bottom > gb.top + 4 && rb.top < gb.bottom - 4;
+        if (!visible) return false;
+        const delta = Math.round(((rb.top + rb.bottom) / 2) - ((gb.top + gb.bottom) / 2));
+        const maxScroll = gridEl.scrollHeight - gridEl.clientHeight;
+        if (delta > 16 && gridEl.scrollTop >= maxScroll - 2) return true;
+        if (delta < -16 && gridEl.scrollTop <= 2) return true;
+        return false;
     }
 
     /** Phase R2：scroll 後以 DOM 量測微調 scrollTop，與 virt correction 互補。 */
@@ -23176,7 +23192,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const plainOffset = p.plainOffset;
             const focusEditor = !!p.focusEditor;
             _filterAnchorPending = null;
+            const anchorGen = p.gen;
+            const scrollGen = _userScrollGen;
             requestAnimationFrame(() => requestAnimationFrame(() => {
+                if (anchorGen !== _filterAnchorGen || scrollGen !== _userScrollGen) return;
                 if (focusEditor) {
                     // Phase 2.3q Layer A：升級為 explicitNav + forceVirtScroll，
                     // 確保走 completion gate（focusOk + centerOk），不可單獨 deploy。
@@ -23206,7 +23225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (segId == null) return;
         let plainOffset = null;
         try { plainOffset = getPlainCaretOffsetViaRangeClone(active); } catch (_) { plainOffset = null; }
-        _preserveEditingAcrossVirtRender = { segId, plainOffset };
+        _preserveEditingAcrossVirtRender = { segId, plainOffset, scrollGen: _userScrollGen, focusGen: _pendingEditorFocusGen };
     }
 
     function flushEditorFocusAfterVirtRender() {
@@ -23219,6 +23238,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (_pendingEditorFocus) return;
             const preserved = _preserveEditingAcrossVirtRender;
             if (!preserved || preserved.segId == null) return;
+            if (preserved.scrollGen != null && preserved.scrollGen !== _userScrollGen) return;
+            if (preserved.focusGen != null && preserved.focusGen !== _pendingEditorFocusGen) return;
             if (!isEditingFocusLostAfterVirtRender()) {
                 _preserveEditingAcrossVirtRender = null;
                 return;
@@ -23414,7 +23435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (wantCenter) {
             logExplicitCenterDiagnostic('before center measure', pending);
             rowCenterDeltaPx = measureRowCenterDeltaPx(pending.segId);
-            centerOkNow = rowCenterDeltaPx != null && Math.abs(rowCenterDeltaPx) <= 16;
+            centerOkNow = rowCenterDeltaPx != null && (Math.abs(rowCenterDeltaPx) <= 16 || isCenterUnreachableButVisible(pending.segId));
             if (!centerOkNow) {
                 if (_pendingEditorCenterRetry < 3) {
                     _pendingEditorCenterRetry++;
@@ -23732,8 +23753,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showCatToast(`已全部取代 ${replacedCount} 句譯文`, 'info');
             }
             if (isReplaceAllRestoreFakeCaretEnabled()) {
+                const opGen = _pendingEditorFocusGen;
+                const scrollGen = _userScrollGen;
+                const cancelGen = _navigationCancelGen;
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
+                        if (opGen !== _pendingEditorFocusGen || scrollGen !== _userScrollGen || cancelGen !== _navigationCancelGen) return;
                         // 優先：用字元偏移精確還原（setEditorHtml 已重建 DOM，舊 Range 失效）
                         if (_savedReplaceAllCaretInfo && document.body.contains(_savedReplaceAllCaretInfo.editor)) {
                             try {
