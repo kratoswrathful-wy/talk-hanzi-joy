@@ -8150,7 +8150,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _applyReviewRestoreSnapshot(seg);
                 refreshStatusIconForRow(row, seg);
                 if (row) syncRowConfirmedStateClass(row, seg);
-                await _persistSegmentWfState(seg);
                 showCatToast('審稿已確認，未實質編輯內容', 'info');
                 updateProgress();
                 return { focusNext: true, restored: true };
@@ -8160,7 +8159,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             refreshStatusIconForRow(row, seg);
             if (row) syncRowConfirmedStateClass(row, seg);
             updateProgress();
-            await _persistSegmentWfState(seg);
             return { focusNext: true, confirmed: true };
         }
 
@@ -8178,7 +8176,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             refreshStatusIconForRow(row, seg);
             if (row) syncRowConfirmedStateClass(row, seg);
             updateProgress();
-            await _persistSegmentWfState(seg);
             return { focusNext: true, upgraded: true };
         }
 
@@ -8187,7 +8184,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             refreshStatusIconForRow(row, seg);
             if (row) syncRowConfirmedStateClass(row, seg);
             updateProgress();
-            await _persistSegmentWfState(seg);
             return { focusNext: true, upgraded: true };
         }
 
@@ -22180,9 +22176,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function scheduleNpCaretAfterTargetUndo(segIdx, plainOffset) {
+        const opGen = _pendingEditorFocusGen;
+        const scrollGen = _userScrollGen;
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+                if (opGen !== _pendingEditorFocusGen || scrollGen !== _userScrollGen) return;
                 const row = getGridRowAtListIndex(segIdx);
                 const ta = row && row.querySelector('.grid-textarea');
                 if (!ta || ta.contentEditable === 'false') return;
