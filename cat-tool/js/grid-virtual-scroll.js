@@ -544,6 +544,11 @@
 
             if (typeof cfg.onBeforeRender === 'function') cfg.onBeforeRender();
 
+            const kept = new Map();
+            gridBody.querySelectorAll(':scope > .grid-data-row').forEach((row) => {
+                const id = row.getAttribute('data-seg-id');
+                if (id) kept.set(id, row);
+            });
             const frag = document.createDocumentFragment();
             for (let i = startIdx; i < endIdx; i++) {
                 const seg = list[i];
@@ -554,11 +559,14 @@
                 } else if (seg.rowIdx != null) {
                     globalIdx = seg.rowIdx;
                 }
-                const row = cfg.buildRow(seg, globalIdx);
+                const reused = claimKeptRow(kept, seg && seg.id);
+                const row = reused || cfg.buildRow(seg, globalIdx);
                 if (row) {
                     frag.appendChild(row);
-                    observeRow(row, seg.id);
-                    if (typeof cfg.onRowMounted === 'function') cfg.onRowMounted(row, seg);
+                    if (!reused) {
+                        observeRow(row, seg.id);
+                        if (typeof cfg.onRowMounted === 'function') cfg.onRowMounted(row, seg);
+                    }
                 }
             }
             gridBody.replaceChildren(frag);
@@ -732,6 +740,15 @@
         cfg = null;
     }
 
+    function claimKeptRow(kept, segId) {
+        if (!kept || segId == null) return null;
+        const key = String(segId);
+        if (!kept.has(key)) return null;
+        const row = kept.get(key);
+        kept.delete(key);
+        return row;
+    }
+
     function queryRow(segId) {
         if (!cfg || !cfg.gridBody || segId == null) return null;
         const sid = String(segId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -898,6 +915,7 @@
         mount,
         destroy,
         renderWindow,
+        claimKeptRow,
         scrollToSegId,
         ensureRowMounted,
         isSegIdCentered,
