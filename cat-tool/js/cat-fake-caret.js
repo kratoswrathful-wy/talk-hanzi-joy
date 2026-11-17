@@ -548,8 +548,28 @@
             }
         }
 
-        function restoreOrShowFake() {
+        /** 別的輸入格已有鍵盤時，被動還原只畫假游標，不呼叫 focus。 */
+        function anotherFieldOwnsKeyboard() {
+            const active = document.activeElement;
+            if (!active || active === document.body || active === document.documentElement) return false;
+            if (saved && saved.editor && active === saved.editor) return false;
+            const isGrid = active.classList && active.classList.contains('grid-textarea');
+            if (isGrid) {
+                const sid = getEditorSegId(active);
+                return !(saved && sid != null && String(sid) === String(saved.segId));
+            }
+            const tag = String(active.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+            return !!active.isContentEditable;
+        }
+
+        function restoreOrShowFake(opts) {
+            const allowSteal = !!(opts && opts.allowSteal);
             requestAnimationFrame(() => {
+                if (!allowSteal && anotherFieldOwnsKeyboard()) {
+                    show();
+                    return;
+                }
                 const sid = saved && saved.segId != null ? saved.segId : null;
                 if (sid != null && navigateToSegmentBySegId(sid)) return;
                 if (!restore()) show();

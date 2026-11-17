@@ -2301,6 +2301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             toRelease.push(String(segId));
         });
         for (const segId of toRelease) {
+            if (activeEditorSegId() && activeEditorSegId() === String(segId)) continue;
             cancelLeaseReleaseTimer(segId);
             heldSegmentLeases.delete(segId);
             stopLeaseRefreshForSegment(segId);
@@ -4886,6 +4887,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const segmentLeaseRefreshTimers = new Map();
     const segmentLeaseReleaseTimers = new Map();
     const heldSegmentLeases = new Set();
+    /** 譯文格 focus 序號。晚到的編輯權回覆只對仍停在該格的那一次生效。 */
+    let editorFocusEpoch = 0;
+
+    function activeEditorSegId() {
+        const active = document.activeElement;
+        if (!active || typeof active.closest !== 'function') return '';
+        const row = active.closest('.grid-data-row');
+        return row && row.dataset ? String(row.dataset.segId || '') : '';
+    }
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
     let repMode = localStorage.getItem('catToolRepMode') || 'after';
@@ -21863,8 +21873,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /** 標準「還原儲存游標；失敗則顯示假游標」；供 Ctrl+Alt+上下、新增術語等呼叫。 */
-    function restoreOrShowFakeCatCaret() {
-        if (catFakeCaret) catFakeCaret.restoreOrShowFake();
+    function restoreOrShowFakeCatCaret(opts) {
+        if (catFakeCaret && typeof catFakeCaret.restoreOrShowFake === 'function') {
+            catFakeCaret.restoreOrShowFake(opts);
+        }
     }
 
     /** 蓋版 modal／wizard 開啟時隱藏假游標；全關閉後自動恢復（見 CAT_EDITOR_OVERLAY_FAKE_CARET_EXPORT_2026-06.md） */
@@ -26114,25 +26126,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (blockSelectionIfEditedByOthers(seg, e)) return;
                 });
                 targetInput.addEventListener('focus', async () => {
+                    const myEpoch = ++editorFocusEpoch;
+                    const stillThisEditor = () => editorFocusEpoch === myEpoch && document.activeElement === targetInput;
                     hideCatFakeCaret();
                     cancelLeaseReleaseTimer(seg.id);
                     if (blockSelectionIfEditedByOthers(seg)) {
-                        targetInput.blur();
+                        if (stillThisEditor()) targetInput.blur();
                         return;
                     }
                     const lease = await acquireSegmentEditLease(seg);
+                    if (!stillThisEditor()) {
+                        if (lease && lease.acquired === true) void releaseSegmentEditLeaseById(seg.id);
+                        return;
+                    }
                     if (!lease || lease.acquired !== true) {
                         const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
                         alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
-                        targetInput.blur();
+                        if (stillThisEditor()) targetInput.blur();
                         return;
                     }
                     await releaseHeldLeasesExcept(seg.id);
+                    if (!stillThisEditor()) {
+                        void releaseSegmentEditLeaseById(seg.id);
+                        return;
+                    }
                     heldSegmentLeases.add(String(seg.id));
                     // 先發 start，縮短「兩人幾乎同時點入同句段」時的競態窗口。
                     emitCollabEdit('start', seg, seg.targetText || '');
                     startLeaseRefreshForSegment(seg);
                     await maybeAutoFillEmptyTarget(seg, row, targetInput);
+                    if (!stillThisEditor()) return;
                     editorUndoEditStart[seg.id] = seg.targetText;
                     editorUndoStatusStart[seg.id] = seg.status;
                     editorUndoMatchStart[seg.id] = seg.matchValue;
@@ -28180,7 +28203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         // 次選：嘗試恢復儲存游標；失敗則顯示假游標提示
-        restoreOrShowFakeCatCaret();
+        restoreOrShowFakeCatCaret({ allowSteal: true });
     }, true);
 
     // Grid Level Context Menu for Batch Actions (確認 / 鎖定)
@@ -30392,7 +30415,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const sel = window.getSelection();
                     if (sel && !sel.isCollapsed) sel.collapseToEnd();
                 } else {
-                    restoreOrShowFakeCatCaret();
+                    restoreOrShowFakeCatCaret({ allowSteal: true });
                 }
             });
         });
