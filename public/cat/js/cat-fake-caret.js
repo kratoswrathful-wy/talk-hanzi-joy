@@ -565,8 +565,23 @@
 
         function restoreOrShowFake(opts) {
             const allowSteal = !!(opts && opts.allowSteal);
+            const ops = window.CatFocusOp;
+            const op = allowSteal && ops && typeof ops.beginExplicit === 'function' ? ops.beginExplicit() : null;
+            const stillValid = opts && typeof opts.stillValid === 'function' ? opts.stillValid : null;
             requestAnimationFrame(() => {
-                if (!allowSteal && anotherFieldOwnsKeyboard()) {
+                if (!allowSteal || !op) {
+                    show();
+                    return;
+                }
+                if (ops && typeof ops.isCurrent === 'function' && !ops.isCurrent(op)) {
+                    show();
+                    return;
+                }
+                if (stillValid && !stillValid()) {
+                    show();
+                    return;
+                }
+                if (anotherFieldOwnsKeyboard()) {
                     show();
                     return;
                 }

@@ -2187,6 +2187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sessionId: collabSelfSessionId
             }
         }, window.location.origin);
+        if (leaseCoord) leaseCoord.bumpFile();
         collabCurrentFileId = null;
         collabMembers = [];
         collabFocusBySession = {};
@@ -2253,13 +2254,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function releaseSegmentEditLeaseById(segId) {
+    async function releaseSegmentEditLeaseById(segId, gen) {
         if (!isTeamMode()) return;
         if (!segId) return;
+        const releasedGen = gen != null ? gen : (leaseCoord ? leaseCoord.currentDesired(segId) : 0);
         try {
             await DBService.releaseSegmentEditLease(segId, collabSelfSessionId);
         } catch (err) {
             console.warn('[collab] release lease failed', err, segId);
+        }
+        if (!leaseCoord) return;
+        const next = leaseCoord.onReleaseSettled(segId, releasedGen);
+        if (next.action !== 'reacquire') return;
+        const seg = typeof getSegmentById === 'function' ? getSegmentById(segId) : null;
+        const ticket = leaseCoord.ticketForDesired(segId);
+        if (!seg || !ticket) return;
+        const lease = await acquireSegmentEditLease(seg);
+        const decision = leaseCoord.onAcquireSettled(
+            ticket,
+            activeEditorSegId(),
+            !!(lease && lease.acquired === true)
+        );
+        if (decision.action === 'hold') {
+            heldSegmentLeases.add(String(segId));
+            startLeaseRefreshForSegment(seg);
+            return;
+        }
+        if (decision.action === 'release-unneeded' && lease && lease.acquired === true) {
+            await DBService.releaseSegmentEditLease(segId, collabSelfSessionId);
         }
     }
 
@@ -2284,28 +2306,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!isTeamMode() || !seg || !seg.id) return;
         const key = String(seg.id);
         cancelLeaseReleaseTimer(key);
+        const scheduledGen = leaseCoord ? leaseCoord.currentDesired(key) : 0;
         const timer = setTimeout(async () => {
             segmentLeaseReleaseTimers.delete(key);
+            if (leaseCoord && leaseCoord.currentDesired(key) !== scheduledGen) return;
             heldSegmentLeases.delete(key);
             stopLeaseRefreshForSegment(key);
-            await releaseSegmentEditLeaseById(key);
+            if (leaseCoord) leaseCoord.abandonIfCurrent(key, scheduledGen);
+            await releaseSegmentEditLeaseById(key, scheduledGen);
         }, SEGMENT_LEASE_RELEASE_GRACE_MS);
         segmentLeaseReleaseTimers.set(key, timer);
     }
 
     async function releaseHeldLeasesExcept(segIdToKeep) {
         const keepKey = segIdToKeep == null ? '' : String(segIdToKeep);
-        const toRelease = [];
-        heldSegmentLeases.forEach((segId) => {
-            if (keepKey && String(segId) === keepKey) return;
-            toRelease.push(String(segId));
-        });
-        for (const segId of toRelease) {
-            if (activeEditorSegId() && activeEditorSegId() === String(segId)) continue;
-            cancelLeaseReleaseTimer(segId);
-            heldSegmentLeases.delete(segId);
-            stopLeaseRefreshForSegment(segId);
-            await releaseSegmentEditLeaseById(segId);
+        const toRelease = leaseCoord
+            ? leaseCoord.selectReleases(heldSegmentLeases, keepKey, activeEditorSegId())
+            : [];
+        if (!leaseCoord) {
+            heldSegmentLeases.forEach((segId) => {
+                if (keepKey && String(segId) === keepKey) return;
+                toRelease.push({ segId: String(segId), gen: 0 });
+            });
+        }
+        for (const item of toRelease) {
+            if (leaseCoord && leaseCoord.currentDesired(item.segId) !== item.gen) continue;
+            if (activeEditorSegId() && activeEditorSegId() === String(item.segId)) continue;
+            cancelLeaseReleaseTimer(item.segId);
+            heldSegmentLeases.delete(item.segId);
+            stopLeaseRefreshForSegment(item.segId);
+            if (leaseCoord) leaseCoord.abandonIfCurrent(item.segId, item.gen);
+            await releaseSegmentEditLeaseById(item.segId, item.gen);
         }
     }
 
@@ -4321,8 +4352,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const manualSegId = e.target?.closest?.('.grid-data-row')?.dataset?.segId;
                 cancelPendingNavigationForUserInteraction('manual-editor-click', manualSegId);
             }
+            if (!isProgrammatic && isRecentPointer && window.CatFocusOp) {
+                window.CatFocusOp.invalidateExplicit();
+            }
         } else {
             hideCatRealCaretScrollTip();
+            if (window.CatFocusOp && _programmaticEditorFocusDepth === 0) {
+                const tag = String(e.target && e.target.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+                    window.CatFocusOp.invalidateExplicit();
+                }
+            }
         }
     }, false);
     document.addEventListener('focusout', (e) => {
@@ -4887,8 +4927,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const segmentLeaseRefreshTimers = new Map();
     const segmentLeaseReleaseTimers = new Map();
     const heldSegmentLeases = new Set();
-    /** 譯文格 focus 序號。晚到的編輯權回覆只對仍停在該格的那一次生效。 */
-    let editorFocusEpoch = 0;
+    const leaseCoord = window.CatSegmentLeaseIntent
+        ? window.CatSegmentLeaseIntent.createLeaseCoordinator()
+        : null;
 
     function activeEditorSegId() {
         const active = document.activeElement;
@@ -22953,6 +22994,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
         _userScrollGen++;
+        if (window.CatFocusOp && typeof window.CatFocusOp.noteManualScroll === 'function') {
+            window.CatFocusOp.noteManualScroll();
+        }
         _preserveEditingAcrossVirtRender = null;
         if (window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.cancel === 'function') {
             window.CatSavedCaretInsert.cancel();
@@ -23780,7 +23824,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 return;
                             } catch (_) {}
                         }
-                        restoreOrShowFakeCatCaret();
+                        restoreOrShowFakeCatCaret({
+                            allowSteal: true,
+                            stillValid: () => opGen === _pendingEditorFocusGen && scrollGen === _userScrollGen && cancelGen === _navigationCancelGen
+                        });
                     });
                 });
             }
@@ -26125,41 +26172,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 targetInput.addEventListener('mousedown', (e) => {
                     if (blockSelectionIfEditedByOthers(seg, e)) return;
                 });
-                targetInput.addEventListener('focus', async () => {
-                    const myEpoch = ++editorFocusEpoch;
-                    const stillThisEditor = () => editorFocusEpoch === myEpoch && document.activeElement === targetInput;
-                    hideCatFakeCaret();
-                    cancelLeaseReleaseTimer(seg.id);
-                    if (blockSelectionIfEditedByOthers(seg)) {
-                        if (stillThisEditor()) targetInput.blur();
-                        return;
-                    }
-                    const lease = await acquireSegmentEditLease(seg);
-                    if (!stillThisEditor()) {
-                        if (lease && lease.acquired === true) void releaseSegmentEditLeaseById(seg.id);
-                        return;
-                    }
-                    if (!lease || lease.acquired !== true) {
-                        const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
-                        alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
-                        if (stillThisEditor()) targetInput.blur();
-                        return;
-                    }
-                    await releaseHeldLeasesExcept(seg.id);
-                    if (!stillThisEditor()) {
-                        void releaseSegmentEditLeaseById(seg.id);
-                        return;
-                    }
-                    heldSegmentLeases.add(String(seg.id));
-                    // 先發 start，縮短「兩人幾乎同時點入同句段」時的競態窗口。
-                    emitCollabEdit('start', seg, seg.targetText || '');
-                    startLeaseRefreshForSegment(seg);
-                    await maybeAutoFillEmptyTarget(seg, row, targetInput);
-                    if (!stillThisEditor()) return;
-                    editorUndoEditStart[seg.id] = seg.targetText;
-                    editorUndoStatusStart[seg.id] = seg.status;
-                    editorUndoMatchStart[seg.id] = seg.matchValue;
-                    refreshTagNextHighlight(row);
+                targetInput.addEventListener('focus', () => {
+                    const runner = window.CatSegmentLeaseIntent && leaseCoord
+                        ? window.CatSegmentLeaseIntent.runEditorFocus
+                        : null;
+                    if (!runner) return;
+                    void runner(leaseCoord, {
+                        seg,
+                        targetInput,
+                        activeElement: () => document.activeElement,
+                        activeSegId: () => activeEditorSegId(),
+                        acquire: () => acquireSegmentEditLease(seg),
+                        release: (id, gen) => releaseSegmentEditLeaseById(id, gen),
+                        releaseOthers: (id) => releaseHeldLeasesExcept(id),
+                        hideFakeCaret: () => hideCatFakeCaret(),
+                        cancelReleaseTimer: (id) => cancelLeaseReleaseTimer(id),
+                        blockedByOther: () => blockSelectionIfEditedByOthers(seg),
+                        blur: () => targetInput.blur(),
+                        alertOccupied: (lease) => {
+                            const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
+                            alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
+                        },
+                        markHeld: (id) => heldSegmentLeases.add(String(id)),
+                        emitStart: () => emitCollabEdit('start', seg, seg.targetText || ''),
+                        startRefresh: () => startLeaseRefreshForSegment(seg),
+                        autofill: () => maybeAutoFillEmptyTarget(seg, row, targetInput),
+                        captureUndo: () => {
+                            editorUndoEditStart[seg.id] = seg.targetText;
+                            editorUndoStatusStart[seg.id] = seg.status;
+                            editorUndoMatchStart[seg.id] = seg.matchValue;
+                            refreshTagNextHighlight(row);
+                        }
+                    });
                 });
                 let _npRafId = null;
                 let _tbInlineMissingRafId = null;
