@@ -159,6 +159,9 @@
         }
         const kind = classifyAcquire(lease);
         const decision = coord.onAcquireSettled(ticket, env.activeSegId(), kind === 'hold');
+        if (decision.action === 'ignore-stale' && (coord.currentDesired(segId) || 0) > ticket.gen) {
+            return { outcome: 'ignore-stale' };
+        }
         if (decision.action === 'hold') {
             if (typeof env.markHeld === 'function') env.markHeld(segId);
             return { outcome: 'held' };

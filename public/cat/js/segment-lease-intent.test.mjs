@@ -307,6 +307,72 @@ test('reacquire denied by another person clears the local hold and does not toas
     assert.deepEqual(notesAway, []);
 });
 
+test('a late reacquire failure does not clear a newer hold', async () => {
+    const coord = createLeaseCoordinator();
+    const first = coord.beginFocus('A');
+    coord.abandonIfCurrent('A', first.gen);
+    coord.beginFocus('A');
+    let release;
+    const pending = new Promise((resolve) => { release = resolve; });
+    const held = new Set(['A']);
+    const notes = [];
+    let refresh = true;
+    const job = settleAfterRelease(coord, {
+        acquire: () => pending,
+        activeSegId: () => 'A',
+        markHeld() { held.add('A'); refresh = true; },
+        clearHeld() { held.delete('A'); refresh = false; },
+        notifyUnknown() { notes.push('unknown'); },
+        notifyOccupied() { notes.push('occupied'); }
+    }, 'A', first.gen);
+    coord.beginFocus('A');
+    held.add('A');
+    refresh = true;
+    release({ acquired: false, failed: true });
+    const result = await job;
+    assert.equal(result.outcome, 'ignore-stale');
+    assert.equal(held.has('A'), true);
+    assert.equal(refresh, true);
+    assert.equal(coord.currentDesired('A'), 3);
+    assert.deepEqual(notes, []);
+});
+
+test('a late renew failure does not clear the newer hold or the newer timer', async () => {
+    const app = fs.readFileSync(path.join(dir, '..', 'app.js'), 'utf8');
+    const start = app.indexOf('    async function renewSegmentEditLease(');
+    const end = app.indexOf('    function startLeaseRefreshForSegment(', start);
+    const toasts = [];
+    let stopped = 0;
+    let acquireGate;
+    const ctx = {
+        console,
+        heldSegmentLeases: new Set(['A']),
+        segmentLeaseRenewSeq: new Map(),
+        leaseCoord: createLeaseCoordinator(),
+        activeEditorSegId: () => 'A',
+        stopLeaseRefreshForSegment() { stopped += 1; },
+        acquireSegmentEditLease: () => new Promise((resolve) => { acquireGate = resolve; }),
+        showCatToast(message) { toasts.push(message); },
+        window: { CatSegmentLeaseIntent: { classifyAcquire(lease) { return lease && lease.failed ? 'unknown' : 'hold'; } } }
+    };
+    ctx.leaseCoord.beginFocus('A');
+    vm.createContext(ctx);
+    vm.runInContext(app.slice(start, end), ctx);
+    const first = ctx.renewSegmentEditLease({ id: 'A' });
+    const firstGate = acquireGate;
+    ctx.leaseCoord.beginFocus('A');
+    const second = ctx.renewSegmentEditLease({ id: 'A' });
+    const secondGate = acquireGate;
+    secondGate({ acquired: true });
+    await second;
+    firstGate({ acquired: false, failed: true });
+    await first;
+    assert.equal(ctx.heldSegmentLeases.has('A'), true);
+    assert.equal(stopped, 0);
+    assert.equal(ctx.leaseCoord.currentDesired('A'), 2);
+    assert.deepEqual(toasts, []);
+});
+
 test('a failed renew does not keep the local hold or call the other person editor', async () => {
     const app = fs.readFileSync(path.join(dir, '..', 'app.js'), 'utf8');
     const start = app.indexOf('    async function renewSegmentEditLease(');
@@ -316,6 +382,7 @@ test('a failed renew does not keep the local hold or call the other person edito
     const ctx = {
         console,
         heldSegmentLeases: new Set(['A']),
+        segmentLeaseRenewSeq: new Map(),
         leaseCoord: createLeaseCoordinator(),
         activeEditorSegId: () => 'A',
         stopLeaseRefreshForSegment() { ctx.stopped = true; },

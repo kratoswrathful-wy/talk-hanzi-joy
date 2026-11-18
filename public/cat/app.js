@@ -2358,6 +2358,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         heldSegmentLeases.clear();
     }
 
+    const segmentLeaseRenewSeq = new Map();
+
     async function renewSegmentEditLease(seg) {
         if (!seg || !seg.id) return;
         const key = String(seg.id);
@@ -2365,20 +2367,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             stopLeaseRefreshForSegment(key);
             return;
         }
+        const genAtStart = leaseCoord ? leaseCoord.currentDesired(key) : 0;
+        const seq = (segmentLeaseRenewSeq.get(key) || 0) + 1;
+        segmentLeaseRenewSeq.set(key, seq);
+        const stillThisRenew = () => segmentLeaseRenewSeq.get(key) === seq
+            && (!leaseCoord || leaseCoord.currentDesired(key) === genAtStart);
         let lease = null;
         try {
             lease = await acquireSegmentEditLease(seg);
         } catch (err) {
             lease = { acquired: false, failed: true };
         }
+        if (!stillThisRenew()) return;
         if (!heldSegmentLeases.has(key)) return;
         const kind = window.CatSegmentLeaseIntent && typeof window.CatSegmentLeaseIntent.classifyAcquire === 'function'
             ? window.CatSegmentLeaseIntent.classifyAcquire(lease)
             : (lease && lease.acquired === true ? 'hold' : 'unknown');
         if (kind === 'hold') return;
+        if (!stillThisRenew()) return;
         heldSegmentLeases.delete(key);
         stopLeaseRefreshForSegment(key);
-        if (leaseCoord) leaseCoord.abandonIfCurrent(key, leaseCoord.currentDesired(key));
+        if (leaseCoord) leaseCoord.abandonIfCurrent(key, genAtStart);
         if (activeEditorSegId() !== key) return;
         if (kind === 'occupied') {
             const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
@@ -26222,10 +26231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 /** 寫庫世代：in-flight 晚歸補寫比對用；與 isConfirming 一併防止確認觸發的 blur 重複寫庫。 */
                 let targetWriteGeneration = 0;
                 let isConfirming = false;
-                targetInput.addEventListener('mousedown', (e) => {
-                    if (blockSelectionIfEditedByOthers(seg, e)) return;
-                });
-                targetInput.addEventListener('focus', () => {
+                function requestSegmentLease() {
                     const runner = window.CatSegmentLeaseIntent && leaseCoord
                         ? window.CatSegmentLeaseIntent.runEditorFocus
                         : null;
@@ -26260,6 +26266,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                             refreshTagNextHighlight(row);
                         }
                     });
+                }
+                targetInput.addEventListener('mousedown', (e) => {
+                    if (blockSelectionIfEditedByOthers(seg, e)) return;
+                    if (document.activeElement === targetInput && !heldSegmentLeases.has(String(seg.id))) {
+                        requestSegmentLease();
+                    }
+                });
+                targetInput.addEventListener('focus', () => {
+                    requestSegmentLease();
                 });
                 let _npRafId = null;
                 let _tbInlineMissingRafId = null;
