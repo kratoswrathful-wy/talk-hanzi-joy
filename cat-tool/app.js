@@ -23686,6 +23686,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         }
+        if (ok && window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.onFocusComplete === 'function') {
+            window.CatSavedCaretInsert.onFocusComplete({
+                segId: pending.segId,
+                editor: document.activeElement,
+                fileId: currentFileId,
+                viewId: _currentViewId
+            });
+        }
         return ok;
     }
 
@@ -26532,11 +26540,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (npMode && caretNpOff != null) {
                                 const clamped = Math.max(0, Math.min(caretNpOff | 0, maxPlain));
                                 const rng = buildCollapsedNpRangeAtOffset(targetInput, clamped);
-                                if (rng) catFakeCaret.setSavedCaret({ segId: seg.id, editor: targetInput, range: rng });
+                                if (rng) catFakeCaret.setSavedCaret({ segId: seg.id, editor: targetInput, range: rng, plainOffset: clamped });
                             } else if (!npMode && caretPlainOff != null) {
                                 const clamped = Math.max(0, Math.min(caretPlainOff | 0, maxPlain));
                                 const rng = buildCollapsedRangeAtPlainTextOffsetUsingSegments(targetInput, clamped);
-                                if (rng) catFakeCaret.setSavedCaret({ segId: seg.id, editor: targetInput, range: rng });
+                                if (rng) catFakeCaret.setSavedCaret({ segId: seg.id, editor: targetInput, range: rng, plainOffset: clamped });
                             }
                         }
                         if (!focusMovedToPeerTarget) {
