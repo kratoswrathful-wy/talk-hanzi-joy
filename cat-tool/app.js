@@ -8814,7 +8814,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (state.phase === 'error') {
             textEl.textContent = `TM 載入逾時／失敗（${i}/${n}）`;
-            detailEl.textContent = tmName ? `${tmName}（${perDone}/${perTotal || '？'}）` : '';
+            const reason = state.lastError ? String(state.lastError) : '';
+            const base = tmName ? `${tmName}（${perDone}/${perTotal || '？'}）` : '';
+            detailEl.textContent = reason ? (base ? `${base}：${reason}` : reason) : base;
             retryBtn.style.display = 'inline-flex';
         } else if (state.phase === 'done') {
             textEl.textContent = `TM 已載入完成（${n}/${n}）`;
@@ -8903,6 +8905,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             let overallLoaded = 0;
             let stopRequested = false;
+            let loadGen = 0;
 
             const setState = (patch) => {
                 window._tmLoadState = {
@@ -8913,10 +8916,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             const doLoad = async () => {
+                const myGen = ++loadGen;
                 stopRequested = false;
-                if (typeof DBService.endTmSegmentSnapshot === 'function') DBService.endTmSegmentSnapshot();
                 for (let idx = 0; idx < tmIds.length; idx++) {
-                    if (stopRequested) return;
+                    if (stopRequested || myGen !== loadGen) return;
                     const tmId = tmIds[idx];
                     const tmKey = String(tmId);
                     if (window._activeTmCacheReadyIds && window._activeTmCacheReadyIds.has(tmKey)) continue;
@@ -8931,6 +8934,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         window._activeTmNames[tmKey] = tmName;
                     }
+                    if (myGen !== loadGen) return;
 
                     const currentTotal = totalsByTmId[tmKey];
                     let currentLoaded = 0;
@@ -8949,20 +8953,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                         overallLoaded,
                     });
 
-                    let snapshotOpen = false;
+                    let snapshotTicket = null;
+                    const pushed = [];
+                    const dropMine = () => {
+                        if (Array.isArray(window.ActiveTmCache) && pushed.length) {
+                            const mine = new Set(pushed);
+                            const kept = window.ActiveTmCache.filter((row) => !mine.has(row));
+                            window.ActiveTmCache.splice(0, window.ActiveTmCache.length, ...kept);
+                        }
+                        overallLoaded -= pushed.length;
+                        if (overallLoaded < 0) overallLoaded = 0;
+                        pushed.length = 0;
+                        currentLoaded = 0;
+                    };
                     try {
-                    if (typeof DBService.beginTmSegmentSnapshot === 'function') {
-                        await DBService.beginTmSegmentSnapshot(tmId);
-                        snapshotOpen = true;
-                    }
-                    for (;;) {
-                        if (stopRequested) return;
-                        try {
+                        if (typeof DBService.beginTmSegmentSnapshot === 'function') {
+                            const started = await DBService.beginTmSegmentSnapshot(tmId);
+                            if (myGen !== loadGen) return;
+                            if (started && started.stale) {
+                                throw new Error('翻譯記憶在載入中更新，請重試');
+                            }
+                            if (started && started.gen != null && started.active !== false && !started.skipped) {
+                                snapshotTicket = { gen: started.gen, epoch: started.epoch };
+                            }
+                        }
+                        for (;;) {
+                            if (stopRequested || myGen !== loadGen) return;
                             const page = await DBService.getTMSegmentsPage(tmId, { afterId, limit });
+                            if (myGen !== loadGen) return;
+                            if (snapshotTicket && (page == null || page.sourceReads == null)) {
+                                throw new Error('翻譯記憶在載入中更新，請重試');
+                            }
                             const rawSegs = (page && page.segments) ? page.segments : [];
                             const segs = fileLangs ? rawSegs.filter((s) => _tmSegLangOk(s, fileLangs)) : rawSegs;
                             segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
                             window.ActiveTmCache.push(...segs);
+                            pushed.push(...segs);
 
                             currentLoaded += segs.length;
                             overallLoaded += segs.length;
@@ -8975,40 +9001,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                             });
 
                             if (afterId == null) break;
-                        } catch (e) {
-                            const retry = () => {
-                                // 只要重試目前 TM（保留已載入的 cache）
-                                setState({ phase: 'loading' });
-                                // 重新跑 doLoad，會從未 ready 的 TM 續跑；目前 TM offset 會從 0 開始
-                                // （保守做法：避免 offset 狀態不一致）
-                                doLoad();
-                            };
-                            setState({
-                                phase: 'error',
-                                totalTms,
-                                currentIndex: idx + 1,
-                                currentTmId: tmId,
-                                currentTmName: tmName,
-                                currentTotal: currentTotal,
-                                currentLoaded,
-                                overallTotal,
-                                overallLoaded,
-                                retry,
-                                lastError: String(e && e.message ? e.message : e),
-                            });
-                            return;
                         }
-                    }
 
-                    // 若做語言過濾，cacheReady 仍視為「此 TM 已完成背景掃描」
-                    window._activeTmCacheReadyIds.add(tmKey);
+                        // 若做語言過濾，cacheReady 仍視為「此 TM 已完成背景掃描」
+                        if (myGen !== loadGen) return;
+                        window._activeTmCacheReadyIds.add(tmKey);
+                    } catch (error) {
+                        if (myGen !== loadGen) return;
+                        dropMine();
+                        const retry = () => {
+                            setState({ phase: 'loading' });
+                            void doLoad();
+                        };
+                        setState({
+                            phase: 'error',
+                            totalTms,
+                            currentIndex: idx + 1,
+                            currentTmId: tmId,
+                            currentTmName: tmName,
+                            currentTotal: currentTotal,
+                            currentLoaded: 0,
+                            overallTotal,
+                            overallLoaded,
+                            retry,
+                            lastError: String(error && error.message ? error.message : error),
+                        });
+                        return;
                     } finally {
-                        if (snapshotOpen && typeof DBService.endTmSegmentSnapshot === 'function') {
-                            DBService.endTmSegmentSnapshot(tmId);
+                        if (snapshotTicket && typeof DBService.endTmSegmentSnapshot === 'function') {
+                            DBService.endTmSegmentSnapshot(tmId, snapshotTicket);
                         }
+                        if (myGen !== loadGen) dropMine();
                     }
                 }
 
+                if (myGen !== loadGen) return;
                 setState({
                     phase: 'done',
                     totalTms,

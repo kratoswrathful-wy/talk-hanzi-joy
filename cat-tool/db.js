@@ -38,24 +38,72 @@ function pageTmSegmentRows(rows, offsetOrOpts, limit) {
 
 /**
  * 一次完整載入共用一份快照。分頁只切這份資料，不再每頁把整庫讀進記憶體。
- * 切換記憶庫、結束載入，或記憶內容有寫入時，必須結束或作廢，避免沿用舊資料。
+ * 每次開始都發一個載入識別。讀取回來時若識別已作廢，或內容版本已換，就不能裝回。
+ * 結束只清掉自己那一次，不能清掉較新的載入。
  */
 function createTmSegmentSnapshotStore() {
     const snaps = new Map();
+    const generation = new Map();
+    const retired = new Set();
+    let epoch = 0;
+
+    function ticketKey(tmId, ticket) {
+        return `${ticket.epoch}:${String(tmId)}:${ticket.gen}`;
+    }
+
+    function retireAll() {
+        epoch += 1;
+        snaps.clear();
+    }
+
+    function retireCurrent(tmId) {
+        const id = String(tmId);
+        generation.set(id, (generation.get(id) || 0) + 1);
+        snaps.delete(id);
+    }
+
     return {
-        begin(tmId, rows) {
+        issue(tmId) {
+            const id = String(tmId);
+            const gen = (generation.get(id) || 0) + 1;
+            generation.set(id, gen);
+            snaps.delete(id);
+            return { gen, epoch };
+        },
+        accept(tmId, ticket) {
+            if (!ticket || typeof ticket !== 'object') return false;
+            if (ticket.epoch !== epoch) return false;
+            const id = String(tmId);
+            if (generation.get(id) !== ticket.gen) return false;
+            if (retired.has(ticketKey(tmId, ticket))) return false;
+            return true;
+        },
+        begin(tmId, rows, ticket) {
+            if (ticket && !this.accept(tmId, ticket)) return false;
             snaps.set(String(tmId), {
                 rows: Array.isArray(rows) ? rows.slice() : [],
                 sourceReads: 1,
+                gen: ticket ? ticket.gen : null,
+                epoch: ticket ? ticket.epoch : null,
             });
+            return true;
         },
-        end(tmId) {
-            if (tmId == null) snaps.clear();
-            else snaps.delete(String(tmId));
+        end(tmId, ticket) {
+            if (tmId == null) {
+                retireAll();
+                return;
+            }
+            if (ticket && typeof ticket === 'object') {
+                retired.add(ticketKey(tmId, ticket));
+                const snap = snaps.get(String(tmId));
+                if (snap && snap.gen === ticket.gen && snap.epoch === ticket.epoch) snaps.delete(String(tmId));
+                return;
+            }
+            retireCurrent(tmId);
         },
         invalidate(tmId) {
-            if (tmId == null) snaps.clear();
-            else snaps.delete(String(tmId));
+            if (tmId == null) retireAll();
+            else retireCurrent(tmId);
         },
         page(tmId, offsetOrOpts, limit) {
             const snap = snaps.get(String(tmId));
@@ -1884,12 +1932,26 @@ const DBService = {
         return await db.tmSegments.where('tmId').equals(tmId).count();
     },
     async beginTmSegmentSnapshot(tmId) {
-        const rows = await db.tmSegments.where('tmId').equals(tmId).toArray();
-        tmSegmentSnapshotStore.begin(tmId, rows);
-        return tmSegmentSnapshotStore.stats(tmId);
+        const ticket = tmSegmentSnapshotStore.issue(tmId);
+        let rows;
+        try {
+            rows = await db.tmSegments.where('tmId').equals(tmId).toArray();
+        } catch (error) {
+            tmSegmentSnapshotStore.end(tmId, ticket);
+            throw error;
+        }
+        const installed = tmSegmentSnapshotStore.begin(tmId, rows, ticket);
+        if (!installed) {
+            return { active: false, count: 0, sourceReads: 0, stale: true, gen: ticket.gen, epoch: ticket.epoch };
+        }
+        return Object.assign(tmSegmentSnapshotStore.stats(tmId), {
+            stale: false,
+            gen: ticket.gen,
+            epoch: ticket.epoch,
+        });
     },
-    endTmSegmentSnapshot(tmId) {
-        tmSegmentSnapshotStore.end(tmId);
+    endTmSegmentSnapshot(tmId, ticket) {
+        tmSegmentSnapshotStore.end(tmId, ticket);
     },
     invalidateTmSegmentSnapshot(tmId) {
         tmSegmentSnapshotStore.invalidate(tmId);
