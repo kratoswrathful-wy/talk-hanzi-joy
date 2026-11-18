@@ -287,14 +287,14 @@
         }
 
         /** 真／假游標提示共用：捲至句段列、聚焦譯文格、還原暫存 Range（若有）。 */
-        function navigateToSegmentBySegId(segId) {
+        function navigateToSegmentBySegId(segId, focusOp) {
             const active = document.activeElement;
             if (active && active.classList && active.classList.contains('grid-textarea')) {
                 saveFromSelection(active);
             }
 
             if (saved && String(saved.segId) === String(segId)) {
-                const result = restore();
+                const result = restore(focusOp);
                 hideRealTip();
                 return result != null;
             }
@@ -498,10 +498,10 @@
             return true;
         }
 
-        function restore() {
+        function restore(focusOp) {
             if (!saved || saved.segId == null) return null;
             if (scheduleEditorFocusForSaved) {
-                const ok = scheduleEditorFocusForSaved(saved.segId, saved.plainOffset);
+                const ok = scheduleEditorFocusForSaved(saved.segId, saved.plainOffset, focusOp);
                 if (ok) hide();
                 return ok ? { __catCaretRestoreScheduled: true, segId: saved.segId, plainOffset: saved.plainOffset } : null;
             }
@@ -566,7 +566,9 @@
         function restoreOrShowFake(opts) {
             const allowSteal = !!(opts && opts.allowSteal);
             const ops = window.CatFocusOp;
-            const op = allowSteal && ops && typeof ops.beginExplicit === 'function' ? ops.beginExplicit() : null;
+            const op = allowSteal
+                ? ((opts && opts.op) || (ops && typeof ops.beginExplicit === 'function' ? ops.beginExplicit() : null))
+                : null;
             const stillValid = opts && typeof opts.stillValid === 'function' ? opts.stillValid : null;
             requestAnimationFrame(() => {
                 if (!allowSteal || !op) {
@@ -581,13 +583,9 @@
                     show();
                     return;
                 }
-                if (anotherFieldOwnsKeyboard()) {
-                    show();
-                    return;
-                }
                 const sid = saved && saved.segId != null ? saved.segId : null;
-                if (sid != null && navigateToSegmentBySegId(sid)) return;
-                if (!restore()) show();
+                if (sid != null && navigateToSegmentBySegId(sid, op)) return;
+                if (!restore(op)) show();
             });
         }
 

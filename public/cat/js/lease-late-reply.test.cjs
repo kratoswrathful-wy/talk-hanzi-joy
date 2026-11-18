@@ -9,9 +9,10 @@ const focusBody = app.slice(focusStart, focusStart + 1600);
 assert.ok(focusBody.includes('runEditorFocus'));
 assert.ok(!focusBody.includes('void releaseSegmentEditLeaseById(seg.id);'));
 const releaseStart = app.indexOf('    async function releaseSegmentEditLeaseById(');
-const releaseBody = app.slice(releaseStart, releaseStart + 900);
-assert.ok(releaseBody.includes('onReleaseSettled'));
-assert.ok(releaseBody.includes("next.action !== 'reacquire'"));
+const releaseBody = app.slice(releaseStart, releaseStart + 1400);
+assert.ok(releaseBody.includes('settleAfterRelease'));
+assert.ok(releaseBody.includes('clearHeld'));
+assert.ok(app.includes('async function renewSegmentEditLease('));
 process.stdout.write(JSON.stringify({
     method: 'Auxiliary source check. Behavior is segment-lease-intent.test.mjs.'
 }) + '\n');

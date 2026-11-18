@@ -18,7 +18,6 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:cat-focus": "node --test cat-tool/js/segment-lease-intent.test.mjs cat-tool/js/focus-operation.test.mjs",
-    "test:cat-focus": "node --test cat-tool/js/segment-lease-intent.test.mjs cat-tool/js/focus-operation.test.mjs",
     "test:cat": "vitest run cat-tool/js",
     "test:cat-sf": "node scripts/test-cat-sf-row-range.mjs",
     "test:watch": "vitest",

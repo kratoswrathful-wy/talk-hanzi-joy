@@ -107,7 +107,8 @@
             return { outcome: 'blocked' };
         }
         const lease = await env.acquire(env.seg);
-        const acquired = !!(lease && lease.acquired === true);
+        const kind = classifyAcquire(lease);
+        const acquired = kind === 'hold';
         const hereNow = still();
         const activeSeg = hereNow ? String(env.seg.id) : env.activeSegId();
         const decision = coord.onAcquireSettled(ticket, activeSeg, acquired);
@@ -118,7 +119,8 @@
         }
         if (decision.action === 'rejected') {
             if (hereNow) {
-                if (typeof env.alertOccupied === 'function') env.alertOccupied(lease);
+                if (kind === 'unknown' && typeof env.alertFailed === 'function') env.alertFailed(lease);
+                else if (typeof env.alertOccupied === 'function') env.alertOccupied(lease);
                 if (typeof env.blur === 'function') env.blur();
             }
             return { outcome: 'rejected' };
@@ -138,5 +140,40 @@
         return { outcome: 'held' };
     }
 
-    return { createLeaseCoordinator, runEditorFocus };
+    function classifyAcquire(lease) {
+        if (lease && lease.acquired === true && !lease.failed) return 'hold';
+        if (lease && lease.failed) return 'unknown';
+        return 'occupied';
+    }
+
+    async function settleAfterRelease(coord, env, segId, releasedGen) {
+        const next = coord.onReleaseSettled(segId, releasedGen);
+        if (next.action !== 'reacquire') return { outcome: 'done' };
+        const ticket = coord.ticketForDesired(segId);
+        if (!ticket) return { outcome: 'done' };
+        let lease = null;
+        try {
+            lease = await env.acquire();
+        } catch (err) {
+            lease = { acquired: false, failed: true };
+        }
+        const kind = classifyAcquire(lease);
+        const decision = coord.onAcquireSettled(ticket, env.activeSegId(), kind === 'hold');
+        if (decision.action === 'hold') {
+            if (typeof env.markHeld === 'function') env.markHeld(segId);
+            return { outcome: 'held' };
+        }
+        if (typeof env.clearHeld === 'function') env.clearHeld(segId);
+        if (decision.action === 'release-unneeded' && kind === 'hold' && typeof env.releaseNow === 'function') {
+            await env.releaseNow(segId);
+            return { outcome: 'released-unneeded' };
+        }
+        if (String(env.activeSegId() || '') === String(segId)) {
+            if (kind === 'unknown' && typeof env.notifyUnknown === 'function') env.notifyUnknown();
+            else if (decision.action === 'rejected' && typeof env.notifyOccupied === 'function') env.notifyOccupied(lease);
+        }
+        return { outcome: kind === 'unknown' ? 'failed' : (decision.action || 'cleared') };
+    }
+
+    return { createLeaseCoordinator, runEditorFocus, classifyAcquire, settleAfterRelease };
 });

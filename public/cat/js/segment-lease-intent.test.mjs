@@ -17,7 +17,7 @@ function loadBrowserScript(file, exportName) {
     return context[exportName];
 }
 
-const { createLeaseCoordinator, runEditorFocus } = loadBrowserScript('segment-lease-intent.js', 'CatSegmentLeaseIntent');
+const { createLeaseCoordinator, runEditorFocus, settleAfterRelease } = loadBrowserScript('segment-lease-intent.js', 'CatSegmentLeaseIntent');
 
 function editor(id) {
     return {
@@ -266,4 +266,69 @@ test('file change drops desired hold and a late acquire is released', async () =
     assert.equal(result.outcome, 'release-unneeded');
     assert.equal(h.released.some((r) => r.segId === 'A'), true);
     assert.equal(h.undo.length, 0);
+});
+
+test('reacquire denied by another person clears the local hold and does not toast after leaving', async () => {
+    const coord = createLeaseCoordinator();
+    const first = coord.beginFocus('A');
+    coord.abandonIfCurrent('A', first.gen);
+    coord.beginFocus('A');
+    const held = new Set(['A']);
+    let refresh = true;
+    const notes = [];
+    const denied = await settleAfterRelease(coord, {
+        acquire: async () => ({ acquired: false, holderName: '乙' }),
+        activeSegId: () => 'A',
+        markHeld() { held.add('A'); refresh = true; },
+        clearHeld() { held.delete('A'); refresh = false; },
+        notifyOccupied(lease) { notes.push(lease.holderName); },
+        notifyUnknown() { notes.push('unknown'); }
+    }, 'A', first.gen);
+    assert.equal(denied.outcome, 'rejected');
+    assert.equal(held.has('A'), false);
+    assert.equal(refresh, false);
+    assert.deepEqual(notes, ['乙']);
+    assert.equal(coord.currentDesired('A'), 0);
+
+    const again = createLeaseCoordinator();
+    const old = again.beginFocus('A');
+    again.abandonIfCurrent('A', old.gen);
+    again.beginFocus('A');
+    const notesAway = [];
+    const heldAway = new Set(['A']);
+    await settleAfterRelease(again, {
+        acquire: async () => ({ acquired: false, failed: true }),
+        activeSegId: () => 'B',
+        clearHeld() { heldAway.delete('A'); },
+        notifyOccupied() { notesAway.push('occupied'); },
+        notifyUnknown() { notesAway.push('unknown'); }
+    }, 'A', old.gen);
+    assert.equal(heldAway.has('A'), false);
+    assert.deepEqual(notesAway, []);
+});
+
+test('a failed renew does not keep the local hold or call the other person editor', async () => {
+    const app = fs.readFileSync(path.join(dir, '..', 'app.js'), 'utf8');
+    const start = app.indexOf('    async function renewSegmentEditLease(');
+    const end = app.indexOf('    function startLeaseRefreshForSegment(', start);
+    assert.ok(start > 0 && end > start);
+    const toasts = [];
+    const ctx = {
+        console,
+        heldSegmentLeases: new Set(['A']),
+        leaseCoord: createLeaseCoordinator(),
+        activeEditorSegId: () => 'A',
+        stopLeaseRefreshForSegment() { ctx.stopped = true; },
+        acquireSegmentEditLease: async () => ({ acquired: false, failed: true }),
+        showCatToast(message) { toasts.push(message); },
+        window: { CatSegmentLeaseIntent: { classifyAcquire(lease) { return lease && lease.failed ? 'unknown' : 'occupied'; } } }
+    };
+    ctx.leaseCoord.beginFocus('A');
+    vm.createContext(ctx);
+    vm.runInContext(app.slice(start, end), ctx);
+    await ctx.renewSegmentEditLease({ id: 'A' });
+    assert.equal(ctx.heldSegmentLeases.has('A'), false);
+    assert.equal(ctx.stopped, true);
+    assert.equal(toasts.some((message) => message.includes('其他成員')), false);
+    assert.equal(toasts.some((message) => message.includes('無法延續')), true);
 });

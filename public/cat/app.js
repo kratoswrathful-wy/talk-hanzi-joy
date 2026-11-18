@@ -2178,6 +2178,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function leaveCollabForCurrentFile() {
+        if (window.CatFocusOp && typeof window.CatFocusOp.noteFileChange === 'function') {
+            window.CatFocusOp.noteFileChange();
+        }
         if (!collabCurrentFileId) return;
         releaseAllHeldSegmentLeases();
         window.parent.postMessage({
@@ -2250,7 +2253,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
         } catch (err) {
             console.error('[collab] acquire lease failed', err, seg && seg.id);
-            return { acquired: false };
+            return { acquired: false, failed: true };
         }
     }
 
@@ -2263,26 +2266,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (err) {
             console.warn('[collab] release lease failed', err, segId);
         }
-        if (!leaseCoord) return;
-        const next = leaseCoord.onReleaseSettled(segId, releasedGen);
-        if (next.action !== 'reacquire') return;
+        if (!leaseCoord || !window.CatSegmentLeaseIntent || typeof window.CatSegmentLeaseIntent.settleAfterRelease !== 'function') return;
         const seg = typeof getSegmentById === 'function' ? getSegmentById(segId) : null;
-        const ticket = leaseCoord.ticketForDesired(segId);
-        if (!seg || !ticket) return;
-        const lease = await acquireSegmentEditLease(seg);
-        const decision = leaseCoord.onAcquireSettled(
-            ticket,
-            activeEditorSegId(),
-            !!(lease && lease.acquired === true)
-        );
-        if (decision.action === 'hold') {
-            heldSegmentLeases.add(String(segId));
-            startLeaseRefreshForSegment(seg);
-            return;
-        }
-        if (decision.action === 'release-unneeded' && lease && lease.acquired === true) {
-            await DBService.releaseSegmentEditLease(segId, collabSelfSessionId);
-        }
+        await window.CatSegmentLeaseIntent.settleAfterRelease(leaseCoord, {
+            acquire: async () => (seg ? acquireSegmentEditLease(seg) : { acquired: false, failed: true }),
+            activeSegId: () => activeEditorSegId(),
+            markHeld: () => {
+                heldSegmentLeases.add(String(segId));
+                if (seg) startLeaseRefreshForSegment(seg);
+            },
+            clearHeld: () => {
+                heldSegmentLeases.delete(String(segId));
+                stopLeaseRefreshForSegment(segId);
+            },
+            releaseNow: async () => {
+                await DBService.releaseSegmentEditLease(segId, collabSelfSessionId);
+            },
+            notifyOccupied: (lease) => {
+                const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
+                if (typeof showCatToast === 'function') showCatToast(`此句段目前由 ${who} 編輯中，請稍後再試。`, 'error');
+            },
+            notifyUnknown: () => {
+                if (typeof showCatToast === 'function') showCatToast('無法確認編輯資格，請再點一次這一句。', 'error');
+            }
+        }, segId, releasedGen);
     }
 
     function stopLeaseRefreshForSegment(segId) {
@@ -2351,16 +2358,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         heldSegmentLeases.clear();
     }
 
+    async function renewSegmentEditLease(seg) {
+        if (!seg || !seg.id) return;
+        const key = String(seg.id);
+        if (!heldSegmentLeases.has(key)) {
+            stopLeaseRefreshForSegment(key);
+            return;
+        }
+        let lease = null;
+        try {
+            lease = await acquireSegmentEditLease(seg);
+        } catch (err) {
+            lease = { acquired: false, failed: true };
+        }
+        if (!heldSegmentLeases.has(key)) return;
+        const kind = window.CatSegmentLeaseIntent && typeof window.CatSegmentLeaseIntent.classifyAcquire === 'function'
+            ? window.CatSegmentLeaseIntent.classifyAcquire(lease)
+            : (lease && lease.acquired === true ? 'hold' : 'unknown');
+        if (kind === 'hold') return;
+        heldSegmentLeases.delete(key);
+        stopLeaseRefreshForSegment(key);
+        if (leaseCoord) leaseCoord.abandonIfCurrent(key, leaseCoord.currentDesired(key));
+        if (activeEditorSegId() !== key) return;
+        if (kind === 'occupied') {
+            const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
+            if (typeof showCatToast === 'function') showCatToast(`此句段目前由 ${who} 編輯中，請稍後再試。`, 'error');
+        } else if (typeof showCatToast === 'function') {
+            showCatToast('無法延續編輯資格，請再點一次這一句。', 'error');
+        }
+    }
+
     function startLeaseRefreshForSegment(seg) {
         if (!isTeamMode() || !seg || !seg.id) return;
         const key = String(seg.id);
         stopLeaseRefreshForSegment(key);
-        const timer = setInterval(async () => {
-            if (!heldSegmentLeases.has(key)) {
-                stopLeaseRefreshForSegment(key);
-                return;
-            }
-            await acquireSegmentEditLease(seg);
+        const timer = setInterval(() => {
+            void renewSegmentEditLease(seg);
         }, SEGMENT_LEASE_REFRESH_MS);
         segmentLeaseRefreshTimers.set(key, timer);
     }
@@ -4336,6 +4369,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             _lastUserPointerEditorFocus = { time: performance.now(), segId: e.target?.closest?.('.grid-data-row')?.dataset?.segId };
         } else {
             _lastUserPointerEditorFocus = null;
+            if (_programmaticEditorFocusDepth === 0 && window.CatFocusOp && e.target) {
+                const tag = String(e.target.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+                    window.CatFocusOp.invalidateExplicit();
+                }
+            }
         }
     }, true);
 
@@ -18710,6 +18749,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         Object.keys(_editorProgressModeByFileId).forEach((k) => delete _editorProgressModeByFileId[k]);
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
             leaveCollabForCurrentFile();
+        } else if (currentFileId != null && String(currentFileId) !== String(fileId) && window.CatFocusOp) {
+            window.CatFocusOp.noteFileChange();
         }
         // 切換到普通檔案時重置句段集／未受派唯讀狀態與橫幅
         _viewEditorReadOnly = false;
@@ -21909,8 +21950,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (catFakeCaret) catFakeCaret.show();
     }
 
-    function restoreSavedCaretIntoEditor() {
-        return catFakeCaret ? catFakeCaret.restore() : null;
+    function restoreSavedCaretIntoEditor(focusOp) {
+        return catFakeCaret ? catFakeCaret.restore(focusOp) : null;
     }
 
     /** 標準「還原儲存游標；失敗則顯示假游標」；供 Ctrl+Alt+上下、新增術語等呼叫。 */
@@ -23383,6 +23424,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     function flushPendingEditorFocus() {
         const pending = _pendingEditorFocus;
         if (!pending || pending.segId == null) return;
+        if (pending.focusOp && window.CatFocusOp && typeof window.CatFocusOp.isCurrent === 'function' && !window.CatFocusOp.isCurrent(pending.focusOp)) {
+            _pendingEditorFocus = null;
+            _pendingEditorFocusRetry = 0;
+            _pendingEditorCenterRetry = 0;
+            _pendingVirtScrollIssued = false;
+            return;
+        }
         if (pending.explicitNav && pending.scrollGenAtSchedule !== _userScrollGen) {
             _pendingEditorFocus = null;
             _pendingEditorFocusRetry = 0;
@@ -23593,6 +23641,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             forceVirtScroll: !!opts.forceVirtScroll,
             scrollGenAtSchedule: _userScrollGen,
             gen: _pendingEditorFocusGen,
+            focusOp: opts.focusOp || null,
         };
         _pendingEditorFocusRetry = 0;
         _pendingEditorCenterRetry = 0;
@@ -23609,6 +23658,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const pending = _pendingEditorFocus;
         _pendingEditorFocus = null;
+        if (pending && pending.focusOp && window.CatFocusOp && typeof window.CatFocusOp.isCurrent === 'function' && !window.CatFocusOp.isCurrent(pending.focusOp)) {
+            return false;
+        }
         let ok = false;
         withProgrammaticEditorFocus(() => {
             ok = applyEditorFocusAtSegId(pending.segId, pending);
@@ -23648,7 +23700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
-    function scheduleEditorFocusForSavedCaret(segId, plainOffset) {
+    function scheduleEditorFocusForSavedCaret(segId, plainOffset, focusOp) {
         if (segId == null) return false;
         const row = getGridRowBySegId(segId, false);
         return scheduleEditorFocus({
@@ -23660,6 +23712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             explicitNav: true,
             forceVirtScroll: !row,
             skipVirtScroll: !!row,
+            focusOp: focusOp || null,
         });
     }
 
@@ -26192,6 +26245,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         alertOccupied: (lease) => {
                             const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
                             alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
+                        },
+                        alertFailed: () => {
+                            if (typeof showCatToast === 'function') showCatToast('無法確認編輯資格，請再點一次這一句。', 'error');
                         },
                         markHeld: (id) => heldSegmentLeases.add(String(id)),
                         emitStart: () => emitCollabEdit('start', seg, seg.targetText || ''),
@@ -30451,16 +30507,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function catReturnFocusToEditorAfterTbAction() {
+        const ops = window.CatFocusOp;
+        const op = ops && typeof ops.beginExplicit === 'function' ? ops.beginExplicit() : null;
         const catTabBtn = document.querySelector('.tab-btn[data-tab="tabCAT"]');
         if (catTabBtn) catTabBtn.click();
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                if (restoreSavedCaretIntoEditor()) {
+                if (op && ops && typeof ops.isCurrent === 'function' && !ops.isCurrent(op)) {
+                    if (catFakeCaret && typeof catFakeCaret.show === 'function') catFakeCaret.show();
+                    return;
+                }
+                const restored = op ? restoreSavedCaretIntoEditor(op) : restoreSavedCaretIntoEditor();
+                if (restored && restored.__catCaretRestoreScheduled) return;
+                if (restored) {
                     const sel = window.getSelection();
                     if (sel && !sel.isCollapsed) sel.collapseToEnd();
-                } else {
-                    restoreOrShowFakeCatCaret({ allowSteal: true });
+                    return;
                 }
+                restoreOrShowFakeCatCaret({ allowSteal: true, op });
             });
         });
     }
