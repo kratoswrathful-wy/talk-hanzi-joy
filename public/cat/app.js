@@ -27587,7 +27587,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const upperSim = maxLen === 0 ? 100 : Math.floor(((maxLen - diffLen) / maxLen) * 100);
                 const penalty = (_activePenalties[tms._tmId] ?? 0) / 100;
                 // 先用上界快速排除，減少 levenshtein 的呼叫次數
-                if (upperSim < 50) return;
+                if (upperSim < 50) {
+                    // 長度上界不足 50% 時仍要留下短片段；直接 return 會讓 else 裡的片段分支永遠走不到。
+                    if (tms.sourceText && tms.sourceText.length >= 2 && seg.sourceText.includes(tms.sourceText)) {
+                        rawTm.push({ ...tms, score: 'S', type: 'Fragment' });
+                    }
+                    return;
+                }
                 const sim = calculateSimilarity(segSrcTrim, tmsSrc);
                 const effectiveScore2 = Math.max(0, Math.round((sim - penalty * 100)));
                 if (sim >= 50) {
@@ -27976,6 +27982,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 paintCatMatchTable();
                 window.currentTmRenderFooter = renderFooter;
             } else {
+                window.currentTmMatches = [];
                 window._repaintCatTmMatchTable = null;
                 window.catMatchPageIndex = 0;
                 searchResultsDOM.innerHTML = '<div style="padding: 1rem; color: #64748b; font-size: 0.9rem; text-align: center;">無相符 TM／TB 紀錄</div>';
@@ -27984,6 +27991,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (trackEl) trackEl.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">無 TM / 片段列可比對時無法顯示追蹤修訂。</span>';
             }
         } else {
+            window.currentTmMatches = [];
             window._repaintCatTmMatchTable = null;
             window.catMatchPageIndex = 0;
             const _isConfigured = (window.ActiveReadTmIds?.length > 0) || (window.ActiveReadTbIds?.length > 0);

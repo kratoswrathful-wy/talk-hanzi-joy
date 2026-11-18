@@ -19,6 +19,23 @@ function toDexieLocalId(id) {
     return id;
 }
 
+/** 離線記憶庫分頁。編輯器載入走 getTMSegmentsPage；先前只有團隊模式有這個方法，單機開檔會把整庫載入失敗。 */
+function pageTmSegmentRows(rows, offsetOrOpts, limit) {
+    const opts = offsetOrOpts && typeof offsetOrOpts === 'object'
+        ? offsetOrOpts
+        : { offset: offsetOrOpts || 0, limit: limit };
+    const pageLimit = Number(opts.limit ?? limit ?? 1000);
+    const afterId = opts.afterId ?? opts.cursor ?? null;
+    const sorted = (Array.isArray(rows) ? rows : []).slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+    const filtered = afterId != null
+        ? sorted.filter((row) => Number(row.id) > Number(afterId))
+        : sorted.slice(Number(opts.offset) || 0);
+    const segments = filtered.slice(0, pageLimit);
+    const last = segments.length ? segments[segments.length - 1] : null;
+    const nextCursor = filtered.length > pageLimit && last ? last.id : null;
+    return { segments, nextCursor };
+}
+
 /** 匯入掃描排序：有 globalId 者先；舊資料無則依列與欄位（與 cat-cloud-rpc 一致） */
 function sortSegmentsByImportOrder(segments) {
     return segments.slice().sort((a, b) => {
@@ -1821,6 +1838,13 @@ const DBService = {
     },
     async getTMSegments(tmId) {
         return await db.tmSegments.where('tmId').equals(tmId).toArray();
+    },
+    async countTMSegments(tmId) {
+        return await db.tmSegments.where('tmId').equals(tmId).count();
+    },
+    async getTMSegmentsPage(tmId, offsetOrOpts = 0, limit = 1000) {
+        const rows = await db.tmSegments.where('tmId').equals(tmId).toArray();
+        return pageTmSegmentRows(rows, offsetOrOpts, limit);
     },
     async getTMSegmentById(id) {
         return await db.tmSegments.get(id);
