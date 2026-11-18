@@ -36,6 +36,44 @@ function pageTmSegmentRows(rows, offsetOrOpts, limit) {
     return { segments, nextCursor };
 }
 
+/**
+ * 一次完整載入共用一份快照。分頁只切這份資料，不再每頁把整庫讀進記憶體。
+ * 切換記憶庫、結束載入，或記憶內容有寫入時，必須結束或作廢，避免沿用舊資料。
+ */
+function createTmSegmentSnapshotStore() {
+    const snaps = new Map();
+    return {
+        begin(tmId, rows) {
+            snaps.set(String(tmId), {
+                rows: Array.isArray(rows) ? rows.slice() : [],
+                sourceReads: 1,
+            });
+        },
+        end(tmId) {
+            if (tmId == null) snaps.clear();
+            else snaps.delete(String(tmId));
+        },
+        invalidate(tmId) {
+            if (tmId == null) snaps.clear();
+            else snaps.delete(String(tmId));
+        },
+        page(tmId, offsetOrOpts, limit) {
+            const snap = snaps.get(String(tmId));
+            if (!snap) return null;
+            const paged = pageTmSegmentRows(snap.rows, offsetOrOpts, limit);
+            paged.sourceReads = snap.sourceReads;
+            return paged;
+        },
+        stats(tmId) {
+            const snap = snaps.get(String(tmId));
+            if (!snap) return { active: false, count: 0, sourceReads: 0 };
+            return { active: true, count: snap.rows.length, sourceReads: snap.sourceReads };
+        },
+    };
+}
+
+const tmSegmentSnapshotStore = createTmSegmentSnapshotStore();
+
 /** 匯入掃描排序：有 globalId 者先；舊資料無則依列與欄位（與 cat-cloud-rpc 一致） */
 function sortSegmentsByImportOrder(segments) {
     return segments.slice().sort((a, b) => {
@@ -1808,6 +1846,7 @@ const DBService = {
     async patchTM(tmId, updates) { return await db.tms.update(tmId, { ...updates, lastModified: new Date().toISOString() }); },
     async deleteTM(tmId) { 
         await db.tmSegments.where('tmId').equals(tmId).delete();
+        tmSegmentSnapshotStore.invalidate(tmId);
         return await db.tms.delete(tmId); 
     },
 
@@ -1830,10 +1869,12 @@ const DBService = {
             lastModified: new Date().toISOString()
         });
         await db.tms.update(tmId, { lastModified: new Date().toISOString() });
+        tmSegmentSnapshotStore.invalidate(tmId);
         return id;
     },
     async bulkAddTMSegments(tmSegmentsArray) {
         await db.tmSegments.bulkAdd(tmSegmentsArray);
+        tmSegmentSnapshotStore.invalidate();
         // We assume updating the TM modified date is handled by the caller for bulk operations
     },
     async getTMSegments(tmId) {
@@ -1842,7 +1883,20 @@ const DBService = {
     async countTMSegments(tmId) {
         return await db.tmSegments.where('tmId').equals(tmId).count();
     },
+    async beginTmSegmentSnapshot(tmId) {
+        const rows = await db.tmSegments.where('tmId').equals(tmId).toArray();
+        tmSegmentSnapshotStore.begin(tmId, rows);
+        return tmSegmentSnapshotStore.stats(tmId);
+    },
+    endTmSegmentSnapshot(tmId) {
+        tmSegmentSnapshotStore.end(tmId);
+    },
+    invalidateTmSegmentSnapshot(tmId) {
+        tmSegmentSnapshotStore.invalidate(tmId);
+    },
     async getTMSegmentsPage(tmId, offsetOrOpts = 0, limit = 1000) {
+        const cached = tmSegmentSnapshotStore.page(tmId, offsetOrOpts, limit);
+        if (cached) return cached;
         const rows = await db.tmSegments.where('tmId').equals(tmId).toArray();
         return pageTmSegmentRows(rows, offsetOrOpts, limit);
     },
@@ -1850,15 +1904,19 @@ const DBService = {
         return await db.tmSegments.get(id);
     },
     async deleteTMSegmentsByTMId(tmId) {
-        return await db.tmSegments.where('tmId').equals(tmId).delete();
+        const removed = await db.tmSegments.where('tmId').equals(tmId).delete();
+        tmSegmentSnapshotStore.invalidate(tmId);
+        return removed;
     },
     async updateTMSegment(id, targetText, metaUpdate = {}) {
         const updatePayload = { targetText, lastModified: new Date().toISOString() };
         if(metaUpdate.changeLog) updatePayload.changeLog = metaUpdate.changeLog;
         await db.tmSegments.update(id, updatePayload);
+        tmSegmentSnapshotStore.invalidate();
     },
     async deleteTMSegment(id) {
         await db.tmSegments.delete(id);
+        tmSegmentSnapshotStore.invalidate();
     },
 
     // ---- TB (Termbase) ----
@@ -2729,6 +2787,11 @@ const DBService = {
     DBService.listMyViewAssignments = async () => rpc('db.listMyViewAssignments', {});
     DBService.updateViewAssignmentStatus = async (assignmentId, status) =>
         rpc('db.updateViewAssignmentStatus', { assignmentId, status });
+
+    // 團隊分頁走雲端，不使用單機快照。
+    DBService.beginTmSegmentSnapshot = async () => ({ active: false, count: 0, sourceReads: 0, skipped: true });
+    DBService.endTmSegmentSnapshot = () => {};
+    DBService.invalidateTmSegmentSnapshot = () => {};
 
     // table handles are local-only; prevent accidental direct Dexie usage in team mode.
     DBService.db = null;

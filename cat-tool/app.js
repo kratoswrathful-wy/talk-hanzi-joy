@@ -8914,6 +8914,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const doLoad = async () => {
                 stopRequested = false;
+                if (typeof DBService.endTmSegmentSnapshot === 'function') DBService.endTmSegmentSnapshot();
                 for (let idx = 0; idx < tmIds.length; idx++) {
                     if (stopRequested) return;
                     const tmId = tmIds[idx];
@@ -8948,6 +8949,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         overallLoaded,
                     });
 
+                    let snapshotOpen = false;
+                    try {
+                    if (typeof DBService.beginTmSegmentSnapshot === 'function') {
+                        await DBService.beginTmSegmentSnapshot(tmId);
+                        snapshotOpen = true;
+                    }
                     for (;;) {
                         if (stopRequested) return;
                         try {
@@ -8995,6 +9002,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     // 若做語言過濾，cacheReady 仍視為「此 TM 已完成背景掃描」
                     window._activeTmCacheReadyIds.add(tmKey);
+                    } finally {
+                        if (snapshotOpen && typeof DBService.endTmSegmentSnapshot === 'function') {
+                            DBService.endTmSegmentSnapshot(tmId);
+                        }
+                    }
                 }
 
                 setState({
