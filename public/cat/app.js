@@ -23016,6 +23016,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
+    /** 大檔的焦點移動要等確認做完，再等兩幀。下一鍵若不等，會留在原句。已掛上的下一句先同步取得焦點。 */
+    function focusMountedAfterConfirmTarget(currentIndex) {
+        const nextFocus = getAfterConfirmFocusIndex(currentIndex);
+        if (nextFocus == null) return false;
+        const nextSeg = currentSegmentsList[nextFocus];
+        if (!nextSeg) return false;
+        const row = getGridRowBySegId(nextSeg.id, false);
+        if (!row) return false;
+        const ed = row.querySelector('.col-target .grid-textarea') || row.querySelector('.grid-textarea');
+        if (!ed || ed.contentEditable === 'false') return false;
+        _skipFakeCaretOnBlurOnce = true;
+        try { ed.focus({ preventScroll: true }); } catch (_) { ed.focus(); }
+        return document.activeElement === ed;
+    }
+
     const AFTER_CONFIRM_SCROLL_BLOCK_KEY = 'catToolAfterConfirmScrollBlock';
 
     function getAfterConfirmScrollBlock() {
@@ -23469,6 +23484,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             && a.closest('.col-target'));
     }
 
+    function adoptLiveEditorTextIntoSegment(segId) {
+        const active = document.activeElement;
+        if (!active || !active.classList || !active.classList.contains('grid-textarea')) return;
+        const row = active.closest ? active.closest('.grid-data-row') : null;
+        if (!row || String(row.getAttribute('data-seg-id')) !== String(segId)) return;
+        const seg = currentSegmentsList.find((s) => s && String(s.id) === String(segId));
+        if (!seg) return;
+        let live = '';
+        try { live = extractTextFromEditor(active); } catch (_) { return; }
+        if (typeof live === 'string' && live && live !== (seg.targetText || '')) seg.targetText = live;
+    }
+
     function flushPendingEditorFocus() {
         const pending = _pendingEditorFocus;
         if (!pending || pending.segId == null) return;
@@ -23497,6 +23524,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
+        adoptLiveEditorTextIntoSegment(pending.segId);
         // explicitNav + center = 需要 focusOk AND centerOk 兩者皆 true 才算完成
         const wantCenter = virtOn && scrollBlock === 'center' && (pending.explicitNav || pending.forceVirtScroll);
 
@@ -27028,6 +27056,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
+                        if (!e.repeat) focusMountedAfterConfirmTarget(i);
                         void (async () => {
                             const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
                             if (!conflictOk) {
