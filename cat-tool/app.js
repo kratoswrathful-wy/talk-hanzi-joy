@@ -8231,11 +8231,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         await _persistSegmentWfState(seg);
     }
 
-    /** B-7g：Ctrl+Enter／右鍵已確認 */
-    async function onCtrlEnterConfirm(seg, row, segIdx, opts) {
-        const o = opts || {};
+    /**
+     * 確認當下就能決定的本地狀態。不寫庫、不等存檔。
+     * 審稿還原只改記憶體；寫庫留在確認的背景收尾。
+     */
+    function decideCtrlEnterConfirmLocal(seg, row) {
         if (!seg) return { focusNext: false };
-        if (await maybeRestoreReviewFromSnapshot(seg, row)) {
+        if (_isEligibleForReviewRestorePrompt(seg) && _targetMatchesReviewSnapshot(seg)) {
+            _applyReviewRestoreSnapshot(seg);
+            if (row) {
+                refreshStatusIconForRow(row, seg);
+                syncRowConfirmedStateClass(row, seg);
+            }
+            showCatToast('審稿已確認，未實質編輯內容', 'info');
+            updateProgress();
             return { focusNext: true, restored: true };
         }
         const disp = resolveSegmentConfirmDisplayState(seg);
@@ -8287,6 +8296,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         return { focusNext: true, tmOnly: true };
+    }
+
+    /** B-7g：Ctrl+Enter／右鍵已確認。本地決定不在這裡重做；還原路徑才補寫狀態。 */
+    async function onCtrlEnterConfirm(seg, row, segIdx, opts) {
+        void segIdx;
+        void opts;
+        const result = decideCtrlEnterConfirmLocal(seg, row);
+        if (result && result.restored) {
+            await DBService.updateSegmentStatus(seg.id, seg.status, buildWorkflowStatusExtra(seg));
+        }
+        return result;
     }
 
     function buildWorkflowStatusExtra(seg) {
@@ -19639,6 +19659,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _lastUserPointerEditorFocus = null;
     /** 確認跳行 blur 時略過一次假游標（避免舊列殘留） */
     let _skipFakeCaretOnBlurOnce = false;
+    /** 這次確認要離開的句段。blur 在衝突處理之前先看它，避免再開一次衝突或再存一次。 */
+    let confirmHandoffSegId = null;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
     let isBatchOpInProgress = false; // 批次操作進行中時，阻止 focusin 清除選取狀態
     
@@ -23016,9 +23038,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
-    /** 大檔的焦點移動要等確認做完，再等兩幀。下一鍵若不等，會留在原句。已掛上的下一句先同步取得焦點。 */
-    function focusMountedAfterConfirmTarget(currentIndex) {
-        const nextFocus = getAfterConfirmFocusIndex(currentIndex);
+    /**
+     * 已掛上的目標在同一個按鍵裡取得焦點。
+     * knownIndex 是這次確認算好的唯一目標；省略時才重算。
+     */
+    function focusMountedAfterConfirmTarget(currentIndex, knownIndex) {
+        const nextFocus = knownIndex == null ? getAfterConfirmFocusIndex(currentIndex) : knownIndex;
         if (nextFocus == null) return false;
         const nextSeg = currentSegmentsList[nextFocus];
         if (!nextSeg) return false;
@@ -23029,6 +23054,119 @@ document.addEventListener('DOMContentLoaded', async () => {
         _skipFakeCaretOnBlurOnce = true;
         try { ed.focus({ preventScroll: true }); } catch (_) { ed.focus(); }
         return document.activeElement === ed;
+    }
+
+    /** 遠端文字和現在不同，才需要使用者選一次。相同則清掉待決，不再開窗。 */
+    function remoteConflictNeedsChoice(seg, editor) {
+        if (!seg || !isTeamMode()) return false;
+        const key = String(seg.id);
+        const pending = pendingRemoteBySegId.get(key);
+        if (!pending) return false;
+        const localText = extractTextFromEditor(editor) || '';
+        if (normalizeCollabTargetPlainTextForCompare(localText) === normalizeCollabTargetPlainTextForCompare(pending.text)) {
+            pendingRemoteBySegId.delete(key);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 離開原句時：確認交接或衝突窗還開著，就不要再叫一次衝突處理。
+     * wasConfirmingLocal 是該列自己的 isConfirming。
+     */
+    function absorbConfirmBlur(seg, row, targetInput, wasConfirmingLocal) {
+        const handoffMine = confirmHandoffSegId != null && String(confirmHandoffSegId) === String(seg && seg.id);
+        const wasConfirming = !!wasConfirmingLocal || handoffMine;
+        if (wasConfirming || isResolvingRemoteConflict) {
+            if (handoffMine) confirmHandoffSegId = null;
+            return { skipConflict: true, wasConfirming };
+        }
+        return {
+            skipConflict: false,
+            wasConfirming: false,
+            promise: resolvePendingRemoteConflict(seg, row, targetInput),
+        };
+    }
+
+    /**
+     * 先完成本地確認與重複連動，再算出唯一目標並只交接那一句。
+     * hooks 負責該列的防抖計時與寫入世代（那些變數不在這層）。
+     */
+    function beginConfirmedFocusHandoff(seg, row, index, editor, hooks) {
+        const h = hooks || {};
+        if (!seg) return null;
+        if (typeof h.clearDebounce === 'function') h.clearDebounce();
+        const latestTarget = rebuildTargetEditorFromExtractedPlain(editor, seg, row);
+        seg.targetText = latestTarget;
+        const touch = collectConfirmTouchIndices(index);
+        const beforeSnapshots = {};
+        touch.forEach((idx) => {
+            const s = currentSegmentsList[idx];
+            if (s) beforeSnapshots[s.id] = snapshotSegForUndo(s);
+        });
+        const dispBefore = resolveSegmentConfirmDisplayState(seg);
+        const ceResult = decideCtrlEnterConfirmLocal(seg, row);
+        if (ceResult.confirmed || ceResult.upgraded || ceResult.restored) {
+            applyOptimisticRepetitionAfterPrimaryConfirm(index, { updateDom: true });
+            editorUndoEditStart[seg.id] = latestTarget;
+            editorUndoStatusStart[seg.id] = seg.status;
+        }
+        let targetId = null;
+        const handoff = () => {
+            if (ceResult.focusNext === false) {
+                maybeSwitchRightPanelToCatAfterConfirm();
+                return;
+            }
+            const nextFocus = getAfterConfirmFocusIndex(index);
+            if (nextFocus == null) {
+                showCatToast('後方無待確認句段', 'info');
+                moveCaretToEndAndShowFakeInTarget(index);
+                maybeSwitchRightPanelToCatAfterConfirm();
+                return;
+            }
+            const nextSeg = currentSegmentsList[nextFocus];
+            if (!nextSeg) return;
+            targetId = nextSeg.id;
+            confirmHandoffSegId = String(seg.id);
+            if (typeof h.bumpGeneration === 'function') h.bumpGeneration();
+            _skipFakeCaretOnBlurOnce = true;
+            focusMountedAfterConfirmTarget(index, nextFocus);
+            scheduleEditorFocus({
+                segId: nextSeg.id,
+                scrollBehavior: 'auto',
+                scrollBlock: getAfterConfirmScrollBlock(),
+                afterConfirmPanel: true,
+                explicitNav: true,
+                forceVirtScroll: true,
+            });
+        };
+        if (typeof h.withConfirming === 'function') h.withConfirming(handoff);
+        else handoff();
+        return { ceResult, latestTarget, beforeSnapshots, dispBefore, targetId, touch };
+    }
+
+    /** 有衝突先等那一次決定；取消不確認、不跳句。沒有衝突則同步交接。 */
+    function startEditorConfirm(seg, row, index, editor, hooks) {
+        if (isResolvingRemoteConflict) return;
+        const h = hooks || {};
+        const go = () => {
+            const plan = beginConfirmedFocusHandoff(seg, row, index, editor, h);
+            if (plan && typeof h.afterHandoff === 'function') h.afterHandoff(plan);
+        };
+        if (remoteConflictNeedsChoice(seg, editor)) {
+            void (async () => {
+                const conflictOk = await resolvePendingRemoteConflict(seg, row, editor);
+                if (!conflictOk) {
+                    queueMicrotask(() => {
+                        try { editor.focus(); } catch (_) { /* ignore */ }
+                    });
+                    return;
+                }
+                go();
+            })();
+            return;
+        }
+        go();
     }
 
     const AFTER_CONFIRM_SCROLL_BLOCK_KEY = 'catToolAfterConfirmScrollBlock';
@@ -26514,29 +26652,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const npModeBlur = !!document.getElementById('editorGrid')?.classList.contains('show-non-print');
                     try { saveCatCaretFromSelection(targetInput); } catch (_) { /* ignore */ }
                     scheduleLeaseReleaseTimer(seg);
-                    // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
-                    const wasConfirming = isConfirming;
                     refreshTagNextHighlight(row);
-                    const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
-                    if (!conflictOk) {
-                        queueMicrotask(() => targetInput.focus());
+                    // 確認交接與已開啟的衝突窗都在呼叫衝突處理之前結束，避免第二個等待蓋掉按鈕。
+                    const blurGate = absorbConfirmBlur(seg, row, targetInput, isConfirming);
+                    if (blurGate.skipConflict) {
+                        if (blurGate.wasConfirming) {
+                            emitCollabEdit('end', seg, null);
+                            requestAnimationFrame(() => {
+                                refreshNonPrintMarkers(targetInput);
+                                const ae = document.activeElement;
+                                const focusOnPeerEditor = !!(ae && ae !== targetInput
+                                    && ae.classList && ae.classList.contains('grid-textarea'));
+                                // 確認跳行：略過假游標；若焦點已在另一譯文格亦勿對舊列 show
+                                if (_skipFakeCaretOnBlurOnce) {
+                                    _skipFakeCaretOnBlurOnce = false;
+                                    return;
+                                }
+                                if (focusOnPeerEditor) return;
+                                showCatFakeCaretFromSaved();
+                            });
+                        }
                         return;
                     }
-                    if (wasConfirming) {
-                        emitCollabEdit('end', seg, null);
-                        requestAnimationFrame(() => {
-                            refreshNonPrintMarkers(targetInput);
-                            const ae = document.activeElement;
-                            const focusOnPeerEditor = !!(ae && ae !== targetInput
-                                && ae.classList && ae.classList.contains('grid-textarea'));
-                            // 確認跳行：略過假游標；若焦點已在另一譯文格亦勿對舊列 show
-                            if (_skipFakeCaretOnBlurOnce) {
-                                _skipFakeCaretOnBlurOnce = false;
-                                return;
-                            }
-                            if (focusOnPeerEditor) return;
-                            showCatFakeCaretFromSaved();
-                        });
+                    const conflictOk = await blurGate.promise;
+                    if (!conflictOk) {
+                        queueMicrotask(() => targetInput.focus());
                         return;
                     }
                     if (targetDebounceTimer) {
@@ -27056,66 +27196,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
-                        if (!e.repeat) focusMountedAfterConfirmTarget(i);
-                        void (async () => {
-                            const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
-                            if (!conflictOk) {
-                                queueMicrotask(() => targetInput.focus());
-                                return;
-                            }
-                            if (targetDebounceTimer) {
-                                clearTimeout(targetDebounceTimer);
-                                targetDebounceTimer = null;
-                            }
-                            const latestTarget = rebuildTargetEditorFromExtractedPlain(targetInput, seg, row);
-                            seg.targetText = latestTarget;
-
-                            const touch = collectConfirmTouchIndices(i);
-                            const beforeSnapshots = {};
-                            touch.forEach(idx => {
-                                const s = currentSegmentsList[idx];
-                                beforeSnapshots[s.id] = snapshotSegForUndo(s);
-                            });
-                            const dispBefore = resolveSegmentConfirmDisplayState(seg);
+                        if (e.repeat) return;
+                        startEditorConfirm(seg, row, i, targetInput, {
+                            clearDebounce() {
+                                if (targetDebounceTimer) {
+                                    clearTimeout(targetDebounceTimer);
+                                    targetDebounceTimer = null;
+                                }
+                            },
+                            bumpGeneration() { ++targetWriteGeneration; },
+                            withConfirming(run) {
+                                isConfirming = true;
+                                try { run(); } finally { isConfirming = false; }
+                            },
+                            afterHandoff(plan) {
+                                void (async () => {
+                            const { ceResult, latestTarget, beforeSnapshots, dispBefore, touch } = plan;
                             const tmU = [];
                             const tmR = [];
-                            const ceResult = await onCtrlEnterConfirm(seg, row, i);
-                            if (ceResult.confirmed || ceResult.upgraded || ceResult.restored) {
-                                applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
-                                editorUndoEditStart[seg.id] = latestTarget;
-                                editorUndoStatusStart[seg.id] = seg.status;
-                            }
-                            if (ceResult.tmOnly || ceResult.confirmed || ceResult.upgraded) {
-                                if (seg.status === 'confirmed' || _isWfTransMarked(seg) || _isWfReviewMarked(seg)) {
-                                    /* TM 於 side effects */
-                                }
-                            }
-                            isConfirming = true;
-                            ++targetWriteGeneration;
-                            if (ceResult.focusNext !== false) {
-                                const nextFocus = getAfterConfirmFocusIndex(i);
-                                _skipFakeCaretOnBlurOnce = true;
-                                if (nextFocus != null) {
-                                    const nextSeg = currentSegmentsList[nextFocus];
-                                    if (nextSeg) {
-                                        scheduleEditorFocus({
-                                            segId: nextSeg.id,
-                                            scrollBehavior: 'auto',
-                                            scrollBlock: getAfterConfirmScrollBlock(),
-                                            afterConfirmPanel: true,
-                                            explicitNav: true,
-                                            forceVirtScroll: true,
-                                        });
-                                    }
-                                } else {
-                                    showCatToast('後方無待確認句段', 'info');
-                                    moveCaretToEndAndShowFakeInTarget(i);
-                                    maybeSwitchRightPanelToCatAfterConfirm();
-                                }
-                            } else {
-                                maybeSwitchRightPanelToCatAfterConfirm();
-                            }
-                            isConfirming = false;
                             _qaIncrementalRefreshAfterConfirm([seg.id]);
                             if (ceResult.confirmed && (dispBefore === 'unconfirmed' || dispBefore === 'orig_confirmed' || dispBefore === 'review_revoked_editing')) {
                                 await _maybeShowAiReviewModal(seg, i, {
@@ -27187,7 +27285,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     _qaIncrementalRefreshAfterConfirm(qaTouchIds);
                                 } catch (err) { console.error(err); }
                             });
-                        })();
+                                })();
+                            },
+                        });
                     } else if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                         const s = window.getSelection();
                         if (s && s.rangeCount && s.isCollapsed) {
