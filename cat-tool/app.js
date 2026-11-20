@@ -23633,18 +23633,65 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function adoptLiveEditorTextIntoSegment(segId) {
         const active = document.activeElement;
-        if (!active || !active.classList || !active.classList.contains('grid-textarea')) return;
+        if (!active || !active.classList || !active.classList.contains('grid-textarea')) return false;
+        if (active.classList.contains('is-composing')) return false;
         const row = active.closest ? active.closest('.grid-data-row') : null;
-        if (!row || String(row.getAttribute('data-seg-id')) !== String(segId)) return;
+        if (!row || String(row.getAttribute('data-seg-id')) !== String(segId)) return false;
         const seg = currentSegmentsList.find((s) => s && String(s.id) === String(segId));
-        if (!seg) return;
+        if (!seg) return false;
         let live = '';
-        try { live = extractTextFromEditor(active); } catch (_) { return; }
-        if (typeof live === 'string' && live && live !== (seg.targetText || '')) {
-            seg.targetText = live;
+        try { live = extractTextFromEditor(active); } catch (_) { return false; }
+        if (typeof live !== 'string' || live === (seg.targetText || '')) return false;
+        seg.targetText = live;
+        return true;
+    }
+
+    /** 重畫前記下這一句畫面上的選取。沒讀到就不要猜它在句尾。 */
+    function readLiveTargetCaret(segId) {
+        const active = document.activeElement;
+        if (!active || !active.classList || !active.classList.contains('grid-textarea')) return null;
+        const row = active.closest ? active.closest('.grid-data-row') : null;
+        if (!row || String(row.getAttribute('data-seg-id')) !== String(segId)) return null;
+        const start = getPlainCaretOffsetViaRangeClone(active);
+        if (start == null) return null;
+        let end = start;
+        try {
+            const sel = window.getSelection();
+            if (sel && !sel.isCollapsed && sel.rangeCount) {
+                const r = sel.getRangeAt(0);
+                if (active.contains(r.endContainer)) {
+                    const rng = document.createRange();
+                    rng.setStart(active, 0);
+                    rng.setEnd(r.endContainer, r.endOffset);
+                    const holder = document.createElement('div');
+                    holder.appendChild(rng.cloneContents());
+                    end = extractTextFromEditor(holder).length;
+                }
+            }
+        } catch (_) { /* 讀不到結尾就只用起點 */ }
+        return { start, end };
+    }
+
+    function placePlainSelection(editor, start, end) {
+        if (!editor || start == null) return false;
+        const from = buildCollapsedRangeAtPlainTextOffsetUsingSegments(editor, start);
+        if (!from) return false;
+        const to = end != null && end !== start
+            ? buildCollapsedRangeAtPlainTextOffsetUsingSegments(editor, end)
+            : from;
+        try {
+            const range = document.createRange();
+            range.setStart(from.startContainer, from.startOffset);
+            if (to && to !== from) range.setEnd(to.startContainer, to.startOffset);
+            else range.collapse(true);
+            const sel = window.getSelection();
+            if (!sel) return false;
+            sel.removeAllRanges();
+            sel.addRange(range);
             return true;
+        } catch (_) {
+            return false;
         }
-        return false;
     }
 
     function flushPendingEditorFocus() {
@@ -23675,7 +23722,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
-        const adoptedLive = adoptLiveEditorTextIntoSegment(pending.segId);
+        const liveCaret = readLiveTargetCaret(pending.segId);
+        adoptLiveEditorTextIntoSegment(pending.segId);
         // explicitNav + center = 需要 focusOk AND centerOk 兩者皆 true 才算完成
         const wantCenter = virtOn && scrollBlock === 'center' && (pending.explicitNav || pending.forceVirtScroll);
 
@@ -23759,8 +23807,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             return;
         }
-        if (adoptedLive && active && active.classList.contains('grid-textarea')) {
-            setCaretAtEditorEnd(active);
+        const explicitRestore = !!(pending.restoreCaret && pending.plainOffset != null);
+        if (!explicitRestore && liveCaret && active && active.classList.contains('grid-textarea')) {
+            placePlainSelection(active, liveCaret.start, liveCaret.end);
         }
 
         // ── Step 4：驗 centerOk（focus 後不得 scroll，2.3p 規則） ──
