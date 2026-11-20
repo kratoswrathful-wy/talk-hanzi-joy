@@ -5007,7 +5007,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             renderEditorSegments();
             runSearchAndFilter();
-            alert(`已將重複句段模式「${repMode === 'after' ? '確認其後' : repMode === 'all' ? '確認全部' : '不參與自動填入'}」套用至所有句段。`);
+            const repLabel = repMode === 'after' ? '確認其後' : repMode === 'all' ? '確認全部' : '不參與自動填入';
+            showCatToast(`已將重複句段模式「${repLabel}」套用至所有句段。`, 'info');
         });
     } 
 
@@ -21714,10 +21715,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         range.deleteContents();
         const textNode = document.createTextNode(plainText);
         range.insertNode(textNode);
-        range.setStartAfter(textNode);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
+        try {
+            const after = document.createRange();
+            after.setStart(textNode, (textNode.nodeValue || '').length);
+            after.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(after);
+        } catch (_) {
+            placeCaretAfterNode(textNode);
+        }
+    }
+
+    /**
+     * 換行放在內容結尾時，瀏覽器不會把下一個字打進 br 後面的空文字節點，而會寫回上一行。
+     * 在語意換行後放一枚 data-cat-pad br，游標停在兩枚 br 之間；這枚占位不計入譯文。
+     */
+    function placeCaretAfterNode(node) {
+        if (!node || !node.parentNode) return false;
+        const parent = node.parentNode;
+        let next = node.nextSibling;
+        if (next && next.nodeType === 3 && !(next.nodeValue || '').length) {
+            const drop = next;
+            next = next.nextSibling;
+            drop.remove();
+        }
+        if (node.nodeName === 'BR' && (!next || (next.nodeType === 1 && next.getAttribute && next.getAttribute('data-cat-pad') === '1'))) {
+            let pad = next && next.getAttribute && next.getAttribute('data-cat-pad') === '1' ? next : null;
+            if (!pad) {
+                pad = document.createElement('br');
+                pad.setAttribute('data-cat-pad', '1');
+                parent.insertBefore(pad, next || null);
+            }
+            try {
+                const range = document.createRange();
+                range.setStartBefore(pad);
+                range.collapse(true);
+                const sel = window.getSelection();
+                if (!sel) return false;
+                sel.removeAllRanges();
+                sel.addRange(range);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+        if (!next || next.nodeType !== 3) {
+            next = document.createTextNode('');
+            parent.insertBefore(next, node.nextSibling);
+        }
+        try {
+            const range = document.createRange();
+            range.setStart(next, 0);
+            range.collapse(true);
+            const sel = window.getSelection();
+            if (!sel) return false;
+            sel.removeAllRanges();
+            sel.addRange(range);
+            return true;
+        } catch (_) {
+            return false;
+        }
     }
 
     /** 假游標模組實例（js/cat-fake-caret.js）；於 getSegDisplayIndexForTip 定義後初始化。 */
@@ -22085,13 +22142,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? (editorUndoStatusStart[seg.id] !== undefined ? editorUndoStatusStart[seg.id] : seg.status)
             : undefined;
 
+        let beforeOffset = null;
+        try { beforeOffset = getPlainCaretOffsetViaRangeClone(editor); } catch (_) { beforeOffset = null; }
         insertPlainTextAtCaret(editor, selectedText);
-
-        let postInsertRange = null;
-        try {
-            const selAfter = window.getSelection();
-            if (selAfter && selAfter.rangeCount > 0) postInsertRange = selAfter.getRangeAt(0).cloneRange();
-        } catch (_) { postInsertRange = null; }
+        const postInsertOffset = beforeOffset == null ? null : beforeOffset + String(selectedText).length;
 
         const newTarget = extractTextFromEditor(editor);
         if (seg) seg.targetText = newTarget;
@@ -22112,22 +22166,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         saveCatCaretFromSelection(editor);
         editor.dispatchEvent(new Event('input', { bubbles: true }));
-
-        if (postInsertRange) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    try {
-                        if (!document.body.contains(editor) || editor.contentEditable === 'false') return;
-                        editor.focus();
-                        const s2 = window.getSelection();
-                        if (!s2) return;
-                        s2.removeAllRanges();
-                        s2.addRange(postInsertRange);
-                        saveCatCaretFromSelection(editor);
-                        hideCatFakeCaret();
-                    } catch (_) { /* ignore */ }
-                });
-            });
+        if (postInsertOffset != null) {
+            try {
+                setCaretAtPlainTextOffsetUsingSegments(editor, postInsertOffset);
+                saveCatCaretFromSelection(editor);
+                hideCatFakeCaret();
+            } catch (_) { /* 插完後游標留在新文字後面 */ }
         }
 
         return true;
@@ -25241,9 +25285,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     /**
      * 瀏覽器在 contenteditable 常插入「占位」裸 &lt;br&gt;（例如根節點僅一個 br），不應對應到儲存的換行字元。
      * 使用者以 Shift+Enter 插入的換行一律帶 data-cat-nl="1"。
+     * data-cat-pad 只用來把游標留在換行後面，不計入譯文。
      */
     function isGhostBr(br, root) {
         if (!br || br.tagName !== 'BR' || !root) return false;
+        if (br.getAttribute && br.getAttribute('data-cat-pad') === '1') return true;
         if (br.getAttribute && br.getAttribute('data-cat-nl') === '1') return false;
         const p = br.parentNode;
         if (!p) return false;
@@ -25281,6 +25327,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function editorDomHasGhostNewlineArtifacts(editor) {
         if (!editor) return false;
         for (const br of editor.querySelectorAll('br')) {
+            if (br.getAttribute && br.getAttribute('data-cat-pad') === '1') continue;
             if (isGhostBr(br, editor)) return true;
         }
         let idx = 0;
@@ -25300,10 +25347,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (row) updateTagColors(row, plain);
         seg.targetText = plain;
         const npMode = document.getElementById('editorGrid')?.classList.contains('show-non-print');
-        if (npMode && caretPlainOff != null) {
-            requestAnimationFrame(() => {
-                setNpCaretOffset(editor, Math.min(caretPlainOff, plain.length));
-            });
+        if (caretPlainOff != null) {
+            const applyCaret = () => {
+                const max = extractTextFromEditor(editor).length;
+                const off = Math.max(0, Math.min(caretPlainOff, max));
+                if (npMode) setNpCaretOffset(editor, off);
+                else setCaretAtPlainTextOffsetUsingSegments(editor, off);
+            };
+            if (npMode) requestAnimationFrame(applyCaret);
+            else applyCaret();
         }
         return true;
     }
@@ -25371,10 +25423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!editorEl.contains(range.commonAncestorContainer)) return;
         range.deleteContents();
         range.insertNode(br);
-        range.setStartAfter(br);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
+        placeCaretAfterNode(br);
         editorEl.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
@@ -26663,8 +26712,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!_isComposing) {
                         const npMode = document.getElementById('editorGrid')?.classList.contains('show-non-print');
                         const _npOff = npMode ? getNpCaretOffset(targetInput) : null;
-                        if (canonicalizeTargetEditorFromExtractPlain(targetInput, seg, row, _npOff)) {
-                            /* rebuild 已透過 setEditorHtml 排程 NP 標記 */
+                        const plainCaret = npMode ? _npOff : getPlainCaretOffsetViaRangeClone(targetInput);
+                        if (canonicalizeTargetEditorFromExtractPlain(targetInput, seg, row, plainCaret)) {
+                            /* 重建後已把游標放回換行後的位置 */
                         } else if (npMode) {
                             if (_npRafId) cancelAnimationFrame(_npRafId);
                             _npRafId = requestAnimationFrame(() => {
@@ -26793,6 +26843,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     emitCollabEdit('commit', seg, seg.targetText);
                     emitCollabEdit('end', seg, null);
                     requestAnimationFrame(() => {
+                        let liveNow = '';
+                        try { liveNow = extractTextFromEditor(targetInput); } catch (_) { liveNow = newVal; }
+                        if (liveNow !== newVal) return;
                         refreshNonPrintMarkers(targetInput);
                         const maxPlain = extractTextFromEditor(targetInput).length;
                         const ae = document.activeElement;
