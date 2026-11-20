@@ -23131,6 +23131,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (typeof h.bumpGeneration === 'function') h.bumpGeneration();
             _skipFakeCaretOnBlurOnce = true;
             focusMountedAfterConfirmTarget(index, nextFocus);
+            // 下一句還沒掛上時，同一個按鍵裡先把它做出來再取得焦點。後面的排程只負責同一句的捲動，不再另挑目標。
+            if (typeof window !== 'undefined' && window.CatVirtGrid && window.CatVirtGrid.isEnabled()
+                && typeof window.CatVirtGrid.scrollToSegId === 'function'
+                && !getGridRowBySegId(nextSeg.id, false)) {
+                try {
+                    window.CatVirtGrid.scrollToSegId(nextSeg.id, virtScrollBlockFromPending(getAfterConfirmScrollBlock()));
+                } catch (_) { /* ignore */ }
+                focusMountedAfterConfirmTarget(index, nextFocus);
+            }
             scheduleEditorFocus({
                 segId: nextSeg.id,
                 scrollBehavior: 'auto',
@@ -23631,7 +23640,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!seg) return;
         let live = '';
         try { live = extractTextFromEditor(active); } catch (_) { return; }
-        if (typeof live === 'string' && live && live !== (seg.targetText || '')) seg.targetText = live;
+        if (typeof live === 'string' && live && live !== (seg.targetText || '')) {
+            seg.targetText = live;
+            return true;
+        }
+        return false;
     }
 
     function flushPendingEditorFocus() {
@@ -23662,7 +23675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const virtOn = window.CatVirtGrid && window.CatVirtGrid.isEnabled();
         const scrollBlock = virtScrollBlockFromPending(pending.scrollBlock || getAfterConfirmScrollBlock());
-        adoptLiveEditorTextIntoSegment(pending.segId);
+        const adoptedLive = adoptLiveEditorTextIntoSegment(pending.segId);
         // explicitNav + center = 需要 focusOk AND centerOk 兩者皆 true 才算完成
         const wantCenter = virtOn && scrollBlock === 'center' && (pending.explicitNav || pending.forceVirtScroll);
 
@@ -23745,6 +23758,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 _navFlushSafeCleanup(gen, pending);
             }
             return;
+        }
+        if (adoptedLive && active && active.classList.contains('grid-textarea')) {
+            setCaretAtEditorEnd(active);
         }
 
         // ── Step 4：驗 centerOk（focus 後不得 scroll，2.3p 規則） ──
