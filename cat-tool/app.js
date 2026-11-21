@@ -28613,6 +28613,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         e.preventDefault();
         e.stopPropagation();
+        if (window.CatVirtGrid && typeof window.CatVirtGrid.acknowledgeCurrentScroll === 'function') {
+            window.CatVirtGrid.acknowledgeCurrentScroll();
+        }
         // 優先：焦點在編輯格時，捲回使真游標可見
         const activeEl = document.activeElement;
         if (activeEl && activeEl.classList.contains('grid-textarea')) {
@@ -29435,7 +29438,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。');
             return;
         }
-        const ok = scheduleEditorFocus({ segId, scrollBehavior: 'auto', explicitNav: true });
+        const ok = scheduleEditorFocus({
+            segId,
+            scrollBehavior: 'auto',
+            scrollBlock: getAfterConfirmScrollBlock(),
+            explicitNav: true,
+        });
         if (!ok) {
             alert('無法跳至該句段（捲動定位失敗），請再試一次或重新整理頁面。');
         }

@@ -21,6 +21,8 @@
     let topSpacer = null;
     let bottomSpacer = null;
     let _suppressScroll = false;
+    let _lastAssignedTop = null;
+    let _acknowledgedTop = null;
     let _rendering = false;
     let _anchorSegId = null;
     let _anchorOffsetPx = 0;
@@ -60,10 +62,26 @@
         });
     }
 
+    function consumeProgrammaticScrollEcho(currentTop, assignedTop) {
+        if (assignedTop == null || !Number.isFinite(currentTop)) return { echo: false, assignedTop };
+        return { echo: Math.abs(currentTop - assignedTop) < 1, assignedTop: null };
+    }
+
+    function isUnchangedScroll(currentTop, acknowledgedTop) {
+        if (acknowledgedTop == null || !Number.isFinite(currentTop)) return false;
+        return Math.abs(currentTop - acknowledgedTop) < 1;
+    }
+
+    function markAssignedScrollTop(scrollEl, value) {
+        _lastAssignedTop = value;
+        scrollEl.scrollTop = value;
+        if (_lastAssignedTop != null) _lastAssignedTop = scrollEl.scrollTop;
+    }
+
     function assignScrollTop(scrollEl, value, source, trigger, extra) {
         if (!scrollEl) return;
         const before = scrollEl.scrollTop;
-        scrollEl.scrollTop = value;
+        markAssignedScrollTop(scrollEl, value);
         const after = scrollEl.scrollTop;
         logScrollTopWrite(source, trigger, scrollEl, before, after, extra);
     }
@@ -71,7 +89,7 @@
     function adjustScrollTop(scrollEl, adjust, source, trigger, extra) {
         if (!scrollEl || !adjust) return;
         const before = scrollEl.scrollTop;
-        scrollEl.scrollTop += adjust;
+        markAssignedScrollTop(scrollEl, before + adjust);
         const after = scrollEl.scrollTop;
         logScrollTopWrite(source, trigger, scrollEl, before, after, { adjust: Math.round(adjust), ...(extra || {}) });
     }
@@ -655,7 +673,20 @@
     }
 
     function onScroll() {
-        if (!enabled || _suppressScroll || _rendering) return;
+        if (!enabled || _rendering) return;
+        const scrollEl = cfg && cfg.scrollEl;
+        const currentTop = scrollEl ? scrollEl.scrollTop : null;
+        if (!_suppressScroll) {
+            const consumed = consumeProgrammaticScrollEcho(currentTop, _lastAssignedTop);
+            _lastAssignedTop = consumed.assignedTop;
+            if (consumed.echo) return;
+            if (isUnchangedScroll(currentTop, _acknowledgedTop)) {
+                _acknowledgedTop = null;
+                return;
+            }
+            _acknowledgedTop = null;
+        }
+        if (_suppressScroll) return;
         if (typeof cfg.onUserScroll === 'function') cfg.onUserScroll();
         releaseNavAnchorLock();
         if (scrollRaf) cancelAnimationFrame(scrollRaf);
@@ -903,12 +934,20 @@
         _catScrollWriteSeq = 0;
     }
 
+    function acknowledgeCurrentScroll() {
+        const scrollEl = cfg && cfg.scrollEl;
+        _acknowledgedTop = scrollEl ? scrollEl.scrollTop : null;
+    }
+
     function getWindowStartIdx() {
         return _lastStartIdx >= 0 ? _lastStartIdx : -1;
     }
 
     global.CatVirtGrid = {
         shouldUse,
+        consumeProgrammaticScrollEcho,
+        isUnchangedScroll,
+        acknowledgeCurrentScroll,
         isEnabled,
         getAnchorSegId,
         getWindowStartIdx,
