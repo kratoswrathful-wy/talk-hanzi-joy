@@ -13,4 +13,16 @@ describe("jump to a sentence uses the saved scroll setting", () => {
     const block = app.slice(start, end);
     expect(block).toContain("scrollBlock: getAfterConfirmScrollBlock()");
   });
+
+  it("notes the current scroll position before starting the return", () => {
+    const start = app.indexOf("function focusFakeCaretChord");
+    const end = app.indexOf("function getContextMenuSelectedIds", start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const block = app.slice(start, end);
+    const noted = block.indexOf("acknowledgeCurrentScroll");
+    const restore = block.indexOf("restoreOrShowFakeCatCaret");
+    expect(noted).toBeGreaterThan(0);
+    expect(restore).toBeGreaterThan(noted);
+  });
 });

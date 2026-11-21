@@ -13,7 +13,7 @@ function sliceBetween(startMarker, endMarker) {
 }
 
 describe("即時比對的片段與過期清單", () => {
-  const live = sliceBetween("async function renderLiveTmMatches(seg)", "window.handleCatResultClick = function");
+  const live = sliceBetween("async function renderLiveTmMatches(seg, gen)", "window.handleCatResultClick = function");
 
   it("長度上界低於 50% 時仍收短片段", () => {
     const fast = live.slice(live.indexOf("if (upperSim < 50)"), live.indexOf("const sim = calculateSimilarity"));

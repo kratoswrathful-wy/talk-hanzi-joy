@@ -27837,19 +27837,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _liveTmMatchDebounceTimer = null;
     let _liveTmMatchPendingSeg = null;
     const LIVE_TM_MATCH_DEBOUNCE_MS = 150;
+    let _liveTmMatchGen = 0;
+    let _liveTmMatchForSegId = null;
+
+    function dropMatchListForSentenceChange(seg) {
+        const nextId = seg && seg.id != null ? String(seg.id) : "";
+        if (_liveTmMatchForSegId != null && _liveTmMatchForSegId === nextId) return;
+        window.currentTmMatches = [];
+        const box = document.getElementById("tmSearchResults");
+        if (box) box.querySelectorAll(".result-block").forEach((el) => el.remove());
+    }
 
     function scheduleRenderLiveTmMatches(seg) {
+        dropMatchListForSentenceChange(seg);
         _liveTmMatchPendingSeg = seg;
         if (_liveTmMatchDebounceTimer != null) clearTimeout(_liveTmMatchDebounceTimer);
+        const gen = ++_liveTmMatchGen;
         _liveTmMatchDebounceTimer = setTimeout(() => {
             _liveTmMatchDebounceTimer = null;
             const s = _liveTmMatchPendingSeg;
             _liveTmMatchPendingSeg = null;
-            if (s) renderLiveTmMatches(s).catch(() => {});
+            if (s && gen === _liveTmMatchGen) renderLiveTmMatches(s, gen).catch(() => {});
         }, LIVE_TM_MATCH_DEBOUNCE_MS);
     }
 
-    async function renderLiveTmMatches(seg) {
+    async function renderLiveTmMatches(seg, gen) {
+        const myGen = gen == null ? ++_liveTmMatchGen : gen;
+        const publishForThisSentence = () => {
+            if (myGen !== _liveTmMatchGen) return false;
+            _liveTmMatchForSegId = seg && seg.id != null ? String(seg.id) : "";
+            return true;
+        };
         const searchResultsDOM = document.getElementById('tmSearchResults');
         const footerDOM = document.getElementById('liveFooterContent');
         if (!searchResultsDOM || !footerDOM) return;
@@ -28013,6 +28031,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             prependMqInsertedMatch(matches, seg);
 
             if (matches.length > 0) {
+                if (!publishForThisSentence()) return;
                 window.currentTmMatches = matches;
                 window.catMatchPageIndex = 0;
                 window.catPanelSelectedIndex = 0;
@@ -28268,6 +28287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 paintCatMatchTable();
                 window.currentTmRenderFooter = renderFooter;
             } else {
+                if (!publishForThisSentence()) return;
                 window.currentTmMatches = [];
                 window._repaintCatTmMatchTable = null;
                 window.catMatchPageIndex = 0;
@@ -28277,6 +28297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (trackEl) trackEl.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">無 TM / 片段列可比對時無法顯示追蹤修訂。</span>';
             }
         } else {
+            if (!publishForThisSentence()) return;
             window.currentTmMatches = [];
             window._repaintCatTmMatchTable = null;
             window.catMatchPageIndex = 0;
@@ -28342,8 +28363,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!fromKeyboard && !isCatDblclickInsertEnabled()) return;
 
         let targetRow, textarea;
-        const allRows = Array.from(document.querySelectorAll('.grid-data-row'));
-        let isTrueCursorInEditor = false;
 
         if (fromKeyboard) {
             // 優先 1：真游標（焦點在可編輯的 grid-textarea 內）
@@ -28351,7 +28370,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (ae && ae.classList.contains('grid-textarea') && ae.contentEditable !== 'false') {
                 textarea = ae;
                 targetRow = ae.closest('.grid-data-row');
-                isTrueCursorInEditor = true;
             }
 
             // 優先 2：假游標（儲存的游標位置）
@@ -28411,48 +28429,45 @@ document.addEventListener('DOMContentLoaded', async () => {
             setEditorHtml(textarea, buildTaggedHtml(text, effectiveTags(seg)));
             updateTagColors(targetRow, text);
         } else {
-            // TB / Frg：插入在游標位置
-            // 假游標情況：先還原儲存的游標位置（還原後 editor 自動取得焦點）
-            if (fromKeyboard && !isTrueCursorInEditor) {
-                const restored = restoreSavedCaretIntoEditor();
-                const isEditor = window.CatSavedCaretInsert
-                    && typeof window.CatSavedCaretInsert.isTargetEditorElement === 'function'
-                    && window.CatSavedCaretInsert.isTargetEditorElement(restored);
-                if (isEditor && restored === textarea) {
-                    // 已還原到同一譯文格
-                } else if (restored && restored.__catCaretRestoreScheduled) {
-                    const pendingText = text;
-                    if (window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.beginInsert === 'function') {
-                        window.CatSavedCaretInsert.beginInsert({
-                            text: pendingText,
-                            segId: seg.id,
-                            fileId: currentFileId,
-                            viewId: _currentViewId,
-                            insert: (editor) => {
-                                insertPlainTextAtCaret(editor, pendingText);
-                                const insertedTarget = extractTextFromEditor(editor);
-                                seg.targetText = insertedTarget;
-                                editorUndoEditStart[seg.id] = insertedTarget;
-                                const applyOldStatus = seg.status;
-                                pushEditorUndo(seg.id, oldTarget, insertedTarget, {
-                                    oldMatchValue,
-                                    newMatchValue: seg.matchValue,
-                                    oldStatus: applyOldStatus,
-                                    newStatus: applyOldStatus === 'confirmed' ? 'unconfirmed' : applyOldStatus
-                                });
-                                applyUpdateSegmentTarget(seg, insertedTarget, {}).catch(console.error);
-                                if (applyOldStatus === 'confirmed') {
-                                    unconfirmSegmentVisualAfterReplace(seg, rowIdx);
-                                }
-                                editor.dispatchEvent(new Event('input', { bubbles: true }));
-                                return true;
+            // TB / Frg：插入在游標位置。滑鼠雙擊會先離開譯文格，真游標已不在句中，
+            // 這時跟快捷鍵一樣還原離開前記下的位置，避免字插到句首。
+            const liveSelection = window.getSelection();
+            const liveSelectionInTarget = !!(liveSelection && liveSelection.rangeCount && textarea.contains(liveSelection.anchorNode));
+            if (!liveSelectionInTarget) {
+                const pendingText = text;
+                if (window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.beginInsert === 'function') {
+                    window.CatSavedCaretInsert.beginInsert({
+                        text: pendingText,
+                        segId: seg.id,
+                        fileId: currentFileId,
+                        viewId: _currentViewId,
+                        insert: (editor) => {
+                            insertPlainTextAtCaret(editor, pendingText);
+                            const insertedTarget = extractTextFromEditor(editor);
+                            seg.targetText = insertedTarget;
+                            editorUndoEditStart[seg.id] = insertedTarget;
+                            const applyOldStatus = seg.status;
+                            pushEditorUndo(seg.id, oldTarget, insertedTarget, {
+                                oldMatchValue,
+                                newMatchValue: seg.matchValue,
+                                oldStatus: applyOldStatus,
+                                newStatus: applyOldStatus === 'confirmed' ? 'unconfirmed' : applyOldStatus
+                            });
+                            applyUpdateSegmentTarget(seg, insertedTarget, {}).catch(console.error);
+                            if (applyOldStatus === 'confirmed') {
+                                unconfirmSegmentVisualAfterReplace(seg, rowIdx);
                             }
-                        });
-                    }
-                    return;
-                } else {
-                    setCaretAtEditorEnd(textarea);
+                            editor.dispatchEvent(new Event('input', { bubbles: true }));
+                            return true;
+                        }
+                    });
                 }
+                const restored = restoreSavedCaretIntoEditor();
+                if (restored && restored.__catCaretRestoreScheduled) return;
+                if (window.CatSavedCaretInsert && typeof window.CatSavedCaretInsert.cancel === 'function') {
+                    window.CatSavedCaretInsert.cancel();
+                }
+                setCaretAtEditorEnd(textarea);
             } else {
                 textarea.focus();
             }
