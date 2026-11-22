@@ -41,9 +41,17 @@
         return Number(capturedEpoch) !== Number(liveEpoch);
     }
 
+    /** 畫面外沒有格子就不要擋。正在組字，或格子裡的字和已保存的不同，這一批不要蓋掉。 */
+    function preTranslateShouldSkipLiveDraft(modelText, liveText, composing) {
+        if (liveText == null) return false;
+        if (composing) return true;
+        return String(liveText) !== String(modelText || '');
+    }
+
     root.CatPretranslateApply = {
         choosePreTranslateCandidate,
         planPreTranslateWrite,
-        editorDraftMustYield
+        editorDraftMustYield,
+        preTranslateShouldSkipLiveDraft
     };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

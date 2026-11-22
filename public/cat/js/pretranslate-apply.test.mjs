@@ -63,3 +63,11 @@ test('批次已接手時，較早的草稿不得再寫回', () => {
     assert.equal(api.editorDraftMustYield(1, 2), true);
     assert.equal(api.editorDraftMustYield(2, 2), false);
 });
+
+test('批次進行中，格子裡已經改過的字要留著', () => {
+    assert.equal(api.preTranslateShouldSkipLiveDraft('', null, false), false);
+    assert.equal(api.preTranslateShouldSkipLiveDraft('', '', false), false);
+    assert.equal(api.preTranslateShouldSkipLiveDraft('', '手改', false), true);
+    assert.equal(api.preTranslateShouldSkipLiveDraft('已存', '已存', false), false);
+    assert.equal(api.preTranslateShouldSkipLiveDraft('', '', true), true);
+});

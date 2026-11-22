@@ -1199,6 +1199,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyMatchCellVisual(row, seg.matchValue || '');
     }
 
+    function mountedTargetLiveDraft(seg) {
+        if (!seg || seg.id == null) return null;
+        const rows = document.querySelectorAll('.grid-data-row');
+        for (const candidate of rows) {
+            if (String(candidate.dataset.segId) !== String(seg.id)) continue;
+            const editor = candidate.querySelector('.col-target .rt-editor, .col-target .grid-textarea');
+            if (!editor) return null;
+            return {
+                text: extractTextFromEditor(editor),
+                composing: editor.classList.contains('is-composing')
+            };
+        }
+        return null;
+    }
+
     /** 確認寫庫前 await：與 debounce 已啟動、無法被 clearTimeout 取消的寫庫銜接（Phase B）。 */
     function awaitPendingSegmentTargetWritesForSeg(segId) {
         if (segId == null) return Promise.resolve();
@@ -19372,12 +19387,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setPreTranslateProgress(0, total);
                 let applyCount = 0;
                 const undoItems = [];
+                const batchFileId = currentFileId;
                 for (let idx = 0; idx < affectedSegments.length; idx++) {
+                    if (activeView !== 'viewEditor' || String(currentFileId) !== String(batchFileId)) break;
                     const seg = affectedSegments[idx];
                     const segSrcTrim = String(seg.sourceText || '').trim();
                     const segSrcLen = segSrcTrim.length;
                     const beforeSnap = snapshotSegForUndo(seg);
-                    if (isTargetWriteProtected(seg) || (!overwrite && seg.targetText.trim() !== '')) {
+                    const liveDraft = mountedTargetLiveDraft(seg);
+                    const skipLive = window.CatPretranslateApply
+                        && window.CatPretranslateApply.preTranslateShouldSkipLiveDraft(
+                            seg.targetText,
+                            liveDraft ? liveDraft.text : null,
+                            !!(liveDraft && liveDraft.composing)
+                        );
+                    if (skipLive) {
+                        if (liveDraft && !liveDraft.composing && String(seg.targetText || '') !== liveDraft.text) {
+                            claimSegmentForBatchWrite(seg);
+                            seg.targetText = liveDraft.text;
+                            paintSegmentTargetFromModel(seg);
+                            await applyUpdateSegmentTarget(seg, seg.targetText);
+                        }
+                        setPreTranslateProgress(idx + 1, total);
+                        if ((idx + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+                        continue;
+                    }
+                    if (isTargetWriteProtected(seg) || (!overwrite && String(seg.targetText || '').trim() !== '')) {
                         setPreTranslateProgress(idx + 1, total);
                         if ((idx + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
                         continue;
