@@ -1221,27 +1221,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         return t || Promise.resolve();
     }
 
-    /** 團隊模式 revision 衝突後自 DB 回填 `seg.segmentRevision`（Phase C 重試前）。 */
-    async function hydrateSegmentRevisionFromDb(seg) {
-        if (!currentFileId || !seg || seg.id == null) return false;
+    async function loadFreshSegmentRow(seg) {
+        if (!currentFileId || !seg || seg.id == null) return null;
         try {
             const all = await DBService.getSegmentsByFile(currentFileId);
             const fresh = Array.isArray(all) ? all.find(s => String(s.id) === String(seg.id)) : null;
-            if (!fresh) return false;
-            if (typeof fresh.segmentRevision === 'number' && !Number.isNaN(fresh.segmentRevision)) {
-                seg.segmentRevision = fresh.segmentRevision;
-            }
-            return true;
+            return fresh || null;
         } catch (e) {
             console.error('[cat-revision] hydrate revision failed', e, seg.id);
-            return false;
+            return null;
         }
+    }
+
+    /** 團隊模式 revision 衝突後自 DB 回填 `seg.segmentRevision`。譯文不同時不在這裡改版本號。 */
+    async function hydrateSegmentRevisionFromDb(seg) {
+        const fresh = await loadFreshSegmentRow(seg);
+        if (!fresh) return false;
+        if (typeof fresh.segmentRevision === 'number' && !Number.isNaN(fresh.segmentRevision)) {
+            seg.segmentRevision = fresh.segmentRevision;
+        }
+        return true;
     }
 
     /**
      * Team 雲端寫庫帶 `segmentRevision` 樂觀鎖；成功回寫 `seg.segmentRevision`。
      * 衝突時擲出 `code === 'SEGMENT_REVISION_CONFLICT'`（debounce 可靜默丟棄）。
-     * 團隊模式 revision 衝突時會自 DB 刷新 revision 後重試一次（Phase C）。
+     * 團隊模式只有伺服器譯文與這次要寫的相同，才刷新 revision 再寫一次；譯文不同就不覆蓋。
      */
     async function applyUpdateSegmentTarget(seg, newText, extra = {}) {
         const ex = extra == null || typeof extra !== 'object' ? {} : extra;
@@ -1286,10 +1291,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return await doRpc();
             } catch (err) {
                 if (err && err.code === 'SEGMENT_REVISION_CONFLICT' && isTeamMode()) {
-                    const ok = await hydrateSegmentRevisionFromDb(seg);
-                    if (ok) {
+                    const fresh = await loadFreshSegmentRow(seg);
+                    const mayRetry = !!(fresh && window.CatSegmentRevision
+                        && window.CatSegmentRevision.revisionConflictMayRetry(fresh.targetText, newText));
+                    if (mayRetry) {
+                        if (typeof fresh.segmentRevision === 'number' && !Number.isNaN(fresh.segmentRevision)) {
+                            seg.segmentRevision = fresh.segmentRevision;
+                        }
                         return await doRpc();
                     }
+                    if (fresh) err.serverSegment = fresh;
                 }
                 throw err;
             }
@@ -19386,6 +19397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const total = affectedSegments.length;
                 setPreTranslateProgress(0, total);
                 let applyCount = 0;
+                let conflictCount = 0;
                 const undoItems = [];
                 const batchFileId = currentFileId;
                 for (let idx = 0; idx < affectedSegments.length; idx++) {
@@ -19469,27 +19481,58 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 autoConfirm
                             })
                             : null;
+                        const previousTarget = {
+                            targetText: seg.targetText,
+                            targetTags: seg.targetTags,
+                            matchValue: seg.matchValue,
+                            status: seg.status
+                        };
                         claimSegmentForBatchWrite(seg);
                         if (plan) seg.targetTags = plan.tags;
                         seg.targetText = plan ? plan.text : (bestMatch.targetText || '');
                         seg.matchValue = plan ? plan.matchValue : bestScore.toString();
                         paintSegmentTargetFromModel(seg);
-                        await applyUpdateSegmentTarget(seg, seg.targetText, {
-                            matchValue: seg.matchValue,
-                            targetTags: seg.targetTags
-                        });
-                        const confirmAfter = plan
-                            ? plan.confirmAfterSave
-                            : !!(autoConfirm && bestScore >= 100);
-                        if (confirmAfter && seg.targetText === (plan ? plan.text : seg.targetText)) {
-                            seg.status = 'confirmed';
-                            await DBService.updateSegmentStatus(seg.id, 'confirmed');
+                        let saved = false;
+                        try {
+                            await applyUpdateSegmentTarget(seg, seg.targetText, {
+                                matchValue: seg.matchValue,
+                                targetTags: seg.targetTags
+                            });
+                            saved = true;
+                        } catch (err) {
+                            if (!(err && err.code === 'SEGMENT_REVISION_CONFLICT')) throw err;
+                            const fresh = err.serverSegment;
+                            if (fresh) {
+                                seg.targetText = fresh.targetText || '';
+                                seg.targetTags = Array.isArray(fresh.targetTags) ? fresh.targetTags : [];
+                                seg.matchValue = fresh.matchValue;
+                                seg.status = fresh.status || previousTarget.status || '';
+                                if (typeof fresh.segmentRevision === 'number' && !Number.isNaN(fresh.segmentRevision)) {
+                                    seg.segmentRevision = fresh.segmentRevision;
+                                }
+                            } else {
+                                seg.targetText = previousTarget.targetText;
+                                seg.targetTags = previousTarget.targetTags;
+                                seg.matchValue = previousTarget.matchValue;
+                                seg.status = previousTarget.status;
+                            }
+                            paintSegmentTargetFromModel(seg);
+                            conflictCount += 1;
                         }
-                        const afterSnap = snapshotSegForUndo(seg);
-                        if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
-                            undoItems.push({ id: seg.id, beforeSnap, afterSnap });
+                        if (saved) {
+                            const confirmAfter = plan
+                                ? plan.confirmAfterSave
+                                : !!(autoConfirm && bestScore >= 100);
+                            if (confirmAfter && seg.targetText === (plan ? plan.text : seg.targetText)) {
+                                seg.status = 'confirmed';
+                                await DBService.updateSegmentStatus(seg.id, 'confirmed');
+                            }
+                            const afterSnap = snapshotSegForUndo(seg);
+                            if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
+                                undoItems.push({ id: seg.id, beforeSnap, afterSnap });
+                            }
+                            applyCount++;
                         }
-                        applyCount++;
                     }
                     setPreTranslateProgress(idx + 1, total);
                     if ((idx + 1) % 20 === 0) {
@@ -19497,7 +19540,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 if (undoItems.length) pushUndoEntry({ kind: 'segmentState', items: undoItems });
-                setPreTranslateStatus(`預先翻譯完成！共更新 ${applyCount} 個句段。`, false);
+                const conflictNote = conflictCount
+                    ? `另有 ${conflictCount} 個句段伺服器已有較新譯文，沒有覆蓋。`
+                    : '';
+                setPreTranslateStatus(`預先翻譯完成！共更新 ${applyCount} 個句段。${conflictNote}`, false);
                 preTranslateModal.classList.add('hidden');
                 renderEditorSegments();
                 runSearchAndFilter();
