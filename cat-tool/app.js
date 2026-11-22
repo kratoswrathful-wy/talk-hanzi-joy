@@ -1163,6 +1163,41 @@ document.addEventListener('DOMContentLoaded', async () => {
      * Map 值為「尾端 Promise」，成功或失敗皆須前進鏈結，故以 `.then(()=>{},()=>{})` 吞錯接續。
      */
     const segmentTargetWriteTails = new Map();
+    /** 預先翻譯接手某一句時加一。較早的 debounce／失焦草稿看到數字變了就不得再寫回舊字。 */
+    const segmentBatchEpoch = new Map();
+    const segmentEditorDraftGuards = new Map();
+
+    function segmentBatchEpochOf(segId) {
+        return segmentBatchEpoch.get(String(segId)) || 0;
+    }
+
+    function claimSegmentForBatchWrite(seg) {
+        if (!seg || seg.id == null) return 0;
+        const key = String(seg.id);
+        const next = segmentBatchEpochOf(seg.id) + 1;
+        segmentBatchEpoch.set(key, next);
+        const guard = segmentEditorDraftGuards.get(key);
+        if (guard && typeof guard.clearPending === 'function') guard.clearPending();
+        return next;
+    }
+
+    function paintSegmentTargetFromModel(seg) {
+        if (!seg || seg.id == null) return;
+        const rows = document.querySelectorAll('.grid-data-row');
+        let row = null;
+        for (const candidate of rows) {
+            if (String(candidate.dataset.segId) === String(seg.id)) {
+                row = candidate;
+                break;
+            }
+        }
+        if (!row) return;
+        const editor = row.querySelector('.col-target .rt-editor, .col-target .grid-textarea');
+        if (!editor) return;
+        setEditorHtml(editor, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
+        updateTagColors(row, seg.targetText);
+        applyMatchCellVisual(row, seg.matchValue || '');
+    }
 
     /** 確認寫庫前 await：與 debounce 已啟動、無法被 clearTimeout 取消的寫庫銜接（Phase B）。 */
     function awaitPendingSegmentTargetWritesForSeg(segId) {
@@ -19371,22 +19406,50 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (upperSim < 50) continue;
                             const sim = calculateSimilarity(segSrcTrim, tmsSrc);
                             const effectiveScore = Math.max(0, sim - penalty);
-                            if (effectiveScore > bestScore) {
-                                bestScore = effectiveScore;
-                                bestMatch = tms;
+                            const picker = window.CatPretranslateApply;
+                            const picked = picker
+                                ? picker.choosePreTranslateCandidate(
+                                    [
+                                        ...(bestMatch ? [{ score: bestScore, entry: bestMatch }] : []),
+                                        { score: effectiveScore, entry: tms }
+                                    ],
+                                    0
+                                )
+                                : (effectiveScore > bestScore ? { candidate: tms, score: effectiveScore } : null);
+                            if (picked && picked.score > bestScore) {
+                                bestScore = picked.score;
+                                bestMatch = picked.candidate;
                             }
                             if (bestScore >= 101) break;
                         }
                     }
 
                     if (bestMatch && bestScore >= threshold) {
-                        seg.targetText = bestMatch.targetText;
-                        seg.matchValue = bestScore.toString();
-                        if (autoConfirm && bestScore >= 100) {
+                        const planner = window.CatPretranslateApply;
+                        const plan = planner
+                            ? planner.planPreTranslateWrite({
+                                candidateText: bestMatch.targetText,
+                                candidateTags: bestMatch.targetTags,
+                                score: bestScore,
+                                autoConfirm
+                            })
+                            : null;
+                        claimSegmentForBatchWrite(seg);
+                        if (plan) seg.targetTags = plan.tags;
+                        seg.targetText = plan ? plan.text : (bestMatch.targetText || '');
+                        seg.matchValue = plan ? plan.matchValue : bestScore.toString();
+                        paintSegmentTargetFromModel(seg);
+                        await applyUpdateSegmentTarget(seg, seg.targetText, {
+                            matchValue: seg.matchValue,
+                            targetTags: seg.targetTags
+                        });
+                        const confirmAfter = plan
+                            ? plan.confirmAfterSave
+                            : !!(autoConfirm && bestScore >= 100);
+                        if (confirmAfter && seg.targetText === (plan ? plan.text : seg.targetText)) {
                             seg.status = 'confirmed';
                             await DBService.updateSegmentStatus(seg.id, 'confirmed');
                         }
-                        await applyUpdateSegmentTarget(seg, seg.targetText, { matchValue: seg.matchValue });
                         const afterSnap = snapshotSegForUndo(seg);
                         if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
                             undoItems.push({ id: seg.id, beforeSnap, afterSnap });
@@ -26562,6 +26625,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (!effectiveLocked) {
                 let targetDebounceTimer;
+                segmentEditorDraftGuards.set(String(seg.id), {
+                    clearPending() {
+                        if (targetDebounceTimer) {
+                            clearTimeout(targetDebounceTimer);
+                            targetDebounceTimer = null;
+                        }
+                    }
+                });
                 let skipHighMatchInputGuard = false;
                 /** 寫庫世代：in-flight 晚歸補寫比對用；與 isConfirming 一併防止確認觸發的 blur 重複寫庫。 */
                 let targetWriteGeneration = 0;
@@ -26619,8 +26690,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     clearTimeout(targetDebounceTimer);
                     targetDebounceTimer = setTimeout(async () => {
                         sanitizeTargetEditorInlineArtifacts(targetInput, seg, row);
+                        const capturedEpoch = segmentBatchEpochOf(seg.id);
                         const myGen = ++targetWriteGeneration;
                         const latest = extractTextFromEditor(targetInput);
+                        if (window.CatPretranslateApply
+                            && window.CatPretranslateApply.editorDraftMustYield(capturedEpoch, segmentBatchEpochOf(seg.id))) {
+                            return;
+                        }
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                         const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
                         const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
@@ -26646,6 +26722,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                         } catch (err) {
                             if (err && err.code === 'SEGMENT_REVISION_CONFLICT') return;
                             console.error('[譯文 debounce 寫庫失敗]', err, seg.id);
+                            return;
+                        }
+                        if (window.CatPretranslateApply
+                            && window.CatPretranslateApply.editorDraftMustYield(capturedEpoch, segmentBatchEpochOf(seg.id))) {
+                            if ((seg.targetText || '') !== latest) {
+                                try {
+                                    await applyUpdateSegmentTarget(seg, seg.targetText, {
+                                        matchValue: seg.matchValue,
+                                        targetTags: seg.targetTags
+                                    });
+                                } catch (err3) {
+                                    if (!(err3 && err3.code === 'SEGMENT_REVISION_CONFLICT')) {
+                                        console.error('[譯文 debounce 批次還原失敗]', err3, seg.id);
+                                    }
+                                }
+                            }
                             return;
                         }
                         if (myGen !== targetWriteGeneration) {
@@ -26810,8 +26902,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const npMode = !!document.getElementById('editorGrid')?.classList.contains('show-non-print');
                     const caretPlainOff = npMode ? null : getPlainCaretOffsetViaRangeClone(targetInput);
                     const caretNpOff = npMode ? getNpCaretOffset(targetInput) : null;
+                    const capturedEpoch = segmentBatchEpochOf(seg.id);
                     const myGen = ++targetWriteGeneration;
                     const newVal = rebuildTargetEditorFromExtractedPlain(targetInput, seg, row);
+                    if (window.CatPretranslateApply
+                        && window.CatPretranslateApply.editorDraftMustYield(capturedEpoch, segmentBatchEpochOf(seg.id))) {
+                        emitCollabEdit('end', seg, null);
+                        return;
+                    }
                     const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                     const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
                     const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
@@ -26839,6 +26937,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.error('[譯文欄失焦寫庫失敗]', err, seg.id);
                         emitCollabEdit('end', seg, null);
                         requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                        return;
+                    }
+                    if (window.CatPretranslateApply
+                        && window.CatPretranslateApply.editorDraftMustYield(capturedEpoch, segmentBatchEpochOf(seg.id))) {
+                        if ((seg.targetText || '') !== newVal) {
+                            try {
+                                await applyUpdateSegmentTarget(seg, seg.targetText, {
+                                    matchValue: seg.matchValue,
+                                    targetTags: seg.targetTags
+                                });
+                            } catch (err3) {
+                                if (!(err3 && err3.code === 'SEGMENT_REVISION_CONFLICT')) {
+                                    console.error('[譯文欄失焦批次還原失敗]', err3, seg.id);
+                                }
+                            }
+                        }
+                        emitCollabEdit('end', seg, null);
                         return;
                     }
                     if (myGen !== targetWriteGeneration) {
