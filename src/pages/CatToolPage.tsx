@@ -17,6 +17,7 @@ import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSidebar } from "@/components/ui/sidebar";
+import { mergeCollabEditPresence } from "@/lib/cat-collab-edit-presence";
 import { isTrustedCatIframeMessage } from "@/lib/cat-iframe-message-guard";
 import { catWfLmsResultMessage, parseCatWfLmsRequestId } from "@/lib/cat-wf-lms-result";
 
@@ -410,16 +411,17 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           postCollabState(extractMembersFromPresence());
           return;
         }
+        const incomingEdit = {
+          sessionId: senderSessionId,
+          fileId: String(editPayload?.fileId || fileId),
+          segmentId: editPayload?.segmentId ?? null,
+          state: state || "start",
+          text: editPayload?.text ?? null,
+          at: editPayload?.at ?? new Date().toISOString(),
+        };
         collabEditRef.current = {
           ...collabEditRef.current,
-          [senderSessionId]: {
-            sessionId: senderSessionId,
-            fileId: String(editPayload?.fileId || fileId),
-            segmentId: editPayload?.segmentId ?? null,
-            state: state || "start",
-            text: editPayload?.text ?? null,
-            at: editPayload?.at ?? new Date().toISOString(),
-          },
+          [senderSessionId]: mergeCollabEditPresence(collabEditRef.current[senderSessionId], incomingEdit),
         };
         postCollabState(extractMembersFromPresence());
       })

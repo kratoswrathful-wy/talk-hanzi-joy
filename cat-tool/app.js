@@ -2478,6 +2478,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (segId == null) return;
         const owner = getSegmentEditLeaseOwner(segId);
         if (!owner || String(owner.sessionId || '') === String(collabSelfSessionId || '')) return;
+        const mayRevoke = window.CatSegmentLeaseIntent
+            && typeof window.CatSegmentLeaseIntent.collabMayRevokeEditor === 'function'
+            ? window.CatSegmentLeaseIntent.collabMayRevokeEditor(active, active)
+            : false;
+        if (!mayRevoke) return;
         const now = Date.now();
         if ((now - collabLeaseEjectAlertAt) > 1200) {
             collabLeaseEjectAlertAt = now;
@@ -2497,7 +2502,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!editor) return;
             const owner = getSegmentEditLeaseOwner(segId);
             const isForeignLock = !!(owner && String(owner.sessionId || '') !== String(collabSelfSessionId || ''));
-            if (isForeignLock) {
+            const mayRevoke = !window.CatSegmentLeaseIntent
+                || typeof window.CatSegmentLeaseIntent.collabMayRevokeEditor !== 'function'
+                || window.CatSegmentLeaseIntent.collabMayRevokeEditor(editor, document.activeElement);
+            if (isForeignLock && mayRevoke) {
                 row.classList.add('collab-locked-live');
                 editor.setAttribute('contenteditable', 'false');
                 editor.setAttribute('data-collab-locked', '1');

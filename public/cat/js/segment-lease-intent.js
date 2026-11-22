@@ -178,5 +178,11 @@
         return { outcome: kind === 'unknown' ? 'failed' : (decision.action || 'cleared') };
     }
 
-    return { createLeaseCoordinator, runEditorFocus, classifyAcquire, settleAfterRelease };
+    function collabMayRevokeEditor(editor, activeElement) {
+        if (!editor) return false;
+        if (activeElement && editor === activeElement) return false;
+        return true;
+    }
+
+    return { createLeaseCoordinator, runEditorFocus, classifyAcquire, settleAfterRelease, collabMayRevokeEditor };
 });

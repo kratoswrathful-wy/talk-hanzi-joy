@@ -17,7 +17,7 @@ function loadBrowserScript(file, exportName) {
     return context[exportName];
 }
 
-const { createLeaseCoordinator, runEditorFocus, settleAfterRelease } = loadBrowserScript('segment-lease-intent.js', 'CatSegmentLeaseIntent');
+const { createLeaseCoordinator, runEditorFocus, settleAfterRelease, collabMayRevokeEditor } = loadBrowserScript('segment-lease-intent.js', 'CatSegmentLeaseIntent');
 
 function editor(id) {
     return {
@@ -398,4 +398,12 @@ test('a failed renew does not keep the local hold or call the other person edito
     assert.equal(ctx.stopped, true);
     assert.equal(toasts.some((message) => message.includes('其他成員')), false);
     assert.equal(toasts.some((message) => message.includes('無法延續')), true);
+});
+
+test('已經在打的格子不能被協作鎖移開', () => {
+    const live = { id: 'live' };
+    const other = { id: 'other' };
+    assert.equal(collabMayRevokeEditor(live, live), false);
+    assert.equal(collabMayRevokeEditor(other, live), true);
+    assert.equal(collabMayRevokeEditor(null, live), false);
 });
