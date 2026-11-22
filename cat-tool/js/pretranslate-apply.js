@@ -48,10 +48,16 @@
         return String(liveText) !== String(modelText || '');
     }
 
+    /** 還有格子正在組字時，不要整表重畫，以免組字被拆掉。 */
+    function preTranslateMayRebuildGrid(composing) {
+        return !composing;
+    }
+
     root.CatPretranslateApply = {
         choosePreTranslateCandidate,
         planPreTranslateWrite,
         editorDraftMustYield,
-        preTranslateShouldSkipLiveDraft
+        preTranslateShouldSkipLiveDraft,
+        preTranslateMayRebuildGrid
     };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

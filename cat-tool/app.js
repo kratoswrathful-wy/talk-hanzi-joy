@@ -19526,6 +19526,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (confirmAfter && seg.targetText === (plan ? plan.text : seg.targetText)) {
                                 seg.status = 'confirmed';
                                 await DBService.updateSegmentStatus(seg.id, 'confirmed');
+                                const rows = document.querySelectorAll('.grid-data-row');
+                                for (const row of rows) {
+                                    if (String(row.dataset.segId) !== String(seg.id)) continue;
+                                    refreshStatusIconForRow(row, seg);
+                                    syncRowConfirmedStateClass(row, seg);
+                                    break;
+                                }
                             }
                             const afterSnap = snapshotSegForUndo(seg);
                             if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
@@ -19545,8 +19552,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : '';
                 setPreTranslateStatus(`預先翻譯完成！共更新 ${applyCount} 個句段。${conflictNote}`, false);
                 preTranslateModal.classList.add('hidden');
-                renderEditorSegments();
-                runSearchAndFilter();
+                const composingNow = !!document.querySelector('.col-target .is-composing');
+                const mayRebuild = !window.CatPretranslateApply
+                    || window.CatPretranslateApply.preTranslateMayRebuildGrid(composingNow);
+                if (mayRebuild) {
+                    renderEditorSegments();
+                    runSearchAndFilter();
+                }
                 updateProgress();
             } catch (e) {
                 console.error(e);

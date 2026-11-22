@@ -71,3 +71,8 @@ test('批次進行中，格子裡已經改過的字要留著', () => {
     assert.equal(api.preTranslateShouldSkipLiveDraft('已存', '已存', false), false);
     assert.equal(api.preTranslateShouldSkipLiveDraft('', '', true), true);
 });
+
+test('正在組字時不要整表重畫', () => {
+    assert.equal(api.preTranslateMayRebuildGrid(true), false);
+    assert.equal(api.preTranslateMayRebuildGrid(false), true);
+});
