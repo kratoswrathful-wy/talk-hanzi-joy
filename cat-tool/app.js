@@ -22547,22 +22547,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return eb;
     }
 
-    function scheduleNpCaretAfterTargetUndo(segIdx, plainOffset) {
-        const opGen = _pendingEditorFocusGen;
-        const scrollGen = _userScrollGen;
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                if (opGen !== _pendingEditorFocusGen || scrollGen !== _userScrollGen) return;
-                const row = getGridRowAtListIndex(segIdx);
-                const ta = row && row.querySelector('.grid-textarea');
-                if (!ta || ta.contentEditable === 'false') return;
-                const maxLen = (extractTextFromEditor(ta) || '').length;
-                const clamped = Math.max(0, Math.min(plainOffset | 0, maxLen));
-                setNpCaretOffset(ta, clamped);
-                ta.focus();
-                saveCatCaretFromSelection(ta);
-            });
-        });
+    function restoreCaretAfterTargetUndo(segIdx, plainOffset) {
+        const row = getGridRowAtListIndex(segIdx);
+        const ta = row && row.querySelector('.grid-textarea');
+        if (!ta || ta.contentEditable === 'false') return;
+        const maxLen = (extractTextFromEditor(ta) || '').length;
+        const clamped = Math.max(0, Math.min(plainOffset | 0, maxLen));
+        // 格子已同步重建，游標也須同步還原；延後兩幀會讓下一字先寫到舊位置。
+        ta.focus();
+        setNpCaretOffset(ta, clamped);
+        saveCatCaretFromSelection(ta);
     }
 
     function applyOneTargetUndo(te, direction) {
@@ -22590,13 +22584,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (ta) {
                 setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(seg)));
                 updateTagColors(row, tgt);
-                scheduleNpCaretAfterTargetUndo(segIdx, caretPlain);
+                restoreCaretAfterTargetUndo(segIdx, caretPlain);
             }
             applyMatchCellVisual(row, seg.matchValue);
             syncRowConfirmedStateClass(row, seg);
             refreshStatusIconForRow(row, seg);
-            if (editorUndoEditStart[seg.id] !== undefined) editorUndoEditStart[seg.id] = tgt;
         }
+
+        editorUndoEditStart[seg.id] = tgt;
+        editorUndoStatusStart[seg.id] = seg.status;
+        editorUndoMatchStart[seg.id] = seg.matchValue;
 
         const extra = {};
         if (mv !== undefined) extra.matchValue = mv;
@@ -22660,7 +22657,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /** 復原／重做前先收下尚未進入 500ms 紀錄的輸入，不等待寫庫、不重建格子。 */
+    function flushActiveTargetUndoDraft(clearPending = true) {
+        const editor = document.activeElement;
+        if (!editor || !editor.classList || !editor.classList.contains('grid-textarea')) return true;
+        // 組字交給輸入法處理；不能把未選字的內容收進歷史或重畫該格。
+        if (editor.classList.contains('is-composing')) return false;
+        const row = editor.closest('.grid-data-row');
+        const seg = row && currentSegmentsList.find(s => String(s.id) === String(row.dataset.segId));
+        if (!seg) return true;
+        const latest = extractTextFromEditor(editor);
+        const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
+        if (oldVal === latest) return true;
+        const guard = segmentEditorDraftGuards.get(String(seg.id));
+        if (clearPending && guard && typeof guard.clearPending === 'function') guard.clearPending();
+        pushEditorUndo(seg.id, oldVal, latest, {
+            oldMatchValue: editorUndoMatchStart[seg.id],
+            newMatchValue: seg.matchValue,
+            oldStatus: editorUndoStatusStart[seg.id],
+            newStatus: seg.status
+        });
+        editorUndoEditStart[seg.id] = latest;
+        editorUndoStatusStart[seg.id] = seg.status;
+        editorUndoMatchStart[seg.id] = seg.matchValue;
+        seg.targetText = latest;
+        return true;
+    }
+
     function applyEditorUndo() {
+        if (!flushActiveTargetUndoDraft()) return;
         const raw = editorUndoStack.pop();
         const entry = normalizeUndoEntry(raw);
         if (!entry) return;
@@ -22730,6 +22755,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function applyEditorRedo() {
+        // 新輸入會清除重做分支，仍須保留它原本的儲存排程。
+        if (!flushActiveTargetUndoDraft(false)) return;
         const raw = editorRedoStack.pop();
         const entry = normalizeUndoEntry(raw);
         if (!entry) return;
